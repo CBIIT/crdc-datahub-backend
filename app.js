@@ -8,8 +8,6 @@ const config = require('./config');
 const createSession = require("./middleware/session-middleware");
 const statusRouter = require("./routers/status-endpoints-router");
 const graphqlRouter = require("./routers/graphql-router");
-const {DatabaseConnector} = require("./crdc-datahub-database-drivers/database-connector");
-const databaseConnector = new DatabaseConnector(config.mongo_db_connection_string);
 
 // print environment variables to log
 console.info(config);
@@ -30,13 +28,13 @@ app.use(express.urlencoded({ extended: false }));
 app.use(express.static(join(__dirname, 'public')));
 
 // add ping and version endpoints
-app.use("/api/backend", statusRouter);
+app.use("/api", statusRouter);
 
 // create session
-app.use(createSession(config.session_secret, config.session_timeout, databaseConnector));
+app.use(createSession(config.session_secret, config.session_timeout, config.mongo_db_connection_string));
 
 // add graphql endpoint
-app.use("/api/backend/graphql", graphqlRouter);
+app.use("/api/v1/graphql", graphqlRouter);
 
 // catch 404 and forward to error handler
 app.use((req, res, next) => {
