@@ -28,13 +28,13 @@ app.use(express.urlencoded({ extended: false }));
 app.use(express.static(join(__dirname, 'public')));
 
 // add ping and version endpoints
-app.use("/api", statusRouter);
+app.use("/", statusRouter);
 
 // create session
 app.use(createSession(config.session_secret, config.session_timeout, config.mongo_db_connection_string));
 
 // add graphql endpoint
-app.use("/api/v1/graphql", graphqlRouter);
+app.use("/api/graphql", graphqlRouter);
 
 // catch 404 and forward to error handler
 app.use((req, res, next) => {
