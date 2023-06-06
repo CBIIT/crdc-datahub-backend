@@ -60,4 +60,3 @@ Environment variables can either be set in the runtime environment or specified 
  - **/ping** - Accepts ```GET``` requests and returns the string "pong", used primarily to check if this API is running
  - **/api/graphql** - Accepts ```POST``` requests containing GraphQL queries and returns the query results
 
-  
