@@ -1,0 +1,166 @@
+type Application {
+    id: ID!
+    sections: [Section]
+    pi: PI
+    primaryContact: PrimaryContact
+    additionalContacts: [AdditionalContact]
+    program: Program
+    study: Study
+    funding: Funding
+    accessPolicy: String
+    targetedReleaseDate: String # YYYY-MM-DD format
+    embargoInfo: String
+    cancerTypes: [String] # FE control allowed values
+    preCancerTypes: [String] # FE control allowed values
+    numberOfParticipants: Int
+    species: [String] # FE control allowed values
+    dataTypes: [String] # FE control allowed values
+    clinicalData: ClinicalData
+    files: [FileInfo]
+    publications: [Publication]
+    timeConstraints: String
+    submitterComment: String
+    status: String # [In Progress, Submitted, In Review, Approve, Rejected]
+    reviewComment: String
+    createdAt: String # YYYY-MM-DDTHH:MM:SS format
+    updatedAt: String # YYYY-MM-DDTHH:MM:SS format
+    history: [Event]
+}
+
+input AppInput {
+    id: ID
+    sections: [Section]
+    pi: PI
+    primaryContact: PrimaryContact
+    additionalContacts: [AdditionalContact]
+    program: Program
+    study: Study
+    funding: Funding
+    accessPolicy: String
+    targetedReleaseDate: String # YYYY-MM-DD format
+    embargoInfo: String
+    cancerTypes: [String] # FE control allowed values
+    preCancerTypes: [String] # FE control allowed values
+    numberOfParticipants: Int
+    species: [String] # FE control allowed values
+    dataTypes: [String] # FE control allowed values
+    clinicalData: ClinicalData
+    files: [FileInfo]
+    publications: [Publication]
+    timeConstraints: String
+    submitterComment: String
+}
+
+type Section {
+    name: String # Section A, B, C etc.
+    status: String # FE control allowed values
+}
+
+type Event {
+    status: String ["In Progress", "Submitted", "In Review", "Approve", "Rejected"]
+    dateTime: String # YYYY-MM-DDTHH:MM:SS format
+    userID: ID!
+}
+
+type ClinicalData {
+    dataTypes: [String]  # FE control allowed values
+    futureDataTypes: Boolean
+}
+
+type Publication {
+    title: String
+    pubmedID: String
+    DOI: String
+}
+
+type FileInfo {
+    type: String  # FE control allowed values
+    count: Int
+    amount: String # xxxMB, GB etc
+}
+
+type Funding {
+    agencies: [Agency]
+    nciProgramOfficer: String
+    nciGPA: String
+}
+
+type Agency {
+    name: String
+    grantNumbers: [String]
+}
+
+type PrimaryContact {
+    firstName: String
+    lastName: String
+    email: String
+    phone: String
+}
+
+type AdditionalContact {
+    role: String
+    firstName: String
+    lastName: String
+    email: String
+    phone: String
+}
+
+type Program {
+    title: String
+    abbreviation: String
+    description: String
+}
+
+type Study {
+    title: String
+    abbreviation: String
+    description: String
+    repositories: [Repository]
+}
+
+type Repository {
+    name: String
+    studyID: String
+}
+
+type PI {
+    firstName: String
+    lastName: String
+    position: String
+    email: String
+    institution: String
+    eRAAccount: String
+    address: Address
+}
+
+type Address {
+    street: String
+    city: String
+    state: String
+    zip: String
+}
+
+type Query {
+    "User or Fed lead initiated operations"
+    getApplication (id: ID!): Application
+    getLatestPIInfo: PI
+
+    "Result depends on user's permission"
+    listApplications(first: Int = 10, offset: Int = 0): [Application]
+}
+
+type Mutation {
+    "User initiated operations"
+    saveApplication(id: ID, application: AppInput): Application
+    submitApplication(id: ID!): Application
+    reopenApplication(id: ID!): Application
+    cloneApplication(id: ID!): Application
+
+    "Fed lead initiated operations"
+    approveApplication (id: ID!, wholeProgram: Boolean, comment: String): Application
+    rejectApplication (id: ID!, comment: String!): Application
+
+    "Admin only operations"
+    deleteApplication (id: ID!): Application
+}
+
