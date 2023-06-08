@@ -16,6 +16,7 @@
     "graphql-http": "^1.18.0",
     "http-errors": "^2.0.0",
     "mongodb": "^5.5.0",
-    "morgan": "^1.10.0"
+    "morgan": "^1.10.0",
+    "uuid": "^9.0.0"
   }
 }
