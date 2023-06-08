@@ -5,7 +5,7 @@ const cors = require('cors');
 const logger = require('morgan');
 const createError = require('http-errors');
 const config = require('./config');
-const createSession = require("./middleware/session-middleware");
+const createSession = require("./crdc-datahub-database-drivers/session-middleware");
 const statusRouter = require("./routers/status-endpoints-router");
 const graphqlRouter = require("./routers/graphql-router");
 
