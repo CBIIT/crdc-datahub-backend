@@ -31,7 +31,7 @@ class Application {
 
     async reopenApplication(document) {
         const result = await this.getApplicationById(document._id);
-        const isValidRejectionState = result && result[0].status === REJECTED && result[0].status != IN_REVIEW;
+        const isValidRejectionState = result.length > 0 && result[0].status === REJECTED && result[0].status != IN_REVIEW;
         if (isValidRejectionState) throw Error("Invalid Application Submission - Previous State 'In Review' required for rejected application");
         return (result) ? result[0] : {};
     }
