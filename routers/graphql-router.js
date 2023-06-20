@@ -3,9 +3,10 @@ const {createHandler} = require("graphql-http/lib/use/express");
 const config = require("../config");
 const {Application} = require("../services/application");
 const {MongoQueries} = require("../crdc-datahub-database-drivers/mongo-queries");
+const {DATABASE_NAME} = require("../crdc-datahub-database-drivers/database-constants");
 
 const schema = buildSchema(require("fs").readFileSync("resources/graphql/crdc-datahub.graphql", "utf8"));
-const dbService = new MongoQueries(config.mongo_db_connection_string);
+const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
 const dataInterface = new Application(dbService);
 const root = {
     version: () => {return config.version},
