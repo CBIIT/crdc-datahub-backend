@@ -14,6 +14,8 @@ class Application {
     }
 
     async getApplication(params, context) {
+        verifySession(context)
+            .verifyInitialized();
         return this.getApplicationById(params._id);
     }
 
