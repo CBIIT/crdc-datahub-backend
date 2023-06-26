@@ -1,5 +1,5 @@
 const ERROR = require("../../constants/error-constants");
-const {verifySession} = require("../../verifier/session-verifier");
+const {verifySession} = require("../../verifier/user-info-verifier");
 
 
 describe("session verifier test", () => {

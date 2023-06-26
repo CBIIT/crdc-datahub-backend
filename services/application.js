@@ -4,7 +4,7 @@ const {v4} = require('uuid')
 const {getCurrentTimeYYYYMMDDSS} = require("../utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifyApplication} = require("../verifier/application-verifier");
-const {verifySession} = require("../verifier/session-verifier");
+const {verifySession} = require("../verifier/user-info-verifier");
 const ERROR = require("../constants/error-constants");
 
 class Application {
@@ -14,12 +14,14 @@ class Application {
     }
 
     async getApplication(params, context) {
+        verifySession(context)
+            .verifyInitialized();
         return this.getApplicationById(params._id);
     }
 
     async getApplicationById(id) {
         let result = await this.applicationCollection.find(id);
-        if (result.length < 1) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
+        if (!result?.length || result.length < 1) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
         return result[0];
     }
 

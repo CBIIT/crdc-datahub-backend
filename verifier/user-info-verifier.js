@@ -1,10 +1,10 @@
 const ERROR = require("../constants/error-constants");
 
 function verifySession(context){
-    return new SessionVerifier(context);
+    return new UserInfoVerifier(context);
 }
 
-class SessionVerifier{
+class UserInfoVerifier {
 
     constructor(context) {
         const userInfo = context?.userInfo;
