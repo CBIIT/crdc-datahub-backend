@@ -1,8 +1,8 @@
-const {NotifyService} = require("../../services/notify");
-const {NotificationsService} = require("../../services/notifications");
+const {EmailService} = require("../../services/email");
+const {NotifyUser} = require("../../services/notify-user");
 const config = require("../../config");
-const notifyService = new NotifyService();
-const notificationsService = new NotificationsService(notifyService);
+const emailService = new EmailService();
+const notificationsService = new NotifyUser(emailService);
 
 describe('arm access notification', () => {
     afterEach(() => {

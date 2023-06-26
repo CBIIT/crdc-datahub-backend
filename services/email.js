@@ -1,7 +1,7 @@
 const { createTransport } = require('nodemailer');
 const config = require('../config');
 
-class NotifyService {
+class EmailService {
 
     constructor() {
     }
@@ -51,4 +51,4 @@ class NotifyService {
 
 }
 
-module.exports = {NotifyService}
+module.exports = {EmailService}
