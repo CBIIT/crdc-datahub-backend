@@ -1,9 +1,7 @@
 const ERROR = require("../../constants/error-constants");
 const {MongoDBCollection} = require("../../crdc-datahub-database-drivers/mongodb-collection");
 const {Application} = require("../../services/application");
-const {IN_PROGRESS} = require("../../constants/application-constants");
 const {TEST_SESSION, TEST_APPLICATION} = require("../test-constants");
-const {getCurrentTimeYYYYMMDDSS} = require("../../utility/time-utility");
 
 jest.mock("../../crdc-datahub-database-drivers/mongodb-collection");
 const applicationCollection = new MongoDBCollection();
