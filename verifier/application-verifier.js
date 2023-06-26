@@ -8,7 +8,7 @@ class ApplicationVerifier {
     }
 
     notEmpty() {
-        if (!this.applicationArray||!this.applicationArray.length) throw new Error("Application array is empty");
+        if (!this.applicationArray||!this.applicationArray?.length) throw new Error("Application array is empty");
         return this;
     }
 
