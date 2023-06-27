@@ -1,9 +1,10 @@
 const { createTransport } = require('nodemailer');
-const config = require('../config');
 
 class EmailService {
 
-    constructor() {
+    constructor(emailTransport, emailsEnabled) {
+        this.emailTransport = emailTransport;
+        this.emailsEnabled = emailsEnabled;
     }
 
     async sendNotification(from, subject, html, to = [], cc = [], bcc = []) {
@@ -24,9 +25,9 @@ class EmailService {
     }
 
     async sendMail(params) {
-        const transport = createTransport(config.email_transport);
+        const transport = createTransport(this.emailTransport);
         console.log("Generating email to: "+params.to.join(', '));
-        if (config.emails_enabled){
+        if (this.emailsEnabled){
             try{
                 let result = await transport.sendMail(params);
                 console.log("Email sent");

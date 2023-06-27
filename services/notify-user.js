@@ -1,13 +1,12 @@
 const yaml = require('js-yaml');
 const fs = require('fs');
 const {createEmailTemplate} = require("../lib/create-email-template");
-const {EmailService} = require("./email");
 const {replaceMessageVariables} = require("../utility/string-util");
 
 class NotifyUser {
 
-    constructor(dataService) {
-        this.notifyService = new EmailService(dataService);
+    constructor(emailService) {
+        this.emailService = emailService;
         this.email_constants = undefined
         try {
             this.email_constants = yaml.load(fs.readFileSync('resources/yaml/notification_email_values.yaml', 'utf8'));
@@ -24,7 +23,7 @@ class NotifyUser {
     async submitQuestionNotification(email, template_params, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.SUBMISSION_CONTENT, messageVariables);
         return await this.send(async () => {
-            await this.notifyService.sendNotification(
+            await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
                 this.email_constants.SUBMISSION_SUBJECT,
                 await createEmailTemplate("notification-template.html", {

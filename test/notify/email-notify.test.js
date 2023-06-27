@@ -1,7 +1,7 @@
 const {EmailService} = require("../../services/email");
 const {NotifyUser} = require("../../services/notify-user");
 const config = require("../../config");
-const emailService = new EmailService();
+const emailService = new EmailService(config.email_transport, config.emails_enabled);
 const notificationsService = new NotifyUser(emailService);
 
 describe('arm access notification', () => {
