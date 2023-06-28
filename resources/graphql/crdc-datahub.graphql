@@ -2,25 +2,29 @@ type Application {
     _id: ID!
     sections: [Section]
     pi: PI
-    primaryContact: PrimaryContact
-    additionalContacts: [AdditionalContact]
+    piAsPrimaryContact: Boolean
+    primaryContact: Contact # null if piAsPrimaryContact is true
+    additionalContacts: [Contact]
     program: Program
     study: Study
-    funding: Funding
-    accessPolicy: String
+    accessTypes: [String]
+    targetedSubmissionDate: String # YYYY-MM-DD format
     targetedReleaseDate: String # YYYY-MM-DD format
-    embargoInfo: String
+    timeConstraints: [TimeConstraint]
     cancerTypes: [String] # FE control allowed values
+    otherCancerTypes: String
     preCancerTypes: [String] # FE control allowed values
+    otherPreCancerTypes: String
     numberOfParticipants: Int
     species: [String] # FE control allowed values
+    cellLines: Boolean
+    modelSystems: Boolean
     dataTypes: [String] # FE control allowed values
+    otherDataTypes: String
     clinicalData: ClinicalData
     files: [FileInfo]
-    publications: [Publication]
-    timeConstraints: String
     submitterComment: String
-    status: String # [In Progress, Submitted, In Review, Approved, Rejected]
+    status: String # [New, In Progress, Submitted, In Review, Approved, Rejected]
     programLevelApproval: Boolean # Only valid for Approved status
     reviewComment: String
     createdAt: String # YYYY-MM-DDTHH:MM:SS format
@@ -33,23 +37,28 @@ input AppInput {
     _id: ID
     sections: [SectionInput]
     pi: PIInput
-    primaryContact: PrimaryContactInput
-    additionalContacts: [AdditionalContactInput]
+    piAsPrimaryContact: Boolean
+    primaryContact: ContactInput # not needed if piAsPrimaryContact is true
+    additionalContacts: [ContactInput]
     program: ProgramInput
     study: StudyInput
     funding: FundingInput
-    accessPolicy: String
+    accessTypes: [String]
+    targetedSubmissionDate: String # YYYY-MM-DD format
     targetedReleaseDate: String # YYYY-MM-DD format
-    embargoInfo: String
+    timeConstraints: [TimeConstraintInput]
     cancerTypes: [String] # FE control allowed values
+    otherCancerTypes: String
     preCancerTypes: [String] # FE control allowed values
+    otherPreCancerTypes: String
     numberOfParticipants: Int
     species: [String] # FE control allowed values
+    cellLines: Boolean
+    modelSystems: Boolean
     dataTypes: [String] # FE control allowed values
+    otherDataTypes: String
     clinicalData: ClinicalDataInput
     files: [FileInfoInput]
-    timeConstraints: String
-    publications: [PublicationInput]
     submitterComment: String
 }
 
@@ -63,8 +72,18 @@ input SectionInput {
     status: String # FE control allowed values
 }
 
+type TimeConstraint{
+    description: String
+    effectiveDate: String
+}
+
+input TimeConstraintInput {
+    description: String
+    effectiveDate: String
+}
+
 type Event {
-    status: String # [In Progress, Submitted, In Review, Approved, Rejected]
+    status: String # [New, In Progress, Submitted, In Review, Approved, Rejected]
     reviewComment: String # if applicable
     dateTime: String # YYYY-MM-DDTHH:MM:SS format
     userID: ID!
@@ -72,11 +91,13 @@ type Event {
 
 type ClinicalData {
     dataTypes: [String]  # FE control allowed values
+    otherDataTypes: String
     futureDataTypes: Boolean
 }
 
 input ClinicalDataInput {
     dataTypes: [String]  # FE control allowed values
+    otherDataTypes: String
     futureDataTypes: Boolean
 }
 
@@ -92,6 +113,16 @@ input PublicationInput {
     DOI: String
 }
 
+type PlannedPublication {
+    title: String
+    expectedDate: String
+}
+
+input PlannedPublicationInput {
+    title: String
+    expectedDate: String
+}
+
 type FileInfo {
     type: String  # FE control allowed values
     count: Int
@@ -105,42 +136,20 @@ input FileInfoInput {
 }
 
 type Funding {
-    agencies: [Agency]
+    agencies: [String]
+    grantNumbers: [String]
     nciProgramOfficer: String
     nciGPA: String
 }
 
 input FundingInput {
-    agencies: [AgencyInput]
+    agencies: [String]
+    grantNumbers: [String]
     nciProgramOfficer: String
     nciGPA: String
 }
 
-type Agency {
-    name: String
-    grantNumbers: [String]
-}
-
-input AgencyInput {
-    name: String
-    grantNumbers: [String]
-}
-
-type PrimaryContact {
-    firstName: String
-    lastName: String
-    email: String
-    phone: String
-}
-
-input PrimaryContactInput {
-    firstName: String
-    lastName: String
-    email: String
-    phone: String
-}
-
-type AdditionalContact {
+type Contact {
     role: String
     firstName: String
     lastName: String
@@ -148,7 +157,7 @@ type AdditionalContact {
     phone: String
 }
 
-input AdditionalContactInput {
+input ContactInput {
     role: String
     firstName: String
     lastName: String
@@ -157,39 +166,47 @@ input AdditionalContactInput {
 }
 
 type Program {
-    title: String
+    name: String
     abbreviation: String
     description: String
 }
 
 input ProgramInput {
-    title: String
+    name: String
     abbreviation: String
     description: String
 }
 
 type Study {
-    title: String
+    name: String
     abbreviation: String
     description: String
+    publications: [Publication]
+    plannedPublications: [PlannedPublication]
     repositories: [Repository]
+    funding: Funding
 }
 
 input StudyInput {
-    title: String
+    name: String
     abbreviation: String
     description: String
+    publications: [PublicationInput]
+    plannedPublications: [PlannedPublicationInput]
     repositories: [RepositoryInput]
+    funding: FundingInput
 }
 
 type Repository {
     name: String
     studyID: String
+    submittedDate: String
 }
 
 input RepositoryInput {
     name: String
     studyID: String
+    submittedDate: String
 }
 
 type PI {
