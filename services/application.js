@@ -77,18 +77,26 @@ class Application {
         return await this.applicationCollection.aggregate(pipeline);
     }
 
-    async submitApplication(document, _) {
-        const application = await this.getApplicationById(document._id);
+    async submitApplication(params, context) {
+        verifySession(context)
+            .verifyInitialized();
+        let application = await this.getApplicationById(params._id);
         verifyApplication(application)
             .notEmpty()
             .state(IN_PROGRESS);
         // In Progress -> In Submitted
-        const history = HistoryEventBuilder.createEvent({status: SUBMITTED});
-        const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-            $set: {status: SUBMITTED, updatedAt: history.dateTime},
-            $push: {history}
-        });
-        return updated.modifiedCount && updated.modifiedCount > 0 ? await this.dbService.find(APPLICATION, {_id: document._id}) : null;
+        const history = application.history || [];
+        const historyEvent = HistoryEventBuilder.createEvent({status: SUBMITTED, userID: context.userInfo.userID});
+        history.push(historyEvent)
+        application = {
+            ...application,
+            history: history,
+            status: SUBMITTED,
+            updatedAt: historyEvent.dateTime
+        };
+        const updated = await this.applicationCollection.update(application);
+        if (!updated.modifiedCount || updated.modifiedCount < 1) throw new Error(ERROR.UPDATE_FAILED);
+        return application;
     }
 
     async reopenApplication(document, _) {
