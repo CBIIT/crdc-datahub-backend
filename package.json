@@ -22,6 +22,7 @@
     "moment": "^2.29.4",
     "mongodb": "^5.5.0",
     "morgan": "^1.10.0",
+    "node-cron": "^3.0.2",
     "nodemailer": "^6.9.3",
     "uuid": "^9.0.0"
   },

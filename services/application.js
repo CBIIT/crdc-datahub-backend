@@ -1,7 +1,7 @@
-const {SUBMITTED, APPROVED, REJECTED, IN_PROGRESS, IN_REVIEW} = require("../constants/application-constants");
+const {SUBMITTED, APPROVED, REJECTED, IN_PROGRESS, IN_REVIEW, DELETED} = require("../constants/application-constants");
 const {APPLICATION_COLLECTION: APPLICATION} = require("../crdc-datahub-database-drivers/database-constants");
 const {v4} = require('uuid')
-const {getCurrentTimeYYYYMMDDSS} = require("../utility/time-utility");
+const {getCurrentTimeYYYYMMDDSS, subtractDaysFromNow} = require("../utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifyApplication} = require("../verifier/application-verifier");
 const {verifySession} = require("../verifier/user-info-verifier");
@@ -142,6 +142,27 @@ class Application {
             $push: {history}
         });
         return (updated.modifiedCount && updated.modifiedCount > 0) ? await this.dbService.find(APPLICATION, {_id: document._id}) : null;
+    }
+
+    async deleteInactiveApplications(inactiveDays) {
+        const inactiveCondition = {
+            updatedAt: {
+                $lt: subtractDaysFromNow(inactiveDays)
+            },
+            status: SUBMITTED
+        };
+        const applications = await this.applicationCollection.aggregate([{$match: inactiveCondition}, {"$limit": 1}]);
+        if (applications.length > 0) {
+            const history = HistoryEventBuilder.createEvent({status: DELETED, comment: "Deleted application(s) because of no activities after submission"});
+            const updated = await this.dbService.updateMany(APPLICATION,
+                inactiveCondition,
+                {
+                    $set: {status: DELETED, updatedAt: history.dateTime},
+                    $push: {history}});
+            if (updated.modifiedCount && updated.modifiedCount > 0) {
+                console.log("Executed to delete application(s) because of no activities at " + getCurrentTimeYYYYMMDDSS());
+            }
+        }
     }
 }
 
