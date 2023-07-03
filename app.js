@@ -42,8 +42,7 @@ app.use(createSession(config.session_secret, config.session_timeout, config.mong
 // add graphql endpoint
 app.use("/api/graphql", graphqlRouter);
 
-// Scheduled cronjob once a day (1am) eastern time
-cronJob.schedule("1 0 1 * * *", async () => {
+cronJob.schedule(config.schedule_job, async () => {
     const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
     const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
     dbConnector.connect().then( async () => {

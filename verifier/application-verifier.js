@@ -1,3 +1,5 @@
+const ERROR = require("../constants/error-constants");
+
 function verifyApplication(applicationArray) {
     return new ApplicationVerifier(applicationArray);
 }
@@ -7,14 +9,19 @@ class ApplicationVerifier {
         this.applicationArray = applicationArray;
     }
 
+    isUndefined() {
+        if (!Array.isArray(this.applicationArray)) throw new Error(ERROR.VERIFY.UNDEFINED_APPLICATION);
+        return this;
+    }
+
     notEmpty() {
-        if (!this.applicationArray||!this.applicationArray?.length) throw new Error("Application array is empty");
+        if (!this.applicationArray||!this.applicationArray?.length) throw new Error(ERROR.VERIFY.EMPTY_APPLICATION);
         return this;
     }
 
     state(state) {
-        if (!this.applicationArray[0].status) throw new Error("Application state is undefined");
-        if (this.applicationArray[0].status !== state) throw Error("Application state is invalid");
+        if (!this.applicationArray[0].status) throw new Error(ERROR.VERIFY.UNDEFINED_STATUS_APPLICATION);
+        if (this.applicationArray[0].status !== state) throw Error(ERROR.VERIFY.INVALID_STATE_APPLICATION);
         return this;
     }
 }

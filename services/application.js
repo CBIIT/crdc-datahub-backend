@@ -152,7 +152,10 @@ class Application {
             status: SUBMITTED
         };
         const applications = await this.applicationCollection.aggregate([{$match: inactiveCondition}, {"$limit": 1}]);
-        if (applications.length > 0) {
+        verifyApplication(applications)
+            .isUndefined();
+
+        if (applications?.length > 0) {
             const history = HistoryEventBuilder.createEvent({status: DELETED, comment: "Deleted because of no activities after submission"});
             const updated = await this.dbService.updateMany(APPLICATION,
                 inactiveCondition,
