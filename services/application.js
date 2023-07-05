@@ -183,9 +183,9 @@ class Application {
         await this.notificationService.submitQuestionNotification(context.userInfo.email, {
             firstName: context.userInfo.firstName
         }, {
-            pi: `${application.pi.firstName} ${application.pi.lastName}`,
-            study: application.study.name,
-            program: application.program.name,
+            pi: `${application?.pi?.firstName || ""} ${application?.pi?.lastName || ""}`,
+            study: application?.study?.name || "",
+            program: application?.program?.name || "",
             url: this.emailUrl
         })
     }
