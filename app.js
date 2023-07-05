@@ -5,10 +5,16 @@ const cors = require('cors');
 const logger = require('morgan');
 const createError = require('http-errors');
 const config = require('./config');
+const cronJob = require("node-cron");
 const createSession = require("./crdc-datahub-database-drivers/session-middleware");
 const statusRouter = require("./routers/status-endpoints-router");
 const graphqlRouter = require("./routers/graphql-router");
-
+const {MongoDBCollection} = require("./crdc-datahub-database-drivers/mongodb-collection");
+const {DATABASE_NAME, APPLICATION_COLLECTION} = require("./crdc-datahub-database-drivers/database-constants");
+const {Application} = require("./services/application");
+const {MongoQueries} = require("./crdc-datahub-database-drivers/mongo-queries");
+const {DatabaseConnector} = require("./crdc-datahub-database-drivers/database-connector");
+const {getCurrentTimeYYYYMMDDSS} = require("./utility/time-utility");
 // print environment variables to log
 console.info(config);
 
@@ -35,6 +41,17 @@ app.use(createSession(config.session_secret, config.session_timeout, config.mong
 
 // add graphql endpoint
 app.use("/api/graphql", graphqlRouter);
+
+cronJob.schedule(config.schedule_job, async () => {
+    const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
+    const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
+    dbConnector.connect().then( async () => {
+        const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
+        const dataInterface = new Application(applicationCollection, dbService);
+        console.log("Running a scheduled background task to delete inactive application at " + getCurrentTimeYYYYMMDDSS());
+        await dataInterface.deleteInactiveApplications(config.inactive_user_days);
+    });
+});
 
 // catch 404 and forward to error handler
 app.use((req, res, next) => {
