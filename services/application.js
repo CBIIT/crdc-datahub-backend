@@ -8,9 +8,11 @@ const {verifySession} = require("../verifier/user-info-verifier");
 const ERROR = require("../constants/error-constants");
 
 class Application {
-    constructor(applicationCollection, dbService) {
+    constructor(applicationCollection, dbService, notificationsService, emailUrl) {
         this.applicationCollection = applicationCollection;
         this.dbService = dbService;
+        this.notificationService = notificationsService;
+        this.emailUrl = emailUrl;
     }
 
     async getApplication(params, context) {
@@ -96,6 +98,7 @@ class Application {
         };
         const updated = await this.applicationCollection.update(application);
         if (!updated.modifiedCount || updated.modifiedCount < 1) throw new Error(ERROR.UPDATE_FAILED);
+        await this.sendEmailAfterSubmitApplication(context, application);
         return application;
     }
 
@@ -174,6 +177,17 @@ class Application {
                 console.log("Executed to delete application(s) because of no activities at " + getCurrentTimeYYYYMMDDSS());
             }
         }
+    }
+    // Email Notifications
+    async sendEmailAfterSubmitApplication(context, application) {
+        await this.notificationService.submitQuestionNotification(context.userInfo.email, {
+            firstName: context.userInfo.firstName
+        }, {
+            pi: `${application.pi.firstName} ${application.pi.lastName}`,
+            study: application.study.name,
+            program: application.program.name,
+            url: this.emailUrl
+        })
     }
 }
 
