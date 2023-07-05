@@ -12,6 +12,11 @@ const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_N
 const dataInterface = new Application(applicationCollection, dbService);
 
 describe('Batch Jobs test', () => {
+
+    afterEach(() => {
+        jest.clearAllMocks();
+    });
+
     test("deleteInactiveApplications updated applications", async () => {
         applicationCollection.aggregate.mockImplementation(() => {
             return [TEST_APPLICATION, TEST_APPLICATION];
