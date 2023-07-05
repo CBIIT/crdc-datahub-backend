@@ -6,10 +6,12 @@ const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifyApplication} = require("../verifier/application-verifier");
 const {verifySession} = require("../verifier/user-info-verifier");
 const ERROR = require("../constants/error-constants");
+const {User} = require("../crdc-datahub-database-drivers/services/user");
 
 class Application {
-    constructor(applicationCollection, dbService, notificationsService, emailUrl) {
+    constructor(applicationCollection, userCollection, dbService, notificationsService, emailUrl) {
         this.applicationCollection = applicationCollection;
+        this.userService = new User(userCollection);
         this.dbService = dbService;
         this.notificationService = notificationsService;
         this.emailUrl = emailUrl;
@@ -80,6 +82,7 @@ class Application {
     }
 
     async submitApplication(params, context) {
+        await this.userService.getMyUser(params, context);
         verifySession(context)
             .verifyInitialized();
         let application = await this.getApplicationById(params._id);

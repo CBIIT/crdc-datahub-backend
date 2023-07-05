@@ -3,7 +3,7 @@ const {createHandler} = require("graphql-http/lib/use/express");
 const config = require("../config");
 const {Application} = require("../services/application");
 const {MongoQueries} = require("../crdc-datahub-database-drivers/mongo-queries");
-const {DATABASE_NAME, APPLICATION_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
+const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoDBCollection} = require("../crdc-datahub-database-drivers/mongodb-collection");
 const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-connector");
 const {EmailService} = require("../services/email");
@@ -15,9 +15,10 @@ const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
 let root;
 dbConnector.connect().then(() => {
     const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
+    const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
     const emailService = new EmailService(config.email_transport, config.emails_enabled);
     const notificationsService = new NotifyUser(emailService);
-    const dataInterface = new Application(applicationCollection, dbService, notificationsService, config.emails_url);
+    const dataInterface = new Application(applicationCollection, userCollection, dbService, notificationsService, config.emails_url);
     root = {
         version: () => {return config.version},
         createApplication: dataInterface.createApplication.bind(dataInterface),
