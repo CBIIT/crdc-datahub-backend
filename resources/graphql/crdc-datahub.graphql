@@ -29,6 +29,7 @@ type Application {
     reviewComment: String
     createdAt: String # YYYY-MM-DDTHH:MM:SS format
     updatedAt: String # YYYY-MM-DDTHH:MM:SS format
+    submittedDate: String # YYYY-MM-DDTHH:MM:SS format
     history: [Event] # An Event will be appended to the list whenever Application's status changes
     applicant: Applicant # auto populated by BE
     organization: String # auto populate by BE using applicant's organization if available
