@@ -3,11 +3,19 @@ const {MongoDBCollection} = require("../../crdc-datahub-database-drivers/mongodb
 const {Application} = require("../../services/application");
 const {IN_PROGRESS} = require("../../constants/application-constants");
 const {TEST_SESSION} = require("../test-constants");
-const {getCurrentTimeYYYYMMDDSS} = require("../../utility/time-utility");
+const {MongoQueries} = require("../../crdc-datahub-database-drivers/mongo-queries");
+const config = require("../../config");
+const {DATABASE_NAME} = require("../../crdc-datahub-database-drivers/database-constants");
+const {EmailService} = require("../../services/email");
+const {NotifyUser} = require("../../services/notify-user");
 
 jest.mock("../../crdc-datahub-database-drivers/mongodb-collection");
 const applicationCollection = new MongoDBCollection();
-const dataInterface = new Application(applicationCollection);
+const userCollection = new MongoDBCollection();
+const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
+const emailService = new EmailService(config.email_transport, config.emails_enabled);
+const notificationsService = new NotifyUser(emailService);
+const dataInterface = new Application(applicationCollection, userCollection, dbService, notificationsService, config.emails_url);
 
 describe('createApplication API test', () => {
     let params = {};

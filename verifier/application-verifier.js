@@ -6,7 +6,7 @@ function verifyApplication(applicationArray) {
 
 class ApplicationVerifier {
     constructor(applicationArray) {
-        if (!Array.isArray(applicationArray)){
+        if (applicationArray && !Array.isArray(applicationArray)){
             applicationArray = [applicationArray];
         }
         this.applicationArray = applicationArray;

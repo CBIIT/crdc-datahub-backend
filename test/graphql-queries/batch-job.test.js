@@ -5,11 +5,16 @@ const {MongoQueries} = require("../../crdc-datahub-database-drivers/mongo-querie
 const config = require("../../config");
 const {DATABASE_NAME} = require("../../crdc-datahub-database-drivers/database-constants");
 const ERROR = require("../../constants/error-constants");
+const {EmailService} = require("../../services/email");
+const {NotifyUser} = require("../../services/notify-user");
 jest.mock("../../crdc-datahub-database-drivers/mongodb-collection");
 jest.mock("../../crdc-datahub-database-drivers/mongo-queries.js");
 const applicationCollection = new MongoDBCollection();
+const userCollection = new MongoDBCollection();
 const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
-const dataInterface = new Application(applicationCollection, dbService);
+const emailService = new EmailService(config.email_transport, config.emails_enabled);
+const notificationsService = new NotifyUser(emailService);
+const dataInterface = new Application(applicationCollection, userCollection, dbService, notificationsService, config.emails_url);
 
 describe('Batch Jobs test', () => {
 
