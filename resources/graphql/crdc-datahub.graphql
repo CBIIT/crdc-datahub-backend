@@ -19,6 +19,7 @@ type Application {
     species: [String] # FE control allowed values
     cellLines: Boolean
     modelSystems: Boolean
+    dataDeIdentified: Boolean
     dataTypes: [String] # FE control allowed values
     otherDataTypes: String
     clinicalData: ClinicalData
@@ -57,6 +58,7 @@ input AppInput {
     species: [String] # FE control allowed values
     cellLines: Boolean
     modelSystems: Boolean
+    dataDeIdentified: Boolean
     dataTypes: [String] # FE control allowed values
     otherDataTypes: String
     clinicalData: ClinicalDataInput
@@ -239,13 +241,19 @@ input PIInput {
     address: String
 }
 
+type ListApplications {
+    total: Int
+    applications: [Application]
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
     getMyLastApplication: Application
 
     "Result depends on user's permission"
-    listApplications(first: Int = 10, offset: Int = 0, orderBy: String = "Submitted Date", sortDirection: String = "DESC"): [Application]
+    listApplications(first: Int = 10, offset: Int = 0, orderBy: String = "Submitted Date", sortDirection: String = "DESC"): ListApplications
+    # when first parameter is set to -1, we should return all applications (no pagination)
     # sortDirection in ["ASC", "DESC"]
     # orderBy in ["Submitter Name", "Organization", "Study", "Program", "Status", "Submitted Date"]
 
