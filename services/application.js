@@ -141,7 +141,7 @@ class Application {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
             $push: {history}
         });
-        return (updated.modifiedCount && updated.modifiedCount > 0) ? await this.dbService.find(APPLICATION, {_id: document._id}) : null;
+        return updated.modifiedCount && updated.modifiedCount > 0 ? this.getApplicationById(document._id) : null;
     }
 
     async rejectApplication(document, _) {
@@ -155,7 +155,7 @@ class Application {
             $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime},
             $push: {history}
         });
-        return (updated.modifiedCount && updated.modifiedCount > 0) ? await this.dbService.find(APPLICATION, {_id: document._id}) : null;
+        return updated.modifiedCount && updated.modifiedCount > 0 ? this.getApplicationById(document._id) : null;
     }
 
     async deleteInactiveApplications(inactiveDays) {
