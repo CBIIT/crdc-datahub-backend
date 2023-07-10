@@ -227,7 +227,6 @@ type PI {
     position: String
     email: String
     institution: String
-    eRAAccount: String
     address: String
 }
 
@@ -237,7 +236,6 @@ input PIInput {
     position: String
     email: String
     institution: String
-    eRAAccount: String
     address: String
 }
 
