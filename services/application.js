@@ -6,12 +6,10 @@ const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifyApplication} = require("../verifier/application-verifier");
 const {verifySession} = require("../verifier/user-info-verifier");
 const ERROR = require("../constants/error-constants");
-const {User} = require("../crdc-datahub-database-drivers/services/user");
 
 class Application {
-    constructor(applicationCollection, userCollection, dbService, notificationsService, emailUrl) {
+    constructor(applicationCollection, dbService, notificationsService, emailUrl) {
         this.applicationCollection = applicationCollection;
-        this.userService = new User(userCollection);
         this.dbService = dbService;
         this.notificationService = notificationsService;
         this.emailUrl = emailUrl;
@@ -82,7 +80,6 @@ class Application {
     }
 
     async submitApplication(params, context) {
-        await this.userService.getMyUser(params, context);
         verifySession(context)
             .verifyInitialized();
         let application = await this.getApplicationById(params._id);
@@ -100,7 +97,7 @@ class Application {
             updatedAt: historyEvent.dateTime
         };
         const updated = await this.applicationCollection.update(application);
-        if (!updated.modifiedCount || updated.modifiedCount < 1) throw new Error(ERROR.UPDATE_FAILED);
+        if (!updated?.modifiedCount || updated?.modifiedCount < 1) throw new Error(ERROR.UPDATE_FAILED);
         await this.sendEmailAfterSubmitApplication(context, application);
         return application;
     }
@@ -115,7 +112,7 @@ class Application {
                 $set: {status: IN_PROGRESS, updatedAt: history.dateTime},
                 $push: {history}
             });
-            const result = (updated.modifiedCount && updated.modifiedCount > 0) ? await this.dbService.find(APPLICATION, {_id: document._id}) : [];
+            const result = (updated?.modifiedCount && updated?.modifiedCount > 0) ? await this.dbService.find(APPLICATION, {_id: document._id}) : [];
             return result.length > 0 ? result[0] : {};
         }
         return application.length > 0 ? application[0] : null;
@@ -141,7 +138,7 @@ class Application {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
             $push: {history}
         });
-        return updated.modifiedCount && updated.modifiedCount > 0 ? this.getApplicationById(document._id) : null;
+        return updated?.modifiedCount && updated?.modifiedCount > 0 ? this.getApplicationById(document._id) : null;
     }
 
     async rejectApplication(document, _) {
@@ -155,7 +152,7 @@ class Application {
             $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime},
             $push: {history}
         });
-        return updated.modifiedCount && updated.modifiedCount > 0 ? this.getApplicationById(document._id) : null;
+        return updated?.modifiedCount && updated?.modifiedCount > 0 ? this.getApplicationById(document._id) : null;
     }
 
     async deleteInactiveApplications(inactiveDays) {
@@ -176,7 +173,7 @@ class Application {
                 {
                     $set: {status: DELETED, updatedAt: history.dateTime},
                     $push: {history}});
-            if (updated.modifiedCount && updated.modifiedCount > 0) {
+            if (updated?.modifiedCount && updated?.modifiedCount > 0) {
                 console.log("Executed to delete application(s) because of no activities at " + getCurrentTimeYYYYMMDDSS());
             }
         }

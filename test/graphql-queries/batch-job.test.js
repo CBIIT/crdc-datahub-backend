@@ -10,11 +10,10 @@ const {NotifyUser} = require("../../services/notify-user");
 jest.mock("../../crdc-datahub-database-drivers/mongodb-collection");
 jest.mock("../../crdc-datahub-database-drivers/mongo-queries.js");
 const applicationCollection = new MongoDBCollection();
-const userCollection = new MongoDBCollection();
 const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
 const emailService = new EmailService(config.email_transport, config.emails_enabled);
 const notificationsService = new NotifyUser(emailService);
-const dataInterface = new Application(applicationCollection, userCollection, dbService, notificationsService, config.emails_url);
+const dataInterface = new Application(applicationCollection, dbService, notificationsService, config.emails_url);
 
 describe('Batch Jobs test', () => {
 
