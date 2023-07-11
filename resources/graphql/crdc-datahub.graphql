@@ -195,6 +195,8 @@ type Study {
     description: String
     publications: [Publication]
     plannedPublications: [PlannedPublication]
+    isDbGapRegistered: Boolean
+    dbGaPPPHSNumber: String
     repositories: [Repository]
     funding: Funding
 }
@@ -205,6 +207,8 @@ input StudyInput {
     description: String
     publications: [PublicationInput]
     plannedPublications: [PlannedPublicationInput]
+    isDbGapRegistered: Boolean
+    dbGaPPPHSNumber: String
     repositories: [RepositoryInput]
     funding: FundingInput
 }
