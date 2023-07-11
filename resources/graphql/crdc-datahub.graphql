@@ -21,6 +21,7 @@ type Application {
     modelSystems: Boolean
     dataDeIdentified: Boolean
     dataTypes: [String] # FE control allowed values
+    imagingDataDeIdentified: Boolean
     otherDataTypes: String
     clinicalData: ClinicalData
     files: [FileInfo]
@@ -60,6 +61,7 @@ input AppInput {
     modelSystems: Boolean
     dataDeIdentified: Boolean
     dataTypes: [String] # FE control allowed values
+    imagingDataDeIdentified: Boolean
     otherDataTypes: String
     clinicalData: ClinicalDataInput
     files: [FileInfoInput]
