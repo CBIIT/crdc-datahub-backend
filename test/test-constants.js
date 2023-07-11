@@ -5,7 +5,7 @@ module.exports = {
             firstName: "test first",
             lastName: "test last",
             IDP: "test-idp",
-            userID: "777"
+            _id: "777"
         }
     },
     TEST_APPLICATION: {

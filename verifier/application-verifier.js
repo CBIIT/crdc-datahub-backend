@@ -6,7 +6,7 @@ function verifyApplication(applicationArray) {
 
 class ApplicationVerifier {
     constructor(applicationArray) {
-        if (!Array.isArray(applicationArray)){
+        if (applicationArray && !Array.isArray(applicationArray)){
             applicationArray = [applicationArray];
         }
         this.applicationArray = applicationArray;
@@ -23,8 +23,11 @@ class ApplicationVerifier {
     }
 
     state(state) {
+        if (!Array.isArray(state)){
+            state = [state];
+        }
         if (!this.applicationArray[0].status) throw new Error(ERROR.VERIFY.UNDEFINED_STATUS_APPLICATION);
-        if (this.applicationArray[0].status !== state) throw Error(ERROR.VERIFY.INVALID_STATE_APPLICATION);
+        if (!state.includes(this.applicationArray[0].status)) throw Error(ERROR.VERIFY.INVALID_STATE_APPLICATION);
         return this;
     }
 }

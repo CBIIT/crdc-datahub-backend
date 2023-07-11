@@ -1,13 +1,13 @@
 const {getCurrentTimeYYYYMMDDSS} = require("../utility/time-utility");
 class HistoryEventBuilder {
-    constructor(status, comment, userID) {
+    constructor(userID, status, comment) {
+        this._userID = userID;
         this._status = status;
         this._comment = comment;
-        this._userID = userID;
     }
 
-    static createEvent(event) {
-        return new HistoryEventBuilder(event.status, event.comment, event.userID)
+    static createEvent(userID, status, comment) {
+        return new HistoryEventBuilder(userID, status, comment)
             .build();
     }
 

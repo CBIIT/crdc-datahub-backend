@@ -12,7 +12,7 @@ describe("session verifier test", () => {
                 firstName: "test first",
                 lastName: "test last",
                 IDP: "test-idp",
-                userID: "777"
+                _id: "777"
             }
         };
     });
@@ -26,7 +26,7 @@ describe("session verifier test", () => {
     });
 
     test("not initialized", () => {
-        session.userInfo.userID = undefined;
+        session.userInfo._id = undefined;
         expect(() => {verifySession(session).verifyInitialized()}).toThrow(ERROR.SESSION_NOT_INITIALIZED);
     });
 
