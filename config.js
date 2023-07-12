@@ -2,8 +2,8 @@ require('dotenv').config();
 
 let config = {
     //info variables
-    version: process.env.VERSION,
-    date: process.env.DATE,
+    version: process.env.VERSION || 'Version not set',
+    date: process.env.DATE || new Date(),
     inactive_user_days : process.env.INACTIVE_APPLICATION_DAYS || 45,
     //Mongo DB
     mongo_db_user: process.env.MONGO_DB_USER,
