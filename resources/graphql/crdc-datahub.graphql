@@ -29,8 +29,10 @@ type Application {
     reviewComment: String
     createdAt: String # YYYY-MM-DDTHH:MM:SS format
     updatedAt: String # YYYY-MM-DDTHH:MM:SS format
-    history: [Event]
-    applicantID: String
+    history: [Event] # An Event will be appended to the list whenever Application's status changes
+    applicantID: String # auto populate by BE
+    applicantName: String # auto populate by BE
+    organization: String # auto populate by BE using applicant's organization if available
 }
 
 input AppInput {
@@ -137,20 +139,21 @@ input FileInfoInput {
 
 type Funding {
     agencies: [String]
-    grantNumbers: [String]
+    grantNumbers: String
     nciProgramOfficer: String
     nciGPA: String
 }
 
 input FundingInput {
     agencies: [String]
-    grantNumbers: [String]
+    grantNumbers: String
     nciProgramOfficer: String
     nciGPA: String
 }
 
 type Contact {
-    role: String
+    institution: String
+    position: String
     firstName: String
     lastName: String
     email: String
@@ -158,7 +161,8 @@ type Contact {
 }
 
 input ContactInput {
-    role: String
+    institution: String
+    position: String
     firstName: String
     lastName: String
     email: String

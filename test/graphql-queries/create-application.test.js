@@ -36,6 +36,6 @@ describe('createApplication API test', () => {
         expect(typeof result._id).toBe("string")
         expect(result.status).toBe(IN_PROGRESS);
         expect(typeof result.createdAt).toBe("string")
-        expect(result.applicantID).toBe(TEST_SESSION.userInfo.userID);
+        expect(result.applicantID).toBe(TEST_SESSION.userInfo._id);
     });
 });

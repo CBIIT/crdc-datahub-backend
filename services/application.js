@@ -18,7 +18,7 @@ class Application {
     async getApplication(params, context) {
         verifySession(context)
             .verifyInitialized();
-        return this.getApplicationById(params._id);
+        return await this.getApplicationById(params._id);
     }
 
     async getApplicationById(id) {
@@ -30,7 +30,7 @@ class Application {
     async createApplication(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const userID = context.userInfo.userID;
+        const userID = context.userInfo._id;
         const id = v4(undefined, undefined, undefined);
         let emptyApplication = {
             _id: id,
@@ -46,18 +46,20 @@ class Application {
         verifySession(context)
             .verifyInitialized();
         params.application.updatedAt = getCurrentTimeYYYYMMDDSS();
+        params.application.applicantID = context.userInfo._id;
+        params.application.applicantName = context.userInfo.firstName + " " + context.userInfo.lastName;
         const result = await this.applicationCollection.update(params.application);
         const id = params.application._id;
         if (result.matchedCount < 1) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
-        return this.getApplicationById(id);
+        return await this.getApplicationById(id);
     }
 
     async getMyLastApplication(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const userID = context.userInfo.userID;
+        const userID = context.userInfo._id;
         const matchApplicantIDToUser = {"$match": {applicantID: userID}};
-        const sortCreatedAtDescending = {"$sort": {createdAt: -1}};
+        const sortCreatedAtDescending = {"$sort": {createdAt: 1}};
         const limitReturnToOneApplication = {"$limit": 1};
         const pipeline = [
             matchApplicantIDToUser,
@@ -88,7 +90,7 @@ class Application {
             .state(IN_PROGRESS);
         // In Progress -> In Submitted
         const history = application.history || [];
-        const historyEvent = HistoryEventBuilder.createEvent({status: SUBMITTED, userID: context.userInfo.userID});
+        const historyEvent = HistoryEventBuilder.createEvent(context.userInfo._id, SUBMITTED, null);
         history.push(historyEvent)
         application = {
             ...application,
@@ -102,12 +104,12 @@ class Application {
         return application;
     }
 
-    async reopenApplication(document, _) {
+    async reopenApplication(document, context) {
         const application = await this.getApplicationById(document._id);
         // TODO 1. If Reviewer opened the application, the status changes to IN_REVIEW
         // TODO 2. THe application status changes from rejected to in-progress when the user opens the rejected application
         if (application.length > 0 && application[0].status) {
-            const history = HistoryEventBuilder.createEvent({status: IN_PROGRESS});
+            const history = HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, null);
             const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
                 $set: {status: IN_PROGRESS, updatedAt: history.dateTime},
                 $push: {history}
@@ -127,32 +129,32 @@ class Application {
         return result;
     }
 
-    async approveApplication(document) {
+    async approveApplication(document, context) {
         const application = await this.getApplicationById(document._id);
         // In Reviewed -> Approved
         verifyApplication(application)
             .notEmpty()
-            .state(IN_REVIEW);
-        const history = HistoryEventBuilder.createEvent({status: APPROVED, comment: document.comment});
+            .state([IN_REVIEW, SUBMITTED]);
+        const history = HistoryEventBuilder.createEvent(context.userInfo._id, APPROVED, document.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
             $push: {history}
         });
-        return updated?.modifiedCount && updated?.modifiedCount > 0 ? this.getApplicationById(document._id) : null;
+        return updated?.modifiedCount && updated?.modifiedCount > 0 ? await this.getApplicationById(document._id) : null;
     }
 
-    async rejectApplication(document, _) {
+    async rejectApplication(document, context) {
         const application = await this.getApplicationById(document._id);
         // In Reviewed -> Rejected
         verifyApplication(application)
             .notEmpty()
-            .state(IN_REVIEW);
-        const history = HistoryEventBuilder.createEvent({status: REJECTED, comment: document.comment});
+            .state([IN_REVIEW, SUBMITTED]);
+        const history = HistoryEventBuilder.createEvent(context.userInfo._id, APPROVED, document.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
             $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime},
             $push: {history}
         });
-        return updated?.modifiedCount && updated?.modifiedCount > 0 ? this.getApplicationById(document._id) : null;
+        return updated?.modifiedCount && updated?.modifiedCount > 0 ? await this.getApplicationById(document._id) : null;
     }
 
     async deleteInactiveApplications(inactiveDays) {
@@ -167,7 +169,7 @@ class Application {
             .isUndefined();
 
         if (applications?.length > 0) {
-            const history = HistoryEventBuilder.createEvent({status: DELETED, comment: "Deleted because of no activities after submission"});
+            const history = HistoryEventBuilder.createEvent(0, DELETED, "Deleted because of no activities after submission");
             const updated = await this.dbService.updateMany(APPLICATION,
                 inactiveCondition,
                 {
