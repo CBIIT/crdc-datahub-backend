@@ -15,6 +15,8 @@ const {Application} = require("./services/application");
 const {MongoQueries} = require("./crdc-datahub-database-drivers/mongo-queries");
 const {DatabaseConnector} = require("./crdc-datahub-database-drivers/database-connector");
 const {getCurrentTimeYYYYMMDDSS} = require("./utility/time-utility");
+const {EmailService} = require("./services/email");
+const {NotifyUser} = require("./services/notify-user");
 // print environment variables to log
 console.info(config);
 
@@ -45,9 +47,11 @@ app.use("/api/graphql", graphqlRouter);
 cronJob.schedule(config.schedule_job, async () => {
     const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
     const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
+    const emailService = new EmailService(config.email_transport, config.emails_enabled);
+    const notificationsService = new NotifyUser(emailService);
     dbConnector.connect().then( async () => {
         const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
-        const dataInterface = new Application(applicationCollection, dbService);
+        const dataInterface = new Application(applicationCollection, dbService, notificationsService, config.emails_url);
         console.log("Running a scheduled background task to delete inactive application at " + getCurrentTimeYYYYMMDDSS());
         await dataInterface.deleteInactiveApplications(config.inactive_user_days);
     });

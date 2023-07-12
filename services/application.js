@@ -8,15 +8,17 @@ const {verifySession} = require("../verifier/user-info-verifier");
 const ERROR = require("../constants/error-constants");
 
 class Application {
-    constructor(applicationCollection, dbService) {
+    constructor(applicationCollection, dbService, notificationsService, emailUrl) {
         this.applicationCollection = applicationCollection;
         this.dbService = dbService;
+        this.notificationService = notificationsService;
+        this.emailUrl = emailUrl;
     }
 
     async getApplication(params, context) {
         verifySession(context)
             .verifyInitialized();
-        return this.getApplicationById(params._id);
+        return await this.getApplicationById(params._id);
     }
 
     async getApplicationById(id) {
@@ -49,7 +51,7 @@ class Application {
         const result = await this.applicationCollection.update(params.application);
         const id = params.application._id;
         if (result.matchedCount < 1) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
-        return this.getApplicationById(id);
+        return await this.getApplicationById(id);
     }
 
     async getMyLastApplication(params, context) {
@@ -97,7 +99,8 @@ class Application {
             updatedAt: historyEvent.dateTime
         };
         const updated = await this.applicationCollection.update(application);
-        if (!updated.modifiedCount || updated.modifiedCount < 1) throw new Error(ERROR.UPDATE_FAILED);
+        if (!updated?.modifiedCount || updated?.modifiedCount < 1) throw new Error(ERROR.UPDATE_FAILED);
+        await this.sendEmailAfterSubmitApplication(context, application);
         return application;
     }
 
@@ -111,7 +114,7 @@ class Application {
                 $set: {status: IN_PROGRESS, updatedAt: history.dateTime},
                 $push: {history}
             });
-            const result = (updated.modifiedCount && updated.modifiedCount > 0) ? await this.dbService.find(APPLICATION, {_id: document._id}) : [];
+            const result = (updated?.modifiedCount && updated?.modifiedCount > 0) ? await this.dbService.find(APPLICATION, {_id: document._id}) : [];
             return result.length > 0 ? result[0] : {};
         }
         return application.length > 0 ? application[0] : null;
@@ -137,7 +140,7 @@ class Application {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
             $push: {history}
         });
-        return (updated.modifiedCount && updated.modifiedCount > 0) ? await this.getApplicationById(document._id) : null;
+        return updated?.modifiedCount && updated?.modifiedCount > 0 ? await this.getApplicationById(document._id) : null;
     }
 
     async rejectApplication(document, context) {
@@ -151,7 +154,7 @@ class Application {
             $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime},
             $push: {history}
         });
-        return (updated.modifiedCount && updated.modifiedCount > 0) ? await this.getApplicationById(document._id) : null;
+        return updated?.modifiedCount && updated?.modifiedCount > 0 ? await this.getApplicationById(document._id) : null;
     }
 
     async deleteInactiveApplications(inactiveDays) {
@@ -172,10 +175,21 @@ class Application {
                 {
                     $set: {status: DELETED, updatedAt: history.dateTime},
                     $push: {history}});
-            if (updated.modifiedCount && updated.modifiedCount > 0) {
+            if (updated?.modifiedCount && updated?.modifiedCount > 0) {
                 console.log("Executed to delete application(s) because of no activities at " + getCurrentTimeYYYYMMDDSS());
             }
         }
+    }
+    // Email Notifications
+    async sendEmailAfterSubmitApplication(context, application) {
+        await this.notificationService.submitQuestionNotification(context.userInfo.email, {
+            firstName: context.userInfo.firstName
+        }, {
+            pi: `${application?.pi?.firstName} ${application?.pi?.lastName}`,
+            study: application?.study?.name,
+            program: application?.program?.name,
+            url: this.emailUrl
+        })
     }
 }
 
