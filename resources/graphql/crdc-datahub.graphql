@@ -137,12 +137,14 @@ input PlannedPublicationInput {
 
 type FileInfo {
     type: String  # FE control allowed values
+    extension: String # FE control allowed values
     count: Int
     amount: String # xxxMB, GB etc
 }
 
 input FileInfoInput {
     type: String  # FE control allowed values
+    extension: String # FE control allowed values
     count: Int
     amount: String # xxxMB, GB etc
 }
