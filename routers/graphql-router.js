@@ -17,7 +17,7 @@ dbConnector.connect().then(() => {
     const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
     const emailService = new EmailService(config.email_transport, config.emails_enabled);
     const notificationsService = new NotifyUser(emailService);
-    const dataInterface = new Application(applicationCollection, dbService, notificationsService, config.emails_url);
+    const dataInterface = new Application(applicationCollection, {}, dbService, notificationsService, {});
     root = {
         version: () => {return config.version},
         createApplication: dataInterface.createApplication.bind(dataInterface),

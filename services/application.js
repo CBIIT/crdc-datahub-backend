@@ -8,11 +8,12 @@ const {verifySession} = require("../verifier/user-info-verifier");
 const ERROR = require("../constants/error-constants");
 
 class Application {
-    constructor(applicationCollection, dbService, notificationsService, emailUrl) {
+    constructor(applicationCollection, userService, dbService, notificationsService, emailParams) {
         this.applicationCollection = applicationCollection;
+        this.userService = userService;
         this.dbService = dbService;
         this.notificationService = notificationsService;
-        this.emailUrl = emailUrl;
+        this.emailParams = emailParams;
     }
 
     async getApplication(params, context) {
@@ -164,7 +165,7 @@ class Application {
             },
             status: SUBMITTED
         };
-        const applications = await this.applicationCollection.aggregate([{$match: inactiveCondition}, {"$limit": 1}]);
+        const applications = await this.applicationCollection.aggregate([{$match: inactiveCondition}]);
         verifyApplication(applications)
             .isUndefined();
 
@@ -177,9 +178,27 @@ class Application {
                     $push: {history}});
             if (updated?.modifiedCount && updated?.modifiedCount > 0) {
                 console.log("Executed to delete application(s) because of no activities at " + getCurrentTimeYYYYMMDDSS());
+                await this.emailInactiveApplicants(applications);
             }
         }
     }
+
+    async emailInactiveApplicants(applications) {
+        // Look up by an applicant's id
+        const users = [];
+        await Promise.all(
+            applications.map(async (application) => {
+                const user = await this.userService.getUser(application.applicantID);
+                if (user) users.push({user, application});
+            })
+        );
+        // Send Email Notification
+        await Promise.all(users.map(async (u) => {
+            // TODO Organization Owner CCs info required
+            await this.sendEmailAfterInactiveApplications(u.user.email, [], u.user.firstName, u.application);
+        }));
+    }
+
     // Email Notifications
     async sendEmailAfterSubmitApplication(context, application) {
         await this.notificationService.submitQuestionNotification(context.userInfo.email, {
@@ -188,7 +207,19 @@ class Application {
             pi: `${application?.pi?.firstName} ${application?.pi?.lastName}`,
             study: application?.study?.name,
             program: application?.program?.name,
-            url: this.emailUrl
+            url: this.emailParams.url
+        })
+    }
+
+    async sendEmailAfterInactiveApplications(email, emailCCs, firstName, application) {
+        await this.notificationService.inactiveApplicationsNotification(email, emailCCs,{
+            firstName: firstName
+        },{
+            study: application.study.name,
+            program: application.program.name,
+            url: this.emailParams.url,
+            officialEmail: this.emailParams.officialEmail,
+            inactiveDays: this.emailParams.inactiveDays
         })
     }
 }
