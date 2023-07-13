@@ -19,7 +19,9 @@ type Application {
     species: [String] # FE control allowed values
     cellLines: Boolean
     modelSystems: Boolean
+    dataDeIdentified: Boolean
     dataTypes: [String] # FE control allowed values
+    imagingDataDeIdentified: Boolean
     otherDataTypes: String
     clinicalData: ClinicalData
     files: [FileInfo]
@@ -29,9 +31,9 @@ type Application {
     reviewComment: String
     createdAt: String # YYYY-MM-DDTHH:MM:SS format
     updatedAt: String # YYYY-MM-DDTHH:MM:SS format
+    submittedDate: String # YYYY-MM-DDTHH:MM:SS format
     history: [Event] # An Event will be appended to the list whenever Application's status changes
-    applicantID: String # auto populate by BE
-    applicantName: String # auto populate by BE
+    applicant: Applicant # auto populated by BE
     organization: String # auto populate by BE using applicant's organization if available
 }
 
@@ -57,11 +59,19 @@ input AppInput {
     species: [String] # FE control allowed values
     cellLines: Boolean
     modelSystems: Boolean
+    dataDeIdentified: Boolean
     dataTypes: [String] # FE control allowed values
+    imagingDataDeIdentified: Boolean
     otherDataTypes: String
     clinicalData: ClinicalDataInput
     files: [FileInfoInput]
     submitterComment: String
+}
+
+type Applicant {
+    applicantID: String # auto populated by BE
+    applicantName: String # auto populated by BE
+    applicantEmail: String # auto populated by BE
 }
 
 type Section {
@@ -187,6 +197,8 @@ type Study {
     description: String
     publications: [Publication]
     plannedPublications: [PlannedPublication]
+    isDbGapRegistered: Boolean
+    dbGaPPPHSNumber: String
     repositories: [Repository]
     funding: Funding
 }
@@ -197,6 +209,8 @@ input StudyInput {
     description: String
     publications: [PublicationInput]
     plannedPublications: [PlannedPublicationInput]
+    isDbGapRegistered: Boolean
+    dbGaPPPHSNumber: String
     repositories: [RepositoryInput]
     funding: FundingInput
 }
@@ -219,7 +233,6 @@ type PI {
     position: String
     email: String
     institution: String
-    eRAAccount: String
     address: String
 }
 
@@ -229,8 +242,12 @@ input PIInput {
     position: String
     email: String
     institution: String
-    eRAAccount: String
     address: String
+}
+
+type ListApplications {
+    total: Int
+    applications: [Application]
 }
 
 type Query {
@@ -239,7 +256,11 @@ type Query {
     getMyLastApplication: Application
 
     "Result depends on user's permission"
-    listApplications(first: Int = 10, offset: Int = 0): [Application]
+    listApplications(first: Int = 10, offset: Int = 0, orderBy: String = "Submitted Date", sortDirection: String = "DESC"): ListApplications
+    # when first parameter is set to -1, we should return all applications (no pagination)
+    # sortDirection in ["ASC", "DESC"]
+    # orderBy in ["Submitter Name", "Organization", "Study", "Program", "Status", "Submitted Date"]
+
     version: String
 }
 type Mutation {
@@ -250,6 +271,7 @@ type Mutation {
     reopenApplication(_id: ID!): Application
 
     "Fed lead initiated operations"
+    reviewApplication (_id: ID!): Application # same as getApplication but will set Application to "In Review" state
     approveApplication (_id: ID!, wholeProgram: Boolean, comment: String): Application
     rejectApplication (_id: ID!, comment: String!): Application
 
