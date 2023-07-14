@@ -22,6 +22,7 @@ class Application {
     }
 
     async getApplicationById(id) {
+        console.log('test')
         let result = await this.applicationCollection.find(id);
         if (!result?.length || result.length < 1) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
         return result[0];
@@ -130,7 +131,11 @@ class Application {
     }
 
     async approveApplication(document, context) {
+        console.log("test")
+        console.log(document._id)
         const application = await this.getApplicationById(document._id);
+        await this.sendEmailAfterApproveApplication(context, application);
+
         // In Reviewed -> Approved
         verifyApplication(application)
             .notEmpty()
@@ -140,6 +145,7 @@ class Application {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
             $push: {history}
         });
+
         return updated?.modifiedCount && updated?.modifiedCount > 0 ? await this.getApplicationById(document._id) : null;
     }
 
@@ -189,6 +195,19 @@ class Application {
             study: application?.study?.name,
             program: application?.program?.name,
             url: this.emailUrl
+        })
+    }
+
+    async sendEmailAfterApproveApplication(context, application) {
+        // await this.notificationService.approveQuestionNotification(context.userInfo.email, {
+            console.log('maybe an email?')
+        await this.notificationService.approveQuestionNotification("wesleylau.wcl@gmail.com", {
+            firstName: context.userInfo.firstName
+        }, {
+            study: application?.study?.name,
+            doc_url: "doc_url",
+            org_owner_email: "org_owner_email",
+            concierge_email: "concierge_email"
         })
     }
 }
