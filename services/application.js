@@ -145,6 +145,8 @@ class Application {
 
     async rejectApplication(document, context) {
         const application = await this.getApplicationById(document._id);
+        await this.sendEmailAfterRejectApplication(context, application);
+
         // In Reviewed -> Rejected
         verifyApplication(application)
             .notEmpty()
@@ -189,6 +191,19 @@ class Application {
             study: application?.study?.name,
             program: application?.program?.name,
             url: this.emailUrl
+        })
+    }
+
+    async sendEmailAfterRejectApplication(context, application) {
+        console.log('maybe an email?')
+        // await this.notificationService.rejectQuestionNotification(context.userInfo.email, {
+        await this.notificationService.rejectQuestionNotification("lauwc@nih.gov", {
+        // await this.notificationService.rejectQuestionNotification("wesleylau.wcl@gmail.com", {
+            firstName: context.userInfo.firstName
+        }, {
+            study: application?.study?.name,
+            url: this.emailUrl
+
         })
     }
 }
