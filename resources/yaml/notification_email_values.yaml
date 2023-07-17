@@ -4,3 +4,5 @@
 NOTIFICATION_SENDER: "do-not-reply@bento-tools.org"
 SUBMISSION_SUBJECT: "CRDC Submission Application available for review"
 SUBMISSION_CONTENT: "An application for submission to CRDC has been received from $pi for the $study associated with the $program. Please log into $url to begin the review process."
+REJECT_SUBJECT: "CRDC application decision"
+REJECT_CONTENT: "We regret to inform you that your application to submit data from $study has been rejected by the CRDC Governance Committee.  A summary of the review can be found by logging into the application site $url and clicking on the Review Comments button."
