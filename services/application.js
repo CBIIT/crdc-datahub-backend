@@ -200,9 +200,10 @@ class Application {
 
     async sendEmailAfterApproveApplication(context, application) {
         // await this.notificationService.approveQuestionNotification(context.userInfo.email, {
-            console.log('maybe an email?')
-        await this.notificationService.approveQuestionNotification("wesleylau.wcl@gmail.com", {
-            firstName: context.userInfo.firstName
+        await this.notificationService.approveQuestionNotification("wesleylau.wcl@gmail.com", 
+        "lauwc@nih.gov",
+        {
+            firstName: application?.applicantName
         }, {
             study: application?.study?.name,
             doc_url: "doc_url",

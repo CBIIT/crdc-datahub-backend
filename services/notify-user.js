@@ -34,7 +34,7 @@ class NotifyUser {
         });
     }
 
-    async approveQuestionNotification(email, template_params, messageVariables) {
+    async approveQuestionNotification(email, emailCCs,template_params, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.APPROVE_CONTENT, messageVariables);
         return await this.send(async () => {
             await this.emailService.sendNotification(
@@ -43,7 +43,8 @@ class NotifyUser {
                 await createEmailTemplate("notification-template.html", {
                     message, ...template_params
                 }),
-                email
+                email,
+                emailCCs
             );
         });
     }
