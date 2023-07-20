@@ -6,6 +6,8 @@ const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifyApplication} = require("../verifier/application-verifier");
 const {verifySession} = require("../verifier/user-info-verifier");
 const ERROR = require("../constants/error-constants");
+const config = require('./config');
+
 
 class Application {
     constructor(applicationCollection, dbService, notificationsService, emailUrl) {
@@ -196,10 +198,8 @@ class Application {
 
     async sendEmailAfterRejectApplication(context, application) {
         console.log('maybe an email?')
-        // await this.notificationService.rejectQuestionNotification(context.userInfo.email, {
-        await this.notificationService.rejectQuestionNotification("lauwc@nih.gov", {
-        // await this.notificationService.rejectQuestionNotification("wesleylau.wcl@gmail.com", {
-            firstName: context.userInfo.firstName
+        await this.notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail+ ';' + config.temp_email_receiver, {
+            firstName: application?.primaryContact?.firstName
         }, {
             study: application?.study?.name,
             url: this.emailUrl
