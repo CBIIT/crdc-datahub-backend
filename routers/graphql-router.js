@@ -20,7 +20,6 @@ dbConnector.connect().then(() => {
     const dataInterface = new Application(applicationCollection, dbService, notificationsService, config.emails_url);
     root = {
         version: () => {return config.version},
-        createApplication: dataInterface.createApplication.bind(dataInterface),
         saveApplication: dataInterface.saveApplication.bind(dataInterface),
         getApplication: dataInterface.getApplication.bind(dataInterface),
         getMyLastApplication: dataInterface.getMyLastApplication.bind(dataInterface),

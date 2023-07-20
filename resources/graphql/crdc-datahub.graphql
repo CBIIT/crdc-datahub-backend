@@ -265,7 +265,6 @@ type Query {
 }
 type Mutation {
     "User initiated operations"
-    createApplication: Application
     saveApplication(application: AppInput!): Application
     submitApplication(_id: ID!): Application
     reopenApplication(_id: ID!): Application
