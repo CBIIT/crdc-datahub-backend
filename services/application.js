@@ -6,7 +6,7 @@ const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifyApplication} = require("../verifier/application-verifier");
 const {verifySession} = require("../verifier/user-info-verifier");
 const ERROR = require("../constants/error-constants");
-const config = require('./config');
+const config = require('../config');
 
 
 class Application {
@@ -133,21 +133,19 @@ class Application {
     }
 
     async approveApplication(document, context) {
-        console.log("test")
-        console.log(document._id)
         const application = await this.getApplicationById(document._id);
-        await this.sendEmailAfterApproveApplication(context, application);
-
+        
         // In Reviewed -> Approved
         verifyApplication(application)
-            .notEmpty()
-            .state([IN_REVIEW, SUBMITTED]);
+        .notEmpty()
+        .state([IN_REVIEW, SUBMITTED]);
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, APPROVED, document.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
             $push: {history}
         });
-
+        
+        await this.sendEmailAfterApproveApplication(context, application);
         return updated?.modifiedCount && updated?.modifiedCount > 0 ? await this.getApplicationById(document._id) : null;
     }
 
@@ -201,7 +199,9 @@ class Application {
     }
 
     async sendEmailAfterApproveApplication(context, application) {
-        await this.notificationService.approveQuestionNotification(application?.primaryContact?.firstName,
+        await this.notificationService.approveQuestionNotification(application?.primaryContact?.email,
+            // Organization Owner and concierge assigned/Super Admin
+            config.temp_email_receiver,
         {
             firstName: application?.applicantName
         }, {
