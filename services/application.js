@@ -27,29 +27,33 @@ class Application {
         return result[0];
     }
 
-    async createApplication(params, context) {
-        verifySession(context)
-            .verifyInitialized();
-        const userID = context.userInfo._id;
-        const id = v4(undefined, undefined, undefined);
-        let emptyApplication = {
-            _id: id,
+    async createApplication(application, userInfo) {
+        let newApplicationProperties = {
+            _id: v4(undefined, undefined, undefined),
             status: IN_PROGRESS,
-            createdAt: getCurrentTimeYYYYMMDDSS(),
-            applicantID: userID
+            applicant: {
+                applicantID: userInfo._id,
+                applicantName: userInfo.firstName + " " + userInfo.lastName,
+                applicantEmail: userInfo.email
+            },
+            createdAt: application.updatedAt
         };
-        await this.applicationCollection.insert(emptyApplication);
-        return emptyApplication;
+        application = {
+            ...application,
+            ...newApplicationProperties
+        };
+        await this.applicationCollection.insert(application);
+        return application;
     }
 
     async saveApplication(params, context) {
         verifySession(context)
             .verifyInitialized();
-        params.application.updatedAt = getCurrentTimeYYYYMMDDSS();
-        params.application.applicantID = context.userInfo._id;
-        params.application.applicantName = context.userInfo.firstName + " " + context.userInfo.lastName;
-        const result = await this.applicationCollection.update(params.application);
-        const id = params.application._id;
+        let application = params.application;
+        application.updatedAt = getCurrentTimeYYYYMMDDSS();
+        const id = application?._id;
+        if (!id) return await this.createApplication(application, context.userInfo);
+        const result = await this.applicationCollection.update(application);
         if (result.matchedCount < 1) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
         return await this.getApplicationById(id);
     }
