@@ -6,6 +6,8 @@ const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifyApplication} = require("../verifier/application-verifier");
 const {verifySession} = require("../verifier/user-info-verifier");
 const ERROR = require("../constants/error-constants");
+const config = require('./config');
+
 
 class Application {
     constructor(applicationCollection, dbService, notificationsService, emailUrl) {
@@ -199,16 +201,14 @@ class Application {
     }
 
     async sendEmailAfterApproveApplication(context, application) {
-        // await this.notificationService.approveQuestionNotification(context.userInfo.email, {
-        await this.notificationService.approveQuestionNotification("wesleylau.wcl@gmail.com", 
-        "lauwc@nih.gov",
+        await this.notificationService.approveQuestionNotification(application?.primaryContact?.firstName,
         {
             firstName: application?.applicantName
         }, {
             study: application?.study?.name,
-            doc_url: "doc_url",
-            org_owner_email: "org_owner_email",
-            concierge_email: "concierge_email"
+            doc_url: config.temp_test_url,
+            org_owner_email: config.temp_email_receiver,
+            concierge_email: config.temp_email_receiver
         })
     }
 }

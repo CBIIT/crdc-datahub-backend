@@ -18,6 +18,9 @@ let config = {
     email_transport: getTransportConfig(),
     emails_enabled: process.env.EMAILS_ENABLED ? process.env.EMAILS_ENABLED.toLowerCase() === 'true' : true,
     emails_url: process.env.EMAIL_URL ? process.env.EMAIL_URL : 'http://localhost:4010',
+    // temp url
+    temp_email_receiver:"lauwc@nih.gov",
+    temp_test_url: "https://datacommons.cancer.gov/",
     // Scheduled cronjob once a day (1am) eastern time at default
     schedule_job: process.env.SCHEDULE_JOB || "1 0 1 * * *"
 };
