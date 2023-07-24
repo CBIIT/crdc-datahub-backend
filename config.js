@@ -18,8 +18,7 @@ let config = {
     email_transport: getTransportConfig(),
     emails_enabled: process.env.EMAILS_ENABLED ? process.env.EMAILS_ENABLED.toLowerCase() === 'true' : true,
     emails_url: process.env.EMAIL_URL ? process.env.EMAIL_URL : 'http://localhost:4010',
-    // temp url
-    // admin_email: process.env.ADMIN_EMAIL || "",
+    // temp email and url. Will be addressed and update in later task
     org_owner_email: process.env.ORG_OWNER_EMAIL || "",
     concierge_email: process.env.CONCIERGE_EMAIL || process.env.ADMIN_EMAIL,
     submission_doc_url: process.env.SUBMISSION_DOC_URL ||"https://datacommons.cancer.gov/",
