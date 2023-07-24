@@ -44,6 +44,11 @@ Environment variables can either be set in the runtime environment or specified 
  - **EMAIL_URL**: the website URL in the email template sent to the user.
  - **EMAILS_ENABLED**: If not set to "true", then the email notifications will be disabled
  - **SCHEDULE_JOB**: Set a time expression to schedule a cron job
+ temp email recipentian (will be changed once more requirement is provided)
+ - **ADMIN_EMAIL**: temporary place holder for the admin email\
+ - **ORG_OWNER_EMAIL**: temporary place holder for the Organization Owner's email
+ - **CONCIERGE_EMAIL**: temporary place holder for the assigned concierge's email
+ - **submission_doc_url**:  temporary place holder for the admin email
 ### Creating a .env File
 
 1. Locate the [**env.template**](./env.template) file and create a copy

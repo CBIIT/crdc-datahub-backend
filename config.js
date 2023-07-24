@@ -19,8 +19,10 @@ let config = {
     emails_enabled: process.env.EMAILS_ENABLED ? process.env.EMAILS_ENABLED.toLowerCase() === 'true' : true,
     emails_url: process.env.EMAIL_URL ? process.env.EMAIL_URL : 'http://localhost:4010',
     // temp url
-    temp_email_receiver:"lauwc@nih.gov",
-    temp_test_url: "https://datacommons.cancer.gov/",
+    // admin_email: process.env.ADMIN_EMAIL || "",
+    org_owner_email: process.env.ORG_OWNER_EMAIL || "",
+    concierge_email: process.env.CONCIERGE_EMAIL || process.env.ADMIN_EMAIL,
+    submission_doc_url: process.env.SUBMISSION_DOC_URL ||"https://datacommons.cancer.gov/",
     // Scheduled cronjob once a day (1am) eastern time at default
     schedule_job: process.env.SCHEDULE_JOB || "1 0 1 * * *"
 };

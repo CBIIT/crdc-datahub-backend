@@ -24,7 +24,6 @@ class Application {
     }
 
     async getApplicationById(id) {
-        console.log('test')
         let result = await this.applicationCollection.find(id);
         if (!result?.length || result.length < 1) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
         return result[0];
@@ -201,14 +200,14 @@ class Application {
     async sendEmailAfterApproveApplication(context, application) {
         await this.notificationService.approveQuestionNotification(application?.primaryContact?.email,
             // Organization Owner and concierge assigned/Super Admin
-            config.temp_email_receiver,
+            `${config.org_owner_email} ; ${config.concierge_email}`,
         {
             firstName: application?.applicantName
         }, {
             study: application?.study?.name,
-            doc_url: config.temp_test_url,
-            org_owner_email: config.temp_email_receiver,
-            concierge_email: config.temp_email_receiver
+            doc_url: config.submission_doc_url,
+            org_owner_email: config.org_owner_email,
+            concierge_email: config.concierge_email
         })
     }
 }
