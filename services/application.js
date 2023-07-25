@@ -63,7 +63,7 @@ class Application {
             .verifyInitialized();
         const userID = context.userInfo._id;
         const matchApplicantIDToUser = {"$match": {"applicant.applicantID": userID, status: APPROVED}};
-        const sortCreatedAtDescending = {"$sort": {createdAt: 1}};
+        const sortCreatedAtDescending = {"$sort": {createdAt: -1}};
         const limitReturnToOneApplication = {"$limit": 1};
         const pipeline = [
             matchApplicantIDToUser,
