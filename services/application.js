@@ -199,11 +199,11 @@ class Application {
     }
 
     async sendEmailAfterRejectApplication(context, application) {
-        await this.notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail+ ';' + config.temp_email_receiver, {
+        await this.notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail+ ';' + config.org_owner_email, {
             firstName: application?.primaryContact?.firstName
         }, {
             study: application?.study?.name,
-            url: this.emailUrl
+            url: this.email
 
         })
     }
