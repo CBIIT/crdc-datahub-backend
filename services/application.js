@@ -6,10 +6,12 @@ const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifyApplication} = require("../verifier/application-verifier");
 const {verifySession} = require("../verifier/user-info-verifier");
 const ERROR = require("../constants/error-constants");
+const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 
 class Application {
-    constructor(applicationCollection, dbService, notificationsService, emailUrl) {
+    constructor(applicationCollection, userService, dbService, notificationsService, emailUrl) {
         this.applicationCollection = applicationCollection;
+        this.userService = userService;
         this.dbService = dbService;
         this.notificationService = notificationsService;
         this.emailUrl = emailUrl;
@@ -80,9 +82,17 @@ class Application {
             .verifyInitialized();
         let pipeline = [
             {"$skip": params.offset},
-            {"$limit": params.first}
+            {"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } }
         ];
-        return await this.applicationCollection.aggregate(pipeline);
+        const disablePagination = Number.isInteger(params.first) && params.first === -1;
+        if (!disablePagination) pipeline.push({"$limit": params.first});
+        // Admin have access to all applications
+        if (!this.userService.isAdmin(context.userInfo.role)) pipeline.push({"$match": {"applicant.applicantID": context.userInfo._id}});
+        // TODO Owners: all applications for the organization in which they are an owner
+        // pipeline.push({"$organization": context.userInfo._id});
+        // TODO Concierge: all applications for organizations that they manage
+        const result = await this.applicationCollection.aggregate(pipeline);
+        return {total: result?.length || 0, applications: result || []}
     }
 
     async submitApplication(params, context) {
