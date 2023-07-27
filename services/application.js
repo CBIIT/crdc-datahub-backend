@@ -29,24 +29,6 @@ class Application {
         return result[0];
     }
 
-    async reviewApplication(params, context) {
-        const application = await this.getApplication(params, context);
-        verifyApplication(application)
-            .notEmpty()
-            .state([IN_REVIEW, SUBMITTED]);
-        if (application && application.status && application.status === SUBMITTED) {
-            // If Submitted status, change it to In Review
-            const history = HistoryEventBuilder.createEvent(context.userInfo._id, IN_REVIEW, null);
-            const updated = await this.dbService.updateOne(APPLICATION, {_id: params._id}, {
-                $set: {status: IN_REVIEW, updatedAt: history.dateTime},
-                $push: {history}
-            });
-            const result = (updated?.modifiedCount && updated?.modifiedCount > 0) ? await this.dbService.find(APPLICATION, {_id: params._id}) : [];
-            return result.length > 0 ? result[0] : null;
-        }
-        return application || null;
-    }
-
     async createApplication(application, userInfo) {
         let newApplicationProperties = {
             _id: v4(undefined, undefined, undefined),
