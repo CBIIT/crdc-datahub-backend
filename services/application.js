@@ -80,14 +80,15 @@ class Application {
     async listApplications(params, context) {
         verifySession(context)
             .verifyInitialized();
-        let pipeline = [
-            {"$skip": params.offset},
-            {"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } }
-        ];
-        const disablePagination = Number.isInteger(params.first) && params.first === -1;
-        if (!disablePagination) pipeline.push({"$limit": params.first});
+        let pipeline = [];
         // Admin have access to all applications
         if (!this.userService.isAdmin(context.userInfo.role)) pipeline.push({"$match": {"applicant.applicantID": context.userInfo._id}});
+        if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
+
+        const disablePagination = Number.isInteger(params.first) && params.first === -1;
+        if (!disablePagination) pipeline.push({"$limit": params.first});
+
+        if (params.offset) pipeline.push({"$skip": params.offset})
         // TODO Owners: all applications for the organization in which they are an owner
         // pipeline.push({"$organization": context.userInfo._id});
         // TODO Concierge: all applications for organizations that they manage
