@@ -137,7 +137,7 @@ class Application {
         // In Reviewed -> Approved
         verifyApplication(application)
         .notEmpty()
-        .state([IN_REVIEW, SUBMITTED]);
+        .state([IN_REVIEW, SUBMITTED, APPROVED]);
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, APPROVED, document.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
