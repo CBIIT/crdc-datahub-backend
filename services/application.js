@@ -201,8 +201,8 @@ class Application {
             firstName: context.userInfo.firstName
         }, {
             pi: `${application?.pi?.firstName} ${application?.pi?.lastName}`,
-            study: application?.study?.name,
-            program: application?.program?.name,
+            study: application?.study?.abbreviation,
+            program: application?.program?.abbreviation,
             url: this.emailUrl
         })
     }
