@@ -151,7 +151,7 @@ class Application {
         // In Reviewed -> Rejected
         verifyApplication(application)
         .notEmpty()
-        .state([IN_REVIEW, SUBMITTED]);
+        .state([IN_REVIEW, SUBMITTED, REJECTED]);
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, APPROVED, document.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
             $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime},
@@ -199,11 +199,11 @@ class Application {
     }
 
     async sendEmailAfterRejectApplication(context, application) {
-        await this.notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail+ ';' + config.org_owner_email, {
-            firstName: application?.primaryContact?.firstName
+        await this.notificationService.rejectQuestionNotification(application?.primaryContact?.email+ ';' + config.org_owner_email, {
+            firstName: application?.applicantName
         }, {
             study: application?.study?.name,
-            url: this.email
+            url: this.emailUrl
 
         })
     }
