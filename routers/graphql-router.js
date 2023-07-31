@@ -25,6 +25,7 @@ dbConnector.connect().then(() => {
         version: () => {return config.version},
         saveApplication: dataInterface.saveApplication.bind(dataInterface),
         getApplication: dataInterface.getApplication.bind(dataInterface),
+        reviewApplication: dataInterface.reviewApplication.bind(dataInterface),
         getMyLastApplication: dataInterface.getMyLastApplication.bind(dataInterface),
         listApplications: dataInterface.listApplications.bind(dataInterface),
         submitApplication: dataInterface.submitApplication.bind(dataInterface),
