@@ -53,7 +53,8 @@ cronJob.schedule(config.schedule_job, async () => {
     dbConnector.connect().then( async () => {
         const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
         const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
-        const dataInterface = new Application(applicationCollection, new User(userCollection), dbService, notificationsService, config.emails_url);
+        const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_user_days};
+        const dataInterface = new Application(applicationCollection, new User(userCollection), dbService, notificationsService, emailParams);
         console.log("Running a scheduled background task to delete inactive application at " + getCurrentTimeYYYYMMDDSS());
         await dataInterface.deleteInactiveApplications(config.inactive_user_days);
     });

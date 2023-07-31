@@ -13,6 +13,11 @@ module.exports = {
         "status": "In Review",
         "createdAt": "3000-01-01T12:00:00",
         "updatedAt": "3000-01-01T12:00:00",
+        "applicant": {
+            applicantID: "test",
+            applicantName: "crdc",
+            applicantEmail: "crdc@nih.gov"
+        },
         "history": [
             {
                 "status": "In Progress",
