@@ -7,7 +7,7 @@ const {DATABASE_NAME} = require("../../crdc-datahub-database-drivers/database-co
 const ERROR = require("../../constants/error-constants");
 const {EmailService} = require("../../services/email");
 const {NotifyUser} = require("../../services/notify-user");
-const {User} = require("../../crdc-datahub-authz/crdc-datahub-database-drivers/services/user");
+const {User} = require("../../crdc-datahub-database-drivers/services/user");
 jest.mock("../../crdc-datahub-database-drivers/mongodb-collection");
 jest.mock("../../crdc-datahub-database-drivers/mongo-queries.js");
 jest.mock("../../crdc-datahub-database-drivers/services/user");
@@ -18,7 +18,7 @@ const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_N
 const emailService = new EmailService(config.email_transport, config.emails_enabled);
 const notificationsService = new NotifyUser(emailService);
 const userService = new User(userCollection);
-const dataInterface = new Application(applicationCollection, new User(userCollection), dbService, notificationsService, config.emails_url);
+const dataInterface = new Application(applicationCollection, userService, dbService, notificationsService, config.emails_url);
 
 describe('Batch Jobs test', () => {
 
