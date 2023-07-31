@@ -202,7 +202,7 @@ class Application {
         const users = [];
         await Promise.all(
             applications.map(async (application) => {
-                const user = await this.userService.getUser(application.applicantID);
+                const user = await this.userService.getUser(application.applicant.applicantID);
                 if (user) users.push({user, application});
             })
         );
@@ -219,8 +219,8 @@ class Application {
             firstName: context.userInfo.firstName
         }, {
             pi: `${application?.pi?.firstName} ${application?.pi?.lastName}`,
-            study: application?.study?.name,
-            program: application?.program?.name,
+            study: application?.study?.abbreviation,
+            program: application?.program?.abbreviation,
             url: this.emailParams.url
         })
     }
