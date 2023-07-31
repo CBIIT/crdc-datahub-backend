@@ -6,6 +6,7 @@ const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifyApplication} = require("../verifier/application-verifier");
 const {verifySession} = require("../verifier/user-info-verifier");
 const ERROR = require("../constants/error-constants");
+const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 
 class Application {
     constructor(applicationCollection, userService, dbService, notificationsService, emailParams) {
@@ -28,29 +29,33 @@ class Application {
         return result[0];
     }
 
-    async createApplication(params, context) {
-        verifySession(context)
-            .verifyInitialized();
-        const userID = context.userInfo._id;
-        const id = v4(undefined, undefined, undefined);
-        let emptyApplication = {
-            _id: id,
+    async createApplication(application, userInfo) {
+        let newApplicationProperties = {
+            _id: v4(undefined, undefined, undefined),
             status: IN_PROGRESS,
-            createdAt: getCurrentTimeYYYYMMDDSS(),
-            applicantID: userID
+            applicant: {
+                applicantID: userInfo._id,
+                applicantName: userInfo.firstName + " " + userInfo.lastName,
+                applicantEmail: userInfo.email
+            },
+            createdAt: application.updatedAt
         };
-        await this.applicationCollection.insert(emptyApplication);
-        return emptyApplication;
+        application = {
+            ...application,
+            ...newApplicationProperties
+        };
+        await this.applicationCollection.insert(application);
+        return application;
     }
 
     async saveApplication(params, context) {
         verifySession(context)
             .verifyInitialized();
-        params.application.updatedAt = getCurrentTimeYYYYMMDDSS();
-        params.application.applicantID = context.userInfo._id;
-        params.application.applicantName = context.userInfo.firstName + " " + context.userInfo.lastName;
-        const result = await this.applicationCollection.update(params.application);
-        const id = params.application._id;
+        let application = params.application;
+        application.updatedAt = getCurrentTimeYYYYMMDDSS();
+        const id = application?._id;
+        if (!id) return await this.createApplication(application, context.userInfo);
+        const result = await this.applicationCollection.update(application);
         if (result.matchedCount < 1) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
         return await this.getApplicationById(id);
     }
@@ -59,8 +64,8 @@ class Application {
         verifySession(context)
             .verifyInitialized();
         const userID = context.userInfo._id;
-        const matchApplicantIDToUser = {"$match": {applicantID: userID}};
-        const sortCreatedAtDescending = {"$sort": {createdAt: 1}};
+        const matchApplicantIDToUser = {"$match": {"applicant.applicantID": userID, status: APPROVED}};
+        const sortCreatedAtDescending = {"$sort": {createdAt: -1}};
         const limitReturnToOneApplication = {"$limit": 1};
         const pipeline = [
             matchApplicantIDToUser,
@@ -75,11 +80,20 @@ class Application {
     async listApplications(params, context) {
         verifySession(context)
             .verifyInitialized();
-        let pipeline = [
-            {"$skip": params.offset},
-            {"$limit": params.first}
-        ];
-        return await this.applicationCollection.aggregate(pipeline);
+        let pipeline = [];
+        // Admin have access to all applications
+        if (!this.userService.isAdmin(context.userInfo.role)) pipeline.push({"$match": {"applicant.applicantID": context.userInfo._id}});
+        if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
+
+        const disablePagination = Number.isInteger(params.first) && params.first === -1;
+        if (!disablePagination) pipeline.push({"$limit": params.first});
+
+        if (params.offset) pipeline.push({"$skip": params.offset})
+        // TODO Owners: all applications for the organization in which they are an owner
+        // pipeline.push({"$organization": context.userInfo._id});
+        // TODO Concierge: all applications for organizations that they manage
+        const result = await this.applicationCollection.aggregate(pipeline);
+        return {total: result?.length || 0, applications: result || []}
     }
 
     async submitApplication(params, context) {
@@ -215,11 +229,12 @@ class Application {
         await this.notificationService.inactiveApplicationsNotification(email, emailCCs,{
             firstName: firstName
         },{
-            study: application.study.name,
-            program: application.program.name,
-            url: this.emailParams.url,
+            pi: `${application?.pi?.firstName} ${application?.pi?.lastName}`,
+            study: application?.study?.abbreviation,
+            program: application?.program?.abbreviation,
             officialEmail: this.emailParams.officialEmail,
-            inactiveDays: this.emailParams.inactiveDays
+            inactiveDays: this.emailParams.inactiveDays,
+            url: this.emailParams.url
         })
     }
 }

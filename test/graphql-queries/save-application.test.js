@@ -2,6 +2,8 @@ const ERROR = require("../../constants/error-constants");
 const {MongoDBCollection} = require("../../crdc-datahub-database-drivers/mongodb-collection");
 const {Application} = require("../../services/application");
 const {TEST_SESSION, TEST_APPLICATION} = require("../test-constants");
+const {v4} = require("uuid");
+const {IN_PROGRESS} = require("../../constants/application-constants");
 
 jest.mock("../../crdc-datahub-database-drivers/mongodb-collection");
 const applicationCollection = new MongoDBCollection();
@@ -43,5 +45,28 @@ describe('saveApplication API test', () => {
             return [TEST_APPLICATION];
         });
         expect(await dataInterface.saveApplication(params, TEST_SESSION)).toStrictEqual(TEST_APPLICATION);
+    })
+
+    test("save new application", async () => {
+        applicationCollection.insert.mockImplementation(() => {
+            return {};
+        });
+        const userInfo = TEST_SESSION.userInfo;
+        let checkApplication = {
+            ...TEST_APPLICATION,
+            _id: v4(undefined, undefined, undefined),
+            status: IN_PROGRESS,
+            applicant: {
+                applicantID: userInfo._id,
+                applicantName: userInfo.firstName + " " + userInfo.lastName,
+                applicantEmail: userInfo.email
+            },
+            createdAt: TEST_APPLICATION.updatedAt
+        }
+        params.application._id = null;
+        const result = await dataInterface.saveApplication(params, TEST_SESSION);
+        expect(result._id).toBeTruthy();
+        checkApplication._id = result._id;
+        expect(result).toStrictEqual(checkApplication);
     })
 });

@@ -2,13 +2,23 @@ const ERROR = require("../../constants/error-constants");
 const {MongoDBCollection} = require("../../crdc-datahub-database-drivers/mongodb-collection");
 const {Application} = require("../../services/application");
 const {TEST_SESSION, TEST_APPLICATION} = require("../test-constants");
-
+const {User} = require("../../crdc-datahub-database-drivers/services/user");
 jest.mock("../../crdc-datahub-database-drivers/mongodb-collection");
+jest.mock("../../crdc-datahub-database-drivers/services/user");
 const applicationCollection = new MongoDBCollection();
-const dataInterface = new Application(applicationCollection);
+
+const userCollection = new MongoDBCollection();
+const userService = new User(userCollection);
+const dataInterface = new Application(applicationCollection, userService);
 
 describe('listApplication API test', () => {
     let params = {_id: TEST_APPLICATION._id};
+    afterEach(() => {
+        jest.clearAllMocks();
+        userService.isAdmin.mockImplementation(()=>{
+            return false;
+        });
+    });
 
     test("session errors", async () => {
         let session = {};
@@ -23,11 +33,11 @@ describe('listApplication API test', () => {
         applicationCollection.aggregate.mockImplementation(() => {
             return [];
         });
-        expect(await dataInterface.listApplications(params, TEST_SESSION)).toStrictEqual([]);
-        let result = [TEST_APPLICATION, TEST_APPLICATION];
+        expect(await dataInterface.listApplications(params, TEST_SESSION)).toStrictEqual({total: 0, applications: []});
+        let result = {total: 2, applications: [TEST_APPLICATION, TEST_APPLICATION]};
         applicationCollection.aggregate.mockImplementation(() => {
-            return result;
+            return [TEST_APPLICATION, TEST_APPLICATION];
         });
-        expect(await dataInterface.listApplications(params, TEST_SESSION)).toBe(result);
+        expect(await dataInterface.listApplications(params, TEST_SESSION)).toStrictEqual(result);
     });
 });

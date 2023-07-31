@@ -29,9 +29,10 @@ function getTransportConfig() {
     return {
         host: process.env.EMAIL_SMTP_HOST,
         port: process.env.EMAIL_SMTP_PORT,
+        secure: false,
         // Optional AWS Email Identity
         ...(process.env.EMAIL_USER && {
-                secure: true, // true for 465, false for other ports
+                secure: false, // true for 465, false for other ports
                 auth: {
                     user: process.env.EMAIL_USER, // generated ethereal user
                     pass: process.env.EMAIL_PASSWORD, // generated ethereal password
