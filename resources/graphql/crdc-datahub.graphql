@@ -11,11 +11,8 @@ type Application {
     # sort fields
     programName: String
     studyAbbreviation: String
-    # questionnaire data
-    sectionA: String
-    sectionB: String
-    sectionC: String
-    sectionD: String
+    # questionnaire data as JSON string
+    questionnaireData: String
 }
 
 type Event {
@@ -29,10 +26,7 @@ input AppInput {
     _id: ID
     programName: String
     studyAbbreviation: String
-    sectionA: String
-    sectionB: String
-    sectionC: String
-    sectionD: String
+    questionnaireData: String
 }
 
 type Applicant {
