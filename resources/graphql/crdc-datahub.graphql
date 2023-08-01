@@ -1,97 +1,18 @@
 type Application {
+    # backend managed fields
     _id: ID!
-    sections: [Section]
-    pi: PI
-    piAsPrimaryContact: Boolean
-    primaryContact: Contact # null if piAsPrimaryContact is true
-    additionalContacts: [Contact]
-    program: Program
-    study: Study
-    accessTypes: [String]
-    targetedSubmissionDate: String # YYYY-MM-DD format
-    targetedReleaseDate: String # YYYY-MM-DD format
-    timeConstraints: [TimeConstraint]
-    cancerTypes: [String] # FE control allowed values
-    otherCancerTypes: String
-    preCancerTypes: [String] # FE control allowed values
-    otherPreCancerTypes: String
-    numberOfParticipants: Int
-    species: [String] # FE control allowed values
-    cellLines: Boolean
-    modelSystems: Boolean
-    dataDeIdentified: Boolean
-    dataTypes: [String] # FE control allowed values
-    imagingDataDeIdentified: Boolean
-    otherDataTypes: String
-    clinicalData: ClinicalData
-    files: [FileInfo]
-    submitterComment: String
     status: String # [New, In Progress, Submitted, In Review, Approved, Rejected]
-    programLevelApproval: Boolean # Only valid for Approved status
-    reviewComment: String
     createdAt: String # YYYY-MM-DDTHH:MM:SS format
     updatedAt: String # YYYY-MM-DDTHH:MM:SS format
     submittedDate: String # YYYY-MM-DDTHH:MM:SS format
     history: [Event] # An Event will be appended to the list whenever Application's status changes
     applicant: Applicant # auto populated by BE
-    organization: String # auto populate by BE using applicant's organization if available
-}
-
-input AppInput {
-    _id: ID
-    sections: [SectionInput]
-    pi: PIInput
-    piAsPrimaryContact: Boolean
-    primaryContact: ContactInput # not needed if piAsPrimaryContact is true
-    additionalContacts: [ContactInput]
-    program: ProgramInput
-    study: StudyInput
-    funding: FundingInput
-    accessTypes: [String]
-    targetedSubmissionDate: String # YYYY-MM-DD format
-    targetedReleaseDate: String # YYYY-MM-DD format
-    timeConstraints: [TimeConstraintInput]
-    cancerTypes: [String] # FE control allowed values
-    otherCancerTypes: String
-    preCancerTypes: [String] # FE control allowed values
-    otherPreCancerTypes: String
-    numberOfParticipants: Int
-    species: [String] # FE control allowed values
-    cellLines: Boolean
-    modelSystems: Boolean
-    dataDeIdentified: Boolean
-    dataTypes: [String] # FE control allowed values
-    imagingDataDeIdentified: Boolean
-    otherDataTypes: String
-    clinicalData: ClinicalDataInput
-    files: [FileInfoInput]
-    submitterComment: String
-}
-
-type Applicant {
-    applicantID: String # auto populated by BE
-    applicantName: String # auto populated by BE
-    applicantEmail: String # auto populated by BE
-}
-
-type Section {
-    name: String # Section A, B, C etc.
-    status: String # FE control allowed values
-}
-
-input SectionInput {
-    name: String # Section A, B, C etc.
-    status: String # FE control allowed values
-}
-
-type TimeConstraint{
-    description: String
-    effectiveDate: String
-}
-
-input TimeConstraintInput {
-    description: String
-    effectiveDate: String
+    organization: Organization
+    # sort fields
+    programName: String
+    studyAbbreviation: String
+    # questionnaire data as JSON string
+    questionnaireData: String
 }
 
 type Event {
@@ -101,148 +22,22 @@ type Event {
     userID: ID!
 }
 
-type ClinicalData {
-    dataTypes: [String]  # FE control allowed values
-    otherDataTypes: String
-    futureDataTypes: Boolean
+input AppInput {
+    _id: ID
+    programName: String
+    studyAbbreviation: String
+    questionnaireData: String
 }
 
-input ClinicalDataInput {
-    dataTypes: [String]  # FE control allowed values
-    otherDataTypes: String
-    futureDataTypes: Boolean
+type Applicant {
+    applicantID: String # auto populated by BE
+    applicantName: String # auto populated by BE
+    applicantEmail: String # auto populated by BE
 }
 
-type Publication {
-    title: String
-    pubmedID: String
-    DOI: String
-}
-
-input PublicationInput {
-    title: String
-    pubmedID: String
-    DOI: String
-}
-
-type PlannedPublication {
-    title: String
-    expectedDate: String
-}
-
-input PlannedPublicationInput {
-    title: String
-    expectedDate: String
-}
-
-type FileInfo {
-    type: String  # FE control allowed values
-    count: Int
-    amount: String # xxxMB, GB etc
-}
-
-input FileInfoInput {
-    type: String  # FE control allowed values
-    count: Int
-    amount: String # xxxMB, GB etc
-}
-
-type Funding {
-    agencies: [String]
-    grantNumbers: String
-    nciProgramOfficer: String
-    nciGPA: String
-}
-
-input FundingInput {
-    agencies: [String]
-    grantNumbers: String
-    nciProgramOfficer: String
-    nciGPA: String
-}
-
-type Contact {
-    institution: String
-    position: String
-    firstName: String
-    lastName: String
-    email: String
-    phone: String
-}
-
-input ContactInput {
-    institution: String
-    position: String
-    firstName: String
-    lastName: String
-    email: String
-    phone: String
-}
-
-type Program {
+type Organization {
+    _id: ID!
     name: String
-    abbreviation: String
-    description: String
-}
-
-input ProgramInput {
-    name: String
-    abbreviation: String
-    description: String
-}
-
-type Study {
-    name: String
-    abbreviation: String
-    description: String
-    publications: [Publication]
-    plannedPublications: [PlannedPublication]
-    isDbGapRegistered: Boolean
-    dbGaPPPHSNumber: String
-    repositories: [Repository]
-    funding: Funding
-}
-
-input StudyInput {
-    name: String
-    abbreviation: String
-    description: String
-    publications: [PublicationInput]
-    plannedPublications: [PlannedPublicationInput]
-    isDbGapRegistered: Boolean
-    dbGaPPPHSNumber: String
-    repositories: [RepositoryInput]
-    funding: FundingInput
-}
-
-type Repository {
-    name: String
-    studyID: String
-    submittedDate: String
-}
-
-input RepositoryInput {
-    name: String
-    studyID: String
-    submittedDate: String
-}
-
-type PI {
-    firstName: String
-    lastName: String
-    position: String
-    email: String
-    institution: String
-    address: String
-}
-
-input PIInput {
-    firstName: String
-    lastName: String
-    position: String
-    email: String
-    institution: String
-    address: String
 }
 
 type ListApplications {
