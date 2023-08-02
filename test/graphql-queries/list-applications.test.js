@@ -3,13 +3,15 @@ const {MongoDBCollection} = require("../../crdc-datahub-database-drivers/mongodb
 const {Application} = require("../../services/application");
 const {TEST_SESSION, TEST_APPLICATION} = require("../test-constants");
 const {User} = require("../../crdc-datahub-database-drivers/services/user");
+const {Organization} = require("../../services/organization");
 jest.mock("../../crdc-datahub-database-drivers/mongodb-collection");
 jest.mock("../../crdc-datahub-database-drivers/services/user");
 const applicationCollection = new MongoDBCollection();
-
+const organizationCollection = new MongoDBCollection();
 const userCollection = new MongoDBCollection();
 const userService = new User(userCollection);
-const dataInterface = new Application(applicationCollection, userService);
+const organizationService = new Organization(organizationCollection);
+const dataInterface = new Application(applicationCollection, organizationService, userService);
 
 describe('listApplication API test', () => {
     let params = {_id: TEST_APPLICATION._id};
@@ -37,6 +39,10 @@ describe('listApplication API test', () => {
         let result = {total: 2, applications: [TEST_APPLICATION, TEST_APPLICATION]};
         applicationCollection.aggregate.mockImplementation(() => {
             return [TEST_APPLICATION, TEST_APPLICATION];
+        });
+
+        organizationCollection.aggregate.mockImplementation(() => {
+            return [];
         });
         expect(await dataInterface.listApplications(params, TEST_SESSION)).toStrictEqual(result);
     });
