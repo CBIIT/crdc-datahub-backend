@@ -114,7 +114,7 @@ class Application {
             .verifyInitialized();
         let pipeline = [];
         if (!this.userService.isAdmin(context.userInfo.role)) {
-            const organizations = await this.organizationService.getOrganization(context.userInfo._id);
+            const organizations = await this.organizationService.getOrganizationByUserID(context.userInfo._id);
             pipeline = pipeline.concat(this.listApplicationConditions(context.userInfo._id, organizations));
         }
         if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });

@@ -4,7 +4,7 @@ class Organization {
     }
 
     // Query the organization collection to find the curator or owner based on the user ID.
-    async getOrganization(userID) {
+    async getOrganizationByUserID(userID) {
         const matchOwnerOrCurator = [{"$match": {
             $or: [
                 {curators: {
