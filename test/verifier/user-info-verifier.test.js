@@ -1,8 +1,10 @@
 const ERROR = require("../../constants/error-constants");
 const {verifySession} = require("../../verifier/user-info-verifier");
+const USER_CONSTANTS = require("../../crdc-datahub-database-drivers/constants/user-constants");
+const ROLES = USER_CONSTANTS.USER.ROLES;
 
 
-describe("session verifier test", () => {
+describe("user info verifier test", () => {
     let session;
 
     beforeEach(() => {
@@ -34,5 +36,23 @@ describe("session verifier test", () => {
         const sessionVerifier = verifySession(session);
         expect(sessionVerifier.verifyInitialized()).toStrictEqual(sessionVerifier);
     });
+
+    test("verify role - no role", () => {
+        const sessionVerifier = verifySession(session);
+        expect(() => {sessionVerifier.verifyRole([ROLES.ADMIN])}).toThrow(ERROR.INVALID_ROLE);
+    });
+
+    test("verify role - no invalid role", () => {
+        session.userInfo.role = ROLES.USER;
+        const sessionVerifier = verifySession(session);
+        expect(() => {sessionVerifier.verifyRole([ROLES.ADMIN])}).toThrow(ERROR.INVALID_ROLE);
+    });
+
+    test("verify role - valid role", () => {
+        session.userInfo.role = ROLES.USER;
+        const sessionVerifier = verifySession(session);
+        expect(() => {sessionVerifier.verifyRole([ROLES.ADMIN, ROLES.USER])}).not.toThrowError();
+    });
+
 
 });

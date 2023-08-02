@@ -10,7 +10,8 @@ const ERROR = {
         EMPTY_APPLICATION: "Application array is empty",
         UNDEFINED_STATUS_APPLICATION: "Application state is undefined",
         INVALID_STATE_APPLICATION: "Application state is invalid"
-    }
+    },
+    INVALID_ROLE: "You do not have the correct role to perform this operation"
 }
 
 module.exports = ERROR;

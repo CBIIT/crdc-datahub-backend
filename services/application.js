@@ -7,6 +7,8 @@ const {verifyApplication} = require("../verifier/application-verifier");
 const {verifySession} = require("../verifier/user-info-verifier");
 const ERROR = require("../constants/error-constants");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
+const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
+const ROLES = USER_CONSTANTS.USER.ROLES;
 
 class Application {
     constructor(applicationCollection, userService, dbService, notificationsService, emailParams) {
@@ -163,6 +165,7 @@ class Application {
     }
 
     async approveApplication(document, context) {
+        verifyReviewerPermission(context);
         const application = await this.getApplicationById(document._id);
         // In Reviewed -> Approved
         verifyApplication(application)
@@ -177,6 +180,7 @@ class Application {
     }
 
     async rejectApplication(document, context) {
+        verifyReviewerPermission(context);
         const application = await this.getApplicationById(document._id);
         // In Reviewed -> Rejected
         verifyApplication(application)
@@ -255,6 +259,14 @@ class Application {
             url: this.emailParams.url
         })
     }
+
+
+}
+
+function verifyReviewerPermission(context){
+    verifySession(context)
+        .verifyInitialized()
+        .verifyRole([ROLES.ADMIN, ROLES.FEDERAL_LEAD]);
 }
 
 module.exports = {
