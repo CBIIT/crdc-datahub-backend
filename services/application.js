@@ -154,7 +154,7 @@ class Application {
         const application = await this.getApplicationById(document._id);
         // TODO 1. If Reviewer opened the application, the status changes to IN_REVIEW
         // TODO 2. THe application status changes from rejected to in-progress when the user opens the rejected application
-        if (application.length > 0 && application[0].status) {
+        if (application && application.status) {
             const history = HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, null);
             const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
                 $set: {status: IN_PROGRESS, updatedAt: history.dateTime},
@@ -163,7 +163,7 @@ class Application {
             const result = (updated?.modifiedCount && updated?.modifiedCount > 0) ? await this.dbService.find(APPLICATION, {_id: document._id}) : [];
             return result.length > 0 ? result[0] : {};
         }
-        return application.length > 0 ? application[0] : null;
+        return application;
     }
 
     async deleteApplication(document, _) {
