@@ -18,6 +18,10 @@ module.exports = {
             applicantName: "crdc",
             applicantEmail: "crdc@nih.gov"
         },
+        organization: {
+            _id: "test",
+            name: "crdc-org"
+        },
         "history": [
             {
                 "status": "In Progress",

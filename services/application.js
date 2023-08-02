@@ -237,7 +237,7 @@ class Application {
             if (!app?.organization?._id) return [];
             const org = await this.organizationService.getOrganizationByID(app.organization._id);
             // exclude if user is already the owner's of the organization
-            if (org.owner && !ownerIDsSet.has(org.owner) && app.applicant.applicantID !== org.owner) {
+            if (org?.owner && !ownerIDsSet.has(org.owner) && app.applicant.applicantID !== org.owner) {
                 userByOrgID[org._id] = org.owner;
                 ownerIDsSet.add(org.owner);
             }
