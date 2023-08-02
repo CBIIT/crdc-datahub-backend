@@ -131,7 +131,8 @@ class Application {
             ...application,
             history: history,
             status: SUBMITTED,
-            updatedAt: historyEvent.dateTime
+            updatedAt: historyEvent.dateTime,
+            submittedDate: historyEvent.dateTime
         };
         const updated = await this.applicationCollection.update(application);
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) throw new Error(ERROR.UPDATE_FAILED);
