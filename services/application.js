@@ -11,8 +11,9 @@ const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-
 const ROLES = USER_CONSTANTS.USER.ROLES;
 
 class Application {
-    constructor(applicationCollection, userService, dbService, notificationsService, emailParams) {
+    constructor(applicationCollection, organizationService, userService, dbService, notificationsService, emailParams) {
         this.applicationCollection = applicationCollection;
+        this.organizationService = organizationService;
         this.userService = userService;
         this.dbService = dbService;
         this.notificationService = notificationsService;
@@ -97,21 +98,30 @@ class Application {
         return result[0];
     }
 
+    listApplicationConditions(userID, organizations) {
+        // search by applicant's user id
+        let conditions = [{"applicant.applicantID": userID}];
+        const orgIds = organizations
+            .map((org) => org._id)
+            .filter((org)=> (org));
+        // search by user's organization
+        if (orgIds?.length > 0) conditions.push({"organization._id": { "$in": orgIds }});
+        return [{"$match": {"$or": conditions}}];
+    }
+
     async listApplications(params, context) {
         verifySession(context)
             .verifyInitialized();
         let pipeline = [];
-        // Admin have access to all applications
-        if (!this.userService.isAdmin(context.userInfo.role)) pipeline.push({"$match": {"applicant.applicantID": context.userInfo._id}});
+        if (!this.userService.isAdmin(context.userInfo.role)) {
+            const organizations = await this.organizationService.getOrganization(context.userInfo._id);
+            pipeline = pipeline.concat(this.listApplicationConditions(context.userInfo._id, organizations));
+        }
         if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
-
         const disablePagination = Number.isInteger(params.first) && params.first === -1;
         if (!disablePagination) pipeline.push({"$limit": params.first});
 
-        if (params.offset) pipeline.push({"$skip": params.offset})
-        // TODO Owners: all applications for the organization in which they are an owner
-        // pipeline.push({"$organization": context.userInfo._id});
-        // TODO Concierge: all applications for organizations that they manage
+        if (params.offset) pipeline.push({"$skip": params.offset});
         const result = await this.applicationCollection.aggregate(pipeline);
         return {total: result?.length || 0, applications: result || []}
     }
@@ -220,18 +230,30 @@ class Application {
     }
 
     async emailInactiveApplicants(applications) {
-        // Look up by an applicant's id
-        const users = [];
+        // Store Owner's User IDs
+        let ownerIDsSet = new Set();
+        let userByOrgID = {};
+        await Promise.all(applications.map(async (app) => {
+            if (!app?.organization?._id) return [];
+            const org = await this.organizationService.getOrganizationByID(app.organization._id);
+            // exclude if user is already the owner's of the organization
+            if (org.owner && !ownerIDsSet.has(org.owner) && app.applicant.applicantID !== org.owner) {
+                userByOrgID[org._id] = org.owner;
+                ownerIDsSet.add(org.owner);
+            }
+        }));
+        // Store Owner's email address
+        const orgOwners = {};
         await Promise.all(
-            applications.map(async (application) => {
-                const user = await this.userService.getUser(application.applicant.applicantID);
-                if (user) users.push({user, application});
+            Object.keys(userByOrgID).map(async (orgID) => {
+                const user = await this.userService.getUser(userByOrgID[orgID]);
+                if (user) orgOwners[orgID] = user.email;
             })
         );
         // Send Email Notification
-        await Promise.all(users.map(async (u) => {
-            // TODO Organization Owner CCs info required
-            await this.sendEmailAfterInactiveApplications(u.user.email, [], u.user.firstName, u.application);
+        await Promise.all(applications.map(async (app) => {
+            const emailsCCs = (orgOwners.hasOwnProperty(app.organization._id)) ? [orgOwners[app.organization._id]] : [];
+            await this.sendEmailAfterInactiveApplications(app.applicant.applicantEmail, emailsCCs, app.applicant.applicantName, app);
         }));
     }
 
