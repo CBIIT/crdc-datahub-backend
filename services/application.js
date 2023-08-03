@@ -119,11 +119,18 @@ class Application {
         }
         if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
         const disablePagination = Number.isInteger(params.first) && params.first === -1;
-        if (!disablePagination) pipeline.push({"$limit": params.first});
-
         if (params.offset) pipeline.push({"$skip": params.offset});
-        const result = await this.applicationCollection.aggregate(pipeline);
-        return {total: result?.length || 0, applications: result || []}
+
+        const promises = [
+            await this.applicationCollection.aggregate((!disablePagination) ? pipeline.concat([{"$limit": params.first}]) : pipeline),
+            await this.applicationCollection.aggregate(pipeline)
+        ];
+        let result = {total: 0, applications: []};
+        await Promise.all(promises).then(function(results) {
+            result.applications = results[0] || [];
+            result.total = results[1]?.length || 0;
+        });
+        return result;
     }
 
     async submitApplication(params, context) {
