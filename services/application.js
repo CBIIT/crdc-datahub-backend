@@ -260,23 +260,21 @@ class Application {
 
     // Email Notifications
     async sendEmailAfterSubmitApplication(context, application) {
-        await this.notificationService.submitQuestionNotification(context.userInfo.email, {
-            firstName: context.userInfo.firstName
-        }, {
-            pi: `${application?.pi?.firstName} ${application?.pi?.lastName}`,
-            study: application?.study?.abbreviation,
-            program: application?.program?.abbreviation,
+        await this.notificationService.submitQuestionNotification({
+            pi: `${context.userInfo.firstName} ${context.userInfo.lastName}`,
+            study: application?.studyAbbreviation,
+            program: application?.programName,
             url: this.emailParams.url
         })
     }
 
-    async sendEmailAfterInactiveApplications(email, emailCCs, firstName, application) {
+    async sendEmailAfterInactiveApplications(email, emailCCs, applicantName, application) {
         await this.notificationService.inactiveApplicationsNotification(email, emailCCs,{
-            firstName: firstName
+            firstName: applicantName
         },{
-            pi: `${application?.pi?.firstName} ${application?.pi?.lastName}`,
-            study: application?.study?.abbreviation,
-            program: application?.program?.abbreviation,
+            pi: `${applicantName}`,
+            study: application?.studyAbbreviation,
+            program: application?.programName,
             officialEmail: this.emailParams.officialEmail,
             inactiveDays: this.emailParams.inactiveDays,
             url: this.emailParams.url
