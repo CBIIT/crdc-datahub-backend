@@ -253,8 +253,8 @@ class Application {
         );
         // Send Email Notification
         await Promise.all(applications.map(async (app) => {
-            const emailsCCs = (orgOwners.hasOwnProperty(app.organization._id)) ? [orgOwners[app.organization._id]] : [];
-            await this.sendEmailAfterInactiveApplications(app.applicant.applicantEmail, emailsCCs, app.applicant.applicantName, app);
+            const emailsCCs = (orgOwners.hasOwnProperty(app?.organization?._id)) ? [orgOwners[app?.organization?._id]] : [];
+            await this.sendEmailAfterInactiveApplications(app?.applicant?.applicantEmail, emailsCCs, app?.applicant?.applicantName, app);
         }));
     }
 
