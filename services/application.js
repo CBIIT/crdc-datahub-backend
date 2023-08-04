@@ -8,6 +8,8 @@ const {verifySession} = require("../verifier/user-info-verifier");
 const ERROR = require("../constants/error-constants");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
+const {isElementInArray} = require("../utility/string-util");
+const {ORG, USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 
 class Application {
@@ -98,14 +100,20 @@ class Application {
         return result[0];
     }
 
-    listApplicationConditions(userID, organizations) {
+    listApplicationConditions(userID, userRole, aUserOrganization, organizations) {
+        // list all applications
+        const listAllApplicationRoles = [USER.ROLES.ADMIN,USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR, USER.ROLES.DC_POC];
+        if (isElementInArray(listAllApplicationRoles, userRole)) return [];
         // search by applicant's user id
         let conditions = [{"applicant.applicantID": userID}];
-        const orgIds = organizations
-            .map((org) => org._id)
-            .filter((org)=> (org));
-        // search by user's organization
-        if (orgIds?.length > 0) conditions.push({"organization._id": { "$in": orgIds }});
+
+        if (aUserOrganization?.orgRole === ORG.ROLES.OWNER) {
+            // search by user's organization
+            const orgIds = organizations
+                .filter((org)=> (org))
+                .map((org) => org._id);
+            if (orgIds?.length > 0) conditions.push({"organization._id": { "$in": orgIds }});
+        }
         return [{"$match": {"$or": conditions}}];
     }
 
@@ -115,22 +123,27 @@ class Application {
         let pipeline = [];
         if (!this.userService.isAdmin(context.userInfo.role)) {
             const organizations = await this.organizationService.getOrganizationByUserID(context.userInfo._id);
-            pipeline = pipeline.concat(this.listApplicationConditions(context.userInfo._id, organizations));
+            pipeline = pipeline.concat(this.listApplicationConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organizations, organizations));
         }
         if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
-        const disablePagination = Number.isInteger(params.first) && params.first === -1;
-        if (params.offset) pipeline.push({"$skip": params.offset});
 
+        const pagination = [];
+        const disablePagination = Number.isInteger(params.first) && params.first === -1;
+        if (!disablePagination) {
+            pagination.push({"$limit": params.first});
+            if (params.offset) pagination.push({"$skip": params.offset});
+        }
         const promises = [
-            await this.applicationCollection.aggregate((!disablePagination) ? pipeline.concat([{"$limit": params.first}]) : pipeline),
+            await this.applicationCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline),
             await this.applicationCollection.aggregate(pipeline)
         ];
-        let result = {total: 0, applications: []};
-        await Promise.all(promises).then(function(results) {
-            result.applications = results[0] || [];
-            result.total = results[1]?.length || 0;
+
+        return await Promise.all(promises).then(function(results) {
+            return {
+                applications: results[0] || [],
+                total: results[1]?.length || 0
+            }
         });
-        return result;
     }
 
     async submitApplication(params, context) {
