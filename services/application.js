@@ -103,7 +103,7 @@ class Application {
     listApplicationConditions(userID, userRole, aUserOrganization, organizations) {
         // list all applications
         const listAllApplicationRoles = [USER.ROLES.ADMIN,USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR, USER.ROLES.DC_POC];
-        if (isElementInArray(listAllApplicationRoles, userRole)) return [];
+        if (listAllApplicationRoles.includes(userRole)) return [];
         // search by applicant's user id
         let conditions = [{"applicant.applicantID": userID}];
 
