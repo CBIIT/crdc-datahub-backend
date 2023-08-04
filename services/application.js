@@ -128,10 +128,10 @@ class Application {
         if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
 
         const pagination = [];
+        if (params.offset) pagination.push({"$skip": params.offset});
         const disablePagination = Number.isInteger(params.first) && params.first === -1;
         if (!disablePagination) {
             pagination.push({"$limit": params.first});
-            if (params.offset) pagination.push({"$skip": params.offset});
         }
         const promises = [
             await this.applicationCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline),
