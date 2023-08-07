@@ -122,7 +122,7 @@ class Application {
         let pipeline = [];
         if (!this.userService.isAdmin(context.userInfo.role)) {
             const organizations = await this.organizationService.getOrganizationByUserID(context.userInfo._id);
-            pipeline = pipeline.concat(this.listApplicationConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organizations, organizations));
+            pipeline = pipeline.concat(this.listApplicationConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization, organizations));
         }
         if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
 
