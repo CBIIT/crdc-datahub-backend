@@ -6,10 +6,14 @@ const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifyApplication} = require("../verifier/application-verifier");
 const {verifySession} = require("../verifier/user-info-verifier");
 const ERROR = require("../constants/error-constants");
+
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {ORG, USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
+
+const config = require('../config');
+
 
 class Application {
     constructor(applicationCollection, organizationService, userService, dbService, notificationsService, emailParams) {
@@ -197,15 +201,18 @@ class Application {
     async approveApplication(document, context) {
         verifyReviewerPermission(context);
         const application = await this.getApplicationById(document._id);
+        
         // In Reviewed -> Approved
         verifyApplication(application)
-            .notEmpty()
-            .state([IN_REVIEW, SUBMITTED]);
+        .notEmpty()
+        .state([IN_REVIEW, SUBMITTED, APPROVED]);
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, APPROVED, document.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
             $push: {history}
         });
+        
+        await this.sendEmailAfterApproveApplication(context, application);
         return updated?.modifiedCount && updated?.modifiedCount > 0 ? await this.getApplicationById(document._id) : null;
     }
 
@@ -301,12 +308,28 @@ class Application {
     }
 
 
+
 }
 
 function verifyReviewerPermission(context){
     verifySession(context)
         .verifyInitialized()
         .verifyRole([ROLES.ADMIN, ROLES.FEDERAL_LEAD]);
+
+    async sendEmailAfterApproveApplication(context, application) {
+        await this.notificationService.approveQuestionNotification(application?.primaryContact?.email,
+            // Organization Owner and concierge assigned/Super Admin
+            `${config.org_owner_email} ; ${config.concierge_email}`,
+        {
+            firstName: application?.applicantName
+        }, {
+            study: application?.study?.name,
+            doc_url: config.submission_doc_url,
+            org_owner_email: config.org_owner_email,
+            concierge_email: config.concierge_email
+        })
+    }
+
 }
 
 module.exports = {
