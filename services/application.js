@@ -12,9 +12,6 @@ const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-
 const {ORG, USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 
-const config = require('../config');
-
-
 class Application {
     constructor(applicationCollection, organizationService, userService, dbService, notificationsService, emailParams) {
         this.applicationCollection = applicationCollection;
@@ -212,8 +209,7 @@ class Application {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
             $push: {history}
         });
-        
-        await this.sendEmailAfterApproveApplication(context, application);
+
         return updated?.modifiedCount && updated?.modifiedCount > 0 ? await this.getApplicationById(document._id) : null;
     }
 
@@ -307,30 +303,12 @@ class Application {
             url: this.emailParams.url
         })
     }
-
-
-
 }
 
 function verifyReviewerPermission(context){
     verifySession(context)
         .verifyInitialized()
         .verifyRole([ROLES.ADMIN, ROLES.FEDERAL_LEAD]);
-
-    async sendEmailAfterApproveApplication(context, application) {
-        await this.notificationService.approveQuestionNotification(application?.primaryContact?.email,
-            // Organization Owner and concierge assigned/Super Admin
-            `${config.org_owner_email} ; ${config.concierge_email}`,
-        {
-            firstName: application?.applicantName
-        }, {
-            study: application?.study?.name,
-            doc_url: config.submission_doc_url,
-            org_owner_email: config.org_owner_email,
-            concierge_email: config.concierge_email
-        })
-    }
-
 }
 
 module.exports = {
