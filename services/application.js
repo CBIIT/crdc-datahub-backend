@@ -1,4 +1,4 @@
-const {SUBMITTED, APPROVED, REJECTED, IN_PROGRESS, IN_REVIEW, DELETED} = require("../constants/application-constants");
+const {SUBMITTED, APPROVED, REJECTED, IN_PROGRESS, IN_REVIEW, DELETED, NEW} = require("../constants/application-constants");
 const {APPLICATION_COLLECTION: APPLICATION} = require("../crdc-datahub-database-drivers/database-constants");
 const {v4} = require('uuid')
 const {getCurrentTimeYYYYMMDDSS, subtractDaysFromNow} = require("../utility/time-utility");
@@ -105,10 +105,11 @@ class Application {
 
     listApplicationConditions(userID, userRole, aUserOrganization, organizations) {
         // list all applications
+        const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
         const listAllApplicationRoles = [USER.ROLES.ADMIN,USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR, USER.ROLES.DC_POC];
-        if (listAllApplicationRoles.includes(userRole)) return [];
+        if (listAllApplicationRoles.includes(userRole)) return [{"$match": {validApplicationStatus}}];
         // search by applicant's user id
-        let conditions = [{"applicant.applicantID": userID}];
+        let conditions = [{"applicant.applicantID": userID}, validApplicationStatus];
 
         if (aUserOrganization?.orgRole === ORG.ROLES.OWNER) {
             // search by user's organization
@@ -117,7 +118,7 @@ class Application {
                 .map((org) => org._id);
             if (orgIds?.length > 0) conditions.push({"organization._id": { "$in": orgIds }});
         }
-        return [{"$match": {"$or": conditions}}];
+        return [{"$match": {"$or": conditions, ...validApplicationStatus}}];
     }
 
     async listApplications(params, context) {
