@@ -110,28 +110,25 @@ class Application {
         // list all applications
         const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
         const listAllApplicationRoles = [USER.ROLES.ADMIN,USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR, USER.ROLES.DC_POC];
-        if (listAllApplicationRoles.includes(userRole)) return [{"$match": {validApplicationStatus}}];
+        if (listAllApplicationRoles.includes(userRole)) return [{"$match": {...validApplicationStatus}}];
         // search by applicant's user id
-        let conditions = [{"applicant.applicantID": userID}, validApplicationStatus];
-
+        let conditions = [{$and: [{"applicant.applicantID": userID}, validApplicationStatus]}];
         if (aUserOrganization?.orgRole === ORG.ROLES.OWNER) {
             // search by user's organization
             const orgIds = organizations
                 .filter((org)=> (org))
                 .map((org) => org._id);
-            if (orgIds?.length > 0) conditions.push({"organization._id": { "$in": orgIds }});
+            if (orgIds?.length > 0) conditions.push({$and: [{"organization._id": { "$in": orgIds }}, validApplicationStatus]});
         }
-        return [{"$match": {"$or": conditions, ...validApplicationStatus}}];
+        return [{"$match": {"$or": conditions}}];
     }
 
     async listApplications(params, context) {
         verifySession(context)
             .verifyInitialized();
         let pipeline = [];
-        if (!this.userService.isAdmin(context.userInfo.role)) {
-            const organizations = await this.organizationService.getOrganizationByUserID(context.userInfo._id);
-            pipeline = pipeline.concat(this.listApplicationConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization, organizations));
-        }
+        const organizations = (!this.userService.isAdmin(context.userInfo?.role)) ? await this.organizationService.getOrganizationByUserID(context.userInfo._id) : [];
+        pipeline = pipeline.concat(this.listApplicationConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization, organizations));
         if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
 
         const pagination = [];
