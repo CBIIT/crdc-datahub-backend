@@ -47,10 +47,16 @@ class Application {
                 $set: {status: IN_REVIEW, updatedAt: history.dateTime},
                 $push: {history}
             });
-            const isUpdated = updated?.modifiedCount && updated?.modifiedCount > 0;
-            if (isUpdated) this.logCollection.insert(UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application.status, IN_REVIEW));
-            const result = (isUpdated) ? await this.dbService.find(APPLICATION, {_id: params._id}) : [];
-            return result.length > 0 ? result[0] : null;
+            if (updated?.modifiedCount && updated?.modifiedCount > 0) {
+                const promises = [
+                    await this.dbService.find(APPLICATION, {_id: params._id}),
+                    this.logCollection.insert(UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application.status, IN_REVIEW))
+                ];
+                return await Promise.all(promises).then(function(results) {
+                    const result = results[0];
+                    return result.length > 0 ? result[0] : null;
+                });
+            }
         }
         return application || null;
     }
@@ -72,8 +78,8 @@ class Application {
             ...newApplicationProperties
         };
         const res = await this.applicationCollection.insert(application);
-        if (res?.acknowledged) await this.logCollection.insert(CreateApplicationEvent.create(userInfo._id, userInfo.email, userInfo.IDP, res._id));
-        return res;
+        if (res?.acknowledged) await this.logCollection.insert(CreateApplicationEvent.create(userInfo._id, userInfo.email, userInfo.IDP, application._id));
+        return application;
     }
 
     async saveApplication(params, context) {
@@ -170,9 +176,11 @@ class Application {
         };
         const updated = await this.applicationCollection.update(application);
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) throw new Error(ERROR.UPDATE_FAILED);
-        const logEvent = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, SUBMITTED);
-        await this.logCollection.insert(logEvent);
-        await this.sendEmailAfterSubmitApplication(context, application);
+        const logEvent = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, IN_PROGRESS, SUBMITTED);
+        await Promise.all([
+            await this.logCollection.insert(logEvent),
+            await this.sendEmailAfterSubmitApplication(context, application)
+        ]);
         return application;
     }
 
@@ -186,10 +194,16 @@ class Application {
                 $set: {status: IN_PROGRESS, updatedAt: history.dateTime},
                 $push: {history}
             });
-            const isUpdated = updated?.modifiedCount && updated?.modifiedCount > 0;
-            if (isUpdated) this.logCollection.insert(UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application.status, IN_PROGRESS));
-            const result = (isUpdated) ? await this.dbService.find(APPLICATION, {_id: document._id}) : [];
-            return result.length > 0 ? result[0] : {};
+            if (updated?.modifiedCount && updated?.modifiedCount > 0) {
+                const promises = [
+                    await this.dbService.find(APPLICATION, {_id: document._id}),
+                    await this.logCollection.insert(UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, IN_PROGRESS))
+                ];
+                return await Promise.all(promises).then(function(results) {
+                    const result = results[0];
+                    return result.length > 0 ? result[0] : {};
+                });
+            }
         }
         return application;
     }
@@ -199,6 +213,7 @@ class Application {
         let result = null;
         if (deletedOne && await this.dbService.deleteOne(APPLICATION, {_id: document._id})) {
             result = deletedOne[0];
+            // TODO update application status and log events
         }
         return result;
     }
@@ -215,9 +230,18 @@ class Application {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
             $push: {history}
         });
-        const isUpdated = updated?.modifiedCount && updated?.modifiedCount > 0;
-        if (isUpdated) this.logCollection.insert(UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application.status, APPROVED));
-        return isUpdated ? await this.getApplicationById(document._id) : null;
+        if (updated?.modifiedCount && updated?.modifiedCount > 0) {
+            const promises = [
+                await this.getApplicationById(document._id),
+                this.logCollection.insert(
+                    UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, APPROVED)
+                )
+            ];
+            return await Promise.all(promises).then(function(results) {
+                return results[0];
+            });
+        }
+        return null;
     }
 
     async rejectApplication(document, context) {
@@ -232,9 +256,17 @@ class Application {
             $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime},
             $push: {history}
         });
-        const isUpdated = updated?.modifiedCount && updated?.modifiedCount > 0;
-        if (isUpdated) this.logCollection.insert(UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application.status, REJECTED));
-        return isUpdated ? await this.getApplicationById(document._id) : null;
+        if (updated?.modifiedCount && updated?.modifiedCount > 0) {
+            const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, REJECTED);
+            const promises = [
+                await this.getApplicationById(document._id),
+                this.logCollection.insert(log)
+            ];
+            return await Promise.all(promises).then(function(results) {
+                return results[0];
+            });
+        }
+        return null;
     }
 
     async deleteInactiveApplications(inactiveDays) {
