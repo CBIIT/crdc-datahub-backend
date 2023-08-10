@@ -103,7 +103,7 @@ class Application {
         // list all applications
         const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
         const listAllApplicationRoles = [USER.ROLES.ADMIN,USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR, USER.ROLES.DC_POC];
-        if (this.userService.isAdmin(userRole) || listAllApplicationRoles.includes(userRole)) return [{"$match": {...validApplicationStatus}}];
+        if (listAllApplicationRoles.includes(userRole)) return [{"$match": {...validApplicationStatus}}];
         // search by applicant's user id
         let conditions = [{$and: [{"applicant.applicantID": userID}, validApplicationStatus]}];
         if (aUserOrganization?.orgRole === ORG.ROLES.OWNER) {
