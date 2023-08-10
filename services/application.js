@@ -9,10 +9,12 @@ const ERROR = require("../constants/error-constants");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {ORG, USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
+const {CreateApplicationEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 
 class Application {
-    constructor(applicationCollection, organizationService, userService, dbService, notificationsService, emailParams) {
+    constructor(logCollection, applicationCollection, organizationService, userService, dbService, notificationsService, emailParams) {
+        this.logCollection = logCollection;
         this.applicationCollection = applicationCollection;
         this.organizationService = organizationService;
         this.userService = userService;
@@ -67,8 +69,9 @@ class Application {
             ...application,
             ...newApplicationProperties
         };
-        await this.applicationCollection.insert(application);
-        return application;
+        const res = await this.applicationCollection.insert(application);
+        if (res?.acknowledged) await this.logCollection.insert(CreateApplicationEvent.create(userInfo._id, userInfo.email, userInfo.IDP));
+        return res;
     }
 
     async saveApplication(params, context) {
