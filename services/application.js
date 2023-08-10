@@ -54,12 +54,13 @@ class Application {
     async createApplication(application, userInfo) {
         let newApplicationProperties = {
             _id: v4(undefined, undefined, undefined),
-            status: IN_PROGRESS,
+            status: NEW,
             applicant: {
                 applicantID: userInfo._id,
                 applicantName: userInfo.firstName + " " + userInfo.lastName,
                 applicantEmail: userInfo.email
             },
+            history: [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)],
             createdAt: application.updatedAt
         };
         application = {
@@ -77,7 +78,8 @@ class Application {
         application.updatedAt = getCurrentTimeYYYYMMDDSS();
         const id = application?._id;
         if (!id) return await this.createApplication(application, context.userInfo);
-        const result = await this.applicationCollection.update(application);
+        const option = {$push: { history: HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, null)}};
+        const result = await this.applicationCollection.update(application, option);
         if (result.matchedCount < 1) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
         return await this.getApplicationById(id);
     }
