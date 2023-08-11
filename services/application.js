@@ -69,7 +69,7 @@ class Application {
             status: NEW,
             applicant: {
                 applicantID: userInfo._id,
-                applicantName: userInfo.firstName + " " + userInfo.lastName,
+                applicantName: userInfo.firstName + (userInfo.lastName.trim().length > 0 ? " " + userInfo.lastName : ""),
                 applicantEmail: userInfo.email
             },
             history: [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)],
