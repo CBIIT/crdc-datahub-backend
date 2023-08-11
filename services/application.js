@@ -50,7 +50,9 @@ class Application {
             if (updated?.modifiedCount && updated?.modifiedCount > 0) {
                 const promises = [
                     await this.dbService.find(APPLICATION, {_id: params._id}),
-                    this.logCollection.insert(UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application.status, IN_REVIEW))
+                    this.logCollection.insert(
+                        UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, IN_REVIEW)
+                    )
                 ];
                 return await Promise.all(promises).then(function(results) {
                     const result = results[0];
