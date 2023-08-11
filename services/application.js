@@ -161,24 +161,24 @@ class Application {
     async submitApplication(params, context) {
         verifySession(context)
             .verifyInitialized();
-        let application = await this.getApplicationById(params._id);
+        const application = await this.getApplicationById(params._id);
         verifyApplication(application)
             .notEmpty()
-            .state(IN_PROGRESS);
+            .state([NEW, IN_PROGRESS]);
         // In Progress -> In Submitted
         const history = application.history || [];
         const historyEvent = HistoryEventBuilder.createEvent(context.userInfo._id, SUBMITTED, null);
         history.push(historyEvent)
-        application = {
+        const aApplication = {
             ...application,
             history: history,
             status: SUBMITTED,
             updatedAt: historyEvent.dateTime,
             submittedDate: historyEvent.dateTime
         };
-        const updated = await this.applicationCollection.update(application);
+        const updated = await this.applicationCollection.update(aApplication);
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) throw new Error(ERROR.UPDATE_FAILED);
-        const logEvent = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, IN_PROGRESS, SUBMITTED);
+        const logEvent = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, SUBMITTED);
         await Promise.all([
             await this.logCollection.insert(logEvent),
             await this.sendEmailAfterSubmitApplication(context, application)
