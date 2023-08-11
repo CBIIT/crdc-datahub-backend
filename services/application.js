@@ -95,8 +95,7 @@ class Application {
             limitReturnToOneApplication
         ];
         const result = await this.applicationCollection.aggregate(pipeline);
-        if (result.length < 1) throw new Error(ERROR.NO_USER_APPLICATIONS);
-        return result[0];
+        return result.length > 0 ? result[0] : null;
     }
 
     listApplicationConditions(userID, userRole, aUserOrganization, organizations) {
