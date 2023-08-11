@@ -280,10 +280,11 @@ class Application {
 
     // Email Notifications
     async sendEmailAfterSubmitApplication(context, application) {
+        const programName = application?.programName?.trim() ?? "";
+        const associate = `the ${application?.studyAbbreviation}` + (programName.length > 0 ? ` associated with the ${programName}` : '');
         await this.notificationService.submitQuestionNotification({
             pi: `${context.userInfo.firstName} ${context.userInfo.lastName}`,
-            study: application?.studyAbbreviation,
-            program: application?.programName,
+            associate,
             url: this.emailParams.url
         })
     }
@@ -294,7 +295,6 @@ class Application {
         },{
             pi: `${applicantName}`,
             study: application?.studyAbbreviation,
-            program: application?.programName,
             officialEmail: this.emailParams.officialEmail,
             inactiveDays: this.emailParams.inactiveDays,
             url: this.emailParams.url
