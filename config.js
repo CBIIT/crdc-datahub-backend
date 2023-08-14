@@ -18,10 +18,7 @@ let config = {
     email_transport: getTransportConfig(),
     emails_enabled: process.env.EMAILS_ENABLED ? process.env.EMAILS_ENABLED.toLowerCase() === 'true' : true,
     emails_url: process.env.EMAIL_URL ? process.env.EMAIL_URL : 'http://localhost:4010',
-    /// temp email and url. Will be addressed and update in later task
-    org_owner_email: process.env.ORG_OWNER_EMAIL || "",
-    concierge_email: process.env.CONCIERGE_EMAIL || process.env.ADMIN_EMAIL,
-    submission_doc_url: process.env.SUBMISSION_DOC_URL ||"https://datacommons.cancer.gov/",
+    official_email: process.env.official ? process.env.OFFCIAL_EMAIL : 'CRDCHelpDesk@nih.gov',
     // Scheduled cronjob once a day (1am) eastern time at default
     schedule_job: process.env.SCHEDULE_JOB || "1 0 1 * * *"
 };
@@ -31,9 +28,10 @@ function getTransportConfig() {
     return {
         host: process.env.EMAIL_SMTP_HOST,
         port: process.env.EMAIL_SMTP_PORT,
+        secure: false,
         // Optional AWS Email Identity
         ...(process.env.EMAIL_USER && {
-                secure: true, // true for 465, false for other ports
+                secure: false, // true for 465, false for other ports
                 auth: {
                     user: process.env.EMAIL_USER, // generated ethereal user
                     pass: process.env.EMAIL_PASSWORD, // generated ethereal password
