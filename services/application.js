@@ -6,15 +6,20 @@ const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifyApplication} = require("../verifier/application-verifier");
 const {verifySession} = require("../verifier/user-info-verifier");
 const ERROR = require("../constants/error-constants");
+const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
+const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
+const {ORG, USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
+const ROLES = USER_CONSTANTS.USER.ROLES;
 const config = require('../config');
 
-
 class Application {
-    constructor(applicationCollection, dbService, notificationsService, emailUrl) {
+    constructor(applicationCollection, organizationService, userService, dbService, notificationsService, emailParams) {
         this.applicationCollection = applicationCollection;
+        this.organizationService = organizationService;
+        this.userService = userService;
         this.dbService = dbService;
         this.notificationService = notificationsService;
-        this.emailUrl = emailUrl;
+        this.emailParams = emailParams;
     }
 
     async getApplication(params, context) {
@@ -29,29 +34,51 @@ class Application {
         return result[0];
     }
 
-    async createApplication(params, context) {
-        verifySession(context)
-            .verifyInitialized();
-        const userID = context.userInfo._id;
-        const id = v4(undefined, undefined, undefined);
-        let emptyApplication = {
-            _id: id,
+    async reviewApplication(params, context) {
+        const application = await this.getApplication(params, context);
+        verifyApplication(application)
+            .notEmpty()
+            .state([IN_REVIEW, SUBMITTED]);
+        if (application && application.status && application.status === SUBMITTED) {
+            // If Submitted status, change it to In Review
+            const history = HistoryEventBuilder.createEvent(context.userInfo._id, IN_REVIEW, null);
+            const updated = await this.dbService.updateOne(APPLICATION, {_id: params._id}, {
+                $set: {status: IN_REVIEW, updatedAt: history.dateTime},
+                $push: {history}
+            });
+            const result = (updated?.modifiedCount && updated?.modifiedCount > 0) ? await this.dbService.find(APPLICATION, {_id: params._id}) : [];
+            return result.length > 0 ? result[0] : null;
+        }
+        return application || null;
+    }
+
+    async createApplication(application, userInfo) {
+        let newApplicationProperties = {
+            _id: v4(undefined, undefined, undefined),
             status: IN_PROGRESS,
-            createdAt: getCurrentTimeYYYYMMDDSS(),
-            applicantID: userID
+            applicant: {
+                applicantID: userInfo._id,
+                applicantName: userInfo.firstName + " " + userInfo.lastName,
+                applicantEmail: userInfo.email
+            },
+            createdAt: application.updatedAt
         };
-        await this.applicationCollection.insert(emptyApplication);
-        return emptyApplication;
+        application = {
+            ...application,
+            ...newApplicationProperties
+        };
+        await this.applicationCollection.insert(application);
+        return application;
     }
 
     async saveApplication(params, context) {
         verifySession(context)
             .verifyInitialized();
-        params.application.updatedAt = getCurrentTimeYYYYMMDDSS();
-        params.application.applicantID = context.userInfo._id;
-        params.application.applicantName = context.userInfo.firstName + " " + context.userInfo.lastName;
-        const result = await this.applicationCollection.update(params.application);
-        const id = params.application._id;
+        let application = params.application;
+        application.updatedAt = getCurrentTimeYYYYMMDDSS();
+        const id = application?._id;
+        if (!id) return await this.createApplication(application, context.userInfo);
+        const result = await this.applicationCollection.update(application);
         if (result.matchedCount < 1) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
         return await this.getApplicationById(id);
     }
@@ -60,8 +87,8 @@ class Application {
         verifySession(context)
             .verifyInitialized();
         const userID = context.userInfo._id;
-        const matchApplicantIDToUser = {"$match": {applicantID: userID}};
-        const sortCreatedAtDescending = {"$sort": {createdAt: 1}};
+        const matchApplicantIDToUser = {"$match": {"applicant.applicantID": userID, status: APPROVED}};
+        const sortCreatedAtDescending = {"$sort": {createdAt: -1}};
         const limitReturnToOneApplication = {"$limit": 1};
         const pipeline = [
             matchApplicantIDToUser,
@@ -73,14 +100,50 @@ class Application {
         return result[0];
     }
 
+    listApplicationConditions(userID, userRole, aUserOrganization, organizations) {
+        // list all applications
+        const listAllApplicationRoles = [USER.ROLES.ADMIN,USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR, USER.ROLES.DC_POC];
+        if (listAllApplicationRoles.includes(userRole)) return [];
+        // search by applicant's user id
+        let conditions = [{"applicant.applicantID": userID}];
+
+        if (aUserOrganization?.orgRole === ORG.ROLES.OWNER) {
+            // search by user's organization
+            const orgIds = organizations
+                .filter((org)=> (org))
+                .map((org) => org._id);
+            if (orgIds?.length > 0) conditions.push({"organization._id": { "$in": orgIds }});
+        }
+        return [{"$match": {"$or": conditions}}];
+    }
+
     async listApplications(params, context) {
         verifySession(context)
             .verifyInitialized();
-        let pipeline = [
-            {"$skip": params.offset},
-            {"$limit": params.first}
+        let pipeline = [];
+        if (!this.userService.isAdmin(context.userInfo.role)) {
+            const organizations = await this.organizationService.getOrganizationByUserID(context.userInfo._id);
+            pipeline = pipeline.concat(this.listApplicationConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization, organizations));
+        }
+        if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
+
+        const pagination = [];
+        if (params.offset) pagination.push({"$skip": params.offset});
+        const disablePagination = Number.isInteger(params.first) && params.first === -1;
+        if (!disablePagination) {
+            pagination.push({"$limit": params.first});
+        }
+        const promises = [
+            await this.applicationCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline),
+            await this.applicationCollection.aggregate(pipeline)
         ];
-        return await this.applicationCollection.aggregate(pipeline);
+
+        return await Promise.all(promises).then(function(results) {
+            return {
+                applications: results[0] || [],
+                total: results[1]?.length || 0
+            }
+        });
     }
 
     async submitApplication(params, context) {
@@ -98,7 +161,8 @@ class Application {
             ...application,
             history: history,
             status: SUBMITTED,
-            updatedAt: historyEvent.dateTime
+            updatedAt: historyEvent.dateTime,
+            submittedDate: historyEvent.dateTime
         };
         const updated = await this.applicationCollection.update(application);
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) throw new Error(ERROR.UPDATE_FAILED);
@@ -110,7 +174,7 @@ class Application {
         const application = await this.getApplicationById(document._id);
         // TODO 1. If Reviewer opened the application, the status changes to IN_REVIEW
         // TODO 2. THe application status changes from rejected to in-progress when the user opens the rejected application
-        if (application.length > 0 && application[0].status) {
+        if (application && application.status) {
             const history = HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, null);
             const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
                 $set: {status: IN_PROGRESS, updatedAt: history.dateTime},
@@ -119,7 +183,7 @@ class Application {
             const result = (updated?.modifiedCount && updated?.modifiedCount > 0) ? await this.dbService.find(APPLICATION, {_id: document._id}) : [];
             return result.length > 0 ? result[0] : {};
         }
-        return application.length > 0 ? application[0] : null;
+        return application;
     }
 
     async deleteApplication(document, _) {
@@ -132,34 +196,35 @@ class Application {
     }
 
     async approveApplication(document, context) {
+        verifyReviewerPermission(context);
         const application = await this.getApplicationById(document._id);
+        
         // In Reviewed -> Approved
         verifyApplication(application)
-            .notEmpty()
-            .state([IN_REVIEW, SUBMITTED]);
+        .notEmpty()
+        .state([IN_REVIEW, SUBMITTED, APPROVED]);
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, APPROVED, document.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
             $push: {history}
         });
+        
+        await this.sendEmailAfterApproveApplication(context, application);
         return updated?.modifiedCount && updated?.modifiedCount > 0 ? await this.getApplicationById(document._id) : null;
     }
 
     async rejectApplication(document, context) {
+        verifyReviewerPermission(context);
         const application = await this.getApplicationById(document._id);
-        
         // In Reviewed -> Rejected
         verifyApplication(application)
-        .notEmpty()
-        .state([IN_REVIEW, SUBMITTED, REJECTED]);
+            .notEmpty()
+            .state([IN_REVIEW, SUBMITTED]);
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, APPROVED, document.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
             $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime},
             $push: {history}
         });
-
-        await this.sendEmailAfterRejectApplication(context, application);
-
         return updated?.modifiedCount && updated?.modifiedCount > 0 ? await this.getApplicationById(document._id) : null;
     }
 
@@ -170,7 +235,7 @@ class Application {
             },
             status: SUBMITTED
         };
-        const applications = await this.applicationCollection.aggregate([{$match: inactiveCondition}, {"$limit": 1}]);
+        const applications = await this.applicationCollection.aggregate([{$match: inactiveCondition}]);
         verifyApplication(applications)
             .isUndefined();
 
@@ -183,33 +248,126 @@ class Application {
                     $push: {history}});
             if (updated?.modifiedCount && updated?.modifiedCount > 0) {
                 console.log("Executed to delete application(s) because of no activities at " + getCurrentTimeYYYYMMDDSS());
+                await this.emailInactiveApplicants(applications);
             }
         }
     }
+
+    async emailInactiveApplicants(applications) {
+        // Store Owner's User IDs
+        let ownerIDsSet = new Set();
+        let userByOrgID = {};
+        await Promise.all(applications.map(async (app) => {
+            if (!app?.organization?._id) return [];
+            const org = await this.organizationService.getOrganizationByID(app.organization._id);
+            // exclude if user is already the owner's of the organization
+            if (org?.owner && !ownerIDsSet.has(org.owner) && app.applicant.applicantID !== org.owner) {
+                userByOrgID[org._id] = org.owner;
+                ownerIDsSet.add(org.owner);
+            }
+        }));
+        // Store Owner's email address
+        const orgOwners = {};
+        await Promise.all(
+            Object.keys(userByOrgID).map(async (orgID) => {
+                const user = await this.userService.getUser(userByOrgID[orgID]);
+                if (user) orgOwners[orgID] = user.email;
+            })
+        );
+        // Send Email Notification
+        await Promise.all(applications.map(async (app) => {
+            const emailsCCs = (orgOwners.hasOwnProperty(app?.organization?._id)) ? [orgOwners[app?.organization?._id]] : [];
+            await this.sendEmailAfterInactiveApplications(app?.applicant?.applicantEmail, emailsCCs, app?.applicant?.applicantName, app);
+        }));
+    }
+
     // Email Notifications
     async sendEmailAfterSubmitApplication(context, application) {
-        await this.notificationService.submitQuestionNotification(context.userInfo.email, {
-            firstName: context.userInfo.firstName
-        }, {
-            pi: `${application?.pi?.firstName} ${application?.pi?.lastName}`,
-            study: application?.study?.name,
-            program: application?.program?.name,
-            url: this.emailUrl
+        await this.notificationService.submitQuestionNotification({
+            pi: `${context.userInfo.firstName} ${context.userInfo.lastName}`,
+            study: application?.studyAbbreviation,
+            program: application?.programName,
+            url: this.emailParams.url
         })
     }
 
+    async sendEmailAfterInactiveApplications(email, emailCCs, applicantName, application) {
+        await this.notificationService.inactiveApplicationsNotification(email, emailCCs,{
+            firstName: applicantName
+        },{
+            pi: `${applicantName}`,
+            study: application?.studyAbbreviation,
+            program: application?.programName,
+            officialEmail: this.emailParams.officialEmail,
+            inactiveDays: this.emailParams.inactiveDays,
+            url: this.emailParams.url
+        })
+    }
+
+    async sendEmailAfterApproveApplication(context, application) {
+        let org = await this.organizationService.getOrganizationByID(application.organization._id);
+        let org_owner_id = org?.owner
+        let org_owner = await this.userService.getUser(org_owner_id);
+        let org_owner_email 
+        if(!org_owner?.email){
+            org_owner_email = config.org_owner_email
+        } else {
+            org_owner_email = org_owner?.email
+        }
+        
+        await this.notificationService.approveQuestionNotification(application?.primaryContact?.email,
+            // Organization Owner and concierge assigned/Super Admin
+            `${config.org_owner_email} ; ${config.concierge_email}`,
+        {
+            firstName: application?.applicantName
+        }, {
+            study: application?.study?.name,
+            doc_url: config.submission_doc_url,
+            org_owner_email: org_owner_email,
+            concierge_email: config.concierge_email
+        })
+    }
+
+
+    
     async sendEmailAfterRejectApplication(context, application) {
-        await this.notificationService.rejectQuestionNotification(application?.primaryContact?.email+ ';' + config.org_owner_email, {
+
+        let org = await this.organizationService.getOrganizationByID(application.organization._id);
+        let org_owner_email 
+        let org_owner_id = org?.owner
+        if(!org_owner_id){
+            org_owner_email = config.org_owner_email
+        }else{
+            let org_owner = await this.userService.getUser(org_owner_id);
+            if(!org_owner?.email){
+                org_owner_email = config.org_owner_email
+            } else {
+                org_owner_email = org_owner?.email
+            }
+
+        }
+        
+        await this.notificationService.rejectQuestionNotification(application?.primaryContact?.email+ ';' + org_owner_email, {
             firstName: application?.applicantName
         }, {
             study: application?.study?.name,
             url: this.emailUrl
-
+    
         })
     }
+
 }
+
+function verifyReviewerPermission(context){
+    verifySession(context)
+        .verifyInitialized()
+        .verifyRole([ROLES.ADMIN, ROLES.FEDERAL_LEAD]);}
+
+    
+
 
 module.exports = {
     Application
 };
+
 
