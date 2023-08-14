@@ -1,4 +1,4 @@
-const {SUBMITTED, APPROVED, REJECTED, IN_PROGRESS, IN_REVIEW, DELETED} = require("../constants/application-constants");
+const {SUBMITTED, APPROVED, REJECTED, IN_PROGRESS, IN_REVIEW, DELETED, NEW} = require("../constants/application-constants");
 const {APPLICATION_COLLECTION: APPLICATION} = require("../crdc-datahub-database-drivers/database-constants");
 const {v4} = require('uuid')
 const {getCurrentTimeYYYYMMDDSS, subtractDaysFromNow} = require("../utility/time-utility");
@@ -62,6 +62,7 @@ class Application {
                 applicantEmail: userInfo.email
             },
             createdAt: application.updatedAt
+
         };
         application = {
             ...application,
@@ -102,17 +103,19 @@ class Application {
 
     listApplicationConditions(userID, userRole, aUserOrganization, organizations) {
         // list all applications
-        const listAllApplicationRoles = [USER.ROLES.ADMIN,USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR, USER.ROLES.DC_POC];
-        if (listAllApplicationRoles.includes(userRole)) return [];
-        // search by applicant's user id
-        let conditions = [{"applicant.applicantID": userID}];
 
+        const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
+        const listAllApplicationRoles = [USER.ROLES.ADMIN,USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR, USER.ROLES.DC_POC];
+        if (listAllApplicationRoles.includes(userRole)) return [{"$match": {...validApplicationStatus}}];
+        // search by applicant's user id
+        let conditions = [{$and: [{"applicant.applicantID": userID}, validApplicationStatus]}];
         if (aUserOrganization?.orgRole === ORG.ROLES.OWNER) {
             // search by user's organization
             const orgIds = organizations
                 .filter((org)=> (org))
                 .map((org) => org._id);
-            if (orgIds?.length > 0) conditions.push({"organization._id": { "$in": orgIds }});
+            if (orgIds?.length > 0) conditions.push({$and: [{"organization._id": { "$in": orgIds }}, validApplicationStatus]});
+
         }
         return [{"$match": {"$or": conditions}}];
     }
@@ -121,10 +124,8 @@ class Application {
         verifySession(context)
             .verifyInitialized();
         let pipeline = [];
-        if (!this.userService.isAdmin(context.userInfo.role)) {
-            const organizations = await this.organizationService.getOrganizationByUserID(context.userInfo._id);
-            pipeline = pipeline.concat(this.listApplicationConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization, organizations));
-        }
+        const organizations = (!this.userService.isAdmin(context.userInfo?.role)) ? await this.organizationService.getOrganizationByUserID(context.userInfo._id) : [];
+        pipeline = pipeline.concat(this.listApplicationConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization, organizations));
         if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
 
         const pagination = [];

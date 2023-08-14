@@ -5,7 +5,7 @@ function isCaseInsensitiveEqual(source, target) {
 
 function isElementInArray(array, target) {
     if (!array || !target) return false;
-    return array.some((element) => element === target.toLowerCase());
+    return array.some((element) => element === target);
 }
 
 function isElementInArrayCaseInsensitive(array, target) {

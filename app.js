@@ -10,13 +10,15 @@ const createSession = require("./crdc-datahub-database-drivers/session-middlewar
 const statusRouter = require("./routers/status-endpoints-router");
 const graphqlRouter = require("./routers/graphql-router");
 const {MongoDBCollection} = require("./crdc-datahub-database-drivers/mongodb-collection");
-const {DATABASE_NAME, APPLICATION_COLLECTION} = require("./crdc-datahub-database-drivers/database-constants");
+const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, ORGANIZATION_COLLECTION} = require("./crdc-datahub-database-drivers/database-constants");
 const {Application} = require("./services/application");
 const {MongoQueries} = require("./crdc-datahub-database-drivers/mongo-queries");
 const {DatabaseConnector} = require("./crdc-datahub-database-drivers/database-connector");
 const {getCurrentTimeYYYYMMDDSS} = require("./utility/time-utility");
 const {EmailService} = require("./services/email");
 const {NotifyUser} = require("./services/notify-user");
+const {User} = require("./crdc-datahub-database-drivers/services/user");
+const {Organization} = require("./services/organization");
 // print environment variables to log
 console.info(config);
 
@@ -51,7 +53,10 @@ cronJob.schedule(config.schedule_job, async () => {
     const notificationsService = new NotifyUser(emailService);
     dbConnector.connect().then( async () => {
         const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
-        const dataInterface = new Application(applicationCollection, dbService, notificationsService, config.emails_url);
+        const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
+        const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
+        const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_user_days};
+        const dataInterface = new Application(applicationCollection, new Organization(organizationCollection), new User(userCollection), dbService, notificationsService, emailParams);
         console.log("Running a scheduled background task to delete inactive application at " + getCurrentTimeYYYYMMDDSS());
         await dataInterface.deleteInactiveApplications(config.inactive_user_days);
     });
