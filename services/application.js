@@ -91,8 +91,9 @@ class Application {
         application.updatedAt = getCurrentTimeYYYYMMDDSS();
         const id = application?._id;
         if (!id) return await this.createApplication(application, context.userInfo);
-        const option = {$push: { history: HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, null)}};
-        const result = await this.applicationCollection.update(application, option);
+        const aApplication = await this.getApplicationById(id);
+        const option = aApplication && aApplication.status !== IN_PROGRESS ? {$push: { history: HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, null)}}: null;
+        const result = await this.applicationCollection.update({...application, status: IN_PROGRESS}, option);
         if (result.matchedCount < 1) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
         return await this.getApplicationById(id);
     }
