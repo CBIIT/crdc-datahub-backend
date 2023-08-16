@@ -9,10 +9,12 @@ const ERROR = require("../constants/error-constants");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {ORG, USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
+const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 
 class Application {
-    constructor(applicationCollection, organizationService, userService, dbService, notificationsService, emailParams) {
+    constructor(logCollection, applicationCollection, organizationService, userService, dbService, notificationsService, emailParams) {
+        this.logCollection = logCollection;
         this.applicationCollection = applicationCollection;
         this.organizationService = organizationService;
         this.userService = userService;
@@ -45,8 +47,18 @@ class Application {
                 $set: {status: IN_REVIEW, updatedAt: history.dateTime},
                 $push: {history}
             });
-            const result = (updated?.modifiedCount && updated?.modifiedCount > 0) ? await this.dbService.find(APPLICATION, {_id: params._id}) : [];
-            return result.length > 0 ? result[0] : null;
+            if (updated?.modifiedCount && updated?.modifiedCount > 0) {
+                const promises = [
+                    await this.dbService.find(APPLICATION, {_id: params._id}),
+                    this.logCollection.insert(
+                        UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, IN_REVIEW)
+                    )
+                ];
+                return await Promise.all(promises).then(function(results) {
+                    const result = results[0];
+                    return result.length > 0 ? result[0] : null;
+                });
+            }
         }
         return application || null;
     }
@@ -54,19 +66,21 @@ class Application {
     async createApplication(application, userInfo) {
         let newApplicationProperties = {
             _id: v4(undefined, undefined, undefined),
-            status: IN_PROGRESS,
+            status: NEW,
             applicant: {
                 applicantID: userInfo._id,
-                applicantName: userInfo.firstName + " " + userInfo.lastName,
+                applicantName: formatApplicantName(userInfo),
                 applicantEmail: userInfo.email
             },
+            history: [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)],
             createdAt: application.updatedAt
         };
         application = {
             ...application,
             ...newApplicationProperties
         };
-        await this.applicationCollection.insert(application);
+        const res = await this.applicationCollection.insert(application);
+        if (res?.acknowledged) await this.logCollection.insert(CreateApplicationEvent.create(userInfo._id, userInfo.email, userInfo.IDP, application._id));
         return application;
     }
 
@@ -77,7 +91,9 @@ class Application {
         application.updatedAt = getCurrentTimeYYYYMMDDSS();
         const id = application?._id;
         if (!id) return await this.createApplication(application, context.userInfo);
-        const result = await this.applicationCollection.update(application);
+        const aApplication = await this.getApplicationById(id);
+        const option = aApplication && aApplication.status !== IN_PROGRESS ? {$push: { history: HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, null)}}: null;
+        const result = await this.applicationCollection.update({...application, status: IN_PROGRESS}, option);
         if (result.matchedCount < 1) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
         return await this.getApplicationById(id);
     }
@@ -146,24 +162,28 @@ class Application {
     async submitApplication(params, context) {
         verifySession(context)
             .verifyInitialized();
-        let application = await this.getApplicationById(params._id);
+        const application = await this.getApplicationById(params._id);
         verifyApplication(application)
             .notEmpty()
-            .state(IN_PROGRESS);
+            .state([NEW, IN_PROGRESS]);
         // In Progress -> In Submitted
         const history = application.history || [];
         const historyEvent = HistoryEventBuilder.createEvent(context.userInfo._id, SUBMITTED, null);
         history.push(historyEvent)
-        application = {
+        const aApplication = {
             ...application,
             history: history,
             status: SUBMITTED,
             updatedAt: historyEvent.dateTime,
             submittedDate: historyEvent.dateTime
         };
-        const updated = await this.applicationCollection.update(application);
+        const updated = await this.applicationCollection.update(aApplication);
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) throw new Error(ERROR.UPDATE_FAILED);
-        await this.sendEmailAfterSubmitApplication(context, application);
+        const logEvent = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, SUBMITTED);
+        await Promise.all([
+            await this.logCollection.insert(logEvent),
+            await this.sendEmailAfterSubmitApplication(context, application)
+        ]);
         return application;
     }
 
@@ -177,8 +197,16 @@ class Application {
                 $set: {status: IN_PROGRESS, updatedAt: history.dateTime},
                 $push: {history}
             });
-            const result = (updated?.modifiedCount && updated?.modifiedCount > 0) ? await this.dbService.find(APPLICATION, {_id: document._id}) : [];
-            return result.length > 0 ? result[0] : {};
+            if (updated?.modifiedCount && updated?.modifiedCount > 0) {
+                const promises = [
+                    await this.dbService.find(APPLICATION, {_id: document._id}),
+                    await this.logCollection.insert(UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, IN_PROGRESS))
+                ];
+                return await Promise.all(promises).then(function(results) {
+                    const result = results[0];
+                    return result.length > 0 ? result[0] : {};
+                });
+            }
         }
         return application;
     }
@@ -188,6 +216,7 @@ class Application {
         let result = null;
         if (deletedOne && await this.dbService.deleteOne(APPLICATION, {_id: document._id})) {
             result = deletedOne[0];
+            // TODO update application status and log events
         }
         return result;
     }
@@ -204,7 +233,18 @@ class Application {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
             $push: {history}
         });
-        return updated?.modifiedCount && updated?.modifiedCount > 0 ? await this.getApplicationById(document._id) : null;
+        if (updated?.modifiedCount && updated?.modifiedCount > 0) {
+            const promises = [
+                await this.getApplicationById(document._id),
+                this.logCollection.insert(
+                    UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, APPROVED)
+                )
+            ];
+            return await Promise.all(promises).then(function(results) {
+                return results[0];
+            });
+        }
+        return null;
     }
 
     async rejectApplication(document, context) {
@@ -219,7 +259,17 @@ class Application {
             $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime},
             $push: {history}
         });
-        return updated?.modifiedCount && updated?.modifiedCount > 0 ? await this.getApplicationById(document._id) : null;
+        if (updated?.modifiedCount && updated?.modifiedCount > 0) {
+            const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, REJECTED);
+            const promises = [
+                await this.getApplicationById(document._id),
+                this.logCollection.insert(log)
+            ];
+            return await Promise.all(promises).then(function(results) {
+                return results[0];
+            });
+        }
+        return null;
     }
 
     async deleteInactiveApplications(inactiveDays) {
@@ -243,6 +293,10 @@ class Application {
             if (updated?.modifiedCount && updated?.modifiedCount > 0) {
                 console.log("Executed to delete application(s) because of no activities at " + getCurrentTimeYYYYMMDDSS());
                 await this.emailInactiveApplicants(applications);
+                // log disabled applications
+                await Promise.all(applications.map(async (app) => {
+                    this.logCollection.insert(UpdateApplicationStateEvent.createByApp(app._id, app.status, DELETED));
+                }));
             }
         }
     }
@@ -299,6 +353,14 @@ class Application {
     }
 
 
+}
+
+function formatApplicantName(userInfo){
+    if (!userInfo) return "";
+    let firstName = userInfo?.firstName || "";
+    let lastName = userInfo?.lastName || "";
+    lastName = lastName.trim();
+    return firstName + (lastName.length > 0 ? " "+lastName : "");
 }
 
 function verifyReviewerPermission(context){
