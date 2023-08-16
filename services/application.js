@@ -69,7 +69,7 @@ class Application {
             status: NEW,
             applicant: {
                 applicantID: userInfo._id,
-                applicantName: userInfo.firstName + (userInfo.lastName.trim().length > 0 ? " " + userInfo.lastName : ""),
+                applicantName: formatApplicantName(userInfo),
                 applicantEmail: userInfo.email
             },
             history: [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)],
@@ -353,6 +353,14 @@ class Application {
     }
 
 
+}
+
+function formatApplicantName(userInfo){
+    if (!userInfo) return "";
+    let firstName = userInfo?.firstName || "";
+    let lastName = userInfo?.lastName || "";
+    lastName = lastName.trim();
+    return firstName + (lastName.length > 0 ? " "+lastName : "");
 }
 
 function verifyReviewerPermission(context){
