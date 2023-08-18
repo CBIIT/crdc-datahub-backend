@@ -12,10 +12,13 @@
     </style>
   </head>
   <body>
-    <p>Dear <%- firstName %>,</p>
-
-    <p><%- message %></p>
-
+    <p>Dear {{ firstName }},</p>
+    <p>{{ message }}</p>
+    {{#if users}}
+      {{#each users}}
+      <p>{{{ this }}}</p>
+      {{/each}}
+    {{/if}}
     <p>Sincerely,</p>
     <p>CRDC Admin Team</p>
   </body>
