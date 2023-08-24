@@ -226,6 +226,7 @@ class Application {
             $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime},
             $push: {history}
         });
+        await this.sendEmailAfterRejectApplication(context, application);
         return updated?.modifiedCount && updated?.modifiedCount > 0 ? await this.getApplicationById(document._id) : null;
     }
 
@@ -305,32 +306,7 @@ class Application {
         })
     }
 
-    async sendEmailAfterApproveApplication(context, application) {
-        let org = await this.organizationService.getOrganizationByID(application.organization._id);
-        let org_owner_id = org?.owner
-        let org_owner = await this.userService.getUser(org_owner_id);
-        let org_owner_email 
-        if(!org_owner?.email){
-            org_owner_email = config.org_owner_email
-        } else {
-            org_owner_email = org_owner?.email
-        }
-        
-        await this.notificationService.approveQuestionNotification(application?.primaryContact?.email,
-            // Organization Owner and concierge assigned/Super Admin
-            `${config.org_owner_email} ; ${config.concierge_email}`,
-        {
-            firstName: application?.applicantName
-        }, {
-            study: application?.study?.name,
-            doc_url: config.submission_doc_url,
-            org_owner_email: org_owner_email,
-            concierge_email: config.concierge_email
-        })
-    }
 
-
-    
     async sendEmailAfterRejectApplication(context, application) {
 
         let org = await this.organizationService.getOrganizationByID(application.organization._id);
@@ -341,15 +317,15 @@ class Application {
         }else{
             let org_owner = await this.userService.getUser(org_owner_id);
             if(!org_owner?.email){
-                org_owner_email = config.org_owner_email
+                org_owner_email = null
             } else {
                 org_owner_email = org_owner?.email
             }
 
         }
         
-        await this.notificationService.rejectQuestionNotification(application?.primaryContact?.email+ ';' + org_owner_email, {
-            firstName: application?.applicantName
+        await this.notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, org_owner_email, {
+            firstName: application?.applicant?.applicantName
         }, {
             study: application?.study?.name,
             url: this.emailUrl
