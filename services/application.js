@@ -8,7 +8,7 @@ const {verifySession} = require("../verifier/user-info-verifier");
 const ERROR = require("../constants/error-constants");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
-const {ORG, USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
+const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 
@@ -114,19 +114,16 @@ class Application {
         return result.length > 0 ? result[0] : null;
     }
 
-    listApplicationConditions(userID, userRole, aUserOrganization, organizations) {
+    listApplicationConditions(userID, userRole, aUserOrganization) {
         // list all applications
         const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
         const listAllApplicationRoles = [USER.ROLES.ADMIN,USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR, USER.ROLES.DC_POC];
         if (listAllApplicationRoles.includes(userRole)) return [{"$match": {...validApplicationStatus}}];
         // search by applicant's user id
         let conditions = [{$and: [{"applicant.applicantID": userID}, validApplicationStatus]}];
-        if (aUserOrganization?.orgRole === ORG.ROLES.OWNER) {
-            // search by user's organization
-            const orgIds = organizations
-                .filter((org)=> (org))
-                .map((org) => org._id);
-            if (orgIds?.length > 0) conditions.push({$and: [{"organization._id": { "$in": orgIds }}, validApplicationStatus]});
+        // search by user's organization
+        if (userRole === USER.ROLES.ORG_OWNER && aUserOrganization?.orgID) {
+            conditions.push({$and: [{"organization._id": aUserOrganization.orgID}, validApplicationStatus]})
         }
         return [{"$match": {"$or": conditions}}];
     }
@@ -134,9 +131,7 @@ class Application {
     async listApplications(params, context) {
         verifySession(context)
             .verifyInitialized();
-        let pipeline = [];
-        const organizations = (!this.userService.isAdmin(context.userInfo?.role)) ? await this.organizationService.getOrganizationByUserID(context.userInfo._id) : [];
-        pipeline = pipeline.concat(this.listApplicationConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization, organizations));
+        let pipeline = this.listApplicationConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization);
         if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
 
         const pagination = [];

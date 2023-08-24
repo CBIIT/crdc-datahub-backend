@@ -5,7 +5,8 @@ const {TEST_SESSION, TEST_APPLICATION} = require("../test-constants");
 
 jest.mock("../../crdc-datahub-database-drivers/mongodb-collection");
 const applicationCollection = new MongoDBCollection();
-const dataInterface = new Application(applicationCollection);
+const logCollection = new MongoDBCollection();
+const dataInterface = new Application(logCollection,applicationCollection);
 
 describe('getApplication API test', () => {
     let params = {_id: TEST_APPLICATION._id};
