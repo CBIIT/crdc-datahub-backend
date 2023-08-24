@@ -95,7 +95,17 @@ class Application {
         const option = aApplication && aApplication.status !== IN_PROGRESS ? {$push: { history: HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, null)}}: null;
         const result = await this.applicationCollection.update({...application, status: IN_PROGRESS}, option);
         if (result.matchedCount < 1) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
-        return await this.getApplicationById(id);
+
+        const promises = [
+            await this.getApplicationById(id),
+            // store application state change
+            await this.logCollection.insert(
+                UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, aApplication._id, aApplication.status, IN_PROGRESS)
+            )
+        ];
+        return await Promise.all(promises).then(function(results) {
+            return results[0]
+        });
     }
 
     async getMyLastApplication(params, context) {
