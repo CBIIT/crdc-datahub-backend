@@ -327,8 +327,8 @@ class Application {
         await this.notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, org_owner_email, {
             firstName: application?.applicant?.applicantName
         }, {
-            study: application?.study?.name,
-            url: this.emailUrl
+            study: application?.studyAbbreviation,
+            url: this.emailParams.url
     
         })
     }
