@@ -210,7 +210,6 @@ class Application {
             $push: {history}
         });
         
-        await this.sendEmailAfterApproveApplication(context, application);
         return updated?.modifiedCount && updated?.modifiedCount > 0 ? await this.getApplicationById(document._id) : null;
     }
 
