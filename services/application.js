@@ -199,18 +199,27 @@ class Application {
     async approveApplication(document, context) {
         verifyReviewerPermission(context);
         const application = await this.getApplicationById(document._id);
-        
         // In Reviewed -> Approved
         verifyApplication(application)
-        .notEmpty()
-        .state([IN_REVIEW, SUBMITTED, APPROVED]);
+            .notEmpty()
+            .state([IN_REVIEW, SUBMITTED]);
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, APPROVED, document.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
             $push: {history}
         });
-        
-        return updated?.modifiedCount && updated?.modifiedCount > 0 ? await this.getApplicationById(document._id) : null;
+        if (updated?.modifiedCount && updated?.modifiedCount > 0) {
+            const promises = [
+                await this.getApplicationById(document._id),
+                this.logCollection.insert(
+                    UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, APPROVED)
+                )
+            ];
+            return await Promise.all(promises).then(function(results) {
+                return results[0];
+            });
+        }
+        return null;
     }
 
     async rejectApplication(document, context) {
@@ -220,15 +229,25 @@ class Application {
         verifyApplication(application)
             .notEmpty()
             .state([IN_REVIEW, SUBMITTED]);
-        const history = HistoryEventBuilder.createEvent(context.userInfo._id, APPROVED, document.comment);
+        const history = HistoryEventBuilder.createEvent(context.userInfo._id, REJECTED, document.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
             $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime},
             $push: {history}
         });
         await this.sendEmailAfterRejectApplication(context, application);
-        return updated?.modifiedCount && updated?.modifiedCount > 0 ? await this.getApplicationById(document._id) : null;
+        if (updated?.modifiedCount && updated?.modifiedCount > 0) {
+            const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, REJECTED);
+            const promises = [
+                await this.getApplicationById(document._id),
+                this.logCollection.insert(log)
+            ];
+            return await Promise.all(promises).then(function(results) {
+                return results[0];
+            });
+        }
+        return null;
     }
-
+    
     async deleteInactiveApplications(inactiveDays) {
         const inactiveCondition = {
             updatedAt: {
