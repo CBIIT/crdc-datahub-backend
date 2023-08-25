@@ -8,7 +8,7 @@ const {verifySession} = require("../verifier/user-info-verifier");
 const ERROR = require("../constants/error-constants");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
-const {ORG, USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
+const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 
@@ -121,23 +121,19 @@ class Application {
             limitReturnToOneApplication
         ];
         const result = await this.applicationCollection.aggregate(pipeline);
-        if (result.length < 1) throw new Error(ERROR.NO_USER_APPLICATIONS);
-        return result[0];
+        return result.length > 0 ? result[0] : null;
     }
 
-    listApplicationConditions(userID, userRole, aUserOrganization, organizations) {
+    listApplicationConditions(userID, userRole, aUserOrganization) {
         // list all applications
         const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
         const listAllApplicationRoles = [USER.ROLES.ADMIN,USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR, USER.ROLES.DC_POC];
         if (listAllApplicationRoles.includes(userRole)) return [{"$match": {...validApplicationStatus}}];
         // search by applicant's user id
         let conditions = [{$and: [{"applicant.applicantID": userID}, validApplicationStatus]}];
-        if (aUserOrganization?.orgRole === ORG.ROLES.OWNER) {
-            // search by user's organization
-            const orgIds = organizations
-                .filter((org)=> (org))
-                .map((org) => org._id);
-            if (orgIds?.length > 0) conditions.push({$and: [{"organization._id": { "$in": orgIds }}, validApplicationStatus]});
+        // search by user's organization
+        if (userRole === USER.ROLES.ORG_OWNER && aUserOrganization?.orgID) {
+            conditions.push({$and: [{"organization._id": aUserOrganization.orgID}, validApplicationStatus]})
         }
         return [{"$match": {"$or": conditions}}];
     }
@@ -145,9 +141,7 @@ class Application {
     async listApplications(params, context) {
         verifySession(context)
             .verifyInitialized();
-        let pipeline = [];
-        const organizations = (!this.userService.isAdmin(context.userInfo?.role)) ? await this.organizationService.getOrganizationByUserID(context.userInfo._id) : [];
-        pipeline = pipeline.concat(this.listApplicationConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization, organizations));
+        let pipeline = this.listApplicationConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization);
         if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
 
         const pagination = [];
@@ -264,7 +258,7 @@ class Application {
         verifyApplication(application)
             .notEmpty()
             .state([IN_REVIEW, SUBMITTED]);
-        const history = HistoryEventBuilder.createEvent(context.userInfo._id, APPROVED, document.comment);
+        const history = HistoryEventBuilder.createEvent(context.userInfo._id, REJECTED, document.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
             $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime},
             $push: {history}
@@ -287,7 +281,7 @@ class Application {
             updatedAt: {
                 $lt: subtractDaysFromNow(inactiveDays)
             },
-            status: SUBMITTED
+            status: {$in: [NEW, IN_PROGRESS, REJECTED]}
         };
         const applications = await this.applicationCollection.aggregate([{$match: inactiveCondition}]);
         verifyApplication(applications)
@@ -341,10 +335,11 @@ class Application {
 
     // Email Notifications
     async sendEmailAfterSubmitApplication(context, application) {
+        const programName = application?.programName?.trim() ?? "";
+        const associate = `the ${application?.studyAbbreviation}` + (programName.length > 0 ? ` associated with the ${programName} program` : '');
         await this.notificationService.submitQuestionNotification({
             pi: `${context.userInfo.firstName} ${context.userInfo.lastName}`,
-            study: application?.studyAbbreviation,
-            program: application?.programName,
+            associate,
             url: this.emailParams.url
         })
     }
@@ -355,7 +350,6 @@ class Application {
         },{
             pi: `${applicantName}`,
             study: application?.studyAbbreviation,
-            program: application?.programName,
             officialEmail: this.emailParams.officialEmail,
             inactiveDays: this.emailParams.inactiveDays,
             url: this.emailParams.url
