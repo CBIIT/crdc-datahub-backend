@@ -7,11 +7,12 @@ const {Organization} = require("../../services/organization");
 jest.mock("../../crdc-datahub-database-drivers/mongodb-collection");
 jest.mock("../../crdc-datahub-database-drivers/services/user");
 const applicationCollection = new MongoDBCollection();
+const logCollection = new MongoDBCollection();
 const organizationCollection = new MongoDBCollection();
 const userCollection = new MongoDBCollection();
 const userService = new User(userCollection);
 const organizationService = new Organization(organizationCollection);
-const dataInterface = new Application(applicationCollection, organizationService, userService);
+const dataInterface = new Application(logCollection,applicationCollection, organizationService, userService);
 
 describe('listApplication API test', () => {
     let params = {_id: TEST_APPLICATION._id};
