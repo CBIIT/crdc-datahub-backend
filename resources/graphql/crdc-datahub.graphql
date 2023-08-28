@@ -45,6 +45,21 @@ type ListApplications {
     applications: [Application]
 }
 
+type Submission {
+    _id: String # aka. submissionID
+    name: String
+    submitterID: String
+    organization: String
+    dataCommons: String
+    modelVersion: String # for future use
+    study: String # study name
+    bucketName: String # populated from orgnization
+    rootPath: String # a submission folder will be created under this path, default is / or "" meaning root folder
+    status: String # [Initialized, In Progress, Passed, Failed, Submitted, Released, Canceled, Transferred, Completed]
+    createdAt: String # 2023-05-01T09:23:30Z  ISO data time format
+    updatedAt: String # 2023-05-01T09:23:30Z  ISO data time format
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -71,5 +86,8 @@ type Mutation {
 
     "Admin only operations"
     deleteApplication (_id: ID!): Application
+
+    "Submitter or Org Owner"
+    createSubmission (study: String, dataCommons: String, name: String): Submission
 }
 
