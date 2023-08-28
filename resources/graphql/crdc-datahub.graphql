@@ -53,11 +53,19 @@ type Submission {
     dataCommons: String
     modelVersion: String # for future use
     study: String # study name
+    dbGapID: String # aka. phs number
     bucketName: String # populated from orgnization
     rootPath: String # a submission folder will be created under this path, default is / or "" meaning root folder
     status: String # [Initialized, In Progress, Passed, Failed, Submitted, Released, Canceled, Transferred, Completed]
     createdAt: String # 2023-05-01T09:23:30Z  ISO data time format
     updatedAt: String # 2023-05-01T09:23:30Z  ISO data time format
+}
+
+type ApprovedStudy {
+    organization: String
+    studyName: String
+    studyAbbreviation: String
+    dbGapID: String # aka. phs number
 }
 
 type Query {
@@ -70,6 +78,9 @@ type Query {
     # when first parameter is set to -1, we should return all applications (no pagination)
     # sortDirection in ["ASC", "DESC"]
     # orderBy in ["Submitter Name", "Organization", "Study", "Program", "Status", "Submitted Date"]
+
+    # Submitter and Org Owner can only list studies for their own organization, other role can see all
+    listApprovedStudies: [ApprovedStudy]
 
     version: String
 }
