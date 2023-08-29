@@ -45,6 +45,11 @@ type ListApplications {
     applications: [Application]
 }
 
+type ListSubmissions {
+    total: Int
+    submissions: [Submission]
+}
+
 type Submission {
     _id: String # aka. submissionID
     name: String
@@ -83,8 +88,18 @@ type Query {
     # Submitter and Org Owner can only list studies for their own organization, other role can see all
     listApprovedStudies: [ApprovedStudy]
 
-    listSubmissions(organization: String, status: String, first: Int = 10, offset: Int = 0, orderBy: String = "updatedAt", sortDirection: String = "DESC"): [Submission]
-    # orderyBy in ["updatedAt", "createdAt", "_id", "name", "dataCommons", "organization", "studyAbbreviation", "dbGapID", "status", "concierge"]
+    "Result depends on user's permission"
+    listSubmissions(
+        organization: String,
+        status: String,
+        first: Int = 10,
+        offset: Int = 0,
+        orderBy: String = "updatedAt",
+        sortDirection: String = "DESC"): ListSubmissions
+    # orderyBy in ["updatedAt", "createdAt", "_id", "name", "dataCommons", "organization", "studyAbbreviation",
+    #              "dbGapID", "status", "concierge"]
+
+    getSubmission(_id: ID!): Submission
 
     version: String
 }
