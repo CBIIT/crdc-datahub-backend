@@ -52,11 +52,12 @@ type Submission {
     organization: String
     dataCommons: String
     modelVersion: String # for future use
-    study: String # study name
+    studyAbbreviation: String
     dbGapID: String # aka. phs number
     bucketName: String # populated from orgnization
     rootPath: String # a submission folder will be created under this path, default is / or "" meaning root folder
     status: String # [Initialized, In Progress, Passed, Failed, Submitted, Released, Canceled, Transferred, Completed]
+    concierge: String # Concierge name
     createdAt: String # 2023-05-01T09:23:30Z  ISO data time format
     updatedAt: String # 2023-05-01T09:23:30Z  ISO data time format
 }
@@ -82,6 +83,9 @@ type Query {
     # Submitter and Org Owner can only list studies for their own organization, other role can see all
     listApprovedStudies: [ApprovedStudy]
 
+    listSubmissions(organization: String, status: String, first: Int = 10, offset: Int = 0, orderBy: String = "updatedAt", sortDirection: String = "DESC"): [Submission]
+    # orderyBy in ["updatedAt", "createdAt", "_id", "name", "dataCommons", "organization", "studyAbbreviation", "dbGapID", "status", "concierge"]
+
     version: String
 }
 type Mutation {
@@ -99,6 +103,6 @@ type Mutation {
     deleteApplication (_id: ID!): Application
 
     "Submitter or Org Owner"
-    createSubmission (study: String, dataCommons: String, name: String): Submission
+    createSubmission (studyAbbreviation: String, dataCommons: String, name: String): Submission
 }
 
