@@ -54,6 +54,7 @@ type Submission {
     _id: String # aka. submissionID
     name: String
     submitterID: String
+    submitterName: String # <first name> <last name>
     organization: String
     dataCommons: String
     modelVersion: String # for future use
