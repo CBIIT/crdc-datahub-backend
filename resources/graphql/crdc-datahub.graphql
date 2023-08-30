@@ -62,7 +62,7 @@ type Submission {
     dbGapID: String # aka. phs number
     bucketName: String # populated from organization
     rootPath: String # a submission folder will be created under this path, default is / or "" meaning root folder
-    status: String # [Initialized, In Progress, Submitted, Released, Canceled, Transferred, Completed, Archived]
+    status: String # [New, In Progress, Submitted, Released, Canceled, Transferred, Completed, Archived]
     history: [Event]
     concierge: String # Concierge name
     createdAt: String # ISO 8601 data time format with UTC or offset e.g., 2023-05-01T09:23:30Z
