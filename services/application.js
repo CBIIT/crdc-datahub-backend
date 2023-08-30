@@ -326,7 +326,7 @@ class Application {
     // Email Notifications
     async sendEmailAfterSubmitApplication(context, application) {
         const programName = application?.programName?.trim() ?? "";
-        const associate = `the ${application?.studyAbbreviation}` + (programName.length > 0 ? ` associated with the ${programName} program` : '');
+        const associate = `the ${application?.studyAbbreviation} study` + (programName.length > 0 ? ` associated with the ${programName} program` : '');
         await this.notificationService.submitQuestionNotification({
             pi: `${context.userInfo.firstName} ${context.userInfo.lastName}`,
             associate,
