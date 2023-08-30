@@ -2,9 +2,9 @@ type Application {
     # backend managed fields
     _id: ID!
     status: String # [New, In Progress, Submitted, In Review, Approved, Rejected]
-    createdAt: String # ISO 8601 data time format with UTC or offset e.g., 2023-05-01T09:23:30Z
-    updatedAt: String # ISO 8601 data time format with UTC or offset e.g., 2023-05-01T09:23:30Z
-    submittedDate: String # ISO 8601 data time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    createdAt: String # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    updatedAt: String # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    submittedDate: String # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
     history: [Event] # An Event will be appended to the list whenever Application's status changes
     applicant: Applicant # auto populated by BE
     organization: Organization
@@ -18,7 +18,7 @@ type Application {
 type Event {
     status: String # valid values are the same as it's parent
     reviewComment: String # if applicable
-    dateTime: String # ISO 8601 data time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    dateTime: String # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
     userID: ID!
 }
 
@@ -65,8 +65,8 @@ type Submission {
     status: String # [New, In Progress, Submitted, Released, Canceled, Transferred, Completed, Archived]
     history: [Event]
     concierge: String # Concierge name
-    createdAt: String # ISO 8601 data time format with UTC or offset e.g., 2023-05-01T09:23:30Z
-    updatedAt: String # ISO 8601 data time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    createdAt: String # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    updatedAt: String # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
 }
 
 type ApprovedStudy {
