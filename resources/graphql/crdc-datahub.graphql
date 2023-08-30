@@ -2,9 +2,9 @@ type Application {
     # backend managed fields
     _id: ID!
     status: String # [New, In Progress, Submitted, In Review, Approved, Rejected]
-    createdAt: String # YYYY-MM-DDTHH:MM:SS format
-    updatedAt: String # YYYY-MM-DDTHH:MM:SS format
-    submittedDate: String # YYYY-MM-DDTHH:MM:SS format
+    createdAt: String # ISO 8601 data time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    updatedAt: String # ISO 8601 data time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    submittedDate: String # ISO 8601 data time format with UTC or offset e.g., 2023-05-01T09:23:30Z
     history: [Event] # An Event will be appended to the list whenever Application's status changes
     applicant: Applicant # auto populated by BE
     organization: Organization
@@ -16,9 +16,9 @@ type Application {
 }
 
 type Event {
-    status: String # [New, In Progress, Submitted, In Review, Approved, Rejected]
+    status: String # valid values are the same as it's parent
     reviewComment: String # if applicable
-    dateTime: String # YYYY-MM-DDTHH:MM:SS format
+    dateTime: String # ISO 8601 data time format with UTC or offset e.g., 2023-05-01T09:23:30Z
     userID: ID!
 }
 
@@ -30,7 +30,7 @@ input AppInput {
 }
 
 type Applicant {
-    applicantID: String # auto populated by BE
+    applicantID: ID # auto populated by BE
     applicantName: String # auto populated by BE
     applicantEmail: String # auto populated by BE
 }
@@ -51,21 +51,22 @@ type ListSubmissions {
 }
 
 type Submission {
-    _id: String # aka. submissionID
+    _id: ID # aka. submissionID
     name: String
-    submitterID: String
+    submitterID: ID
     submitterName: String # <first name> <last name>
     organization: String
     dataCommons: String
     modelVersion: String # for future use
     studyAbbreviation: String
     dbGapID: String # aka. phs number
-    bucketName: String # populated from orgnization
+    bucketName: String # populated from organization
     rootPath: String # a submission folder will be created under this path, default is / or "" meaning root folder
-    status: String # [Initialized, In Progress, Passed, Failed, Submitted, Released, Canceled, Transferred, Completed]
+    status: String # [Initialized, In Progress, Submitted, Released, Canceled, Transferred, Completed, Archived]
+    history: [Event]
     concierge: String # Concierge name
-    createdAt: String # 2023-05-01T09:23:30Z  ISO data time format
-    updatedAt: String # 2023-05-01T09:23:30Z  ISO data time format
+    createdAt: String # ISO 8601 data time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    updatedAt: String # ISO 8601 data time format with UTC or offset e.g., 2023-05-01T09:23:30Z
 }
 
 type ApprovedStudy {
