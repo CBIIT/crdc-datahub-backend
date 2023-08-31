@@ -253,6 +253,7 @@ class Application {
             $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime},
             $push: {history}
         });
+        await this.sendEmailAfterRejectApplication(context, application);
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, REJECTED);
             const promises = [
@@ -343,6 +344,32 @@ class Application {
             officialEmail: this.emailParams.officialEmail,
             inactiveDays: this.emailParams.inactiveDays,
             url: this.emailParams.url
+        })
+    }
+
+    async sendEmailAfterRejectApplication(context, application) {
+
+        let org = await this.organizationService.getOrganizationByID(application.organization._id);
+        let org_owner_email 
+        let org_owner_id = org?.owner
+        if(!org_owner_id){
+            org_owner_email = config.org_owner_email
+        }else{
+            let org_owner = await this.userService.getUser(org_owner_id);
+            if(!org_owner?.email){
+                org_owner_email = null
+            } else {
+                org_owner_email = org_owner?.email
+            }
+
+        }
+        
+        await this.notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, org_owner_email, {
+            firstName: application?.applicant?.applicantName
+        }, {
+            study: application?.studyAbbreviation,
+            url: this.emailParams.url
+    
         })
     }
 
