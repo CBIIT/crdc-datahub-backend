@@ -20,7 +20,7 @@ let config = {
     emails_url: process.env.EMAIL_URL ? process.env.EMAIL_URL : 'http://localhost:4010',
     official_email: process.env.official ? process.env.OFFCIAL_EMAIL : 'CRDCHelpDesk@nih.gov',
     admin_email: process.env.ADMIN_EMAIL,
-    submission_doc_url: "",
+    submission_doc_url: process.env.SUBMISSION_DOC_URL ||"https://datacommons.cancer.gov/",
     concierge_email: "",
     // Scheduled cronjob once a day (1am) eastern time at default
     schedule_job: process.env.SCHEDULE_JOB || "1 0 1 * * *"
