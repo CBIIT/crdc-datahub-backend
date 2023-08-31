@@ -1,22 +1,6 @@
-const {toISO} = require("../crdc-datahub-database-drivers/utility/time-utility");
 class Organization {
     constructor(organizationCollection) {
         this.organizationCollection = organizationCollection;
-    }
-
-    // Query the organization collection to find the curator or owner based on the user ID.
-    async getOrganizationByUserID(userID) {
-        const matchOwnerOrCurator = [{"$match": {
-            $or: [
-                {curators: {
-                    $elemMatch: {
-                        $eq: userID
-                }}},
-                {owner: userID}
-                ]
-        }}];
-        const result = await this.organizationCollection.aggregate(matchOwnerOrCurator);
-        return result?.length > 0 ? ((result).map((org)=>(toISOTime(org)))) : [];
     }
 
     async getOrganizationByID(id) {
