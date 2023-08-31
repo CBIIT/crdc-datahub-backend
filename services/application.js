@@ -49,14 +49,13 @@ class Application {
             });
             if (updated?.modifiedCount && updated?.modifiedCount > 0) {
                 const promises = [
-                    await this.dbService.find(APPLICATION, {_id: params._id}),
+                    await this.getApplicationById(params._id),
                     this.logCollection.insert(
                         UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, IN_REVIEW)
                     )
                 ];
                 return await Promise.all(promises).then(function(results) {
-                    const result = results[0];
-                    return result.length > 0 ? result[0] : null;
+                    return toISOTime(results[0]);
                 });
             }
         }
@@ -95,7 +94,7 @@ class Application {
         const option = aApplication && aApplication.status !== IN_PROGRESS ? {$push: { history: HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, null)}}: null;
         const result = await this.applicationCollection.update({...application, status: IN_PROGRESS}, option);
         if (result.matchedCount < 1) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
-        return await this.getApplicationById(id);
+        return toISOTime(await this.getApplicationById(id));
     }
 
     async getMyLastApplication(params, context) {
@@ -111,7 +110,7 @@ class Application {
             limitReturnToOneApplication
         ];
         const result = await this.applicationCollection.aggregate(pipeline);
-        return result.length > 0 ? result[0] : null;
+        return result.length > 0 ? toISOTime(result[0]) : null;
     }
 
     listApplicationConditions(userID, userRole, aUserOrganization, organizations) {
@@ -152,7 +151,7 @@ class Application {
 
         return await Promise.all(promises).then(function(results) {
             return {
-                applications: results[0] || [],
+                applications: (results[0] || []).map((app)=>(toISOTime(app))),
                 total: results[1]?.length || 0
             }
         });
@@ -189,7 +188,6 @@ class Application {
     async reopenApplication(document, context) {
         const application = await this.getApplicationById(document._id);
         // TODO 1. If Reviewer opened the application, the status changes to IN_REVIEW
-        // TODO 2. THe application status changes from rejected to in-progress when the user opens the rejected application
         if (application && application.status) {
             const history = HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, null);
             const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
@@ -198,12 +196,11 @@ class Application {
             });
             if (updated?.modifiedCount && updated?.modifiedCount > 0) {
                 const promises = [
-                    await this.dbService.find(APPLICATION, {_id: document._id}),
+                    await this.getApplicationById(document._id),
                     await this.logCollection.insert(UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, IN_PROGRESS))
                 ];
                 return await Promise.all(promises).then(function(results) {
-                    const result = results[0];
-                    return result.length > 0 ? result[0] : {};
+                    return toISOTime(results[0]);
                 });
             }
         }
@@ -214,7 +211,7 @@ class Application {
         const deletedOne = await this.getApplicationById(document._id);
         let result = null;
         if (deletedOne && await this.dbService.deleteOne(APPLICATION, {_id: document._id})) {
-            result = deletedOne[0];
+            result = deletedOne;
             // TODO update application status and log events
         }
         return result;
@@ -240,7 +237,7 @@ class Application {
                 )
             ];
             return await Promise.all(promises).then(function(results) {
-                return results[0];
+                return toISOTime(results[0]);
             });
         }
         return null;
@@ -265,7 +262,7 @@ class Application {
                 this.logCollection.insert(log)
             ];
             return await Promise.all(promises).then(function(results) {
-                return results[0];
+                return toISOTime(results[0]);
             });
         }
         return null;
@@ -366,6 +363,18 @@ function verifyReviewerPermission(context){
     verifySession(context)
         .verifyInitialized()
         .verifyRole([ROLES.ADMIN, ROLES.FEDERAL_LEAD]);
+}
+
+const toISOTime = (app) => {
+    if (app?.createdAt) app.createdAt = new Date(app.createdAt).toISOString();
+    if (app?.updatedAt) app.updatedAt = new Date(app.updatedAt).toISOString();
+    if (app?.submittedDate) app.submittedDate = new Date(app.submittedDate).toISOString();
+    if (app?.history) {
+        app.history.forEach((history) => {
+            history.dateTime = new Date(history.dateTime).toISOString();
+        });
+    }
+    return app;
 }
 
 module.exports = {
