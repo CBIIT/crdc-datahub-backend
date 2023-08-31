@@ -227,6 +227,7 @@ class Application {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
             $push: {history}
         });
+        await this.sendEmailAfterApproveApplication(context, application);
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             const promises = [
                 await this.getApplicationById(document._id),
@@ -346,7 +347,41 @@ class Application {
         })
     }
 
+    async sendEmailAfterApproveApplication(context, application) {
+        let org = await this.organizationService.getOrganizationByID(application.organization._id);
+        let org_owner_email 
+        let org_owner_id = org?.owner
+        if(!org_owner_id){
+            org_owner_email = config.org_owner_email
+        }else{
+            let org_owner = await this.userService.getUser(org_owner_id);
+            if(!org_owner?.email){
+                org_owner_email = config.org_owner_email
+            } else {
+                org_owner_email = org_owner?.email
+            }
 
+        }
+        
+        let cc_email
+        if(config.concierge_email){
+            cc_email = config.concierge_email
+        }else{
+            cc_email = config.admin_email
+        }
+
+        await this.notificationService.approveQuestionNotification(application?.primaryContact?.email,
+            // Organization Owner and concierge assigned/Super Admin
+            `${org_owner_email} ; ${cc_email}`,
+        {
+            firstName: application?.applicantName
+        }, {
+            study: application?.study?.name,
+            doc_url: config.submission_doc_url,
+            org_owner_email: org_owner_email,
+            concierge_email: config.concierge_email
+        })
+    }
 }
 
 function formatApplicantName(userInfo){
