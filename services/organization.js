@@ -1,4 +1,4 @@
-const {toISO} = require("../utility/time-utility");
+const {toISO} = require("../crdc-datahub-database-drivers/utility/time-utility");
 class Organization {
     constructor(organizationCollection) {
         this.organizationCollection = organizationCollection;

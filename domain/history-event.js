@@ -1,4 +1,4 @@
-const {getCurrentTimeYYYYMMDDSS} = require("../utility/time-utility");
+const {getCurrentTimeYYYYMMDDSS} = require("../crdc-datahub-database-drivers/utility/time-utility");
 class HistoryEventBuilder {
     constructor(userID, status, comment) {
         this._userID = userID;

@@ -14,7 +14,7 @@ const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, ORGANIZATION_COLL
 const {Application} = require("./services/application");
 const {MongoQueries} = require("./crdc-datahub-database-drivers/mongo-queries");
 const {DatabaseConnector} = require("./crdc-datahub-database-drivers/database-connector");
-const {getCurrentTimeYYYYMMDDSS} = require("./utility/time-utility");
+const {getCurrentTimeYYYYMMDDSS} = require("./crdc-datahub-database-drivers/utility/time-utility");
 const {EmailService} = require("./services/email");
 const {NotifyUser} = require("./services/notify-user");
 const {User} = require("./crdc-datahub-database-drivers/services/user");
