@@ -1,7 +1,7 @@
 const {SUBMITTED, APPROVED, REJECTED, IN_PROGRESS, IN_REVIEW, DELETED, NEW} = require("../constants/application-constants");
 const {APPLICATION_COLLECTION: APPLICATION} = require("../crdc-datahub-database-drivers/database-constants");
 const {v4} = require('uuid')
-const {getCurrentTimeYYYYMMDDSS, subtractDaysFromNow} = require("../utility/time-utility");
+const {getCurrentTimeYYYYMMDDSS, subtractDaysFromNow, toISO} = require("../utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifyApplication} = require("../verifier/application-verifier");
 const {verifySession} = require("../verifier/user-info-verifier");
@@ -365,16 +365,16 @@ function verifyReviewerPermission(context){
         .verifyRole([ROLES.ADMIN, ROLES.FEDERAL_LEAD]);
 }
 
-const toISOTime = (app) => {
-    if (app?.createdAt) app.createdAt = new Date(app.createdAt).toISOString();
-    if (app?.updatedAt) app.updatedAt = new Date(app.updatedAt).toISOString();
-    if (app?.submittedDate) app.submittedDate = new Date(app.submittedDate).toISOString();
-    if (app?.history) {
-        app.history.forEach((history) => {
-            history.dateTime = new Date(history.dateTime).toISOString();
+const toISOTime = (aApp) => {
+    if (aApp?.createdAt) aApp.createdAt = toISO(aApp.createdAt);
+    if (aApp?.updatedAt) aApp.updatedAt = toISO(aApp.updatedAt);
+    if (aApp?.submittedDate) aApp.submittedDate = toISO(aApp.submittedDate);
+    if (aApp?.history) {
+        aApp.history.forEach((history) => {
+            history.dateTime = toISO(history.dateTime);
         });
     }
-    return app;
+    return aApp;
 }
 
 module.exports = {
