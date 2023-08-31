@@ -27,7 +27,7 @@ class Organization {
 
 const toISOTime = (aOrg) => {
     if (aOrg?.createdAt) aOrg.createdAt = toISO(aOrg.createdAt);
-    if (aOrg?.updatedAt) aOrg.updatedAt = toISO(aOrg.updatedAt);
+    if (aOrg?.updateAt) aOrg.updateAt = toISO(aOrg.updateAt);
     return aOrg;
 }
 
