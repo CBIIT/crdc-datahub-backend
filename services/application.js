@@ -72,6 +72,10 @@ class Application {
                 applicantName: formatApplicantName(userInfo),
                 applicantEmail: userInfo.email
             },
+            organization: {
+                _id: userInfo?.organization?.orgID,
+                name: userInfo?.organization?.orgName
+            },
             history: [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)],
             createdAt: application.updatedAt
         };
