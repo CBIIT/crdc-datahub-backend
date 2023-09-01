@@ -9,5 +9,4 @@ SUBMISSION_CONTENT: "A request for data submission to CRDC has been received fro
 INACTIVE_APPLICATION_SUBJECT: "Application for Data Submission deletion"
 INACTIVE_APPLICATION_CONTENT: "Due to $inactiveDays days of inactivity, your application to submit data for the $study study has been removed from our system. If you wish to continue with this request, please log into $url and start a new Submission Request. If you believe your submission request has been deleted in error, please contact $officialEmail"
 APPROVE_SUBJECT: "CRDC Submission Request Decision"
-APPROVE_CONTENT: "We are pleased to inform you that your submission request for the $study study to the CRDC has been approved by the CRDC Governance Committee. 
-To begin the data submission process, please review the data submission documentation $doc_url. If you need help with your submission please contact either your organization $org_owner_email or your CRDC Data Team member $concierge_email."
+APPROVE_CONTENT: "We are pleased to inform you that your submission request for the $study study to the CRDC has been approved by the CRDC Governance Committee. To begin the data submission process, please review the data submission documentation $doc_url. If you need help with your submission please contact either your organization $org_owner_email or your CRDC Data Team member $concierge_email."
