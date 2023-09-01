@@ -362,13 +362,38 @@ class Application {
             }
 
         }
-        
-        let cc_email
-        if(config.concierge_email){
-            cc_email = config.concierge_email
+
+        // concierge email
+        let concierge_email
+        let org_curator_id = org?.curators[0]?.userID
+        if(!org_curator_id){
+            org_curator_id = null
         }else{
-            cc_email = config.admin_email
+            let org_curator = await this.userService.getUser(org_curator_id);
+            if(!org_curator?.email){
+                concierge_email = null
+            } else {
+                concierge_email = org_curator?.email
+            }
+
         }
+        
+        // admin email
+        let admin_user = await this.userService.getAdmin();
+        let admin_email = ""
+
+        for(let i of admin_user){
+            admin_email = admin_email + " ; " + i.email
+        }
+
+        // cc emil
+        let cc_email
+        if(!concierge_email){
+            cc_email = concierge_email
+        }else{
+            cc_email = admin_email
+        }
+
 
         await this.notificationService.approveQuestionNotification(application?.primaryContact?.email,
             // Organization Owner and concierge assigned/Super Admin
@@ -379,7 +404,7 @@ class Application {
             study: application?.study?.name,
             doc_url: config.submission_doc_url,
             org_owner_email: org_owner_email,
-            concierge_email: config.concierge_email
+            concierge_email: concierge_email
         })
     }
 }
