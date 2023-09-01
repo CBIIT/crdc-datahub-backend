@@ -65,27 +65,36 @@ cronJob.schedule(config.schedule_job, async () => {
         await dataInterface.deleteInactiveApplications(config.inactive_application_days);
 
         console.log("Running a scheduled job to disable user(s) because of no activities at " + getCurrentTimeYYYYMMDDSS());
-        const inactiveUsers = await userService.getInactiveUsers(config.inactive_user_days);
-        const disabledUsers = await userService.disableInactiveUsers(inactiveUsers);
-        if (inactiveUsers.length > 0 && disabledUsers.length > 0) {
-            // Email disabled user(s)
-            await Promise.all(disabledUsers.map(async (user) => {
-                await notificationsService.inactiveUserNotification(user.email,
-                    {firstName: user.firstName},
-                    {inactiveDays: config.inactive_user_days, officialEmail: config.official_email});
-            }));
-            // Email admin(s)
-            const adminUsers = await userService.getAdminUserEmails();
-            const users = disabledUsers.map(u => ({ ...u, organization: u?.organization?.name }));
-            const commaJoinedUsers = extractAndJoinFields(users, ["firstName", "lastName", "email", "role", "organization"]);
-            await Promise.all(adminUsers.map(async (admin) => {
-                await notificationsService.inactiveUserAdminNotification(admin.email,
-                    {firstName: admin.firstName,users: commaJoinedUsers},
-                    {inactiveDays: config.inactive_user_days});
-            }));
-        }
+        await runDeactivateInactiveUsers(userService, notificationsService);
     });
 });
+
+const runDeactivateInactiveUsers = async (userService, notificationsService) => {
+    // if there is no user login detected in the log collection, we will deactivate these users.
+    const allUsersByEmailAndIDP = await userService.getAllUsersByEmailAndIDP();
+    const nonLogUsers = await userService.findUsersExcludingEmailAndIDP(allUsersByEmailAndIDP);
+    const inactiveUsers = await userService.getInactiveUsers(config.inactive_user_days);
+    // merge and remove duplicate users
+    const inactiveUserConditions = [...new Map([...nonLogUsers, ...inactiveUsers].map((user) => [user.email + user.idp, user])).values()];
+    const disabledUsers = await userService.disableInactiveUsers(inactiveUserConditions);
+    if (disabledUsers.length > 0) {
+        // Email disabled user(s)
+        await Promise.all(disabledUsers.map(async (user) => {
+            await notificationsService.inactiveUserNotification(user.email,
+                {firstName: user.firstName},
+                {inactiveDays: config.inactive_user_days, officialEmail: config.official_email});
+        }));
+        // Email admin(s)
+        const adminUsers = await userService.getAdminUserEmails();
+        const users = disabledUsers.map(u => ({ ...u, organization: u?.organization?.name }));
+        const commaJoinedUsers = extractAndJoinFields(users, ["firstName", "lastName", "email", "role", "organization"]);
+        await Promise.all(adminUsers.map(async (admin) => {
+            await notificationsService.inactiveUserAdminNotification(admin.email,
+                {firstName: admin.firstName,users: commaJoinedUsers},
+                {inactiveDays: config.inactive_user_days});
+        }));
+    }
+}
 
 // catch 404 and forward to error handler
 app.use((req, res, next) => {
