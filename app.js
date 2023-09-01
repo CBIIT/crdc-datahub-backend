@@ -55,12 +55,14 @@ cronJob.schedule(config.schedule_job, async () => {
         const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
         const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
         const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
-        const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_user_days};
+        const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_user_days, remindDay: config.remind_application_days};
         const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
         const userService = new User(userCollection, logCollection);
         const dataInterface = new Application(logCollection, applicationCollection, new Organization(organizationCollection), userService, dbService, notificationsService, emailParams);
         console.log("Running a scheduled background task to delete inactive application at " + getCurrentTimeYYYYMMDDSS());
         await dataInterface.deleteInactiveApplications(config.inactive_user_days);
+        console.log("Running a scheduled background task to remind inactive application at " + getCurrentTimeYYYYMMDDSS());
+        await dataInterface.remindApplicationSubmission(config.remind_application_days);
     });
 });
 
