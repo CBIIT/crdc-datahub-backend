@@ -1,7 +1,7 @@
 const {SUBMITTED, APPROVED, REJECTED, IN_PROGRESS, IN_REVIEW, DELETED, NEW} = require("../constants/application-constants");
 const {APPLICATION_COLLECTION: APPLICATION} = require("../crdc-datahub-database-drivers/database-constants");
 const {v4} = require('uuid')
-const {getCurrentTimeYYYYMMDDSS, toISO, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
+const {getCurrentTime, toISO, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifyApplication} = require("../verifier/application-verifier");
 const {verifySession} = require("../verifier/user-info-verifier");
@@ -55,7 +55,7 @@ class Application {
                     )
                 ];
                 return await Promise.all(promises).then(function(results) {
-                    return toISOTime(results[0]);
+                    return transformDateTime(results[0]);
                 });
             }
         }
@@ -87,14 +87,14 @@ class Application {
         verifySession(context)
             .verifyInitialized();
         let application = params.application;
-        application.updatedAt = getCurrentTimeYYYYMMDDSS();
+        application.updatedAt = getCurrentTime();
         const id = application?._id;
         if (!id) return await this.createApplication(application, context.userInfo);
         const aApplication = await this.getApplicationById(id);
         const option = aApplication && aApplication.status !== IN_PROGRESS ? {$push: { history: HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, null)}}: null;
         const result = await this.applicationCollection.update({...application, status: IN_PROGRESS}, option);
         if (result.matchedCount < 1) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
-        return toISOTime(await this.getApplicationById(id));
+        return transformDateTime(await this.getApplicationById(id));
     }
 
     async getMyLastApplication(params, context) {
@@ -110,7 +110,7 @@ class Application {
             limitReturnToOneApplication
         ];
         const result = await this.applicationCollection.aggregate(pipeline);
-        return result.length > 0 ? toISOTime(result[0]) : null;
+        return result.length > 0 ? transformDateTime(result[0]) : null;
     }
 
     listApplicationConditions(userID, userRole, aUserOrganization) {
@@ -146,7 +146,7 @@ class Application {
 
         return await Promise.all(promises).then(function(results) {
             return {
-                applications: (results[0] || []).map((app)=>(toISOTime(app))),
+                applications: (results[0] || []).map((app)=>(transformDateTime(app))),
                 total: results[1]?.length || 0
             }
         });
@@ -195,21 +195,25 @@ class Application {
                     await this.logCollection.insert(UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, IN_PROGRESS))
                 ];
                 return await Promise.all(promises).then(function(results) {
-                    return toISOTime(results[0]);
+                    return transformDateTime(results[0]);
                 });
             }
         }
         return application;
     }
 
-    async deleteApplication(document, _) {
-        const deletedOne = await this.getApplicationById(document._id);
-        let result = null;
-        if (deletedOne && await this.dbService.deleteOne(APPLICATION, {_id: document._id})) {
-            result = deletedOne;
-            // TODO update application status and log events
+    async deleteApplication(document, context) {
+        const aApplication = await this.getApplicationById(document._id);
+        const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED];
+        if (validApplicationStatus.includes(aApplication.status)) {
+            const history = HistoryEventBuilder.createEvent(context.userInfo._id, DELETED, null);
+            const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
+                $set: {status: DELETED, updatedAt: history.dateTime},
+                $push: {history}
+            });
+            return (updated?.modifiedCount && updated?.modifiedCount > 0) ? await this.getApplicationById(document._id) : null;
         }
-        return result;
+        return aApplication;
     }
 
     async approveApplication(document, context) {
@@ -232,7 +236,7 @@ class Application {
                 )
             ];
             return await Promise.all(promises).then(function(results) {
-                return toISOTime(results[0]);
+                return transformDateTime(results[0]);
             });
         }
         return null;
@@ -257,7 +261,7 @@ class Application {
                 this.logCollection.insert(log)
             ];
             return await Promise.all(promises).then(function(results) {
-                return toISOTime(results[0]);
+                return transformDateTime(results[0]);
             });
         }
         return null;
@@ -282,7 +286,7 @@ class Application {
                     $set: {status: DELETED, updatedAt: history.dateTime},
                     $push: {history}});
             if (updated?.modifiedCount && updated?.modifiedCount > 0) {
-                console.log("Executed to delete application(s) because of no activities at " + getCurrentTimeYYYYMMDDSS());
+                console.log("Executed to delete application(s) because of no activities at " + getCurrentTime());
                 await this.emailInactiveApplicants(applications);
                 // log disabled applications
                 await Promise.all(applications.map(async (app) => {
@@ -360,7 +364,7 @@ function verifyReviewerPermission(context){
         .verifyRole([ROLES.ADMIN, ROLES.FEDERAL_LEAD]);
 }
 
-const toISOTime = (aApp) => {
+const transformDateTime = (aApp) => {
     if (aApp?.createdAt) aApp.createdAt = toISO(aApp.createdAt);
     if (aApp?.updatedAt) aApp.updatedAt = toISO(aApp.updatedAt);
     if (aApp?.submittedDate) aApp.submittedDate = toISO(aApp.submittedDate);
