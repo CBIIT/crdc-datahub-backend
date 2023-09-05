@@ -127,7 +127,7 @@ class Application {
     listApplicationConditions(userID, userRole, aUserOrganization) {
         // list all applications
         const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
-        const listAllApplicationRoles = [USER.ROLES.ADMIN,USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR, USER.ROLES.DC_POC];
+        const listAllApplicationRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD];
         if (listAllApplicationRoles.includes(userRole)) return [{"$match": {...validApplicationStatus}}];
         // search by applicant's user id
         let conditions = [{$and: [{"applicant.applicantID": userID}, validApplicationStatus]}];
