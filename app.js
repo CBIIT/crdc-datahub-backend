@@ -62,7 +62,7 @@ cronJob.schedule(config.schedule_job, async () => {
         console.log("Running a scheduled background task to delete inactive application at " + getCurrentTimeYYYYMMDDSS());
         await dataInterface.deleteInactiveApplications(config.inactive_user_days);
         console.log("Running a scheduled background task to remind inactive application at " + getCurrentTimeYYYYMMDDSS());
-        await dataInterface.remindApplicationSubmission(config.remind_application_days);
+        await dataInterface.remindApplicationSubmission();
     });
 });
 

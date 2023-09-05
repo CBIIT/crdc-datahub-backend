@@ -299,11 +299,12 @@ class Application {
         }
     }
 
-    async remindApplicationSubmission(remindDays) {
+    async remindApplicationSubmission() {
+        const inactiveDuration = this.emailParams.inactiveDays - this.emailParams.remindDay;
         const remindCondition = {
             updatedAt: {
-                $lt: getCurrentTimeYYYYMMDDSS(),
-                $gt: subtractDaysFromNow(remindDays),
+                $lt: subtractDaysFromNow(inactiveDuration),
+                $gt: subtractDaysFromNow(inactiveDuration + 1),
             },
             status: {$in: [NEW, IN_PROGRESS, REJECTED]}
         };
@@ -370,10 +371,11 @@ function verifyReviewerPermission(context){
 
 const sendEmails = {
     remindApplication: async (notificationService, emailParams, email, emailCCs, applicantName, application) => {
+        const studyName = application?.studyAbbreviation?.trim() ?? "";
         await notificationService.remindApplicationsNotification(email, emailCCs,{
             firstName: applicantName
         },{
-            study: application?.studyAbbreviation,
+            study: (studyName.length > 0) ? (studyName) : "NA",
             remindDay: emailParams.remindDay,
             differDay: emailParams.inactiveDays - emailParams.remindDay,
             url: emailParams.url
@@ -386,7 +388,7 @@ const getAppOrgOwner = async (organizationService, userService, applications) =>
     let userByOrgID = {};
     await Promise.all(applications.map(async (app) => {
         if (!app?.organization?._id) return [];
-        const org = await this.organizationService.getOrganizationByID(app.organization._id);
+        const org = await organizationService.getOrganizationByID(app.organization._id);
         // exclude if user is already the owner's of the organization
         if (org?.owner && !ownerIDsSet.has(org.owner) && app.applicant.applicantID !== org.owner) {
             userByOrgID[org._id] = org.owner;
@@ -397,7 +399,7 @@ const getAppOrgOwner = async (organizationService, userService, applications) =>
     const orgOwners = {};
     await Promise.all(
         Object.keys(userByOrgID).map(async (orgID) => {
-            const user = await userService.getUser(userByOrgID[orgID]);
+            const user = await userService.getUserByID(userByOrgID[orgID]);
             if (user) orgOwners[orgID] = user.email;
         })
     );
