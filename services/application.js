@@ -348,32 +348,24 @@ class Application {
     }
 
     async sendEmailAfterApproveApplication(context, application) {
-        let org = await this.organizationService.getOrganizationByID(application.organization._id);
-        let org_owner_email 
+        // org owner email
+        let org = await this.organizationService.getOrganizationByID(application?.organization?._id);
+        let org_owner_email = null
         let org_owner_id = org?.owner
-        if(!org_owner_id){
-            org_owner_email = null
-        }else{
+        if(org_owner_id){
             let org_owner = await this.userService.getUser(org_owner_id);
-            if(!org_owner?.email){
-                org_owner_email = null
-            } else {
+            if(org_owner?.email){
                 org_owner_email = org_owner?.email
             }
-
         }
 
         // concierge email
-        let concierge_email
-        let org_curator_id = org?.curators[0]?.userID
-        if(!org_curator_id){
-            org_curator_id = null
-        }else{
-            let org_curator = await this.userService.getUser(org_curator_id);
-            if(!org_curator?.email){
-                concierge_email = null
-            } else {
-                concierge_email = org_curator?.email
+        let concierge_email = null
+        let org_concierge_id = org?.concierges
+        if(org_concierge_id){
+            let org_concierge = await this.userService.getUser(org_concierge_id);
+            if(org_concierge?.email){
+                concierge_email = org_concierge?.email
             }
 
         }
@@ -395,13 +387,13 @@ class Application {
         }
 
 
-        await this.notificationService.approveQuestionNotification(application?.primaryContact?.email,
+        await this.notificationService.approveQuestionNotification(application?.applicant?.applicantEmail,
             // Organization Owner and concierge assigned/Super Admin
             `${org_owner_email} ; ${cc_email}`,
         {
             firstName: application?.applicantName
         }, {
-            study: application?.study?.name,
+            study: application?.studyAbbreviation,
             doc_url: config.submission_doc_url,
             org_owner_email: org_owner_email,
             concierge_email: concierge_email
