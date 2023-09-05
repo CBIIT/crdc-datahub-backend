@@ -26,7 +26,13 @@ class Application {
     async getApplication(params, context) {
         verifySession(context)
             .verifyInitialized();
-        return await this.getApplicationById(params._id);
+        const application = await this.getApplicationById(params._id);
+        const isAdminOrFedLead = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD].includes(context.userInfo?.role);
+        const isSubmitter = application?.applicant?.applicantID === context?.userInfo?._id;
+        if (!isAdminOrFedLead && !isSubmitter){
+            throw new Error(ERROR.INVALID_PERMISSION);
+        }
+        return application;
     }
 
     async getApplicationById(id) {
@@ -121,14 +127,10 @@ class Application {
     listApplicationConditions(userID, userRole, aUserOrganization) {
         // list all applications
         const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
-        const listAllApplicationRoles = [USER.ROLES.ADMIN,USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR, USER.ROLES.DC_POC];
+        const listAllApplicationRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD];
         if (listAllApplicationRoles.includes(userRole)) return [{"$match": {...validApplicationStatus}}];
         // search by applicant's user id
         let conditions = [{$and: [{"applicant.applicantID": userID}, validApplicationStatus]}];
-        // search by user's organization
-        if (userRole === USER.ROLES.ORG_OWNER && aUserOrganization?.orgID) {
-            conditions.push({$and: [{"organization._id": aUserOrganization.orgID}, validApplicationStatus]})
-        }
         return [{"$match": {"$or": conditions}}];
     }
 
