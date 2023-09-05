@@ -348,21 +348,17 @@ class Application {
     }
 
     async sendEmailAfterRejectApplication(context, application) {
-
-        let org = await this.organizationService.getOrganizationByID(application.organization._id);
-        let org_owner_email 
+        // org owner email
+        let org = await this.organizationService.getOrganizationByID(application?.organization?._id);
+        let org_owner_email = null
         let org_owner_id = org?.owner
-        if(!org_owner_id){
-            org_owner_email = config.org_owner_email
-        }else{
+        if(org_owner_id){
             let org_owner = await this.userService.getUser(org_owner_id);
-            if(!org_owner?.email){
-                org_owner_email = null
-            } else {
+            if(org_owner?.email){
                 org_owner_email = org_owner?.email
             }
-
         }
+
         
         await this.notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, org_owner_email, {
             firstName: application?.applicant?.applicantName
