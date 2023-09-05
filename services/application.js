@@ -353,7 +353,7 @@ class Application {
         let org_owner_email = null
         let org_owner_id = org?.owner
         if(org_owner_id){
-            let org_owner = await this.userService.getUser(org_owner_id);
+            let org_owner = await this.userService.getUserByID(org_owner_id);
             if(org_owner?.email){
                 org_owner_email = org_owner?.email
             }
@@ -363,7 +363,7 @@ class Application {
         let concierge_email = null
         let org_concierge_id = org?.concierges
         if(org_concierge_id){
-            let org_concierge = await this.userService.getUser(org_concierge_id);
+            let org_concierge = await this.userService.getUserByID(org_concierge_id);
             if(org_concierge?.email){
                 concierge_email = org_concierge?.email
             }
