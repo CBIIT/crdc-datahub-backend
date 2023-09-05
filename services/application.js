@@ -26,7 +26,13 @@ class Application {
     async getApplication(params, context) {
         verifySession(context)
             .verifyInitialized();
-        return await this.getApplicationById(params._id);
+        const application = await this.getApplicationById(params._id);
+        const isAdminOrFedLead = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD].includes(context.userInfo?.role);
+        const isSubmitter = application?.applicant?.applicantID === context?.userInfo?._id;
+        if (!isAdminOrFedLead && !isSubmitter){
+            throw new Error(ERROR.INVALID_PERMISSION);
+        }
+        return application;
     }
 
     async getApplicationById(id) {
