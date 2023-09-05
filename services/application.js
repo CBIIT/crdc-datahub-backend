@@ -391,7 +391,7 @@ class Application {
             // Organization Owner and concierge assigned/Super Admin
             `${org_owner_email} ; ${cc_email}`,
         {
-            firstName: application?.applicantName
+            firstName: application?.applicant?.applicantName
         }, {
             study: application?.studyAbbreviation,
             doc_url: config.submission_doc_url,
