@@ -368,8 +368,6 @@ class Application {
     
         })
     }
-
-
 }
 
 function formatApplicantName(userInfo){
