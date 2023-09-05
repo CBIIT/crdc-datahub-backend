@@ -125,10 +125,6 @@ class Application {
         if (listAllApplicationRoles.includes(userRole)) return [{"$match": {...validApplicationStatus}}];
         // search by applicant's user id
         let conditions = [{$and: [{"applicant.applicantID": userID}, validApplicationStatus]}];
-        // search by user's organization
-        if (userRole === USER.ROLES.ORG_OWNER && aUserOrganization?.orgID) {
-            conditions.push({$and: [{"organization._id": aUserOrganization.orgID}, validApplicationStatus]})
-        }
         return [{"$match": {"$or": conditions}}];
     }
 
