@@ -14,7 +14,7 @@ const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, ORGANIZATION_COLL
 const {Application} = require("./services/application");
 const {MongoQueries} = require("./crdc-datahub-database-drivers/mongo-queries");
 const {DatabaseConnector} = require("./crdc-datahub-database-drivers/database-connector");
-const {getCurrentTimeYYYYMMDDSS} = require("./utility/time-utility");
+const {getCurrentTime} = require("./crdc-datahub-database-drivers/utility/time-utility");
 const {EmailService} = require("./services/email");
 const {NotifyUser} = require("./services/notify-user");
 const {User} = require("./crdc-datahub-database-drivers/services/user");
@@ -56,15 +56,15 @@ cronJob.schedule(config.schedule_job, async () => {
         const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
         const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
         const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
-        const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days};
+        const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_user_days};
         const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
         const userService = new User(userCollection, logCollection);
         const organizationService = new Organization(organizationCollection);
         const dataInterface = new Application(logCollection, applicationCollection, organizationService, userService, dbService, notificationsService, emailParams);
-        console.log("Running a scheduled background task to delete inactive application at " + getCurrentTimeYYYYMMDDSS());
-        await dataInterface.deleteInactiveApplications(config.inactive_application_days);
+        console.log("Running a scheduled background task to delete inactive application at " + getCurrentTime());
+        await dataInterface.deleteInactiveApplications(config.inactive_user_days);
 
-        console.log("Running a scheduled job to disable user(s) because of no activities at " + getCurrentTimeYYYYMMDDSS());
+        console.log("Running a scheduled job to disable user(s) because of no activities at " + getCurrentTime());
         await runDeactivateInactiveUsers(userService, notificationsService);
     });
 });
