@@ -203,6 +203,7 @@ class Application {
     }
 
     async deleteApplication(document, context) {
+        // TODO Deleting the application requires permission control.
         const aApplication = await this.getApplicationById(document._id);
         const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED];
         if (validApplicationStatus.includes(aApplication.status)) {
