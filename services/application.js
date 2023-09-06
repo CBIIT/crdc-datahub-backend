@@ -353,7 +353,7 @@ class Application {
         let org_owner_email = null
         let org_owner_id = org?.owner
         if(org_owner_id){
-            let org_owner = await this.userService.getUser(org_owner_id);
+            let org_owner = await this.userService.getUserById(org_owner_id);
             if(org_owner?.email){
                 org_owner_email = org_owner?.email
             }
