@@ -11,6 +11,7 @@ const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const ROLES = USER_CONSTANTS.USER.ROLES;
+const config = require('../config');
 
 class Application {
     constructor(logCollection, applicationCollection, organizationService, userService, dbService, notificationsService, emailParams) {
