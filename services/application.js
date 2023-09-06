@@ -304,7 +304,7 @@ class Application {
     }
 
     async remindApplicationSubmission() {
-        const inactiveDuration = this.emailParams.inactiveDays - this.emailParams.remindDay;
+        const inactiveDuration = this.emailParams.remindDay;
         const remindCondition = {
             updatedAt: {
                 $lt: subtractDaysFromNow(inactiveDuration),

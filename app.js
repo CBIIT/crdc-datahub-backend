@@ -61,7 +61,7 @@ cronJob.schedule(config.schedule_job, async () => {
         const dataInterface = new Application(logCollection, applicationCollection, new Organization(organizationCollection), userService, dbService, notificationsService, emailParams);
         console.log("Running a scheduled background task to delete inactive application at " + getCurrentTime());
         await dataInterface.deleteInactiveApplications(config.inactive_user_days);
-        console.log("Running a scheduled background task to remind inactive application at " + getCurrentTimeYYYYMMDDSS());
+        console.log("Running a scheduled background task to remind inactive application at " + getCurrentTime());
         await dataInterface.remindApplicationSubmission();
     });
 });
