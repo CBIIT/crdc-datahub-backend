@@ -22,7 +22,7 @@ let config = {
     // Scheduled cronjob once a day (1am) eastern time at default
     schedule_job: process.env.SCHEDULE_JOB || "1 0 1 * * *",
     // temp url for submission url
-    submission_doc_url: "https://datacommons.cancer.gov/"
+    submission_doc_url: process.env.SUBMISSION_DOC_URL || ""
 };
 config.mongo_db_connection_string = `mongodb://${config.mongo_db_user}:${config.mongo_db_password}@${config.mongo_db_host}:${process.env.MONGO_DB_PORT}`;
 
