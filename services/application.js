@@ -1,7 +1,7 @@
 const {SUBMITTED, APPROVED, REJECTED, IN_PROGRESS, IN_REVIEW, DELETED, NEW} = require("../constants/application-constants");
 const {APPLICATION_COLLECTION: APPLICATION} = require("../crdc-datahub-database-drivers/database-constants");
 const {v4} = require('uuid')
-const {getCurrentTime, toISO, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
+const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifyApplication} = require("../verifier/application-verifier");
 const {verifySession} = require("../verifier/user-info-verifier");
@@ -61,7 +61,7 @@ class Application {
                     )
                 ];
                 return await Promise.all(promises).then(function(results) {
-                    return transformDateTime(results[0]);
+                    return results[0];
                 });
             }
         }
@@ -104,7 +104,7 @@ class Application {
         const option = aApplication && aApplication.status !== IN_PROGRESS ? {$push: { history: HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, null)}}: null;
         const result = await this.applicationCollection.update({...application, status: IN_PROGRESS}, option);
         if (result.matchedCount < 1) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
-        return transformDateTime(await this.getApplicationById(id));
+        return await this.getApplicationById(id);
     }
 
     async getMyLastApplication(params, context) {
@@ -120,7 +120,7 @@ class Application {
             limitReturnToOneApplication
         ];
         const result = await this.applicationCollection.aggregate(pipeline);
-        return result.length > 0 ? transformDateTime(result[0]) : null;
+        return result.length > 0 ? result[0] : null;
     }
 
     listApplicationConditions(userID, userRole, aUserOrganization) {
@@ -152,7 +152,7 @@ class Application {
 
         return await Promise.all(promises).then(function(results) {
             return {
-                applications: (results[0] || []).map((app)=>(transformDateTime(app))),
+                applications: (results[0] || []).map((app)=>(app)),
                 total: results[1]?.length || 0
             }
         });
@@ -201,7 +201,7 @@ class Application {
                     await this.logCollection.insert(UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, IN_PROGRESS))
                 ];
                 return await Promise.all(promises).then(function(results) {
-                    return transformDateTime(results[0]);
+                    return results[0];
                 });
             }
         }
@@ -243,7 +243,7 @@ class Application {
                 )
             ];
             return await Promise.all(promises).then(function(results) {
-                return transformDateTime(results[0]);
+                return results[0];
             });
         }
         return null;
@@ -268,7 +268,7 @@ class Application {
                 this.logCollection.insert(log)
             ];
             return await Promise.all(promises).then(function(results) {
-                return transformDateTime(results[0]);
+                return results[0];
             });
         }
         return null;
@@ -408,18 +408,6 @@ const getAppOrgOwner = async (organizationService, userService, applications) =>
         })
     );
     return orgOwners;
-}
-
-const transformDateTime = (aApp) => {
-    if (aApp?.createdAt) aApp.createdAt = toISO(aApp.createdAt);
-    if (aApp?.updatedAt) aApp.updatedAt = toISO(aApp.updatedAt);
-    if (aApp?.submittedDate) aApp.submittedDate = toISO(aApp.submittedDate);
-    if (aApp?.history) {
-        aApp.history.forEach((history) => {
-            history.dateTime = toISO(history.dateTime);
-        });
-    }
-    return aApp;
 }
 
 module.exports = {
