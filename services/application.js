@@ -313,27 +313,28 @@ class Application {
         }
     }
 
+    async remindApplicationSubmission() {
+        const inactiveDuration = this.emailParams.remindDay;
+        const remindCondition = {
+            updatedAt: {
+                $lt: subtractDaysFromNow(inactiveDuration),
+                $gt: subtractDaysFromNow(inactiveDuration + 1),
+            },
+            status: {$in: [NEW, IN_PROGRESS, REJECTED]}
+        };
+        const applications = await this.applicationCollection.aggregate([{$match: remindCondition}]);
+        if (applications?.length > 0) {
+            const orgOwners = await getAppOrgOwner(this.organizationService, this.userService, applications);
+            // Send Email Notification
+            await Promise.all(applications.map(async (app) => {
+                const emailsCCs = (orgOwners.hasOwnProperty(app?.organization?._id)) ? [orgOwners[app?.organization?._id]] : [];
+                await sendEmails.remindApplication(this.notificationService, this.emailParams, app?.applicant?.applicantEmail, emailsCCs, app?.applicant?.applicantName, app);
+            }));
+        }
+    }
+
     async emailInactiveApplicants(applications) {
-        // Store Owner's User IDs
-        let ownerIDsSet = new Set();
-        let userByOrgID = {};
-        await Promise.all(applications.map(async (app) => {
-            if (!app?.organization?._id) return [];
-            const org = await this.organizationService.getOrganizationByID(app.organization._id);
-            // exclude if user is already the owner's of the organization
-            if (org?.owner && !ownerIDsSet.has(org.owner) && app.applicant.applicantID !== org.owner) {
-                userByOrgID[org._id] = org.owner;
-                ownerIDsSet.add(org.owner);
-            }
-        }));
-        // Store Owner's email address
-        const orgOwners = {};
-        await Promise.all(
-            Object.keys(userByOrgID).map(async (orgID) => {
-                const user = await this.userService.getUser(userByOrgID[orgID]);
-                if (user) orgOwners[orgID] = user.email;
-            })
-        );
+        const orgOwners = await getAppOrgOwner(this.organizationService, this.userService, applications);
         // Send Email Notification
         await Promise.all(applications.map(async (app) => {
             const emailsCCs = (orgOwners.hasOwnProperty(app?.organization?._id)) ? [orgOwners[app?.organization?._id]] : [];
@@ -379,6 +380,44 @@ function verifyReviewerPermission(context){
     verifySession(context)
         .verifyInitialized()
         .verifyRole([ROLES.ADMIN, ROLES.FEDERAL_LEAD]);
+}
+
+
+const sendEmails = {
+    remindApplication: async (notificationService, emailParams, email, emailCCs, applicantName, application) => {
+        const studyName = application?.studyAbbreviation?.trim() ?? "";
+        await notificationService.remindApplicationsNotification(email, emailCCs,{
+            firstName: applicantName
+        },{
+            study: (studyName.length > 0) ? (studyName) : "NA",
+            remindDay: emailParams.remindDay,
+            differDay: emailParams.inactiveDays - emailParams.remindDay,
+            url: emailParams.url
+        });
+    }
+}
+
+const getAppOrgOwner = async (organizationService, userService, applications) => {
+    let ownerIDsSet = new Set();
+    let userByOrgID = {};
+    await Promise.all(applications.map(async (app) => {
+        if (!app?.organization?._id) return [];
+        const org = await organizationService.getOrganizationByID(app.organization._id);
+        // exclude if user is already the owner's of the organization
+        if (org?.owner && !ownerIDsSet.has(org.owner) && app.applicant.applicantID !== org.owner) {
+            userByOrgID[org._id] = org.owner;
+            ownerIDsSet.add(org.owner);
+        }
+    }));
+    // Store Owner's email address
+    const orgOwners = {};
+    await Promise.all(
+        Object.keys(userByOrgID).map(async (orgID) => {
+            const user = await userService.getUserByID(userByOrgID[orgID]);
+            if (user) orgOwners[orgID] = user.email;
+        })
+    );
+    return orgOwners;
 }
 
 const transformDateTime = (aApp) => {
