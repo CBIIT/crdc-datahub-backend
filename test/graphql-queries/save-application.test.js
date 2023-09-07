@@ -45,6 +45,7 @@ describe('saveApplication API test', () => {
         applicationCollection.find.mockImplementation(() => {
             return [TEST_APPLICATION];
         });
+        applicationCollection.
         expect(await dataInterface.saveApplication(params, TEST_SESSION)).toStrictEqual(TEST_APPLICATION);
     })
     // TODO

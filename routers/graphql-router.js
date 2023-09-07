@@ -9,7 +9,7 @@ const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-c
 const {EmailService} = require("../services/email");
 const {NotifyUser} = require("../services/notify-user");
 const {User} = require("../crdc-datahub-database-drivers/services/user");
-const {Organization} = require("../services/organization");
+const {Organization} = require("../crdc-datahub-database-drivers/services/organization");
 
 const schema = buildSchema(require("fs").readFileSync("resources/graphql/crdc-datahub.graphql", "utf8"));
 const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
@@ -21,7 +21,7 @@ dbConnector.connect().then(() => {
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
     const emailService = new EmailService(config.email_transport, config.emails_enabled);
     const notificationsService = new NotifyUser(emailService);
-    const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_user_days};
+    const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days};
     const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
     const userService = new User(userCollection, logCollection);
     const dataInterface = new Application(logCollection, applicationCollection, new Organization(organizationCollection), userService, dbService, notificationsService, emailParams);

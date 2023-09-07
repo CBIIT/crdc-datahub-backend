@@ -10,7 +10,8 @@ const ERROR = {
         UNDEFINED_STATUS_APPLICATION: "Application state is undefined",
         INVALID_STATE_APPLICATION: "Application state is invalid"
     },
-    INVALID_ROLE: "You do not have the correct role to perform this operation"
+    INVALID_ROLE: "You do not have the correct role to perform this operation",
+    INVALID_PERMISSION: "You do not have permission to view this application"
 }
 
 module.exports = ERROR;

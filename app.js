@@ -14,11 +14,12 @@ const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, ORGANIZATION_COLL
 const {Application} = require("./services/application");
 const {MongoQueries} = require("./crdc-datahub-database-drivers/mongo-queries");
 const {DatabaseConnector} = require("./crdc-datahub-database-drivers/database-connector");
-const {getCurrentTimeYYYYMMDDSS} = require("./utility/time-utility");
+const {getCurrentTime} = require("./crdc-datahub-database-drivers/utility/time-utility");
 const {EmailService} = require("./services/email");
 const {NotifyUser} = require("./services/notify-user");
 const {User} = require("./crdc-datahub-database-drivers/services/user");
-const {Organization} = require("./services/organization");
+const {Organization} = require("./crdc-datahub-database-drivers/services/organization");
+const {extractAndJoinFields} = require("./utility/string-util");
 // print environment variables to log
 console.info(config);
 
@@ -55,14 +56,46 @@ cronJob.schedule(config.schedule_job, async () => {
         const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
         const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
         const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
-        const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_user_days};
+        const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_user_days, remindDay: config.remind_application_days};
         const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
         const userService = new User(userCollection, logCollection);
-        const dataInterface = new Application(logCollection, applicationCollection, new Organization(organizationCollection), userService, dbService, notificationsService, emailParams);
-        console.log("Running a scheduled background task to delete inactive application at " + getCurrentTimeYYYYMMDDSS());
-        await dataInterface.deleteInactiveApplications(config.inactive_user_days);
+        const organizationService = new Organization(organizationCollection);
+        const dataInterface = new Application(logCollection, applicationCollection, organizationService, userService, dbService, notificationsService, emailParams);
+        console.log("Running a scheduled background task to delete inactive application at " + getCurrentTime());
+        await dataInterface.deleteInactiveApplications();
+        console.log("Running a scheduled job to disable user(s) because of no activities at " + getCurrentTime());
+        await runDeactivateInactiveUsers(userService, notificationsService);
+        console.log("Running a scheduled background task to remind inactive application at " + getCurrentTime());
+        await dataInterface.remindApplicationSubmission();
     });
 });
+
+const runDeactivateInactiveUsers = async (userService, notificationsService) => {
+    // if there is no user login detected in the log collection, we will deactivate these users.
+    const allUsersByEmailAndIDP = await userService.getAllUsersByEmailAndIDP();
+    const nonLogUsers = await userService.findUsersExcludingEmailAndIDP(allUsersByEmailAndIDP);
+    const inactiveUsers = await userService.getInactiveUsers(config.inactive_user_days);
+    // merge and remove duplicate users
+    const inactiveUserConditions = [...new Map([...nonLogUsers, ...inactiveUsers].map((user) => [user.email + user.idp, user])).values()];
+    const disabledUsers = await userService.disableInactiveUsers(inactiveUserConditions);
+    if (disabledUsers.length > 0) {
+        // Email disabled user(s)
+        await Promise.all(disabledUsers.map(async (user) => {
+            await notificationsService.inactiveUserNotification(user.email,
+                {firstName: user.firstName},
+                {inactiveDays: config.inactive_user_days, officialEmail: config.official_email});
+        }));
+        // Email admin(s)
+        const adminUsers = await userService.getAdminUserEmails();
+        const users = disabledUsers.map(u => ({ ...u, organization: u?.organization?.name }));
+        const commaJoinedUsers = extractAndJoinFields(users, ["firstName", "lastName", "email", "role", "organization"]);
+        await Promise.all(adminUsers.map(async (admin) => {
+            await notificationsService.inactiveUserAdminNotification(admin.email,
+                {firstName: admin.firstName,users: commaJoinedUsers},
+                {inactiveDays: config.inactive_user_days});
+        }));
+    }
+}
 
 // catch 404 and forward to error handler
 app.use((req, res, next) => {
