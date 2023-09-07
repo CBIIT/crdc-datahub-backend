@@ -381,12 +381,33 @@ class Application {
 
         // cc emil
         let cc_email
-        if(!concierge_email){
+        if(concierge_email){
             cc_email = concierge_email
         }else{
             cc_email = admin_email
         }
+        // submission documentation 
+        let sub_doc_url = config.submission_doc_url
 
+        // email body
+        // doc_url 
+        let doc_url
+        if(!sub_doc_url){
+            doc_url = `log into the submission system ${config.submission_system_portal}`
+        } else {
+            doc_url = `review the submission documentation ${sub_doc_url}`
+        }
+
+        // concierge_email = null
+        // contact detail
+        let contact_detail = `either your organization ${org_owner_email} or your CRDC Data Team member ${concierge_email}.`
+        if(!org_owner_email &&!concierge_email ){
+            contact_detail = `the Submission Helpdesk ${config.submision_helpdesk}`
+        } else if(!org_owner_email){
+            contact_detail = `your CRDC Data Team member ${concierge_email}`
+        } else if(!concierge_email){
+            contact_detail = `either your organization ${org_owner_email} or the Submission Helpdesk ${config.submision_helpdesk}`
+        }
 
         await this.notificationService.approveQuestionNotification(application?.applicant?.applicantEmail,
             // Organization Owner and concierge assigned/Super Admin
@@ -395,9 +416,8 @@ class Application {
             firstName: application?.applicant?.applicantName
         }, {
             study: application?.studyAbbreviation,
-            doc_url: config.submission_doc_url,
-            org_owner_email: org_owner_email,
-            concierge_email: concierge_email
+            doc_url: doc_url,
+            contact_detail: contact_detail
         })
     }
 }
