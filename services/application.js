@@ -99,7 +99,7 @@ class Application {
         let application = params.application;
         application.updatedAt = getCurrentTime();
         const id = application?._id;
-        if (!id) return await this.createApplication(application, context.userInfo);
+        if (!id) return transformDateTime(await this.createApplication(application, context.userInfo));
         const aApplication = await this.getApplicationById(id);
         const option = aApplication && aApplication.status !== IN_PROGRESS ? {$push: { history: HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, null)}}: null;
         const result = await this.applicationCollection.update({...application, status: IN_PROGRESS}, option);
@@ -411,14 +411,14 @@ const getAppOrgOwner = async (organizationService, userService, applications) =>
 }
 
 const transformDateTime = (aApp) => {
-    if (aApp?.createdAt) aApp.createdAt = toISO(aApp.createdAt);
-    if (aApp?.updatedAt) aApp.updatedAt = toISO(aApp.updatedAt);
-    if (aApp?.submittedDate) aApp.submittedDate = toISO(aApp.submittedDate);
-    if (aApp?.history) {
-        aApp.history.forEach((history) => {
-            history.dateTime = toISO(history.dateTime);
-        });
-    }
+    // if (aApp?.createdAt) aApp.createdAt = toISO(aApp.createdAt);
+    // if (aApp?.updatedAt) aApp.updatedAt = toISO(aApp.updatedAt);
+    // if (aApp?.submittedDate) aApp.submittedDate = toISO(aApp.submittedDate);
+    // if (aApp?.history) {
+    //     aApp.history.forEach((history) => {
+    //         history.dateTime = toISO(history.dateTime);
+    //     });
+    // }
     return aApp;
 }
 
