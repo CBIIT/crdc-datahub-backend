@@ -284,10 +284,10 @@ class Application {
         return null;
     }
 
-    async deleteInactiveApplications(inactiveDays) {
+    async deleteInactiveApplications() {
         const inactiveCondition = {
             updatedAt: {
-                $lt: subtractDaysFromNow(inactiveDays)
+                $lt: subtractDaysFromNow(this.emailParams.inactiveDays)
             },
             status: {$in: [NEW, IN_PROGRESS, REJECTED]}
         };
