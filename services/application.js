@@ -273,6 +273,7 @@ class Application {
             $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime},
             $push: {history}
         });
+        await this.sendEmailAfterRejectApplication(context, application);
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, REJECTED);
             const promises = [
@@ -367,7 +368,7 @@ class Application {
         })
     }
 
-    async sendEmailAfterApproveApplication(context, application) {
+async sendEmailAfterApproveApplication(context, application) {
         // org owner email
         let org = await this.organizationService.getOrganizationByID(application?.organization?._id);
         let org_owner_email = null
@@ -378,7 +379,6 @@ class Application {
                 org_owner_email = org_owner?.email
             }
         }
-
         // concierge email
         let concierge_email = null
         let org_concierge_id = org?.concierges
@@ -387,17 +387,13 @@ class Application {
             if(org_concierge?.email){
                 concierge_email = org_concierge?.email
             }
-
         }
-        
         // admin email
         let admin_user = await this.userService.getAdmin();
         let admin_email = ""
-
         for(let i of admin_user){
             admin_email = admin_email + " ; " + i.email
         }
-
         // cc emil
         let cc_email
         if(concierge_email){
@@ -407,7 +403,6 @@ class Application {
         }
         // submission documentation 
         let sub_doc_url = config.submission_doc_url
-
         // email body
         // doc_url 
         let doc_url
@@ -416,7 +411,6 @@ class Application {
         } else {
             doc_url = `review the submission documentation ${sub_doc_url}`
         }
-
         // concierge_email = null
         // contact detail
         let contact_detail = `either your organization ${org_owner_email} or your CRDC Data Team member ${concierge_email}.`
@@ -427,7 +421,6 @@ class Application {
         } else if(!concierge_email){
             contact_detail = `either your organization ${org_owner_email} or the Submission Helpdesk ${config.submision_helpdesk}`
         }
-
         await this.notificationService.approveQuestionNotification(application?.applicant?.applicantEmail,
             // Organization Owner and concierge assigned/Super Admin
             `${org_owner_email} ; ${cc_email}`,
@@ -437,6 +430,28 @@ class Application {
             study: application?.studyAbbreviation,
             doc_url: doc_url,
             contact_detail: contact_detail
+        })
+    }
+
+    async sendEmailAfterRejectApplication(context, application) {
+        let org = await this.organizationService.getOrganizationByID(application.organization._id);
+        let org_owner_email
+        let org_owner_id = org?.owner
+        if (!org_owner_id) {
+            org_owner_email = config.org_owner_email
+        } else {
+            let org_owner = await this.userService.getUserByID(org_owner_id);
+            if (!org_owner?.email) {
+                org_owner_email = null
+            } else {
+                org_owner_email = org_owner?.email
+            }
+        }
+        await this.notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, org_owner_email, {
+            firstName: application?.applicant?.applicantName
+        }, {
+            study: application?.studyAbbreviation,
+            url: this.emailParams.url
         })
     }
 }
