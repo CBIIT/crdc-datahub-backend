@@ -107,7 +107,6 @@ class Application {
         if (result.matchedCount < 1) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
 
         const promises = [
-            await transformDateTime(this.getApplicationById(id)),
             // store application state change
             await this.logCollection.insert(
                 UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, aApplication._id, aApplication.status, IN_PROGRESS)

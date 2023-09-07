@@ -18,7 +18,7 @@ const {getCurrentTime} = require("./crdc-datahub-database-drivers/utility/time-u
 const {EmailService} = require("./services/email");
 const {NotifyUser} = require("./services/notify-user");
 const {User} = require("./crdc-datahub-database-drivers/services/user");
-const {Organization} = require("./services/organization");
+const {Organization} = require("./crdc-datahub-database-drivers/services/organization");
 const {extractAndJoinFields} = require("./utility/string-util");
 // print environment variables to log
 console.info(config);

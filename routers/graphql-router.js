@@ -9,7 +9,7 @@ const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-c
 const {EmailService} = require("../services/email");
 const {NotifyUser} = require("../services/notify-user");
 const {User} = require("../crdc-datahub-database-drivers/services/user");
-const {Organization} = require("../services/organization");
+const {Organization} = require("../crdc-datahub-database-drivers/services/organization");
 
 const schema = buildSchema(require("fs").readFileSync("resources/graphql/crdc-datahub.graphql", "utf8"));
 const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);

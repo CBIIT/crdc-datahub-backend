@@ -8,7 +8,7 @@ const ERROR = require("../../constants/error-constants");
 const {EmailService} = require("../../services/email");
 const {NotifyUser} = require("../../services/notify-user");
 const {User} = require("../../crdc-datahub-database-drivers/services/user");
-const {Organization} = require("../../services/organization");
+const {Organization} = require("../../crdc-datahub-database-drivers/services/organization");
 jest.mock("../../crdc-datahub-database-drivers/mongodb-collection");
 jest.mock("../../crdc-datahub-database-drivers/mongo-queries.js");
 jest.mock("../../crdc-datahub-database-drivers/services/user");
