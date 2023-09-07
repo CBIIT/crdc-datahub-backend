@@ -1,5 +1,5 @@
 const {isCaseInsensitiveEqual, isElementInArray, isElementInArrayCaseInsensitive, parseArrToStr,
-    replaceMessageVariables
+    replaceMessageVariables, extractAndJoinFields
 } = require("../../utility/string-util");
 describe('Util Test', () => {
     test('/string case insensitive equal', () => {
@@ -93,5 +93,36 @@ describe('Util Test', () => {
         const result = replaceMessageVariables(input, messageVariables);
         expect(result).toBe('This is arms test. Dear Bento');
     })
+
+
+    test('extract fields from object', () => {
+        const tests = [
+            {
+                arr: [
+                    { field1: "value11", field2: "value12", field3: "value13" },
+                    { field1: "value21", field2: "value22", field3: "value23" },
+                ],
+                fieldsToExtract: ["field1", "field2"],
+                result: ["value11,value12", "value21,value22"]
+            },
+            {
+                arr: [],
+                fieldsToExtract: ["field1", "field2"],
+                result: []
+            },
+            {
+                arr: [{ field1: "value11", field2: "value12", field3: "value13" },
+                    { field1: "value21", field2: "value22", field3: "value23" }],
+                fieldsToExtract: [],
+                result: []
+            }
+        ];
+
+        for (let test of tests) {
+            const result = extractAndJoinFields(test.arr,test.fieldsToExtract);
+            expect(test.result).toStrictEqual(result);
+        }
+    });
+
 
 });
