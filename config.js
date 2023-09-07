@@ -22,7 +22,11 @@ let config = {
     emails_url: process.env.EMAIL_URL ? process.env.EMAIL_URL : 'http://localhost:4010',
     official_email: process.env.official ? process.env.OFFCIAL_EMAIL : 'CRDCHelpDesk@nih.gov',
     // Scheduled cronjob once a day (1am) eastern time at default
-    schedule_job: process.env.SCHEDULE_JOB || "1 0 1 * * *"
+    schedule_job: process.env.SCHEDULE_JOB || "1 0 1 * * *",
+    // temp url for email
+    submission_doc_url: process.env.SUBMISSION_DOC_URL || "",
+    submision_helpdesk: "CRDCSubmissions@nih.gov",
+    submission_system_portal: "https://datacommons.cancer.gov/"
 };
 config.mongo_db_connection_string = `mongodb://${config.mongo_db_user}:${config.mongo_db_password}@${config.mongo_db_host}:${process.env.MONGO_DB_PORT}`;
 

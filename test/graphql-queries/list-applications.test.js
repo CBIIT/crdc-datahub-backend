@@ -3,7 +3,7 @@ const {MongoDBCollection} = require("../../crdc-datahub-database-drivers/mongodb
 const {Application} = require("../../services/application");
 const {TEST_SESSION, TEST_APPLICATION} = require("../test-constants");
 const {User} = require("../../crdc-datahub-database-drivers/services/user");
-const {Organization} = require("../../services/organization");
+const {Organization} = require("../../crdc-datahub-database-drivers/services/organization");
 jest.mock("../../crdc-datahub-database-drivers/mongodb-collection");
 jest.mock("../../crdc-datahub-database-drivers/services/user");
 const applicationCollection = new MongoDBCollection();

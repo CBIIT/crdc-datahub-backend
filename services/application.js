@@ -11,6 +11,7 @@ const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const ROLES = USER_CONSTANTS.USER.ROLES;
+const config = require('../config');
 
 class Application {
     constructor(logCollection, applicationCollection, organizationService, userService, dbService, notificationsService, emailParams) {
@@ -106,7 +107,6 @@ class Application {
         if (result.matchedCount < 1) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
 
         const promises = [
-            await transformDateTime(this.getApplicationById(id)),
             // store application state change
             await this.logCollection.insert(
                 UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, aApplication._id, aApplication.status, IN_PROGRESS)
@@ -246,6 +246,7 @@ class Application {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
             $push: {history}
         });
+        await this.sendEmailAfterApproveApplication(context, application);
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             const promises = [
                 await this.getApplicationById(document._id),
@@ -366,7 +367,78 @@ class Application {
         })
     }
 
+    async sendEmailAfterApproveApplication(context, application) {
+        // org owner email
+        let org = await this.organizationService.getOrganizationByID(application?.organization?._id);
+        let org_owner_email = null
+        let org_owner_id = org?.owner
+        if(org_owner_id){
+            let org_owner = await this.userService.getUserByID(org_owner_id);
+            if(org_owner?.email){
+                org_owner_email = org_owner?.email
+            }
+        }
 
+        // concierge email
+        let concierge_email = null
+        let org_concierge_id = org?.concierges
+        if(org_concierge_id){
+            let org_concierge = await this.userService.getUserByID(org_concierge_id);
+            if(org_concierge?.email){
+                concierge_email = org_concierge?.email
+            }
+
+        }
+        
+        // admin email
+        let admin_user = await this.userService.getAdmin();
+        let admin_email = ""
+
+        for(let i of admin_user){
+            admin_email = admin_email + " ; " + i.email
+        }
+
+        // cc emil
+        let cc_email
+        if(concierge_email){
+            cc_email = concierge_email
+        }else{
+            cc_email = admin_email
+        }
+        // submission documentation 
+        let sub_doc_url = config.submission_doc_url
+
+        // email body
+        // doc_url 
+        let doc_url
+        if(!sub_doc_url){
+            doc_url = `log into the submission system ${config.submission_system_portal}`
+        } else {
+            doc_url = `review the submission documentation ${sub_doc_url}`
+        }
+
+        // concierge_email = null
+        // contact detail
+        let contact_detail = `either your organization ${org_owner_email} or your CRDC Data Team member ${concierge_email}.`
+        if(!org_owner_email &&!concierge_email ){
+            contact_detail = `the Submission Helpdesk ${config.submision_helpdesk}`
+        } else if(!org_owner_email){
+            contact_detail = `your CRDC Data Team member ${concierge_email}`
+        } else if(!concierge_email){
+            contact_detail = `either your organization ${org_owner_email} or the Submission Helpdesk ${config.submision_helpdesk}`
+        }
+
+        await this.notificationService.approveQuestionNotification(application?.applicant?.applicantEmail,
+            // Organization Owner and concierge assigned/Super Admin
+            `${org_owner_email} ; ${cc_email}`,
+        {
+            firstName: application?.applicant?.applicantName
+        }, {
+            study: application?.studyAbbreviation,
+            doc_url: doc_url,
+            contact_detail: contact_detail
+        })
+    }
 }
 
 function formatApplicantName(userInfo){
