@@ -4,8 +4,9 @@ let config = {
     //info variables
     version: process.env.VERSION || 'Version not set',
     date: process.env.DATE || new Date(),
-    inactive_user_days : process.env.INACTIVE_APPLICATION_DAYS || 45,
+    inactive_user_days : process.env.INACTIVE_APPLICATION_DAYS || 60,
     remind_application_days: process.env.REMIND_APPLICATION_DAYS || 30,
+    inactive_application_days : process.env.INACTIVE_APPLICATION_DAYS || 45,
     //Mongo DB
     mongo_db_user: process.env.MONGO_DB_USER,
     mongo_db_password: process.env.MONGO_DB_PASSWORD,

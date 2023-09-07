@@ -36,6 +36,23 @@ const replaceMessageVariables = (input, messageVariables) => {
     return input;
 }
 
+/**
+ * Extracts and joins specified fields from an array of objects, joining values with a specified separator.
+ *
+ * @param {Array} data - The array of objects to extract fields from.
+ * @param {Array} [fieldsToExtract] - An optional array of field names to extract. If not provided, all fields will be extracted.
+ * @param {string} [splitter=','] - The separator used to join the extracted field values.
+ * @returns {Array} An array of strings, where each string represents the joined values of the specified fields for each object.
+ */
+const extractAndJoinFields = (data, fieldsToExtract, splitter = ",") => {
+    if (!data || data?.length === 0 || fieldsToExtract?.length === 0) return [];
+    return data.map(org => fieldsToExtract
+        .filter(key => org[key] && org[key] !== "")
+        .map(key => org[key])
+        .join(splitter)
+    );
+}
+
 module.exports = {
     isCaseInsensitiveEqual,
     isElementInArray,
@@ -43,5 +60,6 @@ module.exports = {
     isUndefined,
     getUniqueArr,
     parseArrToStr,
-    replaceMessageVariables
+    replaceMessageVariables,
+    extractAndJoinFields
 }
