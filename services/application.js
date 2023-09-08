@@ -12,6 +12,7 @@ const {USER} = require("../crdc-datahub-database-drivers/constants/user-constant
 const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const config = require('../config');
+const {updateApplication, logStateChange} = require("../utility/application-util");
 
 class Application {
     constructor(logCollection, applicationCollection, organizationService, userService, dbService, notificationsService, emailParams) {
@@ -97,25 +98,20 @@ class Application {
     async saveApplication(params, context) {
         verifySession(context)
             .verifyInitialized();
-        let application = params.application;
-        application.updatedAt = getCurrentTime();
-        const id = application?._id;
-        if (!id) return await this.createApplication(application, context.userInfo);
-        const aApplication = await this.getApplicationById(id);
-        const option = aApplication && aApplication.status !== IN_PROGRESS ? {$push: { history: HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, null)}}: null;
-        const result = await this.applicationCollection.update({...application, status: IN_PROGRESS}, option);
-        if (result.matchedCount < 1) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
-
-        const promises = [
-            // store application state change
-            await this.logCollection.insert(
-                UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, aApplication._id, aApplication.status, IN_PROGRESS)
-            )
-        ];
-        return await Promise.all(promises).then(function(results) {
-            return results[0]
-        });
-
+        let inputApplication = params.application;
+        inputApplication.updatedAt = getCurrentTime();
+        const id = inputApplication?._id;
+        if (!id) {
+            return await this.createApplication(inputApplication, context.userInfo);
+        }
+        const storedApplication = await this.getApplicationById(id);
+        const prevStatus = storedApplication?.status;
+        let application = {...storedApplication, ...inputApplication, status: IN_PROGRESS};
+        application = await updateApplication(this.applicationCollection, application, prevStatus, context?.userInfo?._id);
+        if (prevStatus !== application.status){
+            await logStateChange(this.logCollection, context.userInfo, application, prevStatus);
+        }
+        return application;
     }
 
     async getMyLastApplication(params, context) {
@@ -368,7 +364,7 @@ class Application {
         })
     }
 
-async sendEmailAfterApproveApplication(context, application) {
+    async sendEmailAfterApproveApplication(context, application) {
         // org owner email
         let org = await this.organizationService.getOrganizationByID(application?.organization?._id);
         let org_owner_email = null
@@ -511,4 +507,3 @@ const getAppOrgOwner = async (organizationService, userService, applications) =>
 module.exports = {
     Application
 };
-
