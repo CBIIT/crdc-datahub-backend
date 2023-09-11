@@ -97,25 +97,20 @@ class Application {
     async saveApplication(params, context) {
         verifySession(context)
             .verifyInitialized();
-        let application = params.application;
-        application.updatedAt = getCurrentTime();
-        const id = application?._id;
-        if (!id) return await this.createApplication(application, context.userInfo);
-        const aApplication = await this.getApplicationById(id);
-        const option = aApplication && aApplication.status !== IN_PROGRESS ? {$push: { history: HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, null)}}: null;
-        const result = await this.applicationCollection.update({...application, status: IN_PROGRESS}, option);
-        if (result.matchedCount < 1) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
-
-        const promises = [
-            // store application state change
-            await this.logCollection.insert(
-                UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, aApplication._id, aApplication.status, IN_PROGRESS)
-            )
-        ];
-        return await Promise.all(promises).then(function(results) {
-            return results[0]
-        });
-
+        let inputApplication = params.application;
+        inputApplication.updatedAt = getCurrentTime();
+        const id = inputApplication?._id;
+        if (!id) {
+            return await this.createApplication(inputApplication, context.userInfo);
+        }
+        const storedApplication = await this.getApplicationById(id);
+        const prevStatus = storedApplication?.status;
+        let application = {...storedApplication, ...inputApplication, status: IN_PROGRESS};
+        application = await updateApplication(this.applicationCollection, application, prevStatus, context?.userInfo?._id);
+        if (prevStatus !== application.status){
+            await logStateChange(this.logCollection, context.userInfo, application, prevStatus);
+        }
+        return application;
     }
 
     async getMyLastApplication(params, context) {
@@ -368,7 +363,7 @@ class Application {
         })
     }
 
-async sendEmailAfterApproveApplication(context, application) {
+    async sendEmailAfterApproveApplication(context, application) {
         // org owner email
         let org = await this.organizationService.getOrganizationByID(application?.organization?._id);
         let org_owner_email = null
@@ -470,6 +465,27 @@ function verifyReviewerPermission(context){
         .verifyRole([ROLES.ADMIN, ROLES.FEDERAL_LEAD]);
 }
 
+async function updateApplication(applicationCollection, application, prevStatus, userID) {
+    if (prevStatus !== IN_PROGRESS) {
+        application = {history: [], ...application};
+        const historyEvent = HistoryEventBuilder.createEvent(userID, IN_PROGRESS, null);
+        application.history.push(historyEvent);
+    }
+    const updateResult = await applicationCollection.update(application);
+    if ((updateResult?.matchedCount || 0) < 1) {
+        throw new Error(ERROR.APPLICATION_NOT_FOUND + application?._id);
+    }
+    return application;
+}
+
+async function logStateChange(logCollection, userInfo, application, prevStatus) {
+    await logCollection.insert(
+        UpdateApplicationStateEvent.create(
+            userInfo?._id, userInfo?.email, userInfo?.IDP, application?._id, prevStatus, application?.status
+        )
+    );
+}
+
 
 const sendEmails = {
     remindApplication: async (notificationService, emailParams, email, emailCCs, applicantName, application) => {
@@ -511,4 +527,3 @@ const getAppOrgOwner = async (organizationService, userService, applications) =>
 module.exports = {
     Application
 };
-
