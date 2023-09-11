@@ -12,7 +12,6 @@ const {USER} = require("../crdc-datahub-database-drivers/constants/user-constant
 const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const config = require('../config');
-const {updateApplication, logStateChange} = require("../utility/application-util");
 
 class Application {
     constructor(logCollection, applicationCollection, organizationService, userService, dbService, notificationsService, emailParams) {
@@ -464,6 +463,27 @@ function verifyReviewerPermission(context){
     verifySession(context)
         .verifyInitialized()
         .verifyRole([ROLES.ADMIN, ROLES.FEDERAL_LEAD]);
+}
+
+async function updateApplication(applicationCollection, application, prevStatus, userID) {
+    if (prevStatus !== IN_PROGRESS) {
+        application = {history: [], ...application};
+        const historyEvent = HistoryEventBuilder.createEvent(userID, IN_PROGRESS, null);
+        application.history.push(historyEvent);
+    }
+    const updateResult = await applicationCollection.update(application);
+    if ((updateResult?.matchedCount || 0) < 1) {
+        throw new Error(ERROR.APPLICATION_NOT_FOUND + application?._id);
+    }
+    return application;
+}
+
+async function logStateChange(logCollection, userInfo, application, prevStatus) {
+    await logCollection.insert(
+        UpdateApplicationStateEvent.create(
+            userInfo?._id, userInfo?.email, userInfo?.IDP, application?._id, prevStatus, application?.status
+        )
+    );
 }
 
 
