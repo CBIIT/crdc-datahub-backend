@@ -187,7 +187,7 @@ class Application {
         const logEvent = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, SUBMITTED);
         await Promise.all([
             await this.logCollection.insert(logEvent),
-            await sendEmails.submitApplication(context, application)
+            await sendEmails.submitApplication(this.notificationService,this.emailParams,context, application)
         ]);
         return application;
     }
@@ -325,8 +325,7 @@ class Application {
             const orgOwners = await getAppOrgOwner(this.organizationService, this.userService, applications);
             // Send Email Notification
             await Promise.all(applications.map(async (app) => {
-                const emailsCCs = (orgOwners.hasOwnProperty(app?.organization?._id)) ? [orgOwners[app?.organization?._id]] : [];
-                await sendEmails.remindApplication(this.notificationService, this.emailParams, app?.applicant?.applicantEmail, emailsCCs, app?.applicant?.applicantName, app);
+                await sendEmails.remindApplication(this.notificationService, this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app);
             }));
         }
     }
@@ -335,8 +334,7 @@ class Application {
         const orgOwners = await getAppOrgOwner(this.organizationService, this.userService, applications);
         // Send Email Notification
         await Promise.all(applications.map(async (app) => {
-            const emailsCCs = (orgOwners.hasOwnProperty(app?.organization?._id)) ? [orgOwners[app?.organization?._id]] : [];
-            await sendEmails.inactiveApplications(app?.applicant?.applicantEmail, emailsCCs, app?.applicant?.applicantName, app);
+            await sendEmails.inactiveApplications(this.notificationService,this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app);
         }));
     }
 
@@ -470,8 +468,8 @@ const setDefaultIfNoName = (str) => {
 }
 
 const sendEmails = {
-    remindApplication: async (notificationService, emailParams, email, emailCCs, applicantName, application) => {
-        await notificationService.remindApplicationsNotification(email, emailCCs,{
+    remindApplication: async (notificationService, emailParams, email, applicantName, application) => {
+        await notificationService.remindApplicationsNotification(email, {
             firstName: applicantName
         },{
             study: setDefaultIfNoName(application?.studyAbbreviation),
@@ -480,24 +478,24 @@ const sendEmails = {
             url: emailParams.url
         });
     },
-    inactiveApplications: async (email, emailCCs, applicantName, application) => {
-        await this.notificationService.inactiveApplicationsNotification(email, emailCCs,{
+    inactiveApplications: async (notificationService, emailParams, email, applicantName, application) => {
+        await notificationService.inactiveApplicationsNotification(email, {
             firstName: applicantName
         },{
             pi: `${applicantName}`,
             study: setDefaultIfNoName(application?.studyAbbreviation),
-            officialEmail: this.emailParams.officialEmail,
-            inactiveDays: this.emailParams.inactiveDays,
+            officialEmail: emailParams.officialEmail,
+            inactiveDays: emailParams.inactiveDays,
             url: this.emailParams.url
         })
     },
-    submitApplication: async (context, application) => {
+    submitApplication: async (notificationService, emailParams, context, application) => {
         const programName = application?.programName?.trim() ?? "";
         const associate = `the ${application?.studyAbbreviation} study` + (programName.length > 0 ? ` associated with the ${programName} program` : '');
-        await this.notificationService.submitQuestionNotification({
+        await notificationService.submitQuestionNotification({
             pi: `${context.userInfo.firstName} ${context.userInfo.lastName}`,
             associate,
-            url: this.emailParams.url
+            url: emailParams.url
         })
     }
 }
