@@ -139,6 +139,12 @@ input UploadResult {
     errors: [String]
 }
 
+type TempCredentials {
+    accessKeyId: String
+    secretAccessKey: String
+    sessionToken: String
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -176,6 +182,7 @@ type Query {
 
     version: String
 }
+
 type Mutation {
     "User initiated operations"
     saveApplication(application: AppInput!): Application
@@ -194,5 +201,6 @@ type Mutation {
     createSubmission (studyAbbreviation: String, dataCommons: String, name: String): Submission
     createBatch (submissionID: ID!, type: String, metadataIntention: String, files: [FileInput]): NewBatch
     updateBatch (batchID: ID!, files: [UploadResult]): Batch
+    createTempCredentials (submissionID: ID!): TempCredentials
 }
 
