@@ -410,6 +410,7 @@ class Application {
         let org_owner_email
         let org_owner_id = org?.owner
         if (!org_owner_id) {
+            // TODO this should be fixed
             org_owner_email = config.org_owner_email
         } else {
             let org_owner = await this.userService.getUserByID(org_owner_id);
