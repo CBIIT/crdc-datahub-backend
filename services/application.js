@@ -486,7 +486,7 @@ const sendEmails = {
             study: setDefaultIfNoName(application?.studyAbbreviation),
             officialEmail: emailParams.officialEmail,
             inactiveDays: emailParams.inactiveDays,
-            url: this.emailParams.url
+            url: emailParams.url
         })
     },
     submitApplication: async (notificationService, emailParams, context, application) => {
