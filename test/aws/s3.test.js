@@ -1,5 +1,3 @@
-const {AWS} = require("../../crdc-datahub-database-drivers/domain/aws");
-const config = require("../../config");
 const {S3Service} = require("../../crdc-datahub-database-drivers/services/s3-service");
 // const axios = require("axios");
 // const path = require("path");
@@ -7,8 +5,7 @@ const {S3Service} = require("../../crdc-datahub-database-drivers/services/s3-ser
 describe('batch service API test', () => {
 
     test("create application", async () => {
-        const s3Auth = AWS.s3(config.aws_access_id, config.aws_secret, config.aws_region);
-        const s3Service = new S3Service(s3Auth);
+        const s3Service = new S3Service();
         const preSignedURL = await s3Service.createPreSignedURL("sts-crdc-bucket", "test-submission", "test.txt");
         expect(preSignedURL).not.toBeNull();
     });
