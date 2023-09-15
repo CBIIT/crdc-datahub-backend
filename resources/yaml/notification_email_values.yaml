@@ -3,7 +3,7 @@
 NOTIFICATION_SENDER: "do-not-reply@mail.nih.gov"
 APPLICATION_COMMITTEE_EMAIL: "CRDCSubmissions@nih.gov"
 APPLICATION_COMMITTEE_NAME: "CRDC Data Submission Governance committee"
-SUBMISSION_SUBJECT: "CRDC Submission Application available for review"
+SUBMISSION_SUBJECT: "CRDC Submission Request available for review"
 SUBMISSION_CONTENT: "A request for data submission to CRDC has been received from $pi for $associate. Please log into $url to begin the review process."
 INACTIVE_APPLICATION_SUBJECT: "Application for Data Submission deletion"
 INACTIVE_APPLICATION_CONTENT: "Due to $inactiveDays days of inactivity, your request to submit data for the $study study has been removed from our system. If you wish to continue with this request, please log into $url and start a new Submission Request. If you believe your submission request has been deleted in error, please contact $officialEmail"
