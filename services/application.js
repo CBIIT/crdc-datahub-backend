@@ -129,7 +129,7 @@ class Application {
         return result.length > 0 ? result[0] : null;
     }
 
-    listApplicationConditions(userID, userRole, aUserOrganization) {
+    listApplicationConditions(userID, userRole) {
         // list all applications
         const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
         const listAllApplicationRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD];
@@ -142,7 +142,7 @@ class Application {
     async listApplications(params, context) {
         verifySession(context)
             .verifyInitialized();
-        let pipeline = this.listApplicationConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization);
+        let pipeline = this.listApplicationConditions(context.userInfo._id, context.userInfo?.role);
         if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
 
         const pagination = [];
@@ -474,7 +474,7 @@ const sendEmails = {
         },{
             study: setDefaultIfNoName(application?.studyAbbreviation),
             remindDay: emailParams.remindDay,
-            differDay: emailParams.inactiveDays - emailParams.remindDay,
+            differDay: emailParams.inactiveApplicationDay - emailParams.remindDay,
             url: emailParams.url
         });
     },
