@@ -318,7 +318,8 @@ class Application {
                 $lt: subtractDaysFromNow(inactiveDuration),
                 $gt: subtractDaysFromNow(inactiveDuration + 1),
             },
-            status: {$in: [NEW, IN_PROGRESS, REJECTED]}
+            status: {$in: [NEW, IN_PROGRESS, REJECTED]},
+            inactiveReminder: {$ne: true}
         };
         const applications = await this.applicationCollection.aggregate([{$match: remindCondition}]);
         if (applications?.length > 0) {
@@ -327,6 +328,12 @@ class Application {
             await Promise.all(applications.map(async (app) => {
                 await sendEmails.remindApplication(this.notificationService, this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app);
             }));
+            const applicationIDs = applications.map(app => app._id);
+            const query = {_id: {$in: applicationIDs}};
+            const updatedReminder = await this.applicationCollection.updateMany(query, {inactiveReminder: true});
+            if (!updatedReminder?.modifiedCount && updatedReminder?.modifiedCount === 0) {
+                console.error("The email reminder flag intended to notify the inactive application user is not being stored");
+            }
         }
     }
 
@@ -447,6 +454,8 @@ async function updateApplication(applicationCollection, application, prevStatus,
         const historyEvent = HistoryEventBuilder.createEvent(userID, IN_PROGRESS, null);
         application.history.push(historyEvent);
     }
+    // Save an email reminder when an inactive application is reactivated.
+    application.inactiveReminder = false;
     const updateResult = await applicationCollection.update(application);
     if ((updateResult?.matchedCount || 0) < 1) {
         throw new Error(ERROR.APPLICATION_NOT_FOUND + application?._id);
