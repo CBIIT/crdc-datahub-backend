@@ -331,7 +331,7 @@ class Application {
             const applicationIDs = applications.map(app => app._id);
             const query = {_id: {$in: applicationIDs}};
             const updatedReminder = await this.applicationCollection.updateMany(query, {inactiveReminder: true});
-            if (!updatedReminder?.modifiedCount && updatedReminder?.modifiedCount === 0) {
+            if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
                 console.error("The email reminder flag intended to notify the inactive application user is not being stored");
             }
         }
