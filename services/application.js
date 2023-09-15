@@ -447,7 +447,7 @@ const setDefaultIfNoName = (str) => {
 
 const sendEmails = {
     remindApplication: async (notificationService, emailParams, email, applicantName, application) => {
-        await notificationService.remindApplicationsNotification(email, {
+        await notificationService.remindApplicationsNotification(email,[], {
             firstName: applicantName
         },{
             study: setDefaultIfNoName(application?.studyAbbreviation),
@@ -457,14 +457,14 @@ const sendEmails = {
         });
     },
     inactiveApplications: async (notificationService, emailParams, email, applicantName, application) => {
-        await notificationService.inactiveApplicationsNotification(email, {
+        await notificationService.inactiveApplicationsNotification(email, [],{
             firstName: applicantName
         },{
             pi: `${applicantName}`,
             study: setDefaultIfNoName(application?.studyAbbreviation),
             officialEmail: emailParams.officialEmail,
             inactiveDays: emailParams.inactiveDays,
-            url: this.emailParams.url
+            url: emailParams.url
         })
     },
     submitApplication: async (notificationService, emailParams, context, application) => {
