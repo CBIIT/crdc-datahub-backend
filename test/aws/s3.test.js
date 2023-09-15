@@ -6,7 +6,7 @@ describe('batch service API test', () => {
 
     test("create application", async () => {
         const s3Service = new S3Service();
-        const preSignedURL = await s3Service.createPreSignedURL("sts-crdc-bucket", "test-submission", "test.txt");
+        const preSignedURL = await s3Service.createPreSignedURL("sts-crdc-bucket", "prefix-test", "test.txt");
         expect(preSignedURL).not.toBeNull();
     });
 
