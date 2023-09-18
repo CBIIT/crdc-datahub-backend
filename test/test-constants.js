@@ -14,9 +14,9 @@ module.exports = {
         "createdAt": "3000-01-01T12:00:00",
         "updatedAt": "3000-01-01T12:00:00",
         "applicant": {
-            applicantID: "test",
-            applicantName: "crdc",
-            applicantEmail: "crdc@nih.gov"
+            applicantID: "test_user_id",
+            applicantName: "test test",
+            applicantEmail: "test@email.com"
         },
         organization: {
             _id: "test",
