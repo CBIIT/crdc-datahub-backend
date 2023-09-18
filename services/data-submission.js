@@ -1,7 +1,7 @@
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED} = require("../constants/data-submission-constants");
 const {DATA_SUBMISSIONS_COLLECTION: DATA_SUBMISSION} = require("../crdc-datahub-database-drivers/database-constants");
 const {v4} = require('uuid')
-const {getCurrentTimeYYYYMMDDSS, subtractDaysFromNow} = require("../utility/time-utility");
+const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifyApplication} = require("../verifier/application-verifier");
 const {verifySession} = require("../verifier/user-info-verifier");
@@ -37,11 +37,14 @@ class DataSubmission {
 
 
     async createDataSubmission(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER]);
         let dataSubmission=params.dataSubmission;
         let userInfo = context.userInfo;
-        console.log(params);
         let newApplicationProperties = {
             _id: v4(undefined, undefined, undefined),
+            displayID: "000001", // minimum 6 digit integer with leading zeros, can have more digits
             name: params.name,
             submitterID: userInfo._id,
             submitterName: formatApplicantName(userInfo),
@@ -55,8 +58,8 @@ class DataSubmission {
             status: NEW,
             history: [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)],
             concierge: "todo: get from database?",
-            createdAt: getCurrentTimeYYYYMMDDSS(),
-            updatedAt: getCurrentTimeYYYYMMDDSS()
+            createdAt: getCurrentTime(),
+            updatedAt: getCurrentTime()
         };
 
         dataSubmission = {
@@ -72,7 +75,7 @@ class DataSubmission {
         verifySession(context)
             .verifyInitialized();
         let application = params.application;
-        application.updatedAt = getCurrentTimeYYYYMMDDSS();
+        application.updatedAt = getCurrentTime();
         const id = application?._id;
         if (!id) return await this.createApplication(application, context.userInfo);
         const aApplication = await this.getApplicationById(id);
@@ -85,7 +88,7 @@ class DataSubmission {
 
     listApplicationConditions(userID, userRole, aUserOrganization) {
         // list all applications
-        const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
+        const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED]}};
         const listAllApplicationRoles = [USER.ROLES.ADMIN,USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR, USER.ROLES.DC_POC];
         if (listAllApplicationRoles.includes(userRole)) return [{"$match": {...validApplicationStatus}}];
         // search by applicant's user id
@@ -97,58 +100,60 @@ class DataSubmission {
         return [{"$match": {"$or": conditions}}];
     }
 
-    async listApplications(params, context) {
-        verifySession(context)
-            .verifyInitialized();
-        let pipeline = this.listApplicationConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization);
-        if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
+    // async listDataSubmissions(params, context) {
+    //     verifySession(context)
+    //         .verifyInitialized();
+    //     let pipeline = this.listApplicationConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization);
+    //     if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
 
-        const pagination = [];
-        if (params.offset) pagination.push({"$skip": params.offset});
-        const disablePagination = Number.isInteger(params.first) && params.first === -1;
-        if (!disablePagination) {
-            pagination.push({"$limit": params.first});
-        }
-        const promises = [
-            await this.applicationCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline),
-            await this.applicationCollection.aggregate(pipeline)
-        ];
+    //     const pagination = [];
+    //     if (params.offset) pagination.push({"$skip": params.offset});
+    //     const disablePagination = Number.isInteger(params.first) && params.first === -1;
+    //     if (!disablePagination) {
+    //         pagination.push({"$limit": params.first});
+    //     }
+    //     console.log(pipeline);
 
-        return await Promise.all(promises).then(function(results) {
-            return {
-                applications: results[0] || [],
-                total: results[1]?.length || 0
-            }
-        });
-    }
+    //     const promises = [
+    //         await this.dataSubmissionCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline),
+    //         await this.dataSubmissionCollection.aggregate(pipeline)
+    //     ];
 
-    async submitApplication(params, context) {
-        verifySession(context)
-            .verifyInitialized();
-        const application = await this.getApplicationById(params._id);
-        verifyApplication(application)
-            .notEmpty()
-            .state([NEW, IN_PROGRESS]);
-        // In Progress -> In Submitted
-        const history = application.history || [];
-        const historyEvent = HistoryEventBuilder.createEvent(context.userInfo._id, SUBMITTED, null);
-        history.push(historyEvent)
-        const aApplication = {
-            ...application,
-            history: history,
-            status: SUBMITTED,
-            updatedAt: historyEvent.dateTime,
-            submittedDate: historyEvent.dateTime
-        };
-        const updated = await this.applicationCollection.update(aApplication);
-        if (!updated?.modifiedCount || updated?.modifiedCount < 1) throw new Error(ERROR.UPDATE_FAILED);
-        const logEvent = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, SUBMITTED);
-        await Promise.all([
-            await this.logCollection.insert(logEvent),
-            await this.sendEmailAfterSubmitApplication(context, application)
-        ]);
-        return application;
-    }
+    //     return await Promise.all(promises).then(function(results) {
+    //         return {
+    //             submissons: results[0] || [],
+    //             total: results[1]?.length || 0
+    //         }
+    //     });
+    // }
+
+    // async submitApplication(params, context) {
+    //     verifySession(context)
+    //         .verifyInitialized();
+    //     const application = await this.getApplicationById(params._id);
+    //     verifyApplication(application)
+    //         .notEmpty()
+    //         .state([NEW, IN_PROGRESS]);
+    //     // In Progress -> In Submitted
+    //     const history = application.history || [];
+    //     const historyEvent = HistoryEventBuilder.createEvent(context.userInfo._id, SUBMITTED, null);
+    //     history.push(historyEvent)
+    //     const aApplication = {
+    //         ...application,
+    //         history: history,
+    //         status: SUBMITTED,
+    //         updatedAt: historyEvent.dateTime,
+    //         submittedDate: historyEvent.dateTime
+    //     };
+    //     const updated = await this.applicationCollection.update(aApplication);
+    //     if (!updated?.modifiedCount || updated?.modifiedCount < 1) throw new Error(ERROR.UPDATE_FAILED);
+    //     const logEvent = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, SUBMITTED);
+    //     await Promise.all([
+    //         await this.logCollection.insert(logEvent),
+    //         await this.sendEmailAfterSubmitApplication(context, application)
+    //     ]);
+    //     return application;
+    // }
 
     async deleteApplication(document, _) {
         const deletedOne = await this.getApplicationById(document._id);
@@ -181,7 +186,7 @@ class DataSubmission {
                     $set: {status: DELETED, updatedAt: history.dateTime},
                     $push: {history}});
             if (updated?.modifiedCount && updated?.modifiedCount > 0) {
-                console.log("Executed to delete application(s) because of no activities at " + getCurrentTimeYYYYMMDDSS());
+                console.log("Executed to delete application(s) because of no activities at " + getCurrentTime());
                 await this.emailInactiveApplicants(applications);
                 // log disabled applications
                 await Promise.all(applications.map(async (app) => {
