@@ -483,7 +483,7 @@ const sendEmails = {
         },{
             study: setDefaultIfNoName(application?.studyAbbreviation),
             remindDay: emailParams.remindDay,
-            differDay: emailParams.inactiveApplicationDay - emailParams.remindDay,
+            differDay: emailParams.inactiveDays - emailParams.remindDay,
             url: emailParams.url
         });
     },
