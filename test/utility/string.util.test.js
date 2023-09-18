@@ -1,7 +1,18 @@
 const {isCaseInsensitiveEqual, isElementInArray, isElementInArrayCaseInsensitive, parseArrToStr,
     replaceMessageVariables, extractAndJoinFields
 } = require("../../utility/string-util");
+const {parseJsonString} = require("../../crdc-datahub-database-drivers/utility/string-utility");
 describe('Util Test', () => {
+    let consoleErrorSpy;
+
+    beforeEach(() => {
+        consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+        consoleErrorSpy.mockRestore();
+    });
+
     test('/string case insensitive equal', () => {
         const test = [
             {src: "nih", target: 'NIH',result: true},
@@ -124,41 +135,38 @@ describe('Util Test', () => {
         }
     });
 
+    test('Should parse a valid JSON string', () => {
+        const jsonString = '{"key": "value", "number": 42}';
+        const expectedObject = { key: 'value', number: 42 };
+        expect(parseJsonString(jsonString)).toEqual(expectedObject);
+    });
 
-    test('extract string to json', () => {
-        const tests = [
-            {
-                arr: [
-                    { field1: "value11", field2: "value12", field3: "value13" },
-                    { field1: "value21", field2: "value22", field3: "value23" },
-                ],
-                fieldsToExtract: ["field1", "field2"],
-                result: ["value11,value12", "value21,value22"]
-            },
-            {
-                arr: [],
-                fieldsToExtract: ["field1", "field2"],
-                result: []
-            },
-            {
-                arr: [{ field1: "value11", field2: "value12", field3: "value13" },
-                    { field1: "value21", field2: "value22", field3: "value23" }],
-                fieldsToExtract: [],
-                result: []
-            }
-        ];
-        // TODO
-        // const jsonString = '{"key": "value", "number": 42}';
-        // try {
-        //     const jsonObject = JSON.parse(jsonString);
-        //     console.log(jsonObject);
-        // } catch (error) {
-        //     console.error('Error parsing JSON:', error);
-        // }
-        //
-        // for (let test of tests) {
-        //     // const result = extractAndJoinFields(test.arr,test.fieldsToExtract);
-        //     // expect(test.result).toStrictEqual(result);
-        // }
+    test('Should handle parsing of an empty object', () => {
+        const jsonString = '{}';
+        const expectedObject = {};
+        expect(parseJsonString(jsonString)).toEqual(expectedObject);
+    });
+
+    test('Should handle parsing of an array', () => {
+        const jsonString = '[1, 2, 3]';
+        const expectedArray = [1, 2, 3];
+        expect(parseJsonString(jsonString)).toEqual(expectedArray);
+    });
+
+    test('Should throw an error for invalid JSON', () => {
+        const invalidJsonString = '{"key": "value",}';
+        parseJsonString(invalidJsonString);
+        expect(consoleErrorSpy).toBeCalledTimes(1)
+    });
+
+    test('Should handle parsing of nested objects', () => {
+        const jsonString = '{"outer": {"inner": {"inner_inner": {"key":1}}}}';
+        const expectedObject = { outer: { inner: { inner_inner: {key:1} } } };
+        expect(parseJsonString(jsonString)).toEqual(expectedObject);
+    });
+
+    test('Should handle parsing of null', () => {
+        const jsonString = 'null';
+        expect(parseJsonString(jsonString)).toBeNull();
     });
 });
