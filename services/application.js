@@ -247,7 +247,7 @@ class Application {
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             const promises = [
                 await this.getApplicationById(document._id),
-                await saveApprovedStudies(application),
+                await saveApprovedStudies(this.approvedStudiesService, application),
                 this.logCollection.insert(
                     UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, APPROVED)
                 )
@@ -503,10 +503,14 @@ const sendEmails = {
     }
 }
 
-const saveApprovedStudies = async (aApplication) => {
-    const questionnaire = parseJsonString(aApplication?.questionnaire);
-    await this.approvedStudiesService.storeApprovedStudies(
-        questionnaire?.study?.name, questionnaire?.studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, questionnaire?.organization
+const saveApprovedStudies = async (approvedStudiesService, aApplication) => {
+    const questionnaire = parseJsonString(aApplication?.questionnaireData);
+    if (!questionnaire) {
+        console.error(ERROR.FAILED_STORE_APPROVED_STUDIES);
+        return;
+    }
+    await approvedStudiesService.storeApprovedStudies(
+        questionnaire?.study?.name, aApplication?.studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name
     );
 }
 

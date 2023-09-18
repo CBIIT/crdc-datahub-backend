@@ -1,6 +1,5 @@
-const {v4} = require("uuid");
-const {ERROR} = require("../crdc-datahub-database-drivers/constants/error-constants");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
+const ERROR = require("../constants/error-constants");
 
 class ApprovedStudiesService {
 
@@ -8,10 +7,9 @@ class ApprovedStudiesService {
         this.approvedStudiesCollection = approvedStudiesCollection;
     }
 
-    async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organization) {
-        // TODO store studyName, dbGaPID
-        const approvedStudies = ApprovedStudies.createApprovedStudies(studyName, studyAbbreviation, dbGaPID, organization);
-        const res = this.approvedStudiesCollection.insert(approvedStudies);
+    async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName) {
+        const approvedStudies = ApprovedStudies.createApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName);
+        const res = await this.approvedStudiesCollection.insert(approvedStudies);
         if (!res?.acknowledged) {
             console.error(ERROR.APPROVED_STUDIES_INSERTION);
         }
@@ -19,15 +17,14 @@ class ApprovedStudiesService {
 }
 
 class ApprovedStudies {
-    constructor(studyName, studyAbbreviation, dbGaPID, organization) {
-        this._id = v4(undefined, undefined, undefined);
+    constructor(studyName, studyAbbreviation, dbGaPID, organizationName) {
         this.studyName = studyName;
         this.studyAbbreviation = studyAbbreviation;
         this.dbGaPID = dbGaPID;
-        this.createdAt = this.updatedAt = new getCurrentTime();
+        this.createdAt = this.updatedAt = getCurrentTime();
         // Optional
-        if (organization) {
-            this.organization = organization;
+        if (organizationName) {
+            this.originalOrg = organizationName;
         }
     }
 
