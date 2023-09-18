@@ -125,4 +125,40 @@ describe('Util Test', () => {
     });
 
 
+    test('extract string to json', () => {
+        const tests = [
+            {
+                arr: [
+                    { field1: "value11", field2: "value12", field3: "value13" },
+                    { field1: "value21", field2: "value22", field3: "value23" },
+                ],
+                fieldsToExtract: ["field1", "field2"],
+                result: ["value11,value12", "value21,value22"]
+            },
+            {
+                arr: [],
+                fieldsToExtract: ["field1", "field2"],
+                result: []
+            },
+            {
+                arr: [{ field1: "value11", field2: "value12", field3: "value13" },
+                    { field1: "value21", field2: "value22", field3: "value23" }],
+                fieldsToExtract: [],
+                result: []
+            }
+        ];
+        // TODO
+        // const jsonString = '{"key": "value", "number": 42}';
+        // try {
+        //     const jsonObject = JSON.parse(jsonString);
+        //     console.log(jsonObject);
+        // } catch (error) {
+        //     console.error('Error parsing JSON:', error);
+        // }
+        //
+        // for (let test of tests) {
+        //     // const result = extractAndJoinFields(test.arr,test.fieldsToExtract);
+        //     // expect(test.result).toStrictEqual(result);
+        // }
+    });
 });
