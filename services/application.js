@@ -187,7 +187,7 @@ class Application {
         const logEvent = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, SUBMITTED);
         await Promise.all([
             await this.logCollection.insert(logEvent),
-            await this.sendEmailAfterSubmitApplication(context, application)
+            await sendEmails.submitApplication(this.notificationService,this.emailParams,context, application)
         ]);
         return application;
     }
@@ -325,8 +325,7 @@ class Application {
             const orgOwners = await getAppOrgOwner(this.organizationService, this.userService, applications);
             // Send Email Notification
             await Promise.all(applications.map(async (app) => {
-                const emailsCCs = (orgOwners.hasOwnProperty(app?.organization?._id)) ? [orgOwners[app?.organization?._id]] : [];
-                await sendEmails.remindApplication(this.notificationService, this.emailParams, app?.applicant?.applicantEmail, emailsCCs, app?.applicant?.applicantName, app);
+                await sendEmails.remindApplication(this.notificationService, this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app);
             }));
         }
     }
@@ -335,32 +334,8 @@ class Application {
         const orgOwners = await getAppOrgOwner(this.organizationService, this.userService, applications);
         // Send Email Notification
         await Promise.all(applications.map(async (app) => {
-            const emailsCCs = (orgOwners.hasOwnProperty(app?.organization?._id)) ? [orgOwners[app?.organization?._id]] : [];
-            await this.sendEmailAfterInactiveApplications(app?.applicant?.applicantEmail, emailsCCs, app?.applicant?.applicantName, app);
+            await sendEmails.inactiveApplications(this.notificationService,this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app);
         }));
-    }
-
-    // Email Notifications
-    async sendEmailAfterSubmitApplication(context, application) {
-        const programName = application?.programName?.trim() ?? "";
-        const associate = `the ${application?.studyAbbreviation} study` + (programName.length > 0 ? ` associated with the ${programName} program` : '');
-        await this.notificationService.submitQuestionNotification({
-            pi: `${context.userInfo.firstName} ${context.userInfo.lastName}`,
-            associate,
-            url: this.emailParams.url
-        })
-    }
-
-    async sendEmailAfterInactiveApplications(email, emailCCs, applicantName, application) {
-        await this.notificationService.inactiveApplicationsNotification(email, emailCCs,{
-            firstName: applicantName
-        },{
-            pi: `${applicantName}`,
-            study: application?.studyAbbreviation,
-            officialEmail: this.emailParams.officialEmail,
-            inactiveDays: this.emailParams.inactiveDays,
-            url: this.emailParams.url
-        })
     }
 
     async sendEmailAfterApproveApplication(context, application) {
@@ -433,6 +408,7 @@ class Application {
         let org_owner_email
         let org_owner_id = org?.owner
         if (!org_owner_id) {
+            // TODO this should be fixed
             org_owner_email = config.org_owner_email
         } else {
             let org_owner = await this.userService.getUserByID(org_owner_id);
@@ -486,18 +462,41 @@ async function logStateChange(logCollection, userInfo, application, prevStatus) 
     );
 }
 
+const setDefaultIfNoName = (str) => {
+    const name = str?.trim() ?? "";
+    return (name.length > 0) ? (name) : "NA";
+}
 
 const sendEmails = {
-    remindApplication: async (notificationService, emailParams, email, emailCCs, applicantName, application) => {
-        const studyName = application?.studyAbbreviation?.trim() ?? "";
-        await notificationService.remindApplicationsNotification(email, emailCCs,{
+    remindApplication: async (notificationService, emailParams, email, applicantName, application) => {
+        await notificationService.remindApplicationsNotification(email,[], {
             firstName: applicantName
         },{
-            study: (studyName.length > 0) ? (studyName) : "NA",
+            study: setDefaultIfNoName(application?.studyAbbreviation),
             remindDay: emailParams.remindDay,
             differDay: emailParams.inactiveDays - emailParams.remindDay,
             url: emailParams.url
         });
+    },
+    inactiveApplications: async (notificationService, emailParams, email, applicantName, application) => {
+        await notificationService.inactiveApplicationsNotification(email, [],{
+            firstName: applicantName
+        },{
+            pi: `${applicantName}`,
+            study: setDefaultIfNoName(application?.studyAbbreviation),
+            officialEmail: emailParams.officialEmail,
+            inactiveDays: emailParams.inactiveDays,
+            url: emailParams.url
+        })
+    },
+    submitApplication: async (notificationService, emailParams, context, application) => {
+        const programName = application?.programName?.trim() ?? "";
+        const associate = `the ${application?.studyAbbreviation} study` + (programName.length > 0 ? ` associated with the ${programName} program` : '');
+        await notificationService.submitQuestionNotification({
+            pi: `${context.userInfo.firstName} ${context.userInfo.lastName}`,
+            associate,
+            url: emailParams.url
+        })
     }
 }
 
