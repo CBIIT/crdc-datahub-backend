@@ -1,5 +1,5 @@
-const {SUBMITTED, APPROVED, REJECTED, IN_PROGRESS, IN_REVIEW, DELETED, NEW} = require("../constants/application-constants");
-const {APPLICATION_COLLECTION: APPLICATION} = require("../crdc-datahub-database-drivers/database-constants");
+const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED} = require("../constants/data-submission-constants");
+const {DATA_SUBMISSIONS_COLLECTION: DATA_SUBMISSION} = require("../crdc-datahub-database-drivers/database-constants");
 const {v4} = require('uuid')
 const {getCurrentTimeYYYYMMDDSS, subtractDaysFromNow} = require("../utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
@@ -12,10 +12,10 @@ const {USER} = require("../crdc-datahub-database-drivers/constants/user-constant
 const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 
-class Application {
-    constructor(logCollection, applicationCollection, organizationService, userService, dbService, notificationsService, emailParams) {
+class DataSubmission {
+    constructor(logCollection, dataSubmissionCollection, organizationService, userService, dbService, notificationsService, emailParams) {
         this.logCollection = logCollection;
-        this.applicationCollection = applicationCollection;
+        this.dataSubmissionCollection = dataSubmissionCollection;
         this.organizationService = organizationService;
         this.userService = userService;
         this.dbService = dbService;
@@ -23,69 +23,52 @@ class Application {
         this.emailParams = emailParams;
     }
 
-    async getApplication(params, context) {
+    async getDataSubmission(params, context) {
         verifySession(context)
             .verifyInitialized();
         return await this.getApplicationById(params._id);
     }
 
-    async getApplicationById(id) {
-        let result = await this.applicationCollection.find(id);
+    async getDataSubmissionById(id) {
+        let result = await this.dataSubmissionCollection.find(id);
         if (!result?.length || result.length < 1) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
         return result[0];
     }
 
-    async reviewApplication(params, context) {
-        const application = await this.getApplication(params, context);
-        verifyApplication(application)
-            .notEmpty()
-            .state([IN_REVIEW, SUBMITTED]);
-        if (application && application.status && application.status === SUBMITTED) {
-            // If Submitted status, change it to In Review
-            const history = HistoryEventBuilder.createEvent(context.userInfo._id, IN_REVIEW, null);
-            const updated = await this.dbService.updateOne(APPLICATION, {_id: params._id}, {
-                $set: {status: IN_REVIEW, updatedAt: history.dateTime},
-                $push: {history}
-            });
-            if (updated?.modifiedCount && updated?.modifiedCount > 0) {
-                const promises = [
-                    await this.dbService.find(APPLICATION, {_id: params._id}),
-                    this.logCollection.insert(
-                        UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, IN_REVIEW)
-                    )
-                ];
-                return await Promise.all(promises).then(function(results) {
-                    const result = results[0];
-                    return result.length > 0 ? result[0] : null;
-                });
-            }
-        }
-        return application || null;
-    }
 
-    async createApplication(application, userInfo) {
+    async createDataSubmission(params, context) {
+        let dataSubmission=params.dataSubmission;
+        let userInfo = context.userInfo;
+        console.log(params);
         let newApplicationProperties = {
             _id: v4(undefined, undefined, undefined),
+            name: params.name,
+            submitterID: userInfo._id,
+            submitterName: formatApplicantName(userInfo),
+            organization: "todo: get from database",
+            dataCommons: "CDS",
+            modelVersion: "string for future use",
+            studyAbbreviation: params.studyAbbreviation,
+            dbGapID: params.dbGapID,
+            bucketName: "todo: get from database",
+            rootPath: "todo: organization/study?",
             status: NEW,
-            applicant: {
-                applicantID: userInfo._id,
-                applicantName: formatApplicantName(userInfo),
-                applicantEmail: userInfo.email
-            },
             history: [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)],
-            createdAt: application.updatedAt
+            concierge: "todo: get from database?",
+            createdAt: getCurrentTimeYYYYMMDDSS(),
+            updatedAt: getCurrentTimeYYYYMMDDSS()
         };
-        application = {
-            ...application,
+
+        dataSubmission = {
+            ...dataSubmission,
             ...newApplicationProperties
         };
-        const res = await this.applicationCollection.insert(application);
-        if (res?.acknowledged) await this.logCollection.insert(CreateApplicationEvent.create(userInfo._id, userInfo.email, userInfo.IDP, application._id));
-        return application;
+        const res = await this.dataSubmissionCollection.insert(dataSubmission);
+        // if (res?.acknowledged) await this.logCollection.insert(CreateApplicationEvent.create(userInfo._id, userInfo.email, userInfo.IDP, dataSubmission._id));
+        return dataSubmission;
     }
 
     async saveApplication(params, context) {
-        console.log(context);
         verifySession(context)
             .verifyInitialized();
         let application = params.application;
@@ -99,21 +82,6 @@ class Application {
         return await this.getApplicationById(id);
     }
 
-    async getMyLastApplication(params, context) {
-        verifySession(context)
-            .verifyInitialized();
-        const userID = context.userInfo._id;
-        const matchApplicantIDToUser = {"$match": {"applicant.applicantID": userID, status: APPROVED}};
-        const sortCreatedAtDescending = {"$sort": {createdAt: -1}};
-        const limitReturnToOneApplication = {"$limit": 1};
-        const pipeline = [
-            matchApplicantIDToUser,
-            sortCreatedAtDescending,
-            limitReturnToOneApplication
-        ];
-        const result = await this.applicationCollection.aggregate(pipeline);
-        return result.length > 0 ? result[0] : null;
-    }
 
     listApplicationConditions(userID, userRole, aUserOrganization) {
         // list all applications
@@ -182,90 +150,17 @@ class Application {
         return application;
     }
 
-    async reopenApplication(document, context) {
-        const application = await this.getApplicationById(document._id);
-        // TODO 1. If Reviewer opened the application, the status changes to IN_REVIEW
-        // TODO 2. THe application status changes from rejected to in-progress when the user opens the rejected application
-        if (application && application.status) {
-            const history = HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, null);
-            const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-                $set: {status: IN_PROGRESS, updatedAt: history.dateTime},
-                $push: {history}
-            });
-            if (updated?.modifiedCount && updated?.modifiedCount > 0) {
-                const promises = [
-                    await this.dbService.find(APPLICATION, {_id: document._id}),
-                    await this.logCollection.insert(UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, IN_PROGRESS))
-                ];
-                return await Promise.all(promises).then(function(results) {
-                    const result = results[0];
-                    return result.length > 0 ? result[0] : {};
-                });
-            }
-        }
-        return application;
-    }
-
     async deleteApplication(document, _) {
         const deletedOne = await this.getApplicationById(document._id);
         let result = null;
-        if (deletedOne && await this.dbService.deleteOne(APPLICATION, {_id: document._id})) {
+        if (deletedOne && await this.dbService.deleteOne(DATA_SUBMISSION, {_id: document._id})) {
             result = deletedOne[0];
             // TODO update application status and log events
         }
         return result;
     }
 
-    async approveApplication(document, context) {
-        verifyReviewerPermission(context);
-        const application = await this.getApplicationById(document._id);
-        // In Reviewed -> Approved
-        verifyApplication(application)
-            .notEmpty()
-            .state([IN_REVIEW, SUBMITTED]);
-        const history = HistoryEventBuilder.createEvent(context.userInfo._id, APPROVED, document.comment);
-        const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-            $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
-            $push: {history}
-        });
-        if (updated?.modifiedCount && updated?.modifiedCount > 0) {
-            const promises = [
-                await this.getApplicationById(document._id),
-                this.logCollection.insert(
-                    UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, APPROVED)
-                )
-            ];
-            return await Promise.all(promises).then(function(results) {
-                return results[0];
-            });
-        }
-        return null;
-    }
 
-    async rejectApplication(document, context) {
-        verifyReviewerPermission(context);
-        const application = await this.getApplicationById(document._id);
-        // In Reviewed -> Rejected
-        verifyApplication(application)
-            .notEmpty()
-            .state([IN_REVIEW, SUBMITTED]);
-        const history = HistoryEventBuilder.createEvent(context.userInfo._id, REJECTED, document.comment);
-        const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-            $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime},
-            $push: {history}
-        });
-        if (updated?.modifiedCount && updated?.modifiedCount > 0) {
-            const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, REJECTED);
-            const promises = [
-                await this.getApplicationById(document._id),
-                this.logCollection.insert(log)
-            ];
-            return await Promise.all(promises).then(function(results) {
-                return results[0];
-            });
-        }
-        return null;
-    }
 
     async deleteInactiveApplications(inactiveDays) {
         const inactiveCondition = {
@@ -280,7 +175,7 @@ class Application {
 
         if (applications?.length > 0) {
             const history = HistoryEventBuilder.createEvent(0, DELETED, "Deleted because of no activities after submission");
-            const updated = await this.dbService.updateMany(APPLICATION,
+            const updated = await this.dbService.updateMany(DATA_SUBMISSION,
                 inactiveCondition,
                 {
                     $set: {status: DELETED, updatedAt: history.dateTime},
@@ -358,13 +253,7 @@ function formatApplicantName(userInfo){
     return firstName + (lastName.length > 0 ? " "+lastName : "");
 }
 
-function verifyReviewerPermission(context){
-    verifySession(context)
-        .verifyInitialized()
-        .verifyRole([ROLES.ADMIN, ROLES.FEDERAL_LEAD]);
-}
-
 module.exports = {
-    Application
+    DataSubmission
 };
 

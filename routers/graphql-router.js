@@ -2,8 +2,9 @@ const {buildSchema} = require('graphql');
 const {createHandler} = require("graphql-http/lib/use/express");
 const config = require("../config");
 const {Application} = require("../services/application");
+const {DataSubmission} = require("../services/data-submission");
 const {MongoQueries} = require("../crdc-datahub-database-drivers/mongo-queries");
-const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, ORGANIZATION_COLLECTION, LOG_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
+const {DATABASE_NAME, APPLICATION_COLLECTION, DATA_SUBMISSIONS_COLLECTION, USER_COLLECTION, ORGANIZATION_COLLECTION, LOG_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoDBCollection} = require("../crdc-datahub-database-drivers/mongodb-collection");
 const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-connector");
 const {EmailService} = require("../services/email");
@@ -17,6 +18,7 @@ const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
 let root;
 dbConnector.connect().then(() => {
     const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
+    const dataSubmissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_SUBMISSIONS_COLLECTION);
     const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
     const emailService = new EmailService(config.email_transport, config.emails_enabled);
@@ -25,6 +27,7 @@ dbConnector.connect().then(() => {
     const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
     const userService = new User(userCollection, logCollection);
     const dataInterface = new Application(logCollection, applicationCollection, new Organization(organizationCollection), userService, dbService, notificationsService, emailParams);
+    const dataSubmissionInterface = new DataSubmission(logCollection, dataSubmissionCollection, new Organization(organizationCollection), userService, dbService, notificationsService, emailParams);
     root = {
         version: () => {return config.version},
         saveApplication: dataInterface.saveApplication.bind(dataInterface),
@@ -36,7 +39,8 @@ dbConnector.connect().then(() => {
         approveApplication: dataInterface.approveApplication.bind(dataInterface),
         rejectApplication: dataInterface.rejectApplication.bind(dataInterface),
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
-        deleteApplication: dataInterface.deleteApplication.bind(dataInterface)
+        deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
+        createDataSubmission: dataSubmissionInterface.createDataSubmission.bind(dataSubmissionInterface)
     };
 });
 
