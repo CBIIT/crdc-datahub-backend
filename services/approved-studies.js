@@ -20,12 +20,14 @@ class ApprovedStudies {
     constructor(studyName, studyAbbreviation, dbGaPID, organizationName) {
         this.studyName = studyName;
         this.studyAbbreviation = studyAbbreviation;
-        this.dbGaPID = dbGaPID;
-        this.createdAt = this.updatedAt = getCurrentTime();
+        if (dbGaPID) {
+            this.dbGaPID = dbGaPID;
+        }
         // Optional
         if (organizationName) {
             this.originalOrg = organizationName;
         }
+        this.createdAt = this.updatedAt = getCurrentTime();
     }
 
     static createApprovedStudies(studyName, studyAbbreviation, dbGaPID, organization) {
