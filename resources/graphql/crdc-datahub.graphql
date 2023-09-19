@@ -155,7 +155,7 @@ type Query {
     listApprovedStudies: [ApprovedStudy]
 
     "Result depends on user's permission"
-    listSubmissions(
+    listDataSubmissions(
         organization: String,
         status: String,
         first: Int = 10,
@@ -192,7 +192,7 @@ type Mutation {
     deleteApplication (_id: ID!): Application
 
     "Submitter or Org Owner"
-    createSubmission (studyAbbreviation: String!, dbGapID: String!, dataCommons: String!, name: String!): Submission
+    createDataSubmission (studyAbbreviation: String, dataCommons: String, name: String, dbGapID: String): Submission
     createBatch (submissionID: ID!, type: String, metadataIntention: String, files: [FileInput]): NewBatch
     updateBatch (batchID: ID!, files: [UploadResult]): Batch
 }

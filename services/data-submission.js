@@ -100,32 +100,33 @@ class DataSubmission {
         return [{"$match": {"$or": conditions}}];
     }
 
-    // async listDataSubmissions(params, context) {
-    //     verifySession(context)
-    //         .verifyInitialized();
-    //     let pipeline = this.listApplicationConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization);
-    //     if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
+    async listDataSubmissions(params, context) {
+        verifySession(context)
+            .verifyInitialized();
+        // let pipeline = this.listApplicationConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization);
+        let pipeline = [];
+        if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
 
-    //     const pagination = [];
-    //     if (params.offset) pagination.push({"$skip": params.offset});
-    //     const disablePagination = Number.isInteger(params.first) && params.first === -1;
-    //     if (!disablePagination) {
-    //         pagination.push({"$limit": params.first});
-    //     }
-    //     console.log(pipeline);
+        const pagination = [];
+        if (params.offset) pagination.push({"$skip": params.offset});
+        const disablePagination = Number.isInteger(params.first) && params.first === -1;
+        if (!disablePagination) {
+            pagination.push({"$limit": params.first});
+        }
 
-    //     const promises = [
-    //         await this.dataSubmissionCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline),
-    //         await this.dataSubmissionCollection.aggregate(pipeline)
-    //     ];
+        const promises = [
+            await this.dataSubmissionCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline),
+            await this.dataSubmissionCollection.aggregate(pipeline)
+        ];
 
-    //     return await Promise.all(promises).then(function(results) {
-    //         return {
-    //             submissons: results[0] || [],
-    //             total: results[1]?.length || 0
-    //         }
-    //     });
-    // }
+        return await Promise.all(promises).then(function(results) {
+            console.log(results[0]);
+            return {
+                submissons: results[0] || [],
+                total: results[1]?.length || 0
+            }
+        });
+    }
 
     // async submitApplication(params, context) {
     //     verifySession(context)

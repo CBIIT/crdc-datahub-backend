@@ -40,7 +40,8 @@ dbConnector.connect().then(() => {
         rejectApplication: dataInterface.rejectApplication.bind(dataInterface),
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
         deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
-        createDataSubmission: dataSubmissionInterface.createDataSubmission.bind(dataSubmissionInterface)
+        createDataSubmission: dataSubmissionInterface.createDataSubmission.bind(dataSubmissionInterface),
+        listDataSubmissions:  dataSubmissionInterface.listDataSubmissions.bind(dataSubmissionInterface),
     };
 });
 

@@ -95,7 +95,6 @@ class Application {
     }
 
     async saveApplication(params, context) {
-        console.log(context);
         verifySession(context)
             .verifyInitialized();
         let inputApplication = params.application;
@@ -156,7 +155,6 @@ class Application {
             await this.applicationCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline),
             await this.applicationCollection.aggregate(pipeline)
         ];
-
         return await Promise.all(promises).then(function(results) {
             return {
                 applications: (results[0] || []).map((app)=>(app)),
