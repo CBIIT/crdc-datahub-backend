@@ -305,7 +305,9 @@ class Application {
                     $push: {history}});
             if (updated?.modifiedCount && updated?.modifiedCount > 0) {
                 console.log("Executed to delete application(s) because of no activities at " + getCurrentTime());
-                await this.emailInactiveApplicants(applications);
+                await Promise.all(applications.map(async (app) => {
+                    await sendEmails.inactiveApplications(this.notificationService,this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app);
+                }));
                 // log disabled applications
                 await Promise.all(applications.map(async (app) => {
                     this.logCollection.insert(UpdateApplicationStateEvent.createByApp(app._id, app.status, DELETED));
@@ -325,20 +327,10 @@ class Application {
         };
         const applications = await this.applicationCollection.aggregate([{$match: remindCondition}]);
         if (applications?.length > 0) {
-            const orgOwners = await getAppOrgOwner(this.organizationService, this.userService, applications);
-            // Send Email Notification
             await Promise.all(applications.map(async (app) => {
                 await sendEmails.remindApplication(this.notificationService, this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app);
             }));
         }
-    }
-
-    async emailInactiveApplicants(applications) {
-        const orgOwners = await getAppOrgOwner(this.organizationService, this.userService, applications);
-        // Send Email Notification
-        await Promise.all(applications.map(async (app) => {
-            await sendEmails.inactiveApplications(this.notificationService,this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app);
-        }));
     }
 
     async sendEmailAfterApproveApplication(context, application) {
@@ -407,21 +399,7 @@ class Application {
     }
 
     async sendEmailAfterRejectApplication(context, application) {
-        let org = await this.organizationService.getOrganizationByID(application.organization._id);
-        let org_owner_email
-        let org_owner_id = org?.owner
-        if (!org_owner_id) {
-            // TODO this should be fixed
-            org_owner_email = config.org_owner_email
-        } else {
-            let org_owner = await this.userService.getUserByID(org_owner_id);
-            if (!org_owner?.email) {
-                org_owner_email = null
-            } else {
-                org_owner_email = org_owner?.email
-            }
-        }
-        await this.notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, org_owner_email, {
+        await this.notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, {
             firstName: application?.applicant?.applicantName
         }, {
             study: application?.studyAbbreviation,
@@ -472,7 +450,7 @@ const setDefaultIfNoName = (str) => {
 
 const sendEmails = {
     remindApplication: async (notificationService, emailParams, email, applicantName, application) => {
-        await notificationService.remindApplicationsNotification(email,[], {
+        await notificationService.remindApplicationsNotification(email, {
             firstName: applicantName
         },{
             study: setDefaultIfNoName(application?.studyAbbreviation),
@@ -482,7 +460,7 @@ const sendEmails = {
         });
     },
     inactiveApplications: async (notificationService, emailParams, email, applicantName, application) => {
-        await notificationService.inactiveApplicationsNotification(email, [],{
+        await notificationService.inactiveApplicationsNotification(email,{
             firstName: applicantName
         },{
             pi: `${applicantName}`,
@@ -512,29 +490,6 @@ const saveApprovedStudies = async (approvedStudiesService, aApplication) => {
     await approvedStudiesService.storeApprovedStudies(
         questionnaire?.study?.name, aApplication?.studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name
     );
-}
-
-const getAppOrgOwner = async (organizationService, userService, applications) => {
-    let ownerIDsSet = new Set();
-    let userByOrgID = {};
-    await Promise.all(applications.map(async (app) => {
-        if (!app?.organization?._id) return [];
-        const org = await organizationService.getOrganizationByID(app.organization._id);
-        // exclude if user is already the owner's of the organization
-        if (org?.owner && !ownerIDsSet.has(org.owner) && app.applicant.applicantID !== org.owner) {
-            userByOrgID[org._id] = org.owner;
-            ownerIDsSet.add(org.owner);
-        }
-    }));
-    // Store Owner's email address
-    const orgOwners = {};
-    await Promise.all(
-        Object.keys(userByOrgID).map(async (orgID) => {
-            const user = await userService.getUserByID(userByOrgID[orgID]);
-            if (user) orgOwners[orgID] = user.email;
-        })
-    );
-    return orgOwners;
 }
 
 module.exports = {
