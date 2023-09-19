@@ -4,7 +4,7 @@ let config = {
     //info variables
     version: process.env.VERSION || 'Version not set',
     date: process.env.DATE || new Date(),
-    inactive_user_days : process.env.INACTIVE_APPLICATION_DAYS || 60,
+    inactive_user_days : process.env.INACTIVE_USER_DAYS || 60,
     remind_application_days: process.env.REMIND_APPLICATION_DAYS || 30,
     inactive_application_days : process.env.INACTIVE_APPLICATION_DAYS || 45,
     //Mongo DB
@@ -12,6 +12,7 @@ let config = {
     mongo_db_password: process.env.MONGO_DB_PASSWORD,
     mongo_db_host: process.env.MONGO_DB_HOST,
     mongo_db_port: process.env.MONGO_DB_PORT,
+    submission_aws_bucket_name: process.env.SUBMISSION_AWS_BUCKET_NAME,
 
     //session
     session_secret: process.env.SESSION_SECRET,
