@@ -3,8 +3,15 @@ const ERROR = {
     SESSION_NOT_INITIALIZED: "Internal error, a user is logged in but user data has not been initialized in the session",
     DATABASE_OPERATION_FAILED: "Database operation failed, please see logs for more information",
     APPLICATION_NOT_FOUND: "The provided application ID was not found in the database. Provided _id: ",
-    NO_USER_APPLICATIONS: "The current user has no applications",
-    UPDATE_FAILED: "Update unsuccessful"
+    UPDATE_FAILED: "Update unsuccessful",
+    VERIFY: {
+        UNDEFINED_APPLICATION: "Application array is undefined",
+        EMPTY_APPLICATION: "Application array is empty",
+        UNDEFINED_STATUS_APPLICATION: "Application state is undefined",
+        INVALID_STATE_APPLICATION: "Application state is invalid"
+    },
+    INVALID_ROLE: "You do not have the correct role to perform this operation",
+    INVALID_PERMISSION: "You do not have permission to view this application"
 }
 
 module.exports = ERROR;

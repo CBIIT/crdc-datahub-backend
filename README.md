@@ -37,7 +37,14 @@ Environment variables can either be set in the runtime environment or specified 
  - **MONGO_DB_PORT** - The MongoDB connection port
  - **SESSION_SECRET** - A session secret key, this must match in all services that will share a session
  - **SESSION_TIMEOUT_SECONDS** - The number of seconds before a session created or updated by this service will expire
-
+ - **EMAIL_SMTP_HOST**: email server hostname
+ - **EMAIL_SMTP_PORT**: email server port number
+ - **EMAIL_USER**: email server's username as an additional parameter
+ - **EMAIL_PASSWORD**: email server's password as an additional parameter
+ - **EMAIL_URL**: the website URL in the email template sent to the user.
+ - **EMAILS_ENABLED**: If not set to "true", then the email notifications will be disabled
+ - **SCHEDULE_JOB**: Set a time expression to schedule a cron job
+ - **SUBMISSION_DOC_URL**: Set the url for submission documentation
 ### Creating a .env File
 
 1. Locate the [**env.template**](./env.template) file and create a copy
