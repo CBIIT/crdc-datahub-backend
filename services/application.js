@@ -129,7 +129,7 @@ class Application {
         return result.length > 0 ? result[0] : null;
     }
 
-    listApplicationConditions(userID, userRole, aUserOrganization) {
+    listApplicationConditions(userID, userRole) {
         // list all applications
         const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
         const listAllApplicationRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD];
@@ -142,7 +142,7 @@ class Application {
     async listApplications(params, context) {
         verifySession(context)
             .verifyInitialized();
-        let pipeline = this.listApplicationConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization);
+        let pipeline = this.listApplicationConditions(context.userInfo._id, context.userInfo?.role);
         if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
 
         const pagination = [];
@@ -302,7 +302,9 @@ class Application {
                     $push: {history}});
             if (updated?.modifiedCount && updated?.modifiedCount > 0) {
                 console.log("Executed to delete application(s) because of no activities at " + getCurrentTime());
-                await this.emailInactiveApplicants(applications);
+                await Promise.all(applications.map(async (app) => {
+                    await sendEmails.inactiveApplications(this.notificationService,this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app);
+                }));
                 // log disabled applications
                 await Promise.all(applications.map(async (app) => {
                     this.logCollection.insert(UpdateApplicationStateEvent.createByApp(app._id, app.status, DELETED));
@@ -318,24 +320,21 @@ class Application {
                 $lt: subtractDaysFromNow(inactiveDuration),
                 $gt: subtractDaysFromNow(inactiveDuration + 1),
             },
-            status: {$in: [NEW, IN_PROGRESS, REJECTED]}
+            status: {$in: [NEW, IN_PROGRESS, REJECTED]},
+            inactiveReminder: {$ne: true}
         };
         const applications = await this.applicationCollection.aggregate([{$match: remindCondition}]);
         if (applications?.length > 0) {
-            const orgOwners = await getAppOrgOwner(this.organizationService, this.userService, applications);
-            // Send Email Notification
             await Promise.all(applications.map(async (app) => {
                 await sendEmails.remindApplication(this.notificationService, this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app);
             }));
+            const applicationIDs = applications.map(app => app._id);
+            const query = {_id: {$in: applicationIDs}};
+            const updatedReminder = await this.applicationCollection.updateMany(query, {inactiveReminder: true});
+            if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
+                console.error("The email reminder flag intended to notify the inactive application user is not being stored");
+            }
         }
-    }
-
-    async emailInactiveApplicants(applications) {
-        const orgOwners = await getAppOrgOwner(this.organizationService, this.userService, applications);
-        // Send Email Notification
-        await Promise.all(applications.map(async (app) => {
-            await sendEmails.inactiveApplications(this.notificationService,this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app);
-        }));
     }
 
     async sendEmailAfterApproveApplication(context, application) {
@@ -404,21 +403,7 @@ class Application {
     }
 
     async sendEmailAfterRejectApplication(context, application) {
-        let org = await this.organizationService.getOrganizationByID(application.organization._id);
-        let org_owner_email
-        let org_owner_id = org?.owner
-        if (!org_owner_id) {
-            // TODO this should be fixed
-            org_owner_email = config.org_owner_email
-        } else {
-            let org_owner = await this.userService.getUserByID(org_owner_id);
-            if (!org_owner?.email) {
-                org_owner_email = null
-            } else {
-                org_owner_email = org_owner?.email
-            }
-        }
-        await this.notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, org_owner_email, {
+        await this.notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, {
             firstName: application?.applicant?.applicantName
         }, {
             study: application?.studyAbbreviation,
@@ -447,6 +432,8 @@ async function updateApplication(applicationCollection, application, prevStatus,
         const historyEvent = HistoryEventBuilder.createEvent(userID, IN_PROGRESS, null);
         application.history.push(historyEvent);
     }
+    // Save an email reminder when an inactive application is reactivated.
+    application.inactiveReminder = false;
     const updateResult = await applicationCollection.update(application);
     if ((updateResult?.matchedCount || 0) < 1) {
         throw new Error(ERROR.APPLICATION_NOT_FOUND + application?._id);
@@ -469,7 +456,7 @@ const setDefaultIfNoName = (str) => {
 
 const sendEmails = {
     remindApplication: async (notificationService, emailParams, email, applicantName, application) => {
-        await notificationService.remindApplicationsNotification(email,[], {
+        await notificationService.remindApplicationsNotification(email, {
             firstName: applicantName
         },{
             study: setDefaultIfNoName(application?.studyAbbreviation),
@@ -479,7 +466,7 @@ const sendEmails = {
         });
     },
     inactiveApplications: async (notificationService, emailParams, email, applicantName, application) => {
-        await notificationService.inactiveApplicationsNotification(email, [],{
+        await notificationService.inactiveApplicationsNotification(email,{
             firstName: applicantName
         },{
             pi: `${applicantName}`,
@@ -498,29 +485,6 @@ const sendEmails = {
             url: emailParams.url
         })
     }
-}
-
-const getAppOrgOwner = async (organizationService, userService, applications) => {
-    let ownerIDsSet = new Set();
-    let userByOrgID = {};
-    await Promise.all(applications.map(async (app) => {
-        if (!app?.organization?._id) return [];
-        const org = await organizationService.getOrganizationByID(app.organization._id);
-        // exclude if user is already the owner's of the organization
-        if (org?.owner && !ownerIDsSet.has(org.owner) && app.applicant.applicantID !== org.owner) {
-            userByOrgID[org._id] = org.owner;
-            ownerIDsSet.add(org.owner);
-        }
-    }));
-    // Store Owner's email address
-    const orgOwners = {};
-    await Promise.all(
-        Object.keys(userByOrgID).map(async (orgID) => {
-            const user = await userService.getUserByID(userByOrgID[orgID]);
-            if (user) orgOwners[orgID] = user.email;
-        })
-    );
-    return orgOwners;
 }
 
 module.exports = {

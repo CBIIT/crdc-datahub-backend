@@ -34,7 +34,7 @@ class NotifyUser {
         });
     }
 
-    async inactiveApplicationsNotification(email, emailCCs, template_params, messageVariables) {
+    async inactiveApplicationsNotification(email, template_params, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.INACTIVE_APPLICATION_CONTENT, messageVariables);
         return await this.send(async () => {
             await this.emailService.sendNotification(
@@ -44,12 +44,12 @@ class NotifyUser {
                     message, ...template_params
                 }),
                 email,
-                emailCCs
+                []
             );
         });
     }
 
-    async rejectQuestionNotification(email, emailCCs, template_params, messageVariables) {
+    async rejectQuestionNotification(email, template_params, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.REJECT_CONTENT, messageVariables);
         return await this.send(async () => {
             await this.emailService.sendNotification(
@@ -59,7 +59,7 @@ class NotifyUser {
                     message, ...template_params
                 }),
                 email,
-                emailCCs
+                []
             );
         });
     }
@@ -110,7 +110,7 @@ class NotifyUser {
     }
 
 
-    async remindApplicationsNotification(email, emailCCs, template_params, messageVariables) {
+    async remindApplicationsNotification(email, template_params, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.REMIND_EXPIRED_APPLICATION_CONTENT, messageVariables);
         return await this.send(async () => {
             await this.emailService.sendNotification(
@@ -120,7 +120,7 @@ class NotifyUser {
                     message, ...template_params
                 }),
                 email,
-                emailCCs
+                []
             );
         });
     }
