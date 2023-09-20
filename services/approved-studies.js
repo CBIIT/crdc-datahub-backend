@@ -9,7 +9,8 @@ class ApprovedStudiesService {
 
     async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName) {
         const approvedStudies = ApprovedStudies.createApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName);
-        const res = await this.approvedStudiesCollection.insert(approvedStudies);
+        // A study name must be unique to avoid duplication.
+        const res = await this.approvedStudiesCollection.findOneAndUpdate({ studyName: studyName },approvedStudies);
         if (!res?.acknowledged) {
             console.error(ERROR.APPROVED_STUDIES_INSERTION);
         }
