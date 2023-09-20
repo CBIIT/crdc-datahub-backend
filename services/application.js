@@ -131,7 +131,7 @@ class Application {
         return result.length > 0 ? result[0] : null;
     }
 
-    listApplicationConditions(userID, userRole, aUserOrganization) {
+    listApplicationConditions(userID, userRole) {
         // list all applications
         const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
         const listAllApplicationRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD];
@@ -144,7 +144,7 @@ class Application {
     async listApplications(params, context) {
         verifySession(context)
             .verifyInitialized();
-        let pipeline = this.listApplicationConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization);
+        let pipeline = this.listApplicationConditions(context.userInfo._id, context.userInfo?.role);
         if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
 
         const pagination = [];
@@ -323,13 +323,20 @@ class Application {
                 $lt: subtractDaysFromNow(inactiveDuration),
                 $gt: subtractDaysFromNow(inactiveDuration + 1),
             },
-            status: {$in: [NEW, IN_PROGRESS, REJECTED]}
+            status: {$in: [NEW, IN_PROGRESS, REJECTED]},
+            inactiveReminder: {$ne: true}
         };
         const applications = await this.applicationCollection.aggregate([{$match: remindCondition}]);
         if (applications?.length > 0) {
             await Promise.all(applications.map(async (app) => {
                 await sendEmails.remindApplication(this.notificationService, this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app);
             }));
+            const applicationIDs = applications.map(app => app._id);
+            const query = {_id: {$in: applicationIDs}};
+            const updatedReminder = await this.applicationCollection.updateMany(query, {inactiveReminder: true});
+            if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
+                console.error("The email reminder flag intended to notify the inactive application user is not being stored");
+            }
         }
     }
 
@@ -428,6 +435,8 @@ async function updateApplication(applicationCollection, application, prevStatus,
         const historyEvent = HistoryEventBuilder.createEvent(userID, IN_PROGRESS, null);
         application.history.push(historyEvent);
     }
+    // Save an email reminder when an inactive application is reactivated.
+    application.inactiveReminder = false;
     const updateResult = await applicationCollection.update(application);
     if ((updateResult?.matchedCount || 0) < 1) {
         throw new Error(ERROR.APPLICATION_NOT_FOUND + application?._id);
