@@ -1,9 +1,7 @@
 const {Batch} = require("../domain/batch");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
-const {verifyBatch} = require("../verifier/batch-verifier");
 const ERROR = require("../constants/error-constants");
 class BatchService {
-
     constructor(s3Service, batchCollection, bucketName, applicationService, organizationService, userService) {
         this.s3Service = s3Service;
         this.batchCollection = batchCollection;
@@ -14,48 +12,7 @@ class BatchService {
     }
 
     async createBatch(params, context) {
-        // TODO remove this to graphql
-        // TODO Login
-
-        verifyBatch(params)
-            .isUndefined()
-            .notEmpty()
-            .batchType([BATCH.TYPE.METADATA, BATCH.TYPE.FILE]);
-
-        // TODO Should be permission controlled, submission owner or org owner
-
-        // Organization service
-        const aApplication = await this.applicationService.getApplicationById(params.submissionID);
-        // TODO submission ID does not exists
-        if (!aApplication) {
-
-            if (aUser.email != context.userInfo.email && aUser.IDP != context.userInfo.IDP) {
-
-            }
-
-            // TODO compare applicant vs context session user
-            // TODO throw
-        }
-
-        const aOrganization = await this.organizationService.getOrganizationByID(aApplication.organization._id);
-        if (aOrganization) {
-            const ownerID = aOrganization.owner;
-            const aUser = await this.userService.getUserByID(ownerID);
-            if (aUser.email != context.userInfo.email && aUser.IDP != context.userInfo.IDP) {
-
-            }
-        }
-
-
-        // 1. compare user's email and idp
-
-        // Only submission owner and submitter's Org Owner can upload data, otherwise this button should be disabled.
-        // get submission ID => get the applicant
-        // get the submission org owner
-
-
-
-
+        await verifyBatchPermission(this.applicationService, this.organizationService, this.userService, params.submissionID, context?.userInfo);
         const prefix = createPrefix(context?.userInfo?.organization);
         const newBatch = Batch.createNewBatch(params.submissionID, this.bucketName, prefix, params.type, params?.metadataIntention);
         if (BATCH.TYPE.METADATA === params.type) {
@@ -75,6 +32,27 @@ class BatchService {
         return newBatch;
     }
 
+}
+
+const isPermittedUserOrThrow = (userInfo, targetUser) => {
+    if (targetUser?.email != userInfo.email && targetUser?.IDP != userInfo.IDP) {
+        throw new Error(ERROR.INVALID_BATCH_PERMISSION);
+    }
+}
+
+const verifyBatchPermission= async(applicationService, organizationService, userService, submissionID, userInfo) => {
+    // verify submission owner
+    const aApplication = await applicationService.getApplicationById(submissionID);
+    const applicantUserID = aApplication.applicant.applicantID;
+    const aUser = await userService.getUserByID(applicantUserID);
+    isPermittedUserOrThrow(userInfo, aUser);
+    // verify if organization owner owns submission
+    const aOrganization = await organizationService.getOrganizationByID(aApplication.organization._id);
+    if (aOrganization) {
+        const ownerID = aOrganization.owner;
+        const aUser = await userService.getUserByID(ownerID);
+        isPermittedUserOrThrow(userInfo, aUser);
+    }
 }
 
 const createPrefix = (params, organization) => {

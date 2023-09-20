@@ -19,10 +19,12 @@ const ERROR = {
         INVALID_BATCH_TYPE: "Batch type is invalid",
         INVALID_METADATA_INTENTION_TYPE: "Metadata Intention type is invalid"
     },
+    INVALID_ROLE: "You do not have the correct role to perform this operation",
+    INVALID_PERMISSION: "You do not have permission to view this application",
+    // Batch
     FAILED_NEW_BATCH_INSERTION: "An error occurred while creating a new batch",
     NEW_BATCH_NO_ORGANIZATION: "The user attempting to create a batch does not have any organizational record",
-    INVALID_ROLE: "You do not have the correct role to perform this operation",
-    INVALID_PERMISSION: "You do not have permission to view this application"
+    INVALID_BATCH_PERMISSION: "You do not have permission to run a batch operation"
 }
 
 module.exports = ERROR;

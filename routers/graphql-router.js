@@ -14,6 +14,9 @@ const {User} = require("../crdc-datahub-database-drivers/services/user");
 const {Organization} = require("../crdc-datahub-database-drivers/services/organization");
 const {BatchService} = require("../services/batch-service");
 const {S3Service} = require("../crdc-datahub-database-drivers/services/s3-service");
+const {verifySession} = require("../verifier/user-info-verifier");
+const {verifyBatch} = require("../verifier/batch-verifier");
+const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 
 const schema = buildSchema(require("fs").readFileSync("resources/graphql/crdc-datahub.graphql", "utf8"));
 const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
@@ -29,11 +32,6 @@ dbConnector.connect().then(() => {
     const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
     const userService = new User(userCollection, logCollection);
     const dataInterface = new Application(logCollection, applicationCollection, new Organization(organizationCollection), userService, dbService, notificationsService, emailParams);
-    // Batch Service
-    const s3Service = new S3Service();
-    const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
-    const batchService = new BatchService(s3Service, batchCollection, config.submission_aws_bucket_name);
-
     root = {
         version: () => {return config.version},
         saveApplication: dataInterface.saveApplication.bind(dataInterface),
@@ -46,7 +44,21 @@ dbConnector.connect().then(() => {
         rejectApplication: dataInterface.rejectApplication.bind(dataInterface),
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
         deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
-        createBatch: batchService.createBatch.bind(batchService)
+        createBatch: (params, context) => {
+            verifySession(context)
+                .verifyInitialized();
+            verifyBatch(params)
+                .isUndefined()
+                .notEmpty()
+                .batchType([BATCH.TYPE.METADATA, BATCH.TYPE.FILE]);
+            const s3Service = new S3Service();
+            const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
+            const organizationService = new Organization(organizationCollection);
+            const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
+            const userService = new User(userCollection, logCollection);
+            const batchService = new BatchService(s3Service, batchCollection, config.submission_aws_bucket_name, dataInterface, organizationService, userService);
+            return batchService.createBatch(params, context);
+        }
     };
 });
 
