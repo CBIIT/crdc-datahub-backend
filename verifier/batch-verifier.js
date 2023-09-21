@@ -7,8 +7,9 @@ function verifyBatch(batch) {
 class BatchVerifier {
     constructor(batch) {
         this.submissionID = batch?.submissionID;
-        this.type = batch?.type;
+        this.batchType = batch?.type;
         this.files = batch?.files;
+        // Optional
         this.intention = batch?.metadataIntention;
     }
 
@@ -19,10 +20,7 @@ class BatchVerifier {
         if (!this.submissionID) {
             throw new Error(ERROR.VERIFY.UNDEFINED_BATCH_SUBMISSION_ID);
         }
-        if (!this.intention) {
-            throw new Error(ERROR.VERIFY.UNDEFINED_BATCH_METADATA_INTENTION);
-        }
-        if (!this.type) {
+        if (!this.batchType) {
             throw new Error(ERROR.VERIFY.UNDEFINED_BATCH_TYPE);
         }
         return this;
@@ -35,11 +33,11 @@ class BatchVerifier {
         return this;
     }
 
-    batchType(type) {
+    type(type) {
         if (!Array.isArray(type)){
             type = [type];
         }
-        if (!type.includes(this.type)) {
+        if (!type.includes(this.batchType.toLowerCase())) {
             throw Error(ERROR.VERIFY.INVALID_BATCH_TYPE);
         }
         return this;
@@ -49,8 +47,8 @@ class BatchVerifier {
         if (!Array.isArray(intention)){
             intention = [intention];
         }
-        if (!intention.includes(this.intention)) {
-            throw Error(ERROR.VERIFY.INVALID_BATCH_TYPE);
+        if (!intention.includes(this.intention.toLowerCase())) {
+            throw Error(ERROR.VERIFY.INVALID_METADATA_INTENTION_TYPE);
         }
         return this;
     }

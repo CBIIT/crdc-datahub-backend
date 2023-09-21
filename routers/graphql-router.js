@@ -17,6 +17,7 @@ const {S3Service} = require("../crdc-datahub-database-drivers/services/s3-servic
 const {verifySession} = require("../verifier/user-info-verifier");
 const {verifyBatch} = require("../verifier/batch-verifier");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
+const ERROR = require("../constants/error-constants");
 
 const schema = buildSchema(require("fs").readFileSync("resources/graphql/crdc-datahub.graphql", "utf8"));
 const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
@@ -44,23 +45,53 @@ dbConnector.connect().then(() => {
         rejectApplication: dataInterface.rejectApplication.bind(dataInterface),
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
         deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
-        createBatch: (params, context) => {
+        createBatch: async (params, context) => {
             verifySession(context)
                 .verifyInitialized();
             verifyBatch(params)
                 .isUndefined()
                 .notEmpty()
-                .batchType([BATCH.TYPE.METADATA, BATCH.TYPE.FILE]);
+                .type([BATCH.TYPE.METADATA, BATCH.TYPE.FILE])
+            // Optional metadata intention
+            if (params?.metadataIntention) {
+                verifyBatch(params)
+                    .metadataIntention([BATCH.INTENTION.NEW]);
+            }
+            await verifyBatchPermission(dataInterface, dbConnector, params.submissionID, context.userInfo);
             const s3Service = new S3Service();
             const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
-            const organizationService = new Organization(organizationCollection);
-            const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
-            const userService = new User(userCollection, logCollection);
-            const batchService = new BatchService(s3Service, batchCollection, config.submission_aws_bucket_name, dataInterface, organizationService, userService);
-            return batchService.createBatch(params, context);
+            const batchService = new BatchService(s3Service, batchCollection, config.submission_aws_bucket_name);
+            return await batchService.createBatch(params, context);
         }
     };
 });
+
+const verifyBatchPermission= async(applicationService, dbConnector, submissionID, userInfo) => {
+    const collectionNames = [ORGANIZATION_COLLECTION, LOG_COLLECTION, USER_COLLECTION];
+    const collections = collectionNames.map(name => new MongoDBCollection(dbConnector.client, DATABASE_NAME, name));
+    const [organizationCollection, logCollection, userCollection] = collections;
+    const organizationService = new Organization(organizationCollection);
+    const userService = new User(userCollection, logCollection);
+    // verify submission owner
+    const aApplication = await applicationService.getApplicationById(submissionID);
+    const applicantUserID = aApplication.applicant.applicantID;
+    const aUser = await userService.getUserByID(applicantUserID);
+    if (isPermittedUser(aUser, userInfo)) {
+        return;
+    }
+    // verify submission's organization owner
+    const aOrganization = await organizationService.getOrganizationByID(aApplication.organization._id);
+    const aOrgUser = await userService.getUserByID(aOrganization.owner);
+    if (aOrganization && isPermittedUser(aOrgUser, userInfo)) {
+        return;
+    }
+    throw new Error(ERROR.INVALID_BATCH_PERMISSION);
+}
+
+const isPermittedUser = (aTargetUser, userInfo) => {
+    return aTargetUser?.email === userInfo.email && aTargetUser?.IDP === userInfo.IDP
+}
+
 
 module.exports = (req, res) => {
     createHandler({
