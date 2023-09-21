@@ -98,6 +98,10 @@ class Application {
         verifySession(context)
             .verifyInitialized();
         let inputApplication = params.application;
+        const studyAbbreviation = inputApplication?.studyAbbreviation;
+        if (studyAbbreviation && studyAbbreviation.trim() !== "") {
+            await isStudyAbbreviationUniqueOrThrow(this.applicationCollection, inputApplication?.studyAbbreviation);
+        }
         inputApplication.updatedAt = getCurrentTime();
         const id = inputApplication?._id;
         if (!id) {
@@ -484,6 +488,13 @@ const sendEmails = {
             associate,
             url: emailParams.url
         })
+    }
+}
+
+const isStudyAbbreviationUniqueOrThrow = async (applicationCollection, studyAbbreviation) => {
+    const applications = await applicationCollection.aggregate([{"$match": {studyAbbreviation}}]);
+    if (applications?.length > 0) {
+        throw new Error(ERROR.DUPLICATE_STUDY_ABBREVIATION);
     }
 }
 
