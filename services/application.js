@@ -100,7 +100,7 @@ class Application {
         let inputApplication = params.application;
         const studyAbbreviation = inputApplication?.studyAbbreviation;
         if (studyAbbreviation && studyAbbreviation.trim() !== "") {
-            await isStudyAbbreviationUniqueOrThrow(this.applicationCollection, inputApplication?.studyAbbreviation);
+            await isStudyAbbreviationUniqueOrThrow(this.applicationCollection, inputApplication?._id, inputApplication?.studyAbbreviation);
         }
         inputApplication.updatedAt = getCurrentTime();
         const id = inputApplication?._id;
@@ -491,9 +491,12 @@ const sendEmails = {
     }
 }
 
-const isStudyAbbreviationUniqueOrThrow = async (applicationCollection, studyAbbreviation) => {
-    const applications = await applicationCollection.aggregate([{"$match": {studyAbbreviation}}]);
-    if (applications?.length > 0) {
+const isStudyAbbreviationUniqueOrThrow = async (applicationCollection, applicationID, studyAbbreviation) => {
+    const applications = await applicationCollection.aggregate([{"$match": {studyAbbreviation}}, {"$limit": 1}]);
+    if (applications?.length > 0 && applications[0]?._id) {
+        if (applicationID === applications[0]._id) {
+            return;
+        }
         throw new Error(ERROR.DUPLICATE_STUDY_ABBREVIATION);
     }
 }
