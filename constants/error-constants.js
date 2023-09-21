@@ -11,7 +11,8 @@ const ERROR = {
         INVALID_STATE_APPLICATION: "Application state is invalid"
     },
     INVALID_ROLE: "You do not have the correct role to perform this operation",
-    INVALID_PERMISSION: "You do not have permission to view this application"
+    INVALID_PERMISSION: "You do not have permission to view this application",
+    DUPLICATE_STUDY_ABBREVIATION: "Study abbreviation must be a unique value as it already exists in the database."
 }
 
 module.exports = ERROR;
