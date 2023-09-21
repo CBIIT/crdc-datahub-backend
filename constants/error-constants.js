@@ -11,7 +11,14 @@ const ERROR = {
         INVALID_STATE_APPLICATION: "Application state is invalid"
     },
     INVALID_ROLE: "You do not have the correct role to perform this operation",
-    INVALID_PERMISSION: "You do not have permission to view this application"
+    INVALID_PERMISSION: "You do not have permission to view this application",
+    INVALID_TOKEN_EMPTY: "Invalid token: it is empty string!",
+    INVALID_TOKEN_NO_USER: "Invalid token: no user info!",
+    INVALID_TOKEN_NO_USER_ID: 'Invalid token: no user id!',
+    INVALID_SUBMISSION_EMPTY: 'Invalid submissionID: it can not be empaty string!',
+    INVALID_SUBMISSION_NOT_FOUND: "Cant find the submission by submissionID",
+    INVALID_SUBMITTER: "The user has no permissions to upload data for the submission",
+    
 }
 
 module.exports = ERROR;

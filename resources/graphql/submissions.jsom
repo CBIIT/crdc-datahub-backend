@@ -1,0 +1,18 @@
+ [{  
+    "_id": "9f42b5f1-5ea4-4923-a9bb-f496c63362ce",
+    "name": "mySubmission",
+    "submitterID": "8f42b5f1-5ea4-4923-a9bb-f496c63362ce",
+    "submitterName": "yoos4",
+    "organization": "NCI",
+    "dataCommons": "CDS",
+    "modelVersion": "",
+    "studyAbbreviation": "String",
+    "dbGapID": "phs number",
+    "bucketName": "crdcdh-test-submission",
+    "rootPath":  "123456",
+    "status": "Submitted",
+    "history": null,
+    "concierge": "Concierge name",
+    "createdAt": "2023-05-01T09:23:30Z",
+    "updatedAt": "2023-05-01T09:23:30Z"
+ }]

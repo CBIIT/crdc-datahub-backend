@@ -1,10 +1,11 @@
-const {SUBMITTED, APPROVED, REJECTED, IN_PROGRESS, IN_REVIEW, DELETED, NEW} = require("../constants/application-constants");
+const AWS = require('aws-sdk');
+const {SUBMITTED, APPROVED, REJECTED, IN_PROGRESS, IN_REVIEW, DELETED, NEW, API_TOKEN} = require("../constants/application-constants");
 const {APPLICATION_COLLECTION: APPLICATION} = require("../crdc-datahub-database-drivers/database-constants");
 const {v4} = require('uuid')
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifyApplication} = require("../verifier/application-verifier");
-const {verifySession} = require("../verifier/user-info-verifier");
+const {verifySession, verifyApiToken,verifySubmitter} = require("../verifier/user-info-verifier");
 const ERROR = require("../constants/error-constants");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
@@ -14,7 +15,7 @@ const ROLES = USER_CONSTANTS.USER.ROLES;
 const config = require('../config');
 
 class Application {
-    constructor(logCollection, applicationCollection, organizationService, userService, dbService, notificationsService, emailParams) {
+    constructor(logCollection, applicationCollection, submissionollection, organizationService, userService, dbService, notificationsService, emailParams, submissions) {
         this.logCollection = logCollection;
         this.applicationCollection = applicationCollection;
         this.organizationService = organizationService;
@@ -22,6 +23,8 @@ class Application {
         this.dbService = dbService;
         this.notificationService = notificationsService;
         this.emailParams = emailParams;
+        this.submissions = submissionollection;
+
     }
 
     async getApplication(params, context) {
@@ -410,6 +413,43 @@ class Application {
             url: this.emailParams.url
         })
     }
+
+    /**
+     * createTempCredentials
+     * @param {*} context 
+     * @param {*} submissionID 
+     * @returnsv {
+            accessKeyId: String
+            secretAccessKey: String
+            sessionToken: String
+        }
+     */
+        async createTempCredentials(submissionID, context) {
+            //1. verify token and decode token to get user info
+            const userInfo = verifyApiToken(context, config);
+            //verify submitter
+            verifySubmitter(userInfo, submissionID, this.submissions, this.userService);
+            //2. create temp credential
+            // Initialize an STS object
+            const sts = new AWS.STS();
+            return new Promise((resolve, reject) => {
+                const timestamp = (new Date()).getTime();
+                const params = {
+                  RoleArn: config.role_arn,
+                  RoleSessionName: `Temp_Session_${timestamp}`
+                };
+                sts.assumeRole(params, (err, data) => {
+                  if (err) reject(err);
+                  else {
+                    resolve({
+                      accessKeyId: data.Credentials.AccessKeyId,
+                      secretAccessKey: data.Credentials.SecretAccessKey,
+                      sessionToken: data.Credentials.SessionToken,
+                    });
+                  }
+                });
+              });
+        }
 }
 
 function formatApplicantName(userInfo){

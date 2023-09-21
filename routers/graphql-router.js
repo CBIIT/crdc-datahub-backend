@@ -3,7 +3,7 @@ const {createHandler} = require("graphql-http/lib/use/express");
 const config = require("../config");
 const {Application} = require("../services/application");
 const {MongoQueries} = require("../crdc-datahub-database-drivers/mongo-queries");
-const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, ORGANIZATION_COLLECTION, LOG_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
+const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, ORGANIZATION_COLLECTION, LOG_COLLECTION, SUBMISSION_COLLECTION, API_TOKEN} = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoDBCollection} = require("../crdc-datahub-database-drivers/mongodb-collection");
 const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-connector");
 const {EmailService} = require("../services/email");
@@ -17,6 +17,7 @@ const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
 let root;
 dbConnector.connect().then(() => {
     const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
+    const submissionollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSION_COLLECTION);
     const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
     const emailService = new EmailService(config.email_transport, config.emails_enabled);
@@ -24,7 +25,7 @@ dbConnector.connect().then(() => {
     const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days};
     const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
     const userService = new User(userCollection, logCollection);
-    const dataInterface = new Application(logCollection, applicationCollection, new Organization(organizationCollection), userService, dbService, notificationsService, emailParams);
+    const dataInterface = new Application(logCollection, applicationCollection, submissionollection, new Organization(organizationCollection), userService, dbService, notificationsService, emailParams);
     root = {
         version: () => {return config.version},
         saveApplication: dataInterface.saveApplication.bind(dataInterface),
@@ -36,7 +37,8 @@ dbConnector.connect().then(() => {
         approveApplication: dataInterface.approveApplication.bind(dataInterface),
         rejectApplication: dataInterface.rejectApplication.bind(dataInterface),
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
-        deleteApplication: dataInterface.deleteApplication.bind(dataInterface)
+        deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
+        createTempCredentials: dataInterface.createTempCredentials.bind(dataInterface)
     };
 });
 
@@ -44,6 +46,6 @@ module.exports = (req, res) => {
     createHandler({
         schema: schema,
         rootValue: root,
-        context: req.session
+        context: (req.headers.authorization)? {"api-token": req.headers.authorization.split(' ')[1]} : req.session,
     })(req,res);
 };
