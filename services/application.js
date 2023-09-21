@@ -492,11 +492,12 @@ const sendEmails = {
 }
 
 const isStudyAbbreviationUniqueOrThrow = async (applicationCollection, applicationID, studyAbbreviation) => {
-    const applications = await applicationCollection.aggregate([{"$match": {studyAbbreviation}}, {"$limit": 1}]);
-    if (applications?.length > 0 && applications[0]?._id) {
-        if (applicationID === applications[0]._id) {
-            return;
-        }
+    const uniqueCondition = {
+        studyAbbreviation,
+        ...(applicationID ? { _id: { $ne: applicationID } } : {})
+    };
+    const applications = await applicationCollection.aggregate([{"$match": uniqueCondition}, {"$limit": 1}]);
+    if (applications?.length > 0) {
         throw new Error(ERROR.DUPLICATE_STUDY_ABBREVIATION);
     }
 }
