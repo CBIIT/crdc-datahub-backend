@@ -28,6 +28,7 @@ const ERROR = {
     // Approved Studies
     APPROVED_STUDIES_INSERTION: "An error occurred while attempting to insert the approved studies into the database.",
     FAILED_STORE_APPROVED_STUDIES: "The approved studies are not being stored because the questionnaire data string is not correctly parsed",
+    DUPLICATE_STUDY_ABBREVIATION: "Study abbreviation must be a unique value as it already exists in the database."
 }
 
 module.exports = ERROR;
