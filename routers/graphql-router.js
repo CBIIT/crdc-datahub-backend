@@ -42,10 +42,20 @@ dbConnector.connect().then(() => {
     };
 });
 
+const extractContext =(req) => {
+    token = req.headers.authorization;
+    if(token && token.split(' ').length > 1) {
+        token = token.split(' ')[1];
+        return {"api-token":  token} ;
+    }
+    else return req.session;
+
+};
+
 module.exports = (req, res) => {
     createHandler({
         schema: schema,
         rootValue: root,
-        context: (req.headers.authorization)? {"api-token": req.headers.authorization.split(' ')[1]} : req.session,
+        context: extractContext(req)
     })(req,res);
 };
