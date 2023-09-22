@@ -10,7 +10,7 @@ const {EmailService} = require("../services/email");
 const {NotifyUser} = require("../services/notify-user");
 const {User} = require("../crdc-datahub-database-drivers/services/user");
 const {Organization} = require("../crdc-datahub-database-drivers/services/organization");
-
+const ERROR = require("../constants/error-constants");
 const schema = buildSchema(require("fs").readFileSync("resources/graphql/crdc-datahub.graphql", "utf8"));
 const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
 const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
@@ -43,13 +43,15 @@ dbConnector.connect().then(() => {
 });
 
 const extractContext =(req) => {
+    context = {};
     token = req.headers.authorization;
     if(token && token.split(' ').length > 1) {
         token = token.split(' ')[1];
-        return {"api-token":  token} ;
+        context = {"api-token":  token} ;
     }
-    else return req.session;
-
+    else context = req.session;
+    if(!context) throw new Error(ERROR.INVALID_SESSION_OR_TOKEN);
+    return context;
 };
 
 module.exports = (req, res) => {

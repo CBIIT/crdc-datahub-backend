@@ -48,19 +48,21 @@ async function verifySubmitter(userInfo, submissionID, submissions, userService)
         throw new Error(ERROR.INVALID_SUBMISSION_EMPTY);
     }
     submissionID = Object.values(submissionID)[0];
+    //console.debug(submissionID, "submissionID");
     const submission = await submissions.find(submissionID);
-    if (!submission) {
+    //console.debug(submission, "submission");
+    if (!submission || submission.length == 0) {
         throw new Error(`${ERROR.INVALID_SUBMISSION_NOT_FOUND}, ${submissionID}!`);
     }
     //3. verify if user is submitter or organization owner
     if(userInfo._id != submission.submitterID) {
         //check if the user is org owner of submitter
         const orgOwners = await userService.getOrgOwnerByOrgName(submission.organization);
-        if(!orgOwners) {
+        if(!orgOwners || orgOwners.length == 0) {
             return new Error(`${ERROR.INVALID_SUBMITTER}, ${submissionID}!`);
         }
         const matchedOwner = orgOwners.filter(o => o._id == userInfo._id );
-        if(!matchedOwner){
+        if(!matchedOwner || matchedOwner.length == 0){
             throw new Error(`${ERROR.INVALID_SUBMITTER}, ${submissionID}!`);
         }
     }

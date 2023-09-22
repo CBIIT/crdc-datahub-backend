@@ -96,16 +96,6 @@ const runDeactivateInactiveUsers = async (userService, notificationsService) => 
         }));
     }
 }
-//replace session with api token
-// app.use(function(req, res, next) {
-//     console.debug(req);
-//     if (!req.headers.authorization) {
-//         apiToken = req.headers.authorization.split(' ')[1];
-//         console.debug(apiToken);
-
-//     }
-//     next();
-//   });
 
 // catch 404 and forward to error handler
 app.use((req, res, next) => {

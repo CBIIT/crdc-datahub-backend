@@ -18,7 +18,7 @@ const ERROR = {
     INVALID_SUBMISSION_EMPTY: 'Invalid submissionID: it can not be empaty string!',
     INVALID_SUBMISSION_NOT_FOUND: "Cant find the submission by submissionID",
     INVALID_SUBMITTER: "The user has no permissions to upload data for the submission",
-    
+    INVALID_SESSION_OR_TOKEN: "No valid sessionm or valid API token"
 }
 
 module.exports = ERROR;
