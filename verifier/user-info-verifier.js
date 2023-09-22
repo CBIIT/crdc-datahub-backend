@@ -55,7 +55,6 @@ async function verifySubmitter(userInfo, submissionID, submissions, userService)
         throw new Error(`${ERROR.INVALID_SUBMISSION_NOT_FOUND}, ${submissionID}!`);
     }
     //3. verify if user is submitter or organization owner
-    console.debug(userInfo._id, submission[0].submitterID);
     if(userInfo._id != submission[0].submitterID) {
         //check if the user is org owner of submitter
         const orgOwners = await userService.getOrgOwnerByOrgName(submission[0].organization);

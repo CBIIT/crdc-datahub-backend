@@ -428,7 +428,7 @@ class Application {
         //1. verify token and decode token to get user info
         const userInfo = verifyApiToken(context, config);
         //verify submitter
-        verifySubmitter(userInfo, submissionID, this.submissions, this.userService);
+        await verifySubmitter(userInfo, submissionID, this.submissions, this.userService);
         //2. create temp credential
         // Initialize an STS object
         const sts = new AWS.STS();
