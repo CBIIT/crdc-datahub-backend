@@ -424,32 +424,32 @@ class Application {
             sessionToken: String
         }
      */
-        async createTempCredentials(submissionID, context) {
-            //1. verify token and decode token to get user info
-            const userInfo = verifyApiToken(context, config);
-            //verify submitter
-            verifySubmitter(userInfo, submissionID, this.submissions, this.userService);
-            //2. create temp credential
-            // Initialize an STS object
-            const sts = new AWS.STS();
-            return new Promise((resolve, reject) => {
-                const timestamp = (new Date()).getTime();
-                const params = {
-                  RoleArn: config.role_arn,
-                  RoleSessionName: `Temp_Session_${timestamp}`
-                };
-                sts.assumeRole(params, (err, data) => {
-                  if (err) reject(err);
-                  else {
-                    resolve({
-                      accessKeyId: data.Credentials.AccessKeyId,
-                      secretAccessKey: data.Credentials.SecretAccessKey,
-                      sessionToken: data.Credentials.SessionToken,
-                    });
-                  }
+    async createTempCredentials(submissionID, context) {
+        //1. verify token and decode token to get user info
+        const userInfo = verifyApiToken(context, config);
+        //verify submitter
+        verifySubmitter(userInfo, submissionID, this.submissions, this.userService);
+        //2. create temp credential
+        // Initialize an STS object
+        const sts = new AWS.STS();
+        return new Promise((resolve, reject) => {
+            const timestamp = (new Date()).getTime();
+            const params = {
+                RoleArn: config.role_arn,
+                RoleSessionName: `Temp_Session_${timestamp}`
+            };
+            sts.assumeRole(params, (err, data) => {
+                if (err) reject(err);
+                else {
+                resolve({
+                    accessKeyId: data.Credentials.AccessKeyId,
+                    secretAccessKey: data.Credentials.SecretAccessKey,
+                    sessionToken: data.Credentials.SessionToken,
                 });
-              });
-        }
+                }
+            });
+            });
+    }
 }
 
 function formatApplicantName(userInfo){
