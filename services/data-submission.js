@@ -44,7 +44,6 @@ class DataSubmission {
         let userInfo = context.userInfo;
         let newApplicationProperties = {
             _id: v4(undefined, undefined, undefined),
-            displayID: "000001", // minimum 6 digit integer with leading zeros, can have more digits
             name: params.name,
             submitterID: userInfo._id,
             submitterName: formatApplicantName(userInfo),
@@ -71,40 +70,31 @@ class DataSubmission {
         return dataSubmission;
     }
 
-    async saveApplication(params, context) {
-        verifySession(context)
-            .verifyInitialized();
-        let application = params.application;
-        application.updatedAt = getCurrentTime();
-        const id = application?._id;
-        if (!id) return await this.createApplication(application, context.userInfo);
-        const aApplication = await this.getApplicationById(id);
-        const option = aApplication && aApplication.status !== IN_PROGRESS ? {$push: { history: HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, null)}}: null;
-        const result = await this.applicationCollection.update({...application, status: IN_PROGRESS}, option);
-        if (result.matchedCount < 1) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
-        return await this.getApplicationById(id);
-    }
-
 
     listApplicationConditions(userID, userRole, aUserOrganization) {
-        // list all applications
+        // List all applications if Fed Lead / Admin / Data Concierge / Data Curator
         const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED]}};
-        const listAllApplicationRoles = [USER.ROLES.ADMIN,USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR, USER.ROLES.DC_POC];
+        const listAllApplicationRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR, USER.ROLES.DC_POC];
         if (listAllApplicationRoles.includes(userRole)) return [{"$match": {...validApplicationStatus}}];
-        // search by applicant's user id
-        let conditions = [{$and: [{"applicant.applicantID": userID}, validApplicationStatus]}];
-        // search by user's organization
+
+        // Org owners can see all data submissions associated with their organization
         if (userRole === USER.ROLES.ORG_OWNER && aUserOrganization?.orgID) {
-            conditions.push({$and: [{"organization._id": aUserOrganization.orgID}, validApplicationStatus]})
+            return [{"$match": {"$or": {$and: [{"organization.name": aUserOrganization.name}, validApplicationStatus]}}}];
         }
+        // User's cant make submissions, so they will always have no submissions 
+        // Submitters will only see their data submissions
+        // search by applicant's user id
+        let conditions = [{$and: [{"submitterID": userID}, validApplicationStatus]}];
+
         return [{"$match": {"$or": conditions}}];
     }
 
     async listDataSubmissions(params, context) {
+        console.log(params);    
         verifySession(context)
             .verifyInitialized();
-        // let pipeline = this.listApplicationConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization);
-        let pipeline = [];
+        let pipeline = this.listApplicationConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization);
+        // let pipeline = [];
         if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
 
         const pagination = [];
@@ -113,6 +103,7 @@ class DataSubmission {
         if (!disablePagination) {
             pagination.push({"$limit": params.first});
         }
+        console.log(pipeline);
 
         const promises = [
             await this.dataSubmissionCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline),
@@ -120,41 +111,12 @@ class DataSubmission {
         ];
 
         return await Promise.all(promises).then(function(results) {
-            console.log(results[0]);
             return {
-                submissons: results[0] || [],
+                submissions: results[0] || [],
                 total: results[1]?.length || 0
             }
         });
     }
-
-    // async submitApplication(params, context) {
-    //     verifySession(context)
-    //         .verifyInitialized();
-    //     const application = await this.getApplicationById(params._id);
-    //     verifyApplication(application)
-    //         .notEmpty()
-    //         .state([NEW, IN_PROGRESS]);
-    //     // In Progress -> In Submitted
-    //     const history = application.history || [];
-    //     const historyEvent = HistoryEventBuilder.createEvent(context.userInfo._id, SUBMITTED, null);
-    //     history.push(historyEvent)
-    //     const aApplication = {
-    //         ...application,
-    //         history: history,
-    //         status: SUBMITTED,
-    //         updatedAt: historyEvent.dateTime,
-    //         submittedDate: historyEvent.dateTime
-    //     };
-    //     const updated = await this.applicationCollection.update(aApplication);
-    //     if (!updated?.modifiedCount || updated?.modifiedCount < 1) throw new Error(ERROR.UPDATE_FAILED);
-    //     const logEvent = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, SUBMITTED);
-    //     await Promise.all([
-    //         await this.logCollection.insert(logEvent),
-    //         await this.sendEmailAfterSubmitApplication(context, application)
-    //     ]);
-    //     return application;
-    // }
 
     async deleteApplication(document, _) {
         const deletedOne = await this.getApplicationById(document._id);
