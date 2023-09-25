@@ -47,7 +47,7 @@ class DataSubmission {
             name: params.name,
             submitterID: userInfo._id,
             submitterName: formatApplicantName(userInfo),
-            organization: "todo: get from database",
+            organization: {_id:"testid", name: "test org"},
             dataCommons: "CDS",
             modelVersion: "string for future use",
             studyAbbreviation: params.studyAbbreviation,
@@ -71,7 +71,7 @@ class DataSubmission {
     }
 
 
-    listApplicationConditions(userID, userRole, aUserOrganization) {
+    listConditions(userID, userRole, aUserOrganization, params) {
         // List all applications if Fed Lead / Admin / Data Concierge / Data Curator
         const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED]}};
         const listAllApplicationRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR, USER.ROLES.DC_POC];
@@ -81,11 +81,16 @@ class DataSubmission {
         if (userRole === USER.ROLES.ORG_OWNER && aUserOrganization?.orgID) {
             return [{"$match": {"$or": {$and: [{"organization.name": aUserOrganization.name}, validApplicationStatus]}}}];
         }
-        // User's cant make submissions, so they will always have no submissions 
         // Submitters will only see their data submissions
+        // User's cant make submissions, so they will always have no submissions 
         // search by applicant's user id
         let conditions = [{$and: [{"submitterID": userID}, validApplicationStatus]}];
-
+        if (params.organization !== "All") {
+            conditions[0].$and.push({"organization.name": params.organization});
+        }
+        if (params.status !== "All") {
+            conditions[0].$and.push({status: params.status});
+        }
         return [{"$match": {"$or": conditions}}];
     }
 
@@ -93,7 +98,7 @@ class DataSubmission {
         console.log(params);    
         verifySession(context)
             .verifyInitialized();
-        let pipeline = this.listApplicationConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization);
+        let pipeline = this.listConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization, params);
         // let pipeline = [];
         if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
 
@@ -103,14 +108,13 @@ class DataSubmission {
         if (!disablePagination) {
             pagination.push({"$limit": params.first});
         }
-        console.log(pipeline);
-
         const promises = [
             await this.dataSubmissionCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline),
             await this.dataSubmissionCollection.aggregate(pipeline)
         ];
-
+        
         return await Promise.all(promises).then(function(results) {
+            console.log(results[0]);
             return {
                 submissions: results[0] || [],
                 total: results[1]?.length || 0
