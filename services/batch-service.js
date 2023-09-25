@@ -1,6 +1,11 @@
 const {Batch} = require("../domain/batch");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const ERROR = require("../constants/error-constants");
+const {NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED} = require("../constants/application-constants");
+const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
+const {verifySession} = require("../verifier/user-info-verifier");
+const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
+const {APPLICATION_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 class BatchService {
     constructor(s3Service, batchCollection, bucketName) {
         this.s3Service = s3Service;
@@ -28,6 +33,85 @@ class BatchService {
         return newBatch;
     }
 
+    async listBatches(params, context) {
+        let pipeline = listBatchConditions(context.userInfo._id, context.userInfo?.role);
+        if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
+
+        const pagination = [];
+        if (params.offset) pagination.push({"$skip": params.offset});
+        const disablePagination = Number.isInteger(params.first) && params.first === -1;
+        if (!disablePagination) {
+            pagination.push({"$limit": params.first});
+        }
+        const promises = [
+            await this.batchCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline),
+            await this.batchCollection.aggregate(pipeline)
+        ];
+
+        return await Promise.all(promises).then(function(results) {
+            return {
+                applications: (results[0] || []).map((app)=>(app)),
+                total: results[1]?.length || 0
+            }
+        });
+
+        // listBatches(submissionID: ID!,
+        //     first: Int = 10,
+        //     offset: Int = 0,
+        // # in ["updatedAt", "createdAt", "displayID", "fileCount", "status", "errors"]
+        // orderBy: String = "displayID",
+        //     sortDirection: String = "DESC" # ["DESC", "ASC"]
+        // ): ListBatches
+
+        // return Promise.resolve(undefined);
+    }
+}
+
+// Submission dashboard is role based access control
+// Admin, Fed Lead and Data Curator can see the batch transactions for all submission
+// Org Owner can see batch transactions for submissions associated with his/her own organization
+// Submitters can see batch transactions for his/her own submissions
+
+
+
+// Data Commons POC can see batch transactions for submissions associated with his/her Data Commons
+// General Users CAN NOT see any data submissions
+
+
+const listBatchConditions = (userID, userRole, aUserOrganization) => {
+    // list all applications
+    const validBatchStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
+    const listAllBatchRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR];
+    if (listAllBatchRoles.includes(userRole)) return [{"$match": {...validBatchStatus}}];
+    // TODO search by applicant's user id
+    let conditions = [{$and: [{"applicant.applicantID": userID}, validBatchStatus]}];
+
+
+    const batchListConditions = [
+        { "$lookup": {
+            from: APPLICATION_COLLECTION,
+            localField: "submissionID",
+            foreignField: "_id",
+            as: "joinedBatch"
+        }},
+        { "$unwind": {
+            path: "$application",
+        }},
+
+    ];
+
+
+    // list batches listed by submission ID
+
+    // Curator
+
+    // TODO search by user's organization
+    if (userRole === USER.ROLES.ORG_OWNER && aUserOrganization?.orgID) {
+        conditions.push({$and: [{"organization._id": aUserOrganization.orgID}, validBatchStatus]})
+    }
+
+
+    return [{"$match": {"$or": conditions}}];
 }
 
 const createPrefix = (params, organization) => {

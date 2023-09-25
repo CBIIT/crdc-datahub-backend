@@ -62,6 +62,17 @@ dbConnector.connect().then(() => {
             const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
             const batchService = new BatchService(s3Service, batchCollection, config.submission_aws_bucket_name);
             return await batchService.createBatch(params, context);
+        },
+        listBatches: async (params, context) => {
+            verifySession(context)
+                .verifyInitialized();
+
+            // TODO permissions
+
+            const s3Service = new S3Service();
+            const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
+            const batchService = new BatchService(s3Service, batchCollection, config.submission_aws_bucket_name);
+            return await batchService.listBatches(params, context);
         }
     };
 });
