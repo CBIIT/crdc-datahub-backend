@@ -131,6 +131,12 @@ input UploadResult {
     errors: [String]
 }
 
+type TempCredentials {
+    accessKeyId: String
+    secretAccessKey: String
+    sessionToken: String
+}
+
 type ApprovedStudy {
     _id: ID
     originalOrg: String # organization at the time of approval, can be absent if a submission request doesn't have an organization associated
@@ -176,6 +182,7 @@ type Query {
 
     version: String
 }
+
 type Mutation {
     "User initiated operations"
     saveApplication(application: AppInput!): Application
@@ -194,5 +201,6 @@ type Mutation {
     createDataSubmission (studyAbbreviation: String, dataCommons: String, name: String, dbGapID: String): Submission
     createBatch (submissionID: ID!, type: String, metadataIntention: String, files: [FileInput]): NewBatch
     updateBatch (batchID: ID!, files: [UploadResult]): Batch
+    createTempCredentials (submissionID: ID!): TempCredentials
 }
 

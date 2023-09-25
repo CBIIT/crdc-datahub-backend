@@ -10,7 +10,9 @@ const createSession = require("./crdc-datahub-database-drivers/session-middlewar
 const statusRouter = require("./routers/status-endpoints-router");
 const graphqlRouter = require("./routers/graphql-router");
 const {MongoDBCollection} = require("./crdc-datahub-database-drivers/mongodb-collection");
-const {DATABASE_NAME, APPLICATION_COLLECTION, DATA_SUBMISSIONS_COLLECTION, USER_COLLECTION, ORGANIZATION_COLLECTION, LOG_COLLECTION} = require("./crdc-datahub-database-drivers/database-constants");
+const {DATABASE_NAME, APPLICATION_COLLECTION, DATA_SUBMISSIONS_COLLECTION, USER_COLLECTION, ORGANIZATION_COLLECTION, LOG_COLLECTION,
+    APPROVED_STUDIES_COLLECTION
+} = require("./crdc-datahub-database-drivers/database-constants");
 const {Application} = require("./services/application");
 const {MongoQueries} = require("./crdc-datahub-database-drivers/mongo-queries");
 const {DatabaseConnector} = require("./crdc-datahub-database-drivers/database-connector");
@@ -20,6 +22,7 @@ const {NotifyUser} = require("./services/notify-user");
 const {User} = require("./crdc-datahub-database-drivers/services/user");
 const {Organization} = require("./crdc-datahub-database-drivers/services/organization");
 const {extractAndJoinFields} = require("./utility/string-util");
+const {ApprovedStudiesService} = require("./services/approved-studies");
 // print environment variables to log
 console.info(config);
 
@@ -61,7 +64,10 @@ cronJob.schedule(config.schedule_job, async () => {
         const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
         const userService = new User(userCollection, logCollection);
         const organizationService = new Organization(organizationCollection);
-        const dataInterface = new Application(logCollection, applicationCollection, organizationService, userService, dbService, notificationsService, emailParams);
+
+        const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
+        const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection);
+        const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, organizationService, userService, dbService, notificationsService, emailParams);
         console.log("Running a scheduled background task to delete inactive application at " + getCurrentTime());
         await dataInterface.deleteInactiveApplications();
         console.log("Running a scheduled job to disable user(s) because of no activities at " + getCurrentTime());

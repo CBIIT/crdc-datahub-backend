@@ -12,11 +12,13 @@ const {USER} = require("../crdc-datahub-database-drivers/constants/user-constant
 const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const config = require('../config');
+const {parseJsonString} = require("../crdc-datahub-database-drivers/utility/string-utility");
 
 class Application {
-    constructor(logCollection, applicationCollection, organizationService, userService, dbService, notificationsService, emailParams) {
+    constructor(logCollection, applicationCollection, approvedStudiesService, organizationService, userService, dbService, notificationsService, emailParams) {
         this.logCollection = logCollection;
         this.applicationCollection = applicationCollection;
+        this.approvedStudiesService = approvedStudiesService;
         this.organizationService = organizationService;
         this.userService = userService;
         this.dbService = dbService;
@@ -248,6 +250,7 @@ class Application {
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             const promises = [
                 await this.getApplicationById(document._id),
+                await saveApprovedStudies(this.approvedStudiesService, application),
                 this.logCollection.insert(
                     UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, APPROVED)
                 )
@@ -499,6 +502,17 @@ const isStudyAbbreviationUniqueOrThrow = async (applicationCollection, applicati
     if (applications?.length > 0) {
         throw new Error(ERROR.DUPLICATE_STUDY_ABBREVIATION);
     }
+}
+
+const saveApprovedStudies = async (approvedStudiesService, aApplication) => {
+    const questionnaire = parseJsonString(aApplication?.questionnaireData);
+    if (!questionnaire) {
+        console.error(ERROR.FAILED_STORE_APPROVED_STUDIES);
+        return;
+    }
+    await approvedStudiesService.storeApprovedStudies(
+        questionnaire?.study?.name, aApplication?.studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name
+    );
 }
 
 module.exports = {

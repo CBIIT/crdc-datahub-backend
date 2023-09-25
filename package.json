@@ -8,6 +8,7 @@
     "test": "jest"
   },
   "dependencies": {
+    "aws-sdk": "^2.1457.0",
     "connect-mongo": "^5.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.0.3",

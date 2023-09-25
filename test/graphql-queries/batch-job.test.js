@@ -9,11 +9,13 @@ const {EmailService} = require("../../services/email");
 const {NotifyUser} = require("../../services/notify-user");
 const {User} = require("../../crdc-datahub-database-drivers/services/user");
 const {Organization} = require("../../crdc-datahub-database-drivers/services/organization");
+const {ApprovedStudiesService} = require("../../services/approved-studies");
 jest.mock("../../crdc-datahub-database-drivers/mongodb-collection");
 jest.mock("../../crdc-datahub-database-drivers/mongo-queries.js");
 jest.mock("../../crdc-datahub-database-drivers/services/user");
 jest.mock("../../services/notify-user");
 const applicationCollection = new MongoDBCollection();
+const approvedStudyService = new ApprovedStudiesService(new MongoDBCollection());
 const userCollection = new MongoDBCollection();
 const logCollection = new MongoDBCollection();
 const orgCollection = new MongoDBCollection();
@@ -22,7 +24,7 @@ const emailService = new EmailService(config.email_transport, config.emails_enab
 const notificationsService = new NotifyUser(emailService);
 const userService = new User(userCollection);
 const organizationService = new Organization(orgCollection);
-const dataInterface = new Application(logCollection, applicationCollection, organizationService, userService, dbService, notificationsService, config.emails_url);
+const dataInterface = new Application(logCollection, applicationCollection, approvedStudyService, organizationService, userService, dbService, notificationsService, config.emails_url);
 
 describe('Batch Jobs test', () => {
 
