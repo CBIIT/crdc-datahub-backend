@@ -4,7 +4,7 @@ const config = require("../config");
 const {Application} = require("../services/application");
 const {MongoQueries} = require("../crdc-datahub-database-drivers/mongo-queries");
 const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, ORGANIZATION_COLLECTION, LOG_COLLECTION,
-    BATCH_COLLECTION
+    APPROVED_STUDIES_COLLECTION, BATCH_COLLECTION
 } = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoDBCollection} = require("../crdc-datahub-database-drivers/mongodb-collection");
 const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-connector");
@@ -12,6 +12,7 @@ const {EmailService} = require("../services/email");
 const {NotifyUser} = require("../services/notify-user");
 const {User} = require("../crdc-datahub-database-drivers/services/user");
 const {Organization} = require("../crdc-datahub-database-drivers/services/organization");
+const {ApprovedStudiesService} = require("../services/approved-studies");
 const {BatchService} = require("../services/batch-service");
 const {S3Service} = require("../crdc-datahub-database-drivers/services/s3-service");
 const {verifySession} = require("../verifier/user-info-verifier");
@@ -32,7 +33,10 @@ dbConnector.connect().then(() => {
     const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days};
     const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
     const userService = new User(userCollection, logCollection);
-    const dataInterface = new Application(logCollection, applicationCollection, new Organization(organizationCollection), userService, dbService, notificationsService, emailParams);
+
+    const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
+    const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection);
+    const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, new Organization(organizationCollection), userService, dbService, notificationsService, emailParams);
     root = {
         version: () => {return config.version},
         saveApplication: dataInterface.saveApplication.bind(dataInterface),
