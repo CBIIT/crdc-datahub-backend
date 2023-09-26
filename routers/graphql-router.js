@@ -68,7 +68,7 @@ dbConnector.connect().then(() => {
                 .verifyInitialized();
 
             // TODO permissions
-
+            // submissionID
             const s3Service = new S3Service();
             const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
             const batchService = new BatchService(s3Service, batchCollection, config.submission_aws_bucket_name);

@@ -34,11 +34,14 @@ class BatchService {
     }
 
     async listBatches(params, context) {
-        let pipeline = listBatchConditions(context.userInfo._id, context.userInfo?.role);
-        if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
-
+        let pipeline = listBatchConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization, params.submissionID);
+        if (params.orderBy) {
+            pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
+        }
         const pagination = [];
-        if (params.offset) pagination.push({"$skip": params.offset});
+        if (params.offset) {
+            pagination.push({"$skip": params.offset});
+        }
         const disablePagination = Number.isInteger(params.first) && params.first === -1;
         if (!disablePagination) {
             pagination.push({"$limit": params.first});
@@ -50,7 +53,7 @@ class BatchService {
 
         return await Promise.all(promises).then(function(results) {
             return {
-                applications: (results[0] || []).map((app)=>(app)),
+                batches: (results[0] || []).map((batch)=>(batch)),
                 total: results[1]?.length || 0
             }
         });
@@ -78,40 +81,45 @@ class BatchService {
 // General Users CAN NOT see any data submissions
 
 
-const listBatchConditions = (userID, userRole, aUserOrganization) => {
+const listBatchConditions = (userID, userRole, aUserOrganization, submissionID) => {
     // list all applications
-    const validBatchStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
-    const listAllBatchRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR];
-    if (listAllBatchRoles.includes(userRole)) return [{"$match": {...validBatchStatus}}];
-    // TODO search by applicant's user id
-    let conditions = [{$and: [{"applicant.applicantID": userID}, validBatchStatus]}];
-
-
-    const batchListConditions = [
-        { "$lookup": {
+    const applicationJoinConditions = [
+        {"$lookup": {
             from: APPLICATION_COLLECTION,
             localField: "submissionID",
             foreignField: "_id",
-            as: "joinedBatch"
+            as: "application"
         }},
-        { "$unwind": {
-            path: "$application",
-        }},
+        {"$unwind": {
+                path: "$application",
+        }}
+    ]
 
-    ];
-
-
-    // list batches listed by submission ID
-
-    // Curator
-
-    // TODO search by user's organization
-    if (userRole === USER.ROLES.ORG_OWNER && aUserOrganization?.orgID) {
-        conditions.push({$and: [{"organization._id": aUserOrganization.orgID}, validBatchStatus]})
+    const validBatchStatus = {"application.status": {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
+    const listAllBatchRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR];
+    if (listAllBatchRoles.includes(userRole)) {
+        return [...applicationJoinConditions, {"$match": {"submissionID": submissionID, ...validBatchStatus}}];
     }
 
-
-    return [{"$match": {"$or": conditions}}];
+    let conditions = [
+        // search by applicant's user id
+        {$and: [{"application.applicant.applicantID": userID}, validBatchStatus]}
+        // TODO customize and project queries
+        // {"$project" : {
+        //     "_id": 0,
+        //     "application.organization": 1,
+        //     "application.applicant": 1,
+        //     "submissionID": 1,
+        // }}
+    ];
+    // search by user's organization
+    if (userRole === USER.ROLES.ORG_OWNER && aUserOrganization?.orgID) {
+        conditions.push({$and: [{"application.organization._id": aUserOrganization.orgID}, validBatchStatus]})
+    }
+    // TODO Data Commons POC roles
+    return [
+        ...applicationJoinConditions,
+        {"$match": {"$or": conditions}}];
 }
 
 const createPrefix = (params, organization) => {
