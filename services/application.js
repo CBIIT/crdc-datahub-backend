@@ -392,12 +392,12 @@ class Application {
         }
         await this.notificationService.approveQuestionNotification(application?.applicant?.applicantEmail,
             // Organization Owner and concierge assigned/Super Admin
-            `${org_owner_email} ; ${cc_email}`,
+            `${org_owner_email} ${cc_email}`,
         {
             firstName: application?.applicant?.applicantName
         }, {
             study: application?.studyAbbreviation,
-            doc_url: doc_url,
+            doc_url: this.emailParams.url,
             contact_detail: contact_detail
         })
     }
