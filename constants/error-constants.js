@@ -12,7 +12,10 @@ const ERROR = {
     },
     INVALID_ROLE: "You do not have the correct role to perform this operation",
     INVALID_PERMISSION: "You do not have permission to view this application",
-    DUPLICATE_STUDY_ABBREVIATION: "Study abbreviation must be a unique value as it already exists in the database."
+    DUPLICATE_STUDY_ABBREVIATION: "Study abbreviation must be a unique value as it already exists in the database.",
+    // Approved Studies
+    APPROVED_STUDIES_INSERTION: "An error occurred while attempting to insert the approved studies into the database.",
+    FAILED_STORE_APPROVED_STUDIES: "The approved studies are not being stored because the questionnaire data string is not correctly parsed",
 }
 
 module.exports = ERROR;
