@@ -339,16 +339,14 @@ class Application {
 
     async sendEmailAfterApproveApplication(context, application) {
         // org owner email
-        let org = await this.organizationService.getOrganizationByID(application?.organization?._id);
         let org_owner_email = null
-        let org_owner_id = org?.owner
-        if(org_owner_id){
-            let org_owner = await this.userService.getUserByID(org_owner_id);
-            if(org_owner?.email){
-                org_owner_email = org_owner?.email
-            }
+        let orgOwner = await this.userService.getOrgOwner(application?.organization?._id)
+        for(let i of orgOwner){
+            org_owner_email = org_owner_email  + i.email + " ; "
         }
+        
         // concierge email
+        let org = await this.organizationService.getOrganizationByID(application?.organization?._id);
         let concierge_email = null
         let org_concierge_id = org?.concierges
         if(org_concierge_id){
@@ -370,8 +368,6 @@ class Application {
         }else{
             cc_email = admin_email
         }
-        // submission documentation 
-        let sub_doc_url = config.submission_doc_url
         // email body
         // doc_url 
         let doc_url
