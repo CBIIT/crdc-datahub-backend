@@ -14,6 +14,7 @@ router.get("/version", async (req, res, next) => {
     };
     if (!(await MongoDBHealthCheck(config.mongo_db_connection_string))) {
         body.error = ERROR.MONGODB_HEALTH_CHECK_FAILED;
+        res.status(503);
     }
     res.json(body);
 });
