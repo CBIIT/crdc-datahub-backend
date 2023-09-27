@@ -339,27 +339,22 @@ class Application {
 
     async sendEmailAfterApproveApplication(context, application) {
         // org owner email
-        let org_owner_email = null
+        let org_owner_email = ""
         let orgOwner = await this.userService.getOrgOwner(application?.organization?._id)
         for(let i of orgOwner){
-            org_owner_email = org_owner_email  + i.email + " ; "
+            org_owner_email  += i.email + " ; "
         }
-        
         // concierge email
-        let org = await this.organizationService.getOrganizationByID(application?.organization?._id);
-        let concierge_email = null
-        let org_concierge_id = org?.concierges
-        if(org_concierge_id){
-            let org_concierge = await this.userService.getUserByID(org_concierge_id);
-            if(org_concierge?.email){
-                concierge_email = org_concierge?.email
-            }
+        let concierge = await this.userService.getConcierge(application?.organization?._id)
+        let concierge_email = ""
+        for(let i of concierge){
+            concierge_email += i.email + " ; "
         }
         // admin email
         let admin_user = await this.userService.getAdmin();
         let admin_email = ""
         for(let i of admin_user){
-            admin_email = admin_email + " ; " + i.email
+            admin_email += i.email + " ; "
         }
         // cc emil
         let cc_email
@@ -368,6 +363,10 @@ class Application {
         }else{
             cc_email = admin_email
         }
+        
+        // submission documentation url
+        let sub_doc_url = this.emailParams.url
+
         // email body
         // doc_url 
         let doc_url
@@ -376,7 +375,7 @@ class Application {
         } else {
             doc_url = `review the submission documentation ${sub_doc_url}`
         }
-        // concierge_email = null
+
         // contact detail
         let contact_detail = `either your organization ${org_owner_email} or your CRDC Data Team member ${concierge_email}.`
         if(!org_owner_email &&!concierge_email ){
