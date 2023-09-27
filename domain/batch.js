@@ -17,7 +17,7 @@ class Batch {
     }
 
     addFile(name, size) {
-        const file = new BatchFile(name, size);
+        const file = new BatchFile(name, size, this.filePrefix);
         this.files.push(file)
     }
 
@@ -28,9 +28,12 @@ class Batch {
 }
 
 class BatchFile {
-    constructor(fileName, signedURL) {
+    constructor(fileName, size, signedURL, filePrefix) {
         this.fileName = fileName;
+        this.size = size;
         this.signedURL = signedURL;
+        this.filePrefix = filePrefix;
+        this.createdAt = this.updatedAt = getCurrentTime();
     }
 }
 

@@ -3,7 +3,6 @@ const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-consta
 const ERROR = require("../constants/error-constants");
 const {NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED} = require("../constants/application-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
-const {verifySession} = require("../verifier/user-info-verifier");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {APPLICATION_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 class BatchService {
