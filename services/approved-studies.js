@@ -23,7 +23,6 @@ class ApprovedStudiesService {
         // }
         const promises = [this.approvedStudiesCollection.aggregate(pipeline)]
         return await Promise.all(promises).then(function(results) {
-            console.log(results[0]);
             return results[0];
         });
     }
