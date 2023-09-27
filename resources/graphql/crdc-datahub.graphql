@@ -143,7 +143,7 @@ type ApprovedStudy {
     originalOrg: String # organization at the time of approval, can be absent if a submission request doesn't have an organization associated
     studyName: String
     studyAbbreviation: String # must be unique
-    dbGapID: String # aka. phs number
+    dbGaPID: String # aka. phs number
 }
 
 type Query {
