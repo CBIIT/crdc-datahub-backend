@@ -4,7 +4,7 @@ const config = require("../config");
 const {Application} = require("../services/application");
 const {MongoQueries} = require("../crdc-datahub-database-drivers/mongo-queries");
 const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, ORGANIZATION_COLLECTION, LOG_COLLECTION,
-    APPROVED_STUDIES_COLLECTION, BATCH_COLLECTION
+    APPROVED_STUDIES_COLLECTION, BATCH_COLLECTION, SUBMISSION_COLLECTION
 } = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoDBCollection} = require("../crdc-datahub-database-drivers/mongodb-collection");
 const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-connector");
@@ -19,6 +19,7 @@ const {verifySession} = require("../verifier/user-info-verifier");
 const {verifyBatch} = require("../verifier/batch-verifier");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const ERROR = require("../constants/error-constants");
+const {SubmissionService} = require("../crdc-datahub-database-drivers/services/submission-service");
 
 const schema = buildSchema(require("fs").readFileSync("resources/graphql/crdc-datahub.graphql", "utf8"));
 const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
@@ -61,7 +62,9 @@ dbConnector.connect().then(() => {
                 verifyBatch(params)
                     .metadataIntention([BATCH.INTENTION.NEW]);
             }
-            await verifyBatchPermission(dataInterface, dbConnector, params.submissionID, context.userInfo);
+            const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSION_COLLECTION);
+            const submissionService = new SubmissionService(submissionCollection)
+            await verifyBatchPermission(submissionService, dbConnector, params.submissionID, context.userInfo);
             const s3Service = new S3Service();
             const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
             const batchService = new BatchService(s3Service, batchCollection, config.submission_aws_bucket_name);
@@ -70,21 +73,21 @@ dbConnector.connect().then(() => {
     };
 });
 
-const verifyBatchPermission= async(applicationService, dbConnector, submissionID, userInfo) => {
+const verifyBatchPermission= async(submissionService, dbConnector, submissionID, userInfo) => {
     const collectionNames = [ORGANIZATION_COLLECTION, LOG_COLLECTION, USER_COLLECTION];
     const collections = collectionNames.map(name => new MongoDBCollection(dbConnector.client, DATABASE_NAME, name));
     const [organizationCollection, logCollection, userCollection] = collections;
     const organizationService = new Organization(organizationCollection);
     const userService = new User(userCollection, logCollection);
     // verify submission owner
-    const aApplication = await applicationService.getApplicationById(submissionID);
-    const applicantUserID = aApplication.applicant.applicantID;
+    const aSubmission = await submissionService.findByID(submissionID);
+    const applicantUserID = aSubmission._id;
     const aUser = await userService.getUserByID(applicantUserID);
     if (isPermittedUser(aUser, userInfo)) {
         return;
     }
-    // verify submission's organization owner
-    const aOrganization = await organizationService.getOrganizationByID(aApplication.organization._id);
+    // verify submission's organization owner by an organization name
+    const aOrganization = await organizationService.getOrganizationByName(aSubmission?.organization);
     const aOrgUser = await userService.getUserByID(aOrganization.owner);
     if (aOrganization && isPermittedUser(aOrgUser, userInfo)) {
         return;

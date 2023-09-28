@@ -3,6 +3,7 @@ const {v4} = require("uuid");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 class Batch {
     constructor(submissionID, bucketName, filePrefix, type, status, metadataIntention) {
+        this._id = v4();
         this.bucketName = bucketName;
         this.filePrefix = filePrefix;
         this.submissionID = submissionID;
