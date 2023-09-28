@@ -24,6 +24,7 @@ const ERROR = {
     FAILED_NEW_BATCH_INSERTION: "An error occurred while creating a new batch",
     NEW_BATCH_NO_ORGANIZATION: "The user attempting to create a batch does not have any organizational record",
     INVALID_BATCH_PERMISSION: "You do not have permission to run a batch operation",
+    SUBMISSION_NOT_EXIST: "The submission you are trying to access does not exist",
     // Approved Studies
     APPROVED_STUDIES_INSERTION: "An error occurred while attempting to insert the approved studies into the database.",
     FAILED_STORE_APPROVED_STUDIES: "The approved studies are not being stored because the questionnaire data string is not correctly parsed",

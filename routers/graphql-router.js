@@ -63,33 +63,36 @@ dbConnector.connect().then(() => {
                     .metadataIntention([BATCH.INTENTION.NEW]);
             }
             const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSION_COLLECTION);
-            const submissionService = new SubmissionService(submissionCollection)
+            const submissionService = new SubmissionService(submissionCollection);
             await verifyBatchPermission(submissionService, dbConnector, params.submissionID, context.userInfo);
             const s3Service = new S3Service();
             const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
             const batchService = new BatchService(s3Service, batchCollection, config.submission_aws_bucket_name);
-            return await batchService.createBatch(params, context);
+            return await batchService.createBatch(params, context?.userInfo?.organization?.orgName);
         }
     };
 });
 
 const verifyBatchPermission= async(submissionService, dbConnector, submissionID, userInfo) => {
-    const collectionNames = [ORGANIZATION_COLLECTION, LOG_COLLECTION, USER_COLLECTION];
+    const collectionNames = [LOG_COLLECTION, USER_COLLECTION];
     const collections = collectionNames.map(name => new MongoDBCollection(dbConnector.client, DATABASE_NAME, name));
-    const [organizationCollection, logCollection, userCollection] = collections;
-    const organizationService = new Organization(organizationCollection);
+    const [logCollection, userCollection] = collections;
     const userService = new User(userCollection, logCollection);
     // verify submission owner
     const aSubmission = await submissionService.findByID(submissionID);
-    const applicantUserID = aSubmission._id;
-    const aUser = await userService.getUserByID(applicantUserID);
+    if (!aSubmission) {
+        throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+    }
+    const aUser = await userService.getUserByID(aSubmission?.submitterID);
     if (isPermittedUser(aUser, userInfo)) {
         return;
     }
     // verify submission's organization owner by an organization name
-    const aOrganization = await organizationService.getOrganizationByName(aSubmission?.organization);
-    const aOrgUser = await userService.getUserByID(aOrganization.owner);
-    if (aOrganization && isPermittedUser(aOrgUser, userInfo)) {
+    const organizationOwners = await userService.getOrgOwnerByOrgName(aSubmission?.organization);
+    // organization owner only one
+    const aOrganizationOwner = organizationOwners?.length > 0 ? organizationOwners[0] : null;
+    const aOrgUser = (aOrganizationOwner) ? await userService.getUserByID(aOrganizationOwner?._id) : null;
+    if (aOrganizationOwner && isPermittedUser(aOrgUser, userInfo)) {
         return;
     }
     throw new Error(ERROR.INVALID_BATCH_PERMISSION);
