@@ -9,6 +9,7 @@ class Batch {
         this.submissionID = submissionID;
         this.type = type;
         this.status = status;
+        this.fileCount = 0;
         // Optional
         if (metadataIntention) {
             this.metadataIntention = metadataIntention;
@@ -17,9 +18,10 @@ class Batch {
         this.createdAt = this.updatedAt = getCurrentTime();
     }
 
-    addFile(name, size) {
-        const file = new BatchFile(name, size);
-        this.files.push(file)
+    addFile(name, size, signedURL) {
+        const file = new BatchFile(name, size, signedURL, this.filePrefix);
+        this.files.push(file);
+        this.fileCount += 1;
     }
 
     static createNewBatch(submissionID, bucketName, filePrefix, type, metadataIntention = null) {
@@ -29,9 +31,12 @@ class Batch {
 }
 
 class BatchFile {
-    constructor(fileName, signedURL) {
+    constructor(fileName, size, signedURL, filePrefix) {
         this.fileName = fileName;
+        this.size = size;
         this.signedURL = signedURL;
+        this.filePrefix = filePrefix;
+        this.createdAt = this.updatedAt = getCurrentTime();
     }
 }
 
