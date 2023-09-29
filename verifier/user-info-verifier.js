@@ -47,7 +47,7 @@ async function verifySubmitter(userInfo, submissionID, submissions, userService)
     if (!submissionID || !Object.values(submissionID)[0]) {
         throw new Error(ERROR.INVALID_SUBMISSION_EMPTY);
     }
-    submissionID = Object.values(submissionID)[0];
+    submissionID = (typeof submissionID == "string")? submissionID : Object.values(submissionID)[0];
     //console.debug(submissionID, "submissionID");
     const submission = await submissions.find(submissionID);
     //console.debug(submission, "submission");
