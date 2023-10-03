@@ -146,6 +146,16 @@ type ApprovedStudy {
     dbGapID: String # aka. phs number
 }
 
+type ListLogFiles {
+    [LogFile]
+}
+type LogFile {
+    fileName: String
+    uploadingType: String # [metadata, file]
+    downloadUrl: String #s3 presigned download url of the file
+    fileSzie: Int #size in byte
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -179,7 +189,9 @@ type Query {
         orderBy: String = "displayID",
         sortDirection: String = "DESC" # ["DESC", "ASC"]
     ): ListBatches
-    getBatch(batchID: ID!): Batch
+    
+    #Uploading log file queries
+    listLogs (submissionID: ID!) : ListLogFiles
 
     version: String
 }
