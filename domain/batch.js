@@ -34,7 +34,9 @@ class BatchFile {
     constructor(fileName, size, signedURL, filePrefix) {
         this.fileName = fileName;
         this.size = size;
-        this.signedURL = signedURL;
+        if (signedURL) {
+            this.signedURL = signedURL;
+        }
         this.filePrefix = filePrefix;
         this.createdAt = this.updatedAt = getCurrentTime();
     }

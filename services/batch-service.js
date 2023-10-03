@@ -19,6 +19,12 @@ class BatchService {
                     newBatch.addFile(file.fileName, file.size , signedURL);
                 }
             }));
+        } else {
+            params.files.forEach((file) => {
+                if (file.fileName) {
+                    newBatch.addFile(file.fileName, file.size);
+                }
+            });
         }
         const inserted = await this.batchCollection.insert(newBatch);
         if (!inserted?.acknowledged) {
