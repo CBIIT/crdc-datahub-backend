@@ -428,14 +428,14 @@ class Application {
             verifyBatch(params)
                 .metadataIntention([BATCH.INTENTION.NEW]);
         }
-        await verifyBatchPermission(this.submissionService, this.userService, params.submissionID, context.userInfo);
-        return await this.batchService.createBatch(params, context?.userInfo?.organization?.orgName);
+        const aSubmission = await this.submissionService.findByID(params.submissionID);
+        await verifyBatchPermission(this.userService, aSubmission, context.userInfo);
+        return await this.batchService.createBatch(params, aSubmission?.rootPath, context?.userInfo?.organization?.orgName);
     }
 }
 
-const verifyBatchPermission= async(submissionService, userService, submissionID, userInfo) => {
+const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
     // verify submission owner
-    const aSubmission = await submissionService.findByID(submissionID);
     if (!aSubmission) {
         throw new Error(ERROR.SUBMISSION_NOT_EXIST);
     }

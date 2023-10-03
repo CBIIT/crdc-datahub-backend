@@ -8,8 +8,8 @@ class BatchService {
         this.bucketName = bucketName;
     }
 
-    async createBatch(params, orgName) {
-        const prefix = createPrefix(params, orgName);
+    async createBatch(params, rootPath, orgName) {
+        const prefix = createPrefix(params, rootPath, orgName);
         const newBatch = Batch.createNewBatch(params.submissionID, this.bucketName, prefix, params.type, params?.metadataIntention);
         if (BATCH.TYPE.METADATA === params.type.toLowerCase()) {
             const submissionID = params.submissionID;
@@ -36,7 +36,10 @@ class BatchService {
 
 }
 
-const createPrefix = (params, orgName) => {
+const createPrefix = (params, rootPath, orgName) => {
+    if (rootPath) {
+        return rootPath;
+    }
     if (!orgName) {
         throw new Error(ERROR.NEW_BATCH_NO_ORGANIZATION);
     }
