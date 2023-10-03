@@ -21,6 +21,7 @@ const {User} = require("./crdc-datahub-database-drivers/services/user");
 const {Organization} = require("./crdc-datahub-database-drivers/services/organization");
 const {extractAndJoinFields} = require("./utility/string-util");
 const {ApprovedStudiesService} = require("./services/approved-studies");
+const {USER} = require("./crdc-datahub-database-drivers/constants/user-constants");
 // print environment variables to log
 console.info(config);
 
@@ -80,7 +81,7 @@ const runDeactivateInactiveUsers = async (userService, notificationsService) => 
     const nonLogUsers = await userService.findUsersExcludingEmailAndIDP(allUsersByEmailAndIDP);
     const inactiveUsers = await userService.getInactiveUsers(config.inactive_user_days);
     // merge and remove duplicate users
-    const inactiveUserConditions = [...new Map([...nonLogUsers, ...inactiveUsers].map((user) => [user.email + user.idp, user])).values()];
+    const inactiveUserConditions = [...new Map([...nonLogUsers, ...inactiveUsers].map((user) => [user.email + user.IDP, user])).values()];
     const disabledUsers = await userService.disableInactiveUsers(inactiveUserConditions);
     if (disabledUsers.length > 0) {
         // Email disabled user(s)
@@ -91,12 +92,20 @@ const runDeactivateInactiveUsers = async (userService, notificationsService) => 
         }));
         // Email admin(s)
         const adminUsers = await userService.getAdminUserEmails();
-        const users = disabledUsers.map(u => ({ ...u, organization: u?.organization?.name }));
-        const commaJoinedUsers = extractAndJoinFields(users, ["firstName", "lastName", "email", "role", "organization"]);
+        // This is for the organization in the email template.
+        const users = disabledUsers.map(u => ({ ...u, organization: u?.organization?.orgName }));
         await Promise.all(adminUsers.map(async (admin) => {
-            await notificationsService.inactiveUserAdminNotification(admin.email,
-                {firstName: admin.firstName,users: commaJoinedUsers},
-                {inactiveDays: config.inactive_user_days});
+            let disabledUserList = users;
+            // users filter by an organization or all users for admin
+            if (admin.role === USER.ROLES.ORG_OWNER) {
+                disabledUserList = users.filter((u)=> u && u?.organization === admin?.organization?.orgName);
+            }
+            if (disabledUserList.length > 0) {
+                const commaJoinedUsers = extractAndJoinFields(disabledUserList, ["firstName", "lastName", "email", "role", "organization"]);
+                await notificationsService.inactiveUserAdminNotification(admin.email,
+                    {firstName: admin.firstName,users: commaJoinedUsers},
+                    {inactiveDays: config.inactive_user_days});
+            }
         }));
     }
 }
