@@ -424,7 +424,7 @@ class Application {
             .notEmpty()
             .type([BATCH.TYPE.METADATA, BATCH.TYPE.FILE])
         // Optional metadata intention
-        if (params?.metadataIntention) {
+        if (params.type === BATCH.TYPE.METADATA) {
             verifyBatch(params)
                 .metadataIntention([BATCH.INTENTION.NEW]);
         }
@@ -445,15 +445,7 @@ const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
     }
     // verify submission's organization owner by an organization name
     const organizationOwners = await userService.getOrgOwnerByOrgName(aSubmission?.organization);
-    const orgUsers = [];
-    await Promise.all(organizationOwners.map(async (aOrgOwner) => {
-        const aUser = await userService.getUserByID(aOrgOwner?._id);
-        if (aUser) {
-            orgUsers.push(aUser);
-        }
-    }));
-
-    for (const aUser of orgUsers) {
+    for (const aUser of organizationOwners) {
         if (isPermittedUser(aUser, userInfo)) {
             return;
         }
