@@ -15,17 +15,6 @@ class ApprovedStudiesService {
             console.error(ERROR.APPROVED_STUDIES_INSERTION);
         }
     }
-    async listApprovedStudies(params, context) {
-        let pipeline = [{ $match: {} }];
-        // More filtering based on role may change later on in MVP-2
-        // if (context.userInfo?.role === "Submitter" || context.userInfo?.role === "Organization Owner"){
-        //     pipeline = [{"$match": {"originalOrg": context.userInfo?.organization.orgName}}];
-        // }
-        const promises = [this.approvedStudiesCollection.aggregate(pipeline)]
-        return await Promise.all(promises).then(function(results) {
-            return results[0];
-        });
-    }
 }
 
 class ApprovedStudies {
