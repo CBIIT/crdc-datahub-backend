@@ -445,11 +445,18 @@ const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
     }
     // verify submission's organization owner by an organization name
     const organizationOwners = await userService.getOrgOwnerByOrgName(aSubmission?.organization);
-    // organization owner only one
-    const aOrganizationOwner = organizationOwners?.length > 0 ? organizationOwners[0] : null;
-    const aOrgUser = (aOrganizationOwner) ? await userService.getUserByID(aOrganizationOwner?._id) : null;
-    if (aOrganizationOwner && isPermittedUser(aOrgUser, userInfo)) {
-        return;
+    const orgUsers = [];
+    await Promise.all(organizationOwners.map(async (aOrgOwner) => {
+        const aUser = await userService.getUserByID(aOrgOwner?._id);
+        if (aUser) {
+            orgUsers.push(aUser);
+        }
+    }));
+
+    for (const aUser of orgUsers) {
+        if (isPermittedUser(aUser, userInfo)) {
+            return;
+        }
     }
     throw new Error(ERROR.INVALID_BATCH_PERMISSION);
 }
