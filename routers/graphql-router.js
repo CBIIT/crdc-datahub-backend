@@ -50,6 +50,7 @@ dbConnector.connect().then(() => {
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
         deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
         createBatch: dataInterface.createBatch.bind(dataInterface),
+        listBatches: dataInterface.listBatches.bind(dataInterface)
     };
 });
 

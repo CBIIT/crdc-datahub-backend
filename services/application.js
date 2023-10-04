@@ -432,6 +432,12 @@ class Application {
         await verifyBatchPermission(this.userService, aSubmission, context.userInfo);
         return await this.batchService.createBatch(params, aSubmission?.rootPath, context?.userInfo?.organization?.orgName);
     }
+
+    async listBatches(params, context) {
+        verifySession(context)
+            .verifyInitialized();
+        return await this.batchService.listBatches(params, context);
+    }
 }
 
 const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
