@@ -53,7 +53,7 @@ class ApprovedStudies {
         this.studyName = studyName;
         this.studyAbbreviation = studyAbbreviation;
         if (dbGapID) {
-            this.dbGaPID = dbGapID;
+            this.dbGapID = dbGapID;
         }
         // Optional
         if (organizationName) {
