@@ -345,29 +345,22 @@ class Application {
 
     async sendEmailAfterApproveApplication(context, application) {
         // org owner email
-        let org = await this.organizationService.getOrganizationByID(application?.organization?._id);
-        let org_owner_email = null
-        let org_owner_id = org?.owner
-        if(org_owner_id){
-            let org_owner = await this.userService.getUserByID(org_owner_id);
-            if(org_owner?.email){
-                org_owner_email = org_owner?.email
-            }
+        let org_owner_email = ""
+        let orgOwner = await this.userService.getOrgOwner(application?.organization?._id)
+        for(let i of orgOwner){
+            org_owner_email  += i.email + " ; "
         }
         // concierge email
-        let concierge_email = null
-        let org_concierge_id = org?.concierges
-        if(org_concierge_id){
-            let org_concierge = await this.userService.getUserByID(org_concierge_id);
-            if(org_concierge?.email){
-                concierge_email = org_concierge?.email
-            }
+        let concierge = await this.userService.getConcierge(application?.organization?._id)
+        let concierge_email = ""
+        for(let i of concierge){
+            concierge_email += i.email + " ; "
         }
         // admin email
         let admin_user = await this.userService.getAdmin();
         let admin_email = ""
         for(let i of admin_user){
-            admin_email = admin_email + " ; " + i.email
+            admin_email += i.email + " ; "
         }
         // cc emil
         let cc_email
@@ -376,8 +369,10 @@ class Application {
         }else{
             cc_email = admin_email
         }
-        // submission documentation 
-        let sub_doc_url = config.submission_doc_url
+        
+        // submission documentation url
+        let sub_doc_url = this.emailParams.url
+
         // email body
         // doc_url 
         let doc_url
@@ -386,7 +381,7 @@ class Application {
         } else {
             doc_url = `review the submission documentation ${sub_doc_url}`
         }
-        // concierge_email = null
+
         // contact detail
         let contact_detail = `either your organization ${org_owner_email} or your CRDC Data Team member ${concierge_email}.`
         if(!org_owner_email &&!concierge_email ){
@@ -398,12 +393,12 @@ class Application {
         }
         await this.notificationService.approveQuestionNotification(application?.applicant?.applicantEmail,
             // Organization Owner and concierge assigned/Super Admin
-            `${org_owner_email} ; ${cc_email}`,
+            `${org_owner_email} ${cc_email}`,
         {
             firstName: application?.applicant?.applicantName
         }, {
             study: application?.studyAbbreviation,
-            doc_url: doc_url,
+            doc_url: this.emailParams.url,
             contact_detail: contact_detail
         })
     }
