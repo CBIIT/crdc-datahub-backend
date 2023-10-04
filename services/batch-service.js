@@ -53,38 +53,18 @@ class BatchService {
         }
         const promises = [
             await this.batchCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline),
-            await this.batchCollection.aggregate(pipeline)
+            // only get the total number of items
+            await this.batchCollection.aggregate(pipeline.concat([{$group: {_id: null, itemCount: { $sum: 1 }}}]))
         ];
 
         return await Promise.all(promises).then(function(results) {
             return {
                 batches: (results[0] || []).map((batch)=>(batch)),
-                total: results[1]?.length || 0
+                total: results[1]?.itemCount || 0
             }
         });
-
-        // listBatches(submissionID: ID!,
-        //     first: Int = 10,
-        //     offset: Int = 0,
-        // # in ["updatedAt", "createdAt", "displayID", "fileCount", "status", "errors"]
-        // orderBy: String = "displayID",
-        //     sortDirection: String = "DESC" # ["DESC", "ASC"]
-        // ): ListBatches
-
-        // return Promise.resolve(undefined);
     }
 }
-
-// Submission dashboard is role based access control
-// Admin, Fed Lead and Data Curator can see the batch transactions for all submission
-// Org Owner can see batch transactions for submissions associated with his/her own organization
-// Submitters can see batch transactions for his/her own submissions
-
-
-
-// Data Commons POC can see batch transactions for submissions associated with his/her Data Commons
-// General Users CAN NOT see any data submissions
-
 
 const listBatchConditions = (userID, userRole, aUserOrganization, submissionID) => {
     // list all applications
@@ -96,9 +76,9 @@ const listBatchConditions = (userID, userRole, aUserOrganization, submissionID) 
             as: "application"
         }},
         {"$unwind": {
-                path: "$application",
+            path: "$application",
         }}
-    ]
+    ];
 
     const validBatchStatus = {"application.status": {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
     const listAllBatchRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR];

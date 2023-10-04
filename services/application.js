@@ -436,8 +436,21 @@ class Application {
     async listBatches(params, context) {
         verifySession(context)
             .verifyInitialized();
+        await verifyBatchListPermission(this.submissionService, params?.submissionID, context.userInfo?.role);
         return await this.batchService.listBatches(params, context);
     }
+}
+
+const verifyBatchListPermission = async (submissionService, submissionID, userRole) => {
+    const aSubmission = await submissionService.findByID(submissionID);
+    if (!aSubmission) {
+        throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+    }
+    // TODO double check
+    if (aSubmission?.dataCommons && aSubmission.dataCommons === userRole) {
+        return;
+    }
+    throw new Error(ERROR.INVALID_BATCH_PERMISSION);
 }
 
 const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
