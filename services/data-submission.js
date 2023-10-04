@@ -23,19 +23,6 @@ class DataSubmission {
         this.emailParams = emailParams;
     }
 
-    async getDataSubmission(params, context) {
-        verifySession(context)
-            .verifyInitialized();
-        return await this.getApplicationById(params._id);
-    }
-
-    async getDataSubmissionById(id) {
-        let result = await this.dataSubmissionCollection.find(id);
-        if (!result?.length || result.length < 1) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
-        return result[0];
-    }
-
-
     async createDataSubmission(params, context) {
         verifySession(context)
             .verifyInitialized()
@@ -127,98 +114,6 @@ class DataSubmission {
                 total: results[1]?.length || 0
             }
         });
-    }
-
-    async deleteApplication(document, _) {
-        const deletedOne = await this.getApplicationById(document._id);
-        let result = null;
-        if (deletedOne && await this.dbService.deleteOne(DATA_SUBMISSION, {_id: document._id})) {
-            result = deletedOne[0];
-            // TODO update application status and log events
-        }
-        return result;
-    }
-
-
-
-    async deleteInactiveApplications(inactiveDays) {
-        const inactiveCondition = {
-            updatedAt: {
-                $lt: subtractDaysFromNow(inactiveDays)
-            },
-            status: {$in: [NEW, IN_PROGRESS, REJECTED]}
-        };
-        const applications = await this.applicationCollection.aggregate([{$match: inactiveCondition}]);
-        verifyApplication(applications)
-            .isUndefined();
-
-        if (applications?.length > 0) {
-            const history = HistoryEventBuilder.createEvent(0, DELETED, "Deleted because of no activities after submission");
-            const updated = await this.dbService.updateMany(DATA_SUBMISSION,
-                inactiveCondition,
-                {
-                    $set: {status: DELETED, updatedAt: history.dateTime},
-                    $push: {history}});
-            if (updated?.modifiedCount && updated?.modifiedCount > 0) {
-                console.log("Executed to delete application(s) because of no activities at " + getCurrentTime());
-                await this.emailInactiveApplicants(applications);
-                // log disabled applications
-                await Promise.all(applications.map(async (app) => {
-                    this.logCollection.insert(UpdateApplicationStateEvent.createByApp(app._id, app.status, DELETED));
-                }));
-            }
-        }
-    }
-
-    async emailInactiveApplicants(applications) {
-        // Store Owner's User IDs
-        let ownerIDsSet = new Set();
-        let userByOrgID = {};
-        await Promise.all(applications.map(async (app) => {
-            if (!app?.organization?._id) return [];
-            const org = await this.organizationService.getOrganizationByID(app.organization._id);
-            // exclude if user is already the owner's of the organization
-            if (org?.owner && !ownerIDsSet.has(org.owner) && app.applicant.applicantID !== org.owner) {
-                userByOrgID[org._id] = org.owner;
-                ownerIDsSet.add(org.owner);
-            }
-        }));
-        // Store Owner's email address
-        const orgOwners = {};
-        await Promise.all(
-            Object.keys(userByOrgID).map(async (orgID) => {
-                const user = await this.userService.getUser(userByOrgID[orgID]);
-                if (user) orgOwners[orgID] = user.email;
-            })
-        );
-        // Send Email Notification
-        await Promise.all(applications.map(async (app) => {
-            const emailsCCs = (orgOwners.hasOwnProperty(app?.organization?._id)) ? [orgOwners[app?.organization?._id]] : [];
-            await this.sendEmailAfterInactiveApplications(app?.applicant?.applicantEmail, emailsCCs, app?.applicant?.applicantName, app);
-        }));
-    }
-
-    // Email Notifications
-    async sendEmailAfterSubmitApplication(context, application) {
-        const programName = application?.programName?.trim() ?? "";
-        const associate = `the ${application?.studyAbbreviation} study` + (programName.length > 0 ? ` associated with the ${programName} program` : '');
-        await this.notificationService.submitQuestionNotification({
-            pi: `${context.userInfo.firstName} ${context.userInfo.lastName}`,
-            associate,
-            url: this.emailParams.url
-        })
-    }
-
-    async sendEmailAfterInactiveApplications(email, emailCCs, applicantName, application) {
-        await this.notificationService.inactiveApplicationsNotification(email, emailCCs,{
-            firstName: applicantName
-        },{
-            pi: `${applicantName}`,
-            study: application?.studyAbbreviation,
-            officialEmail: this.emailParams.officialEmail,
-            inactiveDays: this.emailParams.inactiveDays,
-            url: this.emailParams.url
-        })
     }
 
 
