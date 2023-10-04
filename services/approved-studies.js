@@ -17,7 +17,26 @@ class ApprovedStudiesService {
         }
     }
 
-   /**
+    /**
+     * List Approved Studies API Interface.
+     *
+     * Note:
+     * - This is currently an open API for all logged-in users
+     *   filtering on Organization is not implemented in MVP-2.
+     *
+     * @api
+     * @param {Object} params Endpoint parameters
+     * @param {{ cookie: Object, userInfo: Object }} context request context
+     * @returns {Promise<Object[]>} An array of ApprovedStudies
+     */
+    async listApprovedStudiesAPI(params, context) {
+        verifySession(context)
+          .verifyInitialized();
+
+        return this.listApprovedStudies({});
+    }
+
+    /**
      * List all approved studies in the collection. Supports filtering.
      *
      * @typedef {Object<string, any>} Filters K:V pairs of filters
@@ -26,25 +45,6 @@ class ApprovedStudiesService {
      */
     async listApprovedStudies(filters = {}) {
         return await this.approvedStudiesCollection.aggregate([{ "$match": filters }]);
-    }
-
-   /**
-     * List Approved Studies API Interface.
-     *
-     * Note:
-     * - This is currently an open API for all logged-in users
-     *   filtering on Organization is not currently implemented.
-     *
-     * @api
-     * @param {Object} params Endpoint parameters
-     * @param {{ cookie: Object, userInfo: Object }} context request context
-     * @returns {Promise<Object[]>} An array of Organizations
-     */
-    async listApprovedStudiesAPI(params, context) {
-      verifySession(context)
-        .verifyInitialized();
-
-      return this.listApprovedStudies({});
     }
 }
 
