@@ -17,7 +17,7 @@ const {verifyBatch} = require("../verifier/batch-verifier");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 
 class Application {
-    constructor(logCollection, applicationCollection, approvedStudiesService, submissionService, batchService, userService, dbService, notificationsService, emailParams) {
+    constructor(logCollection, applicationCollection, approvedStudiesService, submissionService, organizationService, batchService, userService, dbService, notificationsService, emailParams) {
         this.logCollection = logCollection;
         this.applicationCollection = applicationCollection;
         this.approvedStudiesService = approvedStudiesService;
@@ -27,6 +27,7 @@ class Application {
         this.emailParams = emailParams;
         this.submissionService = submissionService;
         this.batchService = batchService;
+        this.organizationService = organizationService;
     }
 
     async getApplication(params, context) {
@@ -429,8 +430,9 @@ class Application {
                 .metadataIntention([BATCH.INTENTION.NEW]);
         }
         const aSubmission = await this.submissionService.findByID(params.submissionID);
+        const aOrganization = await this.organizationService.getOrganizationByName(context?.userInfo?.organization?.orgName);
         await verifyBatchPermission(this.userService, aSubmission, context.userInfo);
-        return await this.batchService.createBatch(params, aSubmission?.rootPath, context?.userInfo?.organization?.orgName);
+        return await this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
     }
 }
 

@@ -15,6 +15,7 @@ const {ApprovedStudiesService} = require("../services/approved-studies");
 const {BatchService} = require("../services/batch-service");
 const {S3Service} = require("../crdc-datahub-database-drivers/services/s3-service");
 const {SubmissionService} = require("../crdc-datahub-database-drivers/services/submission-service");
+const {Organization} = require("../crdc-datahub-database-drivers/services/organization");
 
 const schema = buildSchema(require("fs").readFileSync("resources/graphql/crdc-datahub.graphql", "utf8"));
 const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
@@ -36,7 +37,10 @@ dbConnector.connect().then(() => {
     const s3Service = new S3Service();
     const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
     const batchService = new BatchService(s3Service, batchCollection, config.submission_aws_bucket_name);
-    const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, submissionService, batchService, userService, dbService, notificationsService, emailParams);
+
+    const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
+    const organizationService = new Organization(organizationCollection);
+    const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, submissionService, organizationService, batchService, userService, dbService, notificationsService, emailParams);
     root = {
         version: () => {return config.version},
         saveApplication: dataInterface.saveApplication.bind(dataInterface),
