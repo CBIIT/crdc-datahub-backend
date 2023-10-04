@@ -30,6 +30,10 @@ class BatchVerifier {
         if (!this.files||!this.files?.length || this.files.length === 0) {
             throw new Error(ERROR.VERIFY.EMPTY_BATCH_FILE);
         }
+
+        if (this.intention && this.intention === "") {
+            throw Error(ERROR.VERIFY.INVALID_BATCH_TYPE);
+        }
         return this;
     }
 
