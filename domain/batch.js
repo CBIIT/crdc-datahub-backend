@@ -3,11 +3,13 @@ const {v4} = require("uuid");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 class Batch {
     constructor(submissionID, bucketName, filePrefix, type, status, metadataIntention) {
+        this._id = v4();
         this.bucketName = bucketName;
         this.filePrefix = filePrefix;
         this.submissionID = submissionID;
         this.type = type;
         this.status = status;
+        this.fileCount = 0;
         // Optional
         if (metadataIntention) {
             this.metadataIntention = metadataIntention;
@@ -16,9 +18,10 @@ class Batch {
         this.createdAt = this.updatedAt = getCurrentTime();
     }
 
-    addFile(name, size) {
-        const file = new BatchFile(name, size, this.filePrefix);
-        this.files.push(file)
+    addFile(name, size, signedURL) {
+        const file = new BatchFile(name, size, signedURL, this.filePrefix);
+        this.files.push(file);
+        this.fileCount += 1;
     }
 
     static createNewBatch(submissionID, bucketName, filePrefix, type, metadataIntention = null) {
@@ -31,7 +34,9 @@ class BatchFile {
     constructor(fileName, size, signedURL, filePrefix) {
         this.fileName = fileName;
         this.size = size;
-        this.signedURL = signedURL;
+        if (signedURL) {
+            this.signedURL = signedURL;
+        }
         this.filePrefix = filePrefix;
         this.createdAt = this.updatedAt = getCurrentTime();
     }

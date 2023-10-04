@@ -4,12 +4,14 @@ const {TEST_APPLICATION} = require("../test-constants");
 const {MongoQueries} = require("../../crdc-datahub-database-drivers/mongo-queries");
 const config = require("../../config");
 const {DATABASE_NAME} = require("../../crdc-datahub-database-drivers/database-constants");
-const ERROR = require("../../constants/error-constants");
 const {EmailService} = require("../../services/email");
 const {NotifyUser} = require("../../services/notify-user");
 const {User} = require("../../crdc-datahub-database-drivers/services/user");
-const {Organization} = require("../../crdc-datahub-database-drivers/services/organization");
 const {ApprovedStudiesService} = require("../../services/approved-studies");
+const {SubmissionService} = require("../../crdc-datahub-database-drivers/services/submission-service");
+const {S3Service} = require("../../crdc-datahub-database-drivers/services/s3-service");
+const {BatchService} = require("../../services/batch-service");
+const ERROR = require("../../constants/error-constants");
 jest.mock("../../crdc-datahub-database-drivers/mongodb-collection");
 jest.mock("../../crdc-datahub-database-drivers/mongo-queries.js");
 jest.mock("../../crdc-datahub-database-drivers/services/user");
@@ -18,13 +20,18 @@ const applicationCollection = new MongoDBCollection();
 const approvedStudyService = new ApprovedStudiesService(new MongoDBCollection());
 const userCollection = new MongoDBCollection();
 const logCollection = new MongoDBCollection();
-const orgCollection = new MongoDBCollection();
 const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
 const emailService = new EmailService(config.email_transport, config.emails_enabled);
 const notificationsService = new NotifyUser(emailService);
 const userService = new User(userCollection);
-const organizationService = new Organization(orgCollection);
-const dataInterface = new Application(logCollection, applicationCollection, approvedStudyService, organizationService, userService, dbService, notificationsService, config.emails_url);
+
+const submissionCollection = new MongoDBCollection();
+const submissionService = new SubmissionService(submissionCollection);
+const s3Service = new S3Service();
+const batchCollection = new MongoDBCollection();
+const batchService = new BatchService(s3Service, batchCollection, config.submission_aws_bucket_name);
+const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days};
+const dataInterface = new Application(logCollection, applicationCollection, approvedStudyService,submissionService ,batchService, userService, dbService, notificationsService, emailParams);
 
 describe('Batch Jobs test', () => {
 
@@ -53,7 +60,7 @@ describe('Batch Jobs test', () => {
         applicationCollection.aggregate.mockImplementation(() => {
             return [];
         });
-        await dataInterface.deleteInactiveApplications(1);
+        await dataInterface.deleteInactiveApplications();
         expect(dbService.updateMany).toBeCalledTimes(0);
         expect(notificationsService.inactiveApplicationsNotification).toBeCalledTimes(0);
     });

@@ -12,17 +12,23 @@ class BatchService {
         this.bucketName = bucketName;
     }
 
-    async createBatch(params, context) {
-        const prefix = createPrefix(params, context?.userInfo?.organization);
+    async createBatch(params, rootPath, orgName) {
+        const prefix = createPrefix(params, rootPath, orgName);
         const newBatch = Batch.createNewBatch(params.submissionID, this.bucketName, prefix, params.type, params?.metadataIntention);
         if (BATCH.TYPE.METADATA === params.type.toLowerCase()) {
             const submissionID = params.submissionID;
             await Promise.all(params.files.map(async (file) => {
                 if (file.fileName) {
                     const signedURL = await this.s3Service.createPreSignedURL(this.bucketName, submissionID, file.fileName);
-                    newBatch.addFile(file.fileName, signedURL);
+                    newBatch.addFile(file.fileName, file.size , signedURL);
                 }
             }));
+        } else {
+            params.files.forEach((file) => {
+                if (file.fileName) {
+                    newBatch.addFile(file.fileName, file.size);
+                }
+            });
         }
         const inserted = await this.batchCollection.insert(newBatch);
         if (!inserted?.acknowledged) {
@@ -121,11 +127,14 @@ const listBatchConditions = (userID, userRole, aUserOrganization, submissionID) 
         {"$match": {"$or": conditions}}];
 }
 
-const createPrefix = (params, organization) => {
-    if (!organization?.orgID) {
+const createPrefix = (params, rootPath, orgName) => {
+    if (rootPath) {
+        return rootPath;
+    }
+    if (!orgName) {
         throw new Error(ERROR.NEW_BATCH_NO_ORGANIZATION);
     }
-    const prefixArray = [organization.orgID, params.submissionID];
+    const prefixArray = [orgName, params.submissionID];
     prefixArray.push(params.type === BATCH.TYPE.METADATA ? BATCH.TYPE.METADATA : BATCH.TYPE.FILE);
     return prefixArray.join("/");
 }
