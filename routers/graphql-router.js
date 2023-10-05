@@ -42,7 +42,8 @@ dbConnector.connect().then(() => {
         approveApplication: dataInterface.approveApplication.bind(dataInterface),
         rejectApplication: dataInterface.rejectApplication.bind(dataInterface),
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
-        deleteApplication: dataInterface.deleteApplication.bind(dataInterface)
+        deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
+        listApprovedStudies: approvedStudiesService.listApprovedStudiesAPI.bind(approvedStudiesService),
     };
 });
 
