@@ -66,7 +66,7 @@ class Submission {
             dataCommons: "CDS",
             modelVersion: "string for future use",
             studyAbbreviation: params.studyAbbreviation,
-            dbGapID: params.dbGapID,
+            dbGaPID: params.dbGaPID,
             // TODO: get bucket name, and rootPath from organization database
             bucketName: "get from database",
             rootPath: "organization/study?",
