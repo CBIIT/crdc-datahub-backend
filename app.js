@@ -71,6 +71,7 @@ cronJob.schedule(config.schedule_job, async () => {
         await runDeactivateInactiveUsers(userService, notificationsService);
         console.log("Running a scheduled background task to remind inactive application at " + getCurrentTime());
         await dataInterface.remindApplicationSubmission();
+        await dbConnector.disconnect();
     });
 });
 
