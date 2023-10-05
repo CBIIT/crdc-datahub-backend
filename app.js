@@ -10,7 +10,7 @@ const createSession = require("./crdc-datahub-database-drivers/session-middlewar
 const statusRouter = require("./routers/status-endpoints-router");
 const graphqlRouter = require("./routers/graphql-router");
 const {MongoDBCollection} = require("./crdc-datahub-database-drivers/mongodb-collection");
-const {DATABASE_NAME, APPLICATION_COLLECTION, DATA_SUBMISSIONS_COLLECTION, USER_COLLECTION, ORGANIZATION_COLLECTION, LOG_COLLECTION,
+const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, ORGANIZATION_COLLECTION, LOG_COLLECTION,
     APPROVED_STUDIES_COLLECTION
 } = require("./crdc-datahub-database-drivers/database-constants");
 const {Application} = require("./services/application");
@@ -57,7 +57,6 @@ cronJob.schedule(config.schedule_job, async () => {
     const notificationsService = new NotifyUser(emailService);
     dbConnector.connect().then( async () => {
         const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
-        const dataSubmissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_SUBMISSIONS_COLLECTION);
         const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
         const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
         const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days};

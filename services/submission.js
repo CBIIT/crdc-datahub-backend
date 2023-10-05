@@ -42,20 +42,20 @@ function listConditions(userID, userRole, aUserOrganization, params){
     return [{"$match": {"$or": conditions}}];
 };
 
-class DataSubmission {
-    constructor(logCollection, dataSubmissionCollection, organizationService, userService) {
+class Submission {
+    constructor(logCollection, submissionCollection, organizationService, userService) {
         this.logCollection = logCollection;
-        this.dataSubmissionCollection = dataSubmissionCollection;
+        this.submissionCollection = submissionCollection;
         this.organizationService = organizationService;
         this.userService = userService;
     }
 
-    async createDataSubmission(params, context) {
+    async createSubmission(params, context) {
         // TODO: Add this requirement: Study abbreviation must have an approved application within user's organization
         verifySession(context)
             .verifyInitialized()
             .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER]);
-        let dataSubmission = params.dataSubmission;
+        let submission = params.submission;
         const userInfo = context.userInfo;
         let newApplicationProperties = {
             _id: v4(),
@@ -78,15 +78,15 @@ class DataSubmission {
             updatedAt: getCurrentTime()
         };
 
-        dataSubmission = {
-            ...dataSubmission,
+        submission = {
+            ...submission,
             ...newApplicationProperties
         };
-        const res = await this.dataSubmissionCollection.insert(dataSubmission);
-        return dataSubmission;
+        const res = await this.submissionCollection.insert(submission);
+        return submission;
     }
 
-    async listDataSubmissions(params, context) {
+    async listSubmissions(params, context) {
         verifySession(context)
             .verifyInitialized();
         let pipeline = listConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization, params);
@@ -100,8 +100,8 @@ class DataSubmission {
             pagination.push({"$limit": params.first});
         }
         const promises = [
-            await this.dataSubmissionCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline),
-            await this.dataSubmissionCollection.aggregate(pipeline)
+            await this.submissionCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline),
+            await this.submissionCollection.aggregate(pipeline)
         ];
         
         return await Promise.all(promises).then(function(results) {
@@ -124,6 +124,6 @@ function formatApplicantName(userInfo){
 }
 
 module.exports = {
-    DataSubmission
+    Submission
 };
 
