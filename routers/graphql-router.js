@@ -46,6 +46,7 @@ dbConnector.connect().then(() => {
         rejectApplication: dataInterface.rejectApplication.bind(dataInterface),
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
         deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
+        listApprovedStudies: approvedStudiesService.listApprovedStudiesAPI.bind(approvedStudiesService),
         createSubmission: submissionInterface.createSubmission.bind(submissionInterface),
         listSubmissions:  submissionInterface.listSubmissions.bind(submissionInterface),
     };

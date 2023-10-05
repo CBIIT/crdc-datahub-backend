@@ -1,5 +1,6 @@
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const ERROR = require("../constants/error-constants");
+const { verifySession } = require('../verifier/user-info-verifier');
 
 class ApprovedStudiesService {
 
