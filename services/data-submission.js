@@ -1,47 +1,79 @@
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED} = require("../constants/data-submission-constants");
-const {DATA_SUBMISSIONS_COLLECTION: DATA_SUBMISSION} = require("../crdc-datahub-database-drivers/database-constants");
 const {v4} = require('uuid')
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifySession} = require("../verifier/user-info-verifier");
-const ERROR = require("../constants/error-constants");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
-const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
+const ALL_FILTER = "All";
+
+
+
+function listConditions(userID, userRole, aUserOrganization, params){
+    const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED]}};
+    // Default conditons are:
+    // Make sure application has valid status
+    let conditions = [{$and: [validApplicationStatus]}];
+    
+    // Filter on organization and status
+    if (params.organization !== ALL_FILTER) {
+        conditions[0].$and.push({"organization.name": params.organization});
+    }
+    if (params.status !== ALL_FILTER) {
+        conditions[0].$and.push({status: params.status});
+    }
+    // List all applications if Fed Lead / Admin / Data Concierge / Data Curator
+    const listAllApplicationRoles = [ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.DC_POC];
+    if (listAllApplicationRoles.includes(userRole)) {
+        return [{"$match": {"$or": conditions}}];
+    }
+    // If org owner, add condition to return all data submissions associated with their organization
+    if (userRole === ROLES.ORG_OWNER && aUserOrganization?.orgID) {
+        conditions[0].$and.push({"organization.name": aUserOrganization.orgName});
+        return [{"$match": {"$or": conditions}}];
+    }
+
+    // Add condition so submitters will only see their data submissions
+    // User's cant make submissions, so they will always have no submissions 
+    // search by applicant's user id
+    conditions[0].$and.push({"submitterID": userID});
+
+    return [{"$match": {"$or": conditions}}];
+};
 
 class DataSubmission {
-    constructor(logCollection, dataSubmissionCollection, organizationService, userService, dbService, notificationsService, emailParams) {
+    constructor(logCollection, dataSubmissionCollection, organizationService, userService) {
         this.logCollection = logCollection;
         this.dataSubmissionCollection = dataSubmissionCollection;
         this.organizationService = organizationService;
         this.userService = userService;
-        this.dbService = dbService;
-        this.notificationService = notificationsService;
-        this.emailParams = emailParams;
     }
 
     async createDataSubmission(params, context) {
+        // TODO: Add this requirement: Study abbreviation must have an approved application within user's organization
         verifySession(context)
             .verifyInitialized()
             .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER]);
-        let dataSubmission=params.dataSubmission;
-        let userInfo = context.userInfo;
+        let dataSubmission = params.dataSubmission;
+        const userInfo = context.userInfo;
         let newApplicationProperties = {
-            _id: v4(undefined, undefined, undefined),
+            _id: v4(),
             name: params.name,
             submitterID: userInfo._id,
             submitterName: formatApplicantName(userInfo),
-            organization: {_id:"testid", name: userInfo.organization.orgName},
+            organization: {_id: userInfo.organization.orgID, name: userInfo.organization.orgName},
             dataCommons: "CDS",
             modelVersion: "string for future use",
             studyAbbreviation: params.studyAbbreviation,
             dbGapID: params.dbGapID,
-            bucketName: "todo: get from database",
-            rootPath: "todo: organization/study?",
+            // TODO: get bucket name, and rootPath from organization database
+            bucketName: "get from database",
+            rootPath: "organization/study?",
             status: NEW,
             history: [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)],
-            concierge: "todo: get from database?",
+            // TODO: get conceirge data from organization database
+            concierge: "get from organization database?",
             createdAt: getCurrentTime(),
             updatedAt: getCurrentTime()
         };
@@ -51,47 +83,13 @@ class DataSubmission {
             ...newApplicationProperties
         };
         const res = await this.dataSubmissionCollection.insert(dataSubmission);
-        // if (res?.acknowledged) await this.logCollection.insert(CreateApplicationEvent.create(userInfo._id, userInfo.email, userInfo.IDP, dataSubmission._id));
         return dataSubmission;
-    }
-
-
-    listConditions(userID, userRole, aUserOrganization, params) {
-        const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED]}};
-        // Default conditons are:
-        // Make sure application has valid status
-        let conditions = [{$and: [validApplicationStatus]}];
-        
-        // Filter on organization and status
-        if (params.organization !== "All") {
-            conditions[0].$and.push({"organization.name": params.organization});
-        }
-        if (params.status !== "All") {
-            conditions[0].$and.push({status: params.status});
-        }
-        // List all applications if Fed Lead / Admin / Data Concierge / Data Curator
-        const listAllApplicationRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR, USER.ROLES.DC_POC];
-        if (listAllApplicationRoles.includes(userRole)) {
-            return [{"$match": {"$or": conditions}}];;
-        }
-        // If org owner, add condition to return all data submissions associated with their organization
-        if (userRole === USER.ROLES.ORG_OWNER && aUserOrganization?.orgID) {
-            conditions[0].$and.push({"organization.name": aUserOrganization.orgName});
-            return [{"$match": {"$or": conditions}}];;
-        }
-
-        // Add condition so submitters will only see their data submissions
-        // User's cant make submissions, so they will always have no submissions 
-        // search by applicant's user id
-        conditions[0].$and.push({"submitterID": userID});
-
-        return [{"$match": {"$or": conditions}}];
     }
 
     async listDataSubmissions(params, context) {
         verifySession(context)
             .verifyInitialized();
-        let pipeline = this.listConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization, params);
+        let pipeline = listConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization, params);
         // let pipeline = [];
         if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
 
