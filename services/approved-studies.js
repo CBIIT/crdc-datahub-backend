@@ -49,11 +49,11 @@ class ApprovedStudiesService {
 }
 
 class ApprovedStudies {
-    constructor(studyName, studyAbbreviation, dbGapID, organizationName) {
+    constructor(studyName, studyAbbreviation, dbGaPID, organizationName) {
         this.studyName = studyName;
         this.studyAbbreviation = studyAbbreviation;
-        if (dbGapID) {
-            this.dbGapID = dbGapID;
+        if (dbGaPID) {
+            this.dbGaPID = dbGaPID;
         }
         // Optional
         if (organizationName) {
