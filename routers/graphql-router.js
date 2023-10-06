@@ -28,7 +28,7 @@ dbConnector.connect().then(() => {
     const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
     const userService = new User(userCollection, logCollection);
     const dataInterface = new Application(logCollection, applicationCollection, submissionCollection, new Organization(organizationCollection), userService, dbService, notificationsService, emailParams);
-    const awsService = new AWSService(submissionCollection, userService, new Organization(organizationCollection))
+    const awsService = new AWSService(submissionCollection, userService, new Organization(organizationCollection));
     root = {
         version: () => {return config.version},
         saveApplication: dataInterface.saveApplication.bind(dataInterface),
