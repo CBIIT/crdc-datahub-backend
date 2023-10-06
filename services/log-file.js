@@ -1,22 +1,44 @@
-const AWS = require('aws-sdk');
-require('aws-sdk/lib/maintenance_mode_message').suppress = true;
 const path = require("path");
 const config = require('../config');
+const {AWSService} = require("./aws-request");
+const {verifySession, verifySubmitter} = require("../verifier/user-info-verifier");
+const {getSubmisssionRootPath} = require("../utility/string-util")
+
 /**
  * This class provides services to list log files based on submission Id
  */
 const UPLOAD_TYPES = {FILE: 'file', MEATDATA: 'metadata'};
-const LOG_FILE_EXT ='.log';
 const LOG_DIR = 'log';
-const S3_GET = 'getObject';
-const S3_KEY = 'Key';
-const S3_SIZE= 'Size'
-const S3_CONTENTS = 'Contents'
-
+const LOG_FILE_EXT ='.log';
 class LogService {
-    constructor(bucket, rootPath){
-        this.bucket = bucket;
-        this.rootPath = rootPath;
+    constructor(submissionCollection, organizationService, userService) {
+        this.organizationService = organizationService;
+        this.userService = userService;
+        this.submissions = submissionCollection;
+        this.aws = new AWSService(null, null, null);
+    }
+    /**
+     * API to get list of upload log files
+     * @param {*} params 
+     * @param {*} context 
+     * @returns filelist []
+     */
+    async listLogs(params, context){
+        //1) verify session
+        verifySession(context)
+            .verifyInitialized();
+        //2) verify submitter
+        const submission = await verifySubmitter(context.userInfo, params?.submissionID, this.submissions, this.userService);
+        //3) get upload log files
+        const rootPath = await getSubmisssionRootPath(submission, this.organizationService);
+        try {
+            const fileList = await getLogFiles(config.submission_aws_bucket_name, rootPath);
+            return {logFiles: fileList} 
+        }
+        catch(err)
+        {
+            throw new Error(`${ERROR.FAILED_LIST_LOG}, ${params.submissionID}! ${err}`);
+        }
     }
     /**
      * 
@@ -24,19 +46,12 @@ class LogService {
      * @param {*} context 
      * @returns fileList []
      */
-    async getLogList(){
-        let fileList = [];
-        const s3 = new AWS.S3();
-        //get file upload log
-        let params = this.getS3Params(UPLOAD_TYPES.FILE);   
-        let file = await getLogfile(s3, params, UPLOAD_TYPES.FILE);
-        if(file) fileList.push(file);
-
-        //get metadata upload log
-        params = this.getS3Params(UPLOAD_TYPES.MEATDATA);
-        let file1 = await getLogfile(s3, params, UPLOAD_TYPES.MEATDATA);
-        if(file1) fileList.push(file1);
-
+    async getLogFiles(bucket, rootPath){
+        let fileList = []; 
+        for (type in UPLOAD_TYPES){
+            let file = await this.aws.getLastFileFromS3(bucket, `${rootPath}/${type}/${LOG_DIR}`, LOG_FILE_EXT);
+            if(file) fileList.push(file);
+        }
         return fileList;
     }
    
@@ -53,50 +68,7 @@ class LogService {
         //3) call aws s3 list objects based on the path.
         return file;
     }
-
-    getS3Params(uploadType){
-        return {
-            Bucket: this.bucket,
-            Delimiter: '/',
-            Prefix: `${this.rootPath}/${uploadType}/${LOG_DIR}/`
-        };
-    }
 }
-
-async  function getLogfile(s3, params, uploadType){
-    const data = await s3.listObjects(params).promise();
-    const files = data[S3_CONTENTS].filter(k=>k[S3_KEY].indexOf(LOG_FILE_EXT)> 0)
-    if(files.length > 0)
-    {
-        const lastFile = files[files.length-1];
-        let key = lastFile[S3_KEY];
-        let fileName = path.basename(key);
-        let downloadUrl = await createDownloadURL(s3, params.Bucket, key);
-        let size = lastFile[S3_SIZE];
-        return {fileName: fileName, uploadType: uploadType, downloadUrl: downloadUrl, fileSize: size};
-    }
-    else return null;
-}
-
-async  function createDownloadURL(s3, bucketName, key) {
-    let expiration = (config.presign_expration && /^[0-9]*$/.test(config.presign_expration))? 
-        parseInt(config.presign_expration):3600; //defult value is 1 hour
-    const params = {
-        Bucket: bucketName,
-        Key: `${key}`,
-        Expires: expiration, 
-    };
-    return new Promise((resolve, reject) => {
-        s3.getSignedUrl(S3_GET, params, (error, url) => {
-            if (error) {
-                reject(error);
-            } else {
-                resolve(url);
-            }
-        });
-    });  
-}
-
 
 module.exports = {
     LogService

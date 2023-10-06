@@ -26,13 +26,13 @@ class UserInfoVerifier {
 
 }
 
-function verifyApiToken(context, config){
+function verifyApiToken(context, token_secret){
     const token = context[API_TOKEN];
     if(!token) {
         throw new Error(ERROR.INVALID_TOKEN_EMPTY);
     }
     //extract userInfo in the token
-    const userInfo = decodeToken(token, config.token_secret);
+    const userInfo = decodeToken(token, token_secret);
     if(!userInfo) {
         throw new Error(ERROR.INVALID_TOKEN_NO_USER);
     }
