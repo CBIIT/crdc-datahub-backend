@@ -33,7 +33,7 @@ const ERROR = {
     CREATE_SUBMISSION_INSERTION_ERROR: "An error occured while attempting to insert the created data submission into the database",
     CREATE_SUBMISSION_INVALID_PARAMS: "One or more of the parameters for creating a submission is invalid",
     // List Submissions
-    LIST_SUBMISSION_INVALID_STATUS_FILTER: "The status filter is invalid"
+    LIST_SUBMISSION_INVALID_STATUS_FILTER: "The status filter is invalid",
     DUPLICATE_STUDY_ABBREVIATION: "Study abbreviation must be a unique value as it already exists in the database."
 }
 

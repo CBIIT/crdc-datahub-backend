@@ -5,7 +5,7 @@ const {Application} = require("../services/application");
 const {Submission} = require("../services/submission");
 const {MongoQueries} = require("../crdc-datahub-database-drivers/mongo-queries");
 const {DATABASE_NAME, APPLICATION_COLLECTION, SUBMISSIONS_COLLECTION, USER_COLLECTION, ORGANIZATION_COLLECTION, LOG_COLLECTION,
-    APPROVED_STUDIES_COLLECTION
+    APPROVED_STUDIES_COLLECTION, BATCH_COLLECTION
 } = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoDBCollection} = require("../crdc-datahub-database-drivers/mongodb-collection");
 const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-connector");
@@ -24,7 +24,7 @@ const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
 let root;
 dbConnector.connect().then(() => {
     const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
-    const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
+
     const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
     const emailService = new EmailService(config.email_transport, config.emails_enabled);
     const notificationsService = new NotifyUser(emailService);
@@ -34,6 +34,7 @@ dbConnector.connect().then(() => {
 
     const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
     const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection);
+    const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
     const submissionService = new SubmissionService(submissionCollection);
     const s3Service = new S3Service();
     const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
