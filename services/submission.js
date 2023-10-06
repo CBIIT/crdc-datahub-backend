@@ -31,7 +31,8 @@ function listConditions(userID, userRole, aUserOrganization, params){
     }
     // If org owner, add condition to return all data submissions associated with their organization
     if (userRole === ROLES.ORG_OWNER && aUserOrganization?.orgName) {
-        conditions[0].$and.push({"organization.name": aUserOrganization.orgName});
+        conditions = {...conditions, "organization.name": aUserOrganization.orgName};
+        
         return [{"$match": conditions}];
     }
 
