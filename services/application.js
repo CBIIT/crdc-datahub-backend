@@ -11,6 +11,7 @@ const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mon
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
+const {LogService} = require("./log-file");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const config = require('../config');
 
@@ -424,31 +425,68 @@ class Application {
             sessionToken: String
         }
      */
-    async createTempCredentials(submissionID, context) {
+    async createTempCredentials(params, context) {
         //1. verify token and decode token to get user info
         const userInfo = verifyApiToken(context, config);
         //verify submitter
-        await verifySubmitter(userInfo, submissionID, this.submissions, this.userService);
+        await verifySubmitter(userInfo, params?.submissionID, this.submissions, this.userService);
         //2. create temp credential
         // Initialize an STS object
         const sts = new AWS.STS();
-        return new Promise((resolve, reject) => {
-            const timestamp = (new Date()).getTime();
-            const params = {
-                RoleArn: config.role_arn,
-                RoleSessionName: `Temp_Session_${timestamp}`
-            };
-            sts.assumeRole(params, (err, data) => {
+        const timestamp = (new Date()).getTime();
+        const s3Params = {
+            RoleArn: config.role_arn,
+            RoleSessionName: `Temp_Session_${timestamp}`
+        };
+        return new Promise((resolve, reject) => {     
+            sts.assumeRole(s3Params, (err, data) => {
                 if (err) reject(err);
                 else {
-                resolve({
-                    accessKeyId: data.Credentials.AccessKeyId,
-                    secretAccessKey: data.Credentials.SecretAccessKey,
-                    sessionToken: data.Credentials.SessionToken,
-                });
+                    resolve({
+                        accessKeyId: data.Credentials.AccessKeyId,
+                        secretAccessKey: data.Credentials.SecretAccessKey,
+                        sessionToken: data.Credentials.SessionToken,
+                    });
                 }
             });
-            });
+        });
+    }
+    /**
+     * API to get list of upload log files
+     * @param {*} params 
+     * @param {*} context 
+     * @returns filelist []
+     */
+    async listLogs(params, context){
+        //1) verify session
+        verifySession(context)
+            .verifyInitialized();
+        //2) verify submitter
+        const submission = await verifySubmitter(context.userInfo, params?.submissionID, this.submissions, this.userService);
+        //3) get upload log files
+        //getUploadLogList(bucket, rootPath, orgId, submissionId)
+        let rootPath = submission.rootPath;
+        if(!rootPath){
+            let orgId = null;
+            if(typeof submission.organization != "string"){
+                orgId =submission.organization._id
+            }   
+            else{
+                const org = await this.organizationService.getOrganizationByName(submission.organization);
+                orgId = org._id;
+            }
+                
+            rootPath = `${orgId}/${params.submissionID}`;
+        }
+        const logService = new LogService(config.submission_aws_bucket_name, rootPath);
+        try {
+            const fileList = await logService.getLogList();
+            return {logFiles: fileList} 
+        }
+        catch(err)
+        {
+            throw new Error(`${ERROR.FAILED_LIST_LOG}, ${params.submissionID}! ${err}`);
+        }
     }
 }
 

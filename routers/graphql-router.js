@@ -38,7 +38,8 @@ dbConnector.connect().then(() => {
         rejectApplication: dataInterface.rejectApplication.bind(dataInterface),
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
         deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
-        createTempCredentials: dataInterface.createTempCredentials.bind(dataInterface)
+        createTempCredentials: dataInterface.createTempCredentials.bind(dataInterface),
+        listLogs: dataInterface.listLogs.bind(dataInterface) 
     };
 });
 

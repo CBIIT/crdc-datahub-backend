@@ -44,10 +44,9 @@ function verifyApiToken(context, config){
 }
 
 async function verifySubmitter(userInfo, submissionID, submissions, userService){
-    if (!submissionID || !Object.values(submissionID)[0]) {
+    if (!submissionID) {
         throw new Error(ERROR.INVALID_SUBMISSION_EMPTY);
     }
-    submissionID = (typeof submissionID == "string")? submissionID : Object.values(submissionID)[0];
     const submission = await submissions.find(submissionID);
     if (!submission || submission.length == 0) {
         throw new Error(`${ERROR.INVALID_SUBMISSION_NOT_FOUND}, ${submissionID}!`);
@@ -55,7 +54,9 @@ async function verifySubmitter(userInfo, submissionID, submissions, userService)
     //3. verify if user is submitter or organization owner
     if(userInfo._id != submission[0].submitterID) {
         //check if the user is org owner of submitter
-        const orgOwners = await userService.getOrgOwnerByOrgName(submission[0].organization);
+        let orgName = submission[0].organization;
+        orgName = (typeof orgName == "string")? orgName : orgName.name;
+        const orgOwners = await userService.getOrgOwnerByOrgName(orgName);
         if(!orgOwners || orgOwners.length == 0) {
             throw new Error(`${ERROR.INVALID_SUBMITTER}, ${submissionID}!`);
         }
@@ -64,7 +65,7 @@ async function verifySubmitter(userInfo, submissionID, submissions, userService)
             throw new Error(`${ERROR.INVALID_SUBMITTER}, ${submissionID}!`);
         }
     }
-    return true;
+    return submission[0];
 }
 module.exports = {
     verifySession,

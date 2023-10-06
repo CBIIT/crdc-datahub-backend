@@ -32,7 +32,8 @@ let config = {
     submission_system_portal: "https://datacommons.cancer.gov/",
 
     //aws sts assume role
-    role_arn: process.env.ROLE_ARN
+    role_arn: process.env.ROLE_ARN,
+    presign_expration: process.env.PRESIGN_EXPIRATION
 };
 config.mongo_db_connection_string = `mongodb://${config.mongo_db_user}:${config.mongo_db_password}@${config.mongo_db_host}:${process.env.MONGO_DB_PORT}`;
 

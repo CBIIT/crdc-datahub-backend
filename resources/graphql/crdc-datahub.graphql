@@ -147,13 +147,13 @@ type ApprovedStudy {
 }
 
 type ListLogFiles {
-    [LogFile]
+    logFiles: [LogFile]
 }
 type LogFile {
     fileName: String
-    uploadingType: String # [metadata, file]
+    uploadType: String # [metadata, file]
     downloadUrl: String #s3 presigned download url of the file
-    fileSzie: Int #size in byte
+    fileSize: Int #size in byte
 }
 
 type Query {
@@ -190,7 +190,7 @@ type Query {
         sortDirection: String = "DESC" # ["DESC", "ASC"]
     ): ListBatches
     
-    #Uploading log file queries
+    #upload log queries
     listLogs (submissionID: ID!) : ListLogFiles
 
     version: String
