@@ -15,32 +15,30 @@ function listConditions(userID, userRole, aUserOrganization, params){
     const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED]}};
     // Default conditons are:
     // Make sure application has valid status
-    let conditions = [{$and: [validApplicationStatus]}];
-    
+    let conditions = {...validApplicationStatus};
     // Filter on organization and status
     if (params.organization !== ALL_FILTER) {
-        conditions[0].$and.push({"organization.name": params.organization});
+        conditions = {...conditions, "organization.name": params.organization};
     }
     if (params.status !== ALL_FILTER) {
-        conditions[0].$and.push({status: params.status});
+        conditions = {...conditions, status: params.status};
     }
     // List all applications if Fed Lead / Admin / Data Concierge / Data Curator
     const listAllApplicationRoles = [ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.DC_POC];
     if (listAllApplicationRoles.includes(userRole)) {
-        return [{"$match": {"$or": conditions}}];
+        return [{"$match": conditions}];
     }
     // If org owner, add condition to return all data submissions associated with their organization
     if (userRole === ROLES.ORG_OWNER && aUserOrganization?.orgName) {
         conditions[0].$and.push({"organization.name": aUserOrganization.orgName});
-        return [{"$match": {"$or": conditions}}];
+        return [{"$match": conditions}];
     }
 
     // Add condition so submitters will only see their data submissions
     // User's cant make submissions, so they will always have no submissions 
     // search by applicant's user id
-    conditions[0].$and.push({"submitterID": userID});
-
-    return [{"$match": {"$or": conditions}}];
+    conditions = {...conditions, "submitterID": userID};
+    return [{"$match": conditions}];
 }
 
 class Submission {
