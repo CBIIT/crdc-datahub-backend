@@ -15,6 +15,7 @@ const config = require('../config');
 const {parseJsonString} = require("../crdc-datahub-database-drivers/utility/string-utility");
 const {verifyBatch} = require("../verifier/batch-verifier");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
+const {formatName} = require("../utility/format-name");
 
 class Application {
     constructor(logCollection, applicationCollection, approvedStudiesService, submissionService, organizationService, batchService, userService, dbService, notificationsService, emailParams) {
@@ -81,7 +82,7 @@ class Application {
             status: NEW,
             applicant: {
                 applicantID: userInfo._id,
-                applicantName: formatApplicantName(userInfo),
+                applicantName: formatName(userInfo),
                 applicantEmail: userInfo.email
             },
             organization: {
@@ -457,14 +458,6 @@ const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
 
 const isPermittedUser = (aTargetUser, userInfo) => {
     return aTargetUser?.email === userInfo.email && aTargetUser?.IDP === userInfo.IDP
-}
-
-function formatApplicantName(userInfo){
-    if (!userInfo) return "";
-    let firstName = userInfo?.firstName || "";
-    let lastName = userInfo?.lastName || "";
-    lastName = lastName.trim();
-    return firstName + (lastName.length > 0 ? " "+lastName : "");
 }
 
 function verifyReviewerPermission(context){

@@ -2,9 +2,10 @@ const {buildSchema} = require('graphql');
 const {createHandler} = require("graphql-http/lib/use/express");
 const config = require("../config");
 const {Application} = require("../services/application");
+const {Submission} = require("../services/submission");
 const {MongoQueries} = require("../crdc-datahub-database-drivers/mongo-queries");
-const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, ORGANIZATION_COLLECTION, LOG_COLLECTION,
-    APPROVED_STUDIES_COLLECTION, BATCH_COLLECTION, SUBMISSIONS_COLLECTION
+const {DATABASE_NAME, APPLICATION_COLLECTION, SUBMISSIONS_COLLECTION, USER_COLLECTION, ORGANIZATION_COLLECTION, LOG_COLLECTION,
+    APPROVED_STUDIES_COLLECTION
 } = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoDBCollection} = require("../crdc-datahub-database-drivers/mongodb-collection");
 const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-connector");
@@ -23,6 +24,7 @@ const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
 let root;
 dbConnector.connect().then(() => {
     const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
+    const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
     const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
     const emailService = new EmailService(config.email_transport, config.emails_enabled);
     const notificationsService = new NotifyUser(emailService);
@@ -32,7 +34,6 @@ dbConnector.connect().then(() => {
 
     const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
     const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection);
-    const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
     const submissionService = new SubmissionService(submissionCollection);
     const s3Service = new S3Service();
     const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
@@ -41,6 +42,7 @@ dbConnector.connect().then(() => {
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
     const organizationService = new Organization(organizationCollection);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, submissionService, organizationService, batchService, userService, dbService, notificationsService, emailParams);
+    const submissionInterface = new Submission(logCollection, submissionCollection, new Organization(organizationCollection), userService, dbService, notificationsService, emailParams);
     root = {
         version: () => {return config.version},
         saveApplication: dataInterface.saveApplication.bind(dataInterface),
@@ -55,6 +57,8 @@ dbConnector.connect().then(() => {
         deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
         listApprovedStudies: approvedStudiesService.listApprovedStudiesAPI.bind(approvedStudiesService),
         createBatch: dataInterface.createBatch.bind(dataInterface),
+        createSubmission: submissionInterface.createSubmission.bind(submissionInterface),
+        listSubmissions:  submissionInterface.listSubmissions.bind(submissionInterface),
     };
 });
 

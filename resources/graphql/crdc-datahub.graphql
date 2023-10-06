@@ -54,11 +54,10 @@ type ListSubmissions {
 
 type Submission {
     _id: ID # aka. submissionID
-    displayID: ID # minimum 6 digit integer with leading zeros, can have more digits
     name: String
     submitterID: ID
     submitterName: String # <first name> <last name>
-    organization: String
+    organization: Organization
     dataCommons: String
     modelVersion: String # for future use
     studyAbbreviation: String
@@ -166,7 +165,7 @@ type Query {
         status: String,
         first: Int = 10,
         offset: Int = 0,
-        # ["updatedAt", "createdAt", "displayID", "name", "dataCommons", "organization", "studyAbbreviation",
+        # ["updatedAt", "createdAt", "name", "dataCommons", "organization", "studyAbbreviation",
         #              "dbGaPID", "status", "concierge"]
         orderBy: String = "updatedAt",
         sortDirection: String = "DESC"): ListSubmissions
