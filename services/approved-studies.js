@@ -69,4 +69,4 @@ class ApprovedStudies {
 
 module.exports = {
     ApprovedStudiesService
-} 
+}
