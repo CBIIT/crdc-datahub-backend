@@ -49,7 +49,7 @@ class ApprovedStudiesService {
 }
 
 class ApprovedStudies {
-    constructor(studyName, studyAbbreviatin, dbGaPID, organizationName) {
+    constructor(studyName, studyAbbreviation, dbGaPID, organizationName) {
         this.studyName = studyName;
         this.studyAbbreviation = studyAbbreviation;
         if (dbGaPID) {
