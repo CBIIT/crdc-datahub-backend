@@ -53,11 +53,9 @@ dbConnector.connect().then(() => {
         rejectApplication: dataInterface.rejectApplication.bind(dataInterface),
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
         deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
-        createBatch: dataInterface.createBatch.bind(dataInterface),
+        listApprovedStudies: approvedStudiesService.listApprovedStudiesAPI.bind(approvedStudiesService),
     };
 });
-
-
 
 module.exports = (req, res) => {
     createHandler({
