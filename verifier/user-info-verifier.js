@@ -1,5 +1,5 @@
 const ERROR = require("../constants/error-constants");
-const {API_TOKEN} = require("../constants/application-constants");
+const {API_TOKEN} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {decodeToken} = require("../crdc-datahub-database-drivers/services/tokenizer");
 
 function verifySession(context){
@@ -26,13 +26,13 @@ class UserInfoVerifier {
 
 }
 
-function verifyApiToken(context, config){
+function verifyApiToken(context, token_secret){
     const token = context[API_TOKEN];
     if(!token) {
         throw new Error(ERROR.INVALID_TOKEN_EMPTY);
     }
     //extract userInfo in the token
-    const userInfo = decodeToken(token, config.token_secret);
+    const userInfo = decodeToken(token, token_secret);
     if(!userInfo) {
         throw new Error(ERROR.INVALID_TOKEN_NO_USER);
     }
@@ -44,18 +44,19 @@ function verifyApiToken(context, config){
 }
 
 async function verifySubmitter(userInfo, submissionID, submissions, userService){
-    if (!submissionID || !Object.values(submissionID)[0]) {
+    if (!submissionID) {
         throw new Error(ERROR.INVALID_SUBMISSION_EMPTY);
     }
-    submissionID = (typeof submissionID == "string")? submissionID : Object.values(submissionID)[0];
     const submission = await submissions.find(submissionID);
     if (!submission || submission.length == 0) {
         throw new Error(`${ERROR.INVALID_SUBMISSION_NOT_FOUND}, ${submissionID}!`);
     }
     //3. verify if user is submitter or organization owner
     if(userInfo._id != submission[0].submitterID) {
+        const org = submission[0].organization;
+        const orgName = (typeof org == "string")? org: org.name;
         //check if the user is org owner of submitter
-        const orgOwners = await userService.getOrgOwnerByOrgName(submission[0].organization);
+        const orgOwners = await userService.getOrgOwnerByOrgName(orgName);
         if(!orgOwners || orgOwners.length == 0) {
             throw new Error(`${ERROR.INVALID_SUBMITTER}, ${submissionID}!`);
         }
@@ -64,7 +65,7 @@ async function verifySubmitter(userInfo, submissionID, submissions, userService)
             throw new Error(`${ERROR.INVALID_SUBMITTER}, ${submissionID}!`);
         }
     }
-    return true;
+    return submission[0];
 }
 module.exports = {
     verifySession,

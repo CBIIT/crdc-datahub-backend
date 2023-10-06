@@ -5,4 +5,4 @@ node_modules
 /logs/
 *.http
 **/.DS_Store
-package-lock.json
+*.vscode*

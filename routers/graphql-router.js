@@ -2,6 +2,7 @@ const {buildSchema} = require('graphql');
 const {createHandler} = require("graphql-http/lib/use/express");
 const config = require("../config");
 const {Application} = require("../services/application");
+const {AWSService} = require("../services/aws-request");
 const {MongoQueries} = require("../crdc-datahub-database-drivers/mongo-queries");
 const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, ORGANIZATION_COLLECTION, LOG_COLLECTION, SUBMISSION_COLLECTION, API_TOKEN} = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoDBCollection} = require("../crdc-datahub-database-drivers/mongodb-collection");
@@ -14,10 +15,11 @@ const ERROR = require("../constants/error-constants");
 const schema = buildSchema(require("fs").readFileSync("resources/graphql/crdc-datahub.graphql", "utf8"));
 const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
 const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
+
 let root;
 dbConnector.connect().then(() => {
     const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
-    const submissionollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSION_COLLECTION);
+    const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSION_COLLECTION);
     const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
     const emailService = new EmailService(config.email_transport, config.emails_enabled);
@@ -25,7 +27,8 @@ dbConnector.connect().then(() => {
     const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days};
     const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
     const userService = new User(userCollection, logCollection);
-    const dataInterface = new Application(logCollection, applicationCollection, submissionollection, new Organization(organizationCollection), userService, dbService, notificationsService, emailParams);
+    const dataInterface = new Application(logCollection, applicationCollection, submissionCollection, new Organization(organizationCollection), userService, dbService, notificationsService, emailParams);
+    const awsService = new AWSService(submissionCollection, userService, new Organization(organizationCollection))
     root = {
         version: () => {return config.version},
         saveApplication: dataInterface.saveApplication.bind(dataInterface),
@@ -38,7 +41,7 @@ dbConnector.connect().then(() => {
         rejectApplication: dataInterface.rejectApplication.bind(dataInterface),
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
         deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
-        createTempCredentials: dataInterface.createTempCredentials.bind(dataInterface)
+        createTempCredentials: awsService.createTempCredentials.bind(awsService)
     };
 });
 

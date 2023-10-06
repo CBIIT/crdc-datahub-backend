@@ -1,5 +1,4 @@
-const AWS = require('aws-sdk');
-const {SUBMITTED, APPROVED, REJECTED, IN_PROGRESS, IN_REVIEW, DELETED, NEW, API_TOKEN} = require("../constants/application-constants");
+const {SUBMITTED, APPROVED, REJECTED, IN_PROGRESS, IN_REVIEW, DELETED, NEW} = require("../constants/application-constants");
 const {APPLICATION_COLLECTION: APPLICATION} = require("../crdc-datahub-database-drivers/database-constants");
 const {v4} = require('uuid')
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
@@ -412,43 +411,6 @@ class Application {
             study: application?.studyAbbreviation,
             url: this.emailParams.url
         })
-    }
-
-    /**
-     * createTempCredentials
-     * @param {*} context 
-     * @param {*} submissionID 
-     * @returnsv {
-            accessKeyId: String
-            secretAccessKey: String
-            sessionToken: String
-        }
-     */
-    async createTempCredentials(submissionID, context) {
-        //1. verify token and decode token to get user info
-        const userInfo = verifyApiToken(context, config);
-        //verify submitter
-        await verifySubmitter(userInfo, submissionID, this.submissions, this.userService);
-        //2. create temp credential
-        // Initialize an STS object
-        const sts = new AWS.STS();
-        return new Promise((resolve, reject) => {
-            const timestamp = (new Date()).getTime();
-            const params = {
-                RoleArn: config.role_arn,
-                RoleSessionName: `Temp_Session_${timestamp}`
-            };
-            sts.assumeRole(params, (err, data) => {
-                if (err) reject(err);
-                else {
-                resolve({
-                    accessKeyId: data.Credentials.AccessKeyId,
-                    secretAccessKey: data.Credentials.SecretAccessKey,
-                    sessionToken: data.Credentials.SessionToken,
-                });
-                }
-            });
-            });
     }
 }
 
