@@ -49,7 +49,7 @@ class ApprovedStudiesService {
 }
 
 class ApprovedStudies {
-    constructor(studyName, studyAbbreviation, dbGaPID, organizationName) {
+    constructor(studyName, studyAbbreviatin, dbGaPID, organizationName) {
         this.studyName = studyName;
         this.studyAbbreviation = studyAbbreviation;
         if (dbGaPID) {
@@ -69,4 +69,4 @@ class ApprovedStudies {
 
 module.exports = {
     ApprovedStudiesService
-}
+} 
