@@ -32,7 +32,6 @@ function listConditions(userID, userRole, aUserOrganization, params){
     // If org owner, add condition to return all data submissions associated with their organization
     if (userRole === ROLES.ORG_OWNER && aUserOrganization?.orgName) {
         conditions = {...conditions, "organization.name": aUserOrganization.orgName};
-        
         return [{"$match": conditions}];
     }
 
@@ -41,6 +40,12 @@ function listConditions(userID, userRole, aUserOrganization, params){
     // search by applicant's user id
     conditions = {...conditions, "submitterID": userID};
     return [{"$match": conditions}];
+}
+
+function validateCreateSubmissionParams (params) {
+    if (!params.name || !params.studyAbbreviation || !params.dataCommons || !params.dbGaPID) {
+        throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
+    }
 }
 
 class Submission {
@@ -54,11 +59,13 @@ class Submission {
         verifySession(context)
             .verifyInitialized()
             .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER]);
+        validateCreateSubmissionParams(params);
         const userInfo = context.userInfo;
         if (!userInfo.organization) {
-            throw new Error(ERROR.NO_ORGANIZATION_ASSIGNED);
+            throw new Error(ERROR.CREATE_SUBMISSION_NO_ORGANIZATION_ASSIGNED);
         }
-        let newApplicationProperties = {
+
+        const newSubmission = {
             _id: v4(),
             name: params.name,
             submitterID: userInfo._id,
@@ -81,23 +88,17 @@ class Submission {
             updatedAt: getCurrentTime()
         };
 
-        const submission = {
-            ...params.submission,
-            ...newApplicationProperties
-        };
-        const res = await this.submissionCollection.insert(submission);
+        const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
-            throw new Error(ERROR.CREATE_SUBMISSION_INSERTION);
+            throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
         }
-
-        return submission;
+        return newSubmission;
     }
 
     async listSubmissions(params, context) {
         verifySession(context)
             .verifyInitialized();
         let pipeline = listConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization, params);
-        // let pipeline = [];
         if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
 
         const pagination = [];
