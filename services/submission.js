@@ -49,12 +49,12 @@ function validateCreateSubmissionParams (params) {
 }
 
 function validateListSubmissionsParams (params) {
-    if (params.status !== NEW ||
-        params.status !== IN_PROGRESS ||
-        params.status !== SUBMITTED ||
-        params.status !== RELEASED ||
-        params.status !== COMPLETED ||
-        params.status !== ARCHIVED ||
+    if (params.status !== NEW &&
+        params.status !== IN_PROGRESS &&
+        params.status !== SUBMITTED &&
+        params.status !== RELEASED &&
+        params.status !== COMPLETED &&
+        params.status !== ARCHIVED &&
         params.status !== ALL_FILTER
         ) {
         throw new Error(ERROR.LIST_SUBMISSION_INVALID_STATUS_FILTER);
