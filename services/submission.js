@@ -48,6 +48,21 @@ function validateCreateSubmissionParams (params) {
     }
 }
 
+function validateListSubmissionsParams (params) {
+    if (params.status !== NEW ||
+        params.status !== IN_PROGRESS ||
+        params.status !== SUBMITTED ||
+        params.status !== RELEASED ||
+        params.status !== COMPLETED ||
+        params.status !== ARCHIVED ||
+        params.status !== ALL_FILTER
+        ) {
+        throw new Error(ERROR.LIST_SUBMISSION_INVALID_STATUS_FILTER);
+    }
+    // Don't need to validate organization as frontend uses the same organization collection
+    // as backend does as selection options. AKA, frontend will only ever send valid organizations.
+}
+
 class Submission {
     constructor(logCollection, submissionCollection) {
         this.logCollection = logCollection;
@@ -98,6 +113,7 @@ class Submission {
     async listSubmissions(params, context) {
         verifySession(context)
             .verifyInitialized();
+        validateListSubmissionsParams(params);
         let pipeline = listConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization, params);
         if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
 
