@@ -54,6 +54,7 @@ dbConnector.connect().then(() => {
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
         deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
         listApprovedStudies: approvedStudiesService.listApprovedStudiesAPI.bind(approvedStudiesService),
+        createBatch: dataInterface.createBatch.bind(dataInterface),
     };
 });
 
