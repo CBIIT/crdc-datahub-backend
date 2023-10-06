@@ -4,6 +4,7 @@ const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-
 const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifySession} = require("../verifier/user-info-verifier");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
+const {formatName} = require("../utility/format-name");
 const ERROR = require("../constants/error-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
@@ -60,7 +61,7 @@ class Submission {
             _id: v4(),
             name: params.name,
             submitterID: userInfo._id,
-            submitterName: formatApplicantName(userInfo),
+            submitterName: formatName(userInfo),
             organization: {_id: userInfo?.organization?.orgID, name: userInfo?.organization?.orgName},
             // TODO: As of MVP2, only CDS is allowed. Change filtering in the future.
             dataCommons: "CDS",
@@ -118,14 +119,6 @@ class Submission {
     }
 
 
-}
-
-function formatApplicantName(userInfo){
-    if (!userInfo) return "";
-    let firstName = userInfo?.firstName || "";
-    let lastName = userInfo?.lastName || "";
-    lastName = lastName.trim();
-    return firstName + (lastName.length > 0 ? " "+lastName : "");
 }
 
 module.exports = {
