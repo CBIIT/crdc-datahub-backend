@@ -1,9 +1,10 @@
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED} = require("../constants/submission-constants");
 const {v4} = require('uuid')
-const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
+const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifySession} = require("../verifier/user-info-verifier");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
+const ERROR = require("../constants/error-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const ALL_FILTER = "All";
@@ -29,7 +30,7 @@ function listConditions(userID, userRole, aUserOrganization, params){
         return [{"$match": {"$or": conditions}}];
     }
     // If org owner, add condition to return all data submissions associated with their organization
-    if (userRole === ROLES.ORG_OWNER && aUserOrganization?.orgID) {
+    if (userRole === ROLES.ORG_OWNER && aUserOrganization?.orgName) {
         conditions[0].$and.push({"organization.name": aUserOrganization.orgName});
         return [{"$match": {"$or": conditions}}];
     }
@@ -40,14 +41,12 @@ function listConditions(userID, userRole, aUserOrganization, params){
     conditions[0].$and.push({"submitterID": userID});
 
     return [{"$match": {"$or": conditions}}];
-};
+}
 
 class Submission {
-    constructor(logCollection, submissionCollection, organizationService, userService) {
+    constructor(logCollection, submissionCollection) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
-        this.organizationService = organizationService;
-        this.userService = userService;
     }
 
     async createSubmission(params, context) {
@@ -55,20 +54,24 @@ class Submission {
         verifySession(context)
             .verifyInitialized()
             .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER]);
-        let submission = params.submission;
         const userInfo = context.userInfo;
+        if (!userInfo.organization) {
+            throw new Error(ERROR.NO_ORGANIZATION_ASSIGNED);
+        }
         let newApplicationProperties = {
             _id: v4(),
             name: params.name,
             submitterID: userInfo._id,
             submitterName: formatApplicantName(userInfo),
-            organization: {_id: userInfo.organization.orgID, name: userInfo.organization.orgName},
+            organization: {_id: userInfo?.organization?.orgID, name: userInfo?.organization?.orgName},
+            // TODO: As of MVP2, only CDS is allowed. Change filtering in the future.
             dataCommons: "CDS",
             modelVersion: "string for future use",
             studyAbbreviation: params.studyAbbreviation,
             dbGaPID: params.dbGaPID,
-            // TODO: get bucket name, and rootPath from organization database
+            // TODO: get bucket name from organziation database
             bucketName: "get from database",
+            // TODO: get rootpath name from organziation database
             rootPath: "organization/study?",
             status: NEW,
             history: [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)],
@@ -78,11 +81,15 @@ class Submission {
             updatedAt: getCurrentTime()
         };
 
-        submission = {
-            ...submission,
+        const submission = {
+            ...params.submission,
             ...newApplicationProperties
         };
         const res = await this.submissionCollection.insert(submission);
+        if (!(res?.acknowledged)) {
+            throw new Error(ERROR.CREATE_SUBMISSION_INSERTION);
+        }
+
         return submission;
     }
 
