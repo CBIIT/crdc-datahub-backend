@@ -13,6 +13,7 @@ const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-d
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const config = require('../config');
 const {parseJsonString} = require("../crdc-datahub-database-drivers/utility/string-utility");
+const {formatName} = require("../utility/format-name");
 
 class Application {
     constructor(logCollection, applicationCollection, approvedStudiesService, organizationService, userService, dbService, notificationsService, emailParams) {
@@ -77,7 +78,7 @@ class Application {
             status: NEW,
             applicant: {
                 applicantID: userInfo._id,
-                applicantName: formatApplicantName(userInfo),
+                applicantName: formatName(userInfo),
                 applicantEmail: userInfo.email
             },
             organization: {
@@ -412,14 +413,6 @@ class Application {
             url: this.emailParams.url
         })
     }
-}
-
-function formatApplicantName(userInfo){
-    if (!userInfo) return "";
-    let firstName = userInfo?.firstName || "";
-    let lastName = userInfo?.lastName || "";
-    lastName = lastName.trim();
-    return firstName + (lastName.length > 0 ? " "+lastName : "");
 }
 
 function verifyReviewerPermission(context){
