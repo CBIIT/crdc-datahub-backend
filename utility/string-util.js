@@ -65,7 +65,7 @@ async function getSubmisssionRootPath (submission, organizationService) {
             orgId = org._id;
         }
             
-        rootPath = `${orgId}/${params.submissionID}`;
+        rootPath = `${orgId}/${submission._id}`;
     }
     return rootPath;
 }

@@ -2,20 +2,21 @@ const path = require("path");
 const config = require('../config');
 const {AWSService} = require("./aws-request");
 const {verifySession, verifySubmitter} = require("../verifier/user-info-verifier");
-const {getSubmisssionRootPath} = require("../utility/string-util")
+const {getSubmisssionRootPath} = require("../utility/string-util");
+const ERROR = require("../constants/error-constants");
 
 /**
  * This class provides services to list log files based on submission Id
  */
-const UPLOAD_TYPES = {FILE: 'file', MEATDATA: 'metadata'};
+const UPLOAD_TYPES = ['file','metadata'];
 const LOG_DIR = 'log';
 const LOG_FILE_EXT ='.log';
-class LogService {
-    constructor(submissionCollection, organizationService, userService) {
+class Submission {
+    constructor(submissionCollection, userService, organizationService) {
         this.organizationService = organizationService;
         this.userService = userService;
         this.submissions = submissionCollection;
-        this.aws = new AWSService(null, null, null);
+        this.aws = null;
     }
     /**
      * API to get list of upload log files
@@ -32,7 +33,7 @@ class LogService {
         //3) get upload log files
         const rootPath = await getSubmisssionRootPath(submission, this.organizationService);
         try {
-            const fileList = await getLogFiles(config.submission_aws_bucket_name, rootPath);
+            const fileList = await this.getLogFiles(config.submission_aws_bucket_name, rootPath);
             return {logFiles: fileList} 
         }
         catch(err)
@@ -47,9 +48,10 @@ class LogService {
      * @returns fileList []
      */
     async getLogFiles(bucket, rootPath){
+        this.aws = new AWSService();
         let fileList = []; 
-        for (type in UPLOAD_TYPES){
-            let file = await this.aws.getLastFileFromS3(bucket, `${rootPath}/${type}/${LOG_DIR}`, LOG_FILE_EXT);
+        for (let type of UPLOAD_TYPES){
+            let file = await this.aws.getLastFileFromS3(bucket, `${rootPath}/${type}/${LOG_DIR}`, type, LOG_FILE_EXT);
             if(file) fileList.push(file);
         }
         return fileList;
@@ -71,7 +73,7 @@ class LogService {
 }
 
 module.exports = {
-    LogService
+    Submission
 };
 
  

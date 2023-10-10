@@ -61,7 +61,7 @@ class AWSService {
      * @param {*} prefix s3 bucket file prefix
      * @returns file
      */
-    async  getLastFileFromS3(bucket, prefix, filter){
+    async  getLastFileFromS3(bucket, prefix, uploadType, filter){
 
         const data = await this.s3.listObjects(getS3Params(bucket, prefix)).promise();
         const files = data[S3_CONTENTS].filter(k=>k[S3_KEY].indexOf(filter)> 0)
@@ -70,14 +70,14 @@ class AWSService {
             const lastFile = files[files.length-1];
             let key = lastFile[S3_KEY];
             let fileName = path.basename(key);
-            let downloadUrl = await createDownloadURL(s3, params.Bucket, key);
+            let downloadUrl = await this.createDownloadURL(bucket, key);
             let size = lastFile[S3_SIZE];
             return {fileName: fileName, uploadType: uploadType, downloadUrl: downloadUrl, fileSize: size};
         }
         else return null;
     }
     
-    async  createDownloadURL(s3, bucketName, key) {
+    async  createDownloadURL(bucketName, key) {
         let expiration = (config.presign_expration && /^[0-9]*$/.test(config.presign_expration))? 
             parseInt(config.presign_expration):3600; //defult value is 1 hour
         const params = {
@@ -86,7 +86,7 @@ class AWSService {
             Expires: expiration, 
         };
         return new Promise((resolve, reject) => {
-            s3.getSignedUrl(S3_GET, params, (error, url) => {
+            this.s3.getSignedUrl(S3_GET, params, (error, url) => {
                 if (error) {
                     reject(error);
                 } else {

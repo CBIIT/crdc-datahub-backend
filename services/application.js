@@ -11,7 +11,7 @@ const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mon
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
-const {LogService} = require("./log-file");
+const {LogService} = require("./submission");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const config = require('../config');
 

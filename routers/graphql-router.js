@@ -3,7 +3,7 @@ const {createHandler} = require("graphql-http/lib/use/express");
 const config = require("../config");
 const {Application} = require("../services/application");
 const {AWSService} = require("../services/aws-request");
-const {LogService} = require("../services/log-file");
+const {Submission} = require("../services/submission");
 const {MongoQueries} = require("../crdc-datahub-database-drivers/mongo-queries");
 const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, ORGANIZATION_COLLECTION, LOG_COLLECTION, SUBMISSION_COLLECTION, API_TOKEN} = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoDBCollection} = require("../crdc-datahub-database-drivers/mongodb-collection");
@@ -29,7 +29,7 @@ dbConnector.connect().then(() => {
     const userService = new User(userCollection, logCollection);
     const dataInterface = new Application(logCollection, applicationCollection, submissionCollection, new Organization(organizationCollection), userService, dbService, notificationsService, emailParams);
     const awsService = new AWSService(submissionCollection, userService, new Organization(organizationCollection));
-    const logService = new LogService(submissionCollection, userService, new Organization(organizationCollection));
+    const submissionSvc = new Submission(submissionCollection, userService, new Organization(organizationCollection));
     root = {
         version: () => {return config.version},
         saveApplication: dataInterface.saveApplication.bind(dataInterface),
@@ -43,7 +43,7 @@ dbConnector.connect().then(() => {
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
         deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
         createTempCredentials: awsService.createTempCredentials.bind(awsService),
-        listLogs: logService.listLogs.bind(logService) 
+        listLogs: submissionSvc.listLogs.bind(submissionSvc) 
     };
 });
 
