@@ -7,6 +7,8 @@ const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mon
 const {formatName} = require("../utility/format-name");
 const ERROR = require("../constants/error-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
+const {verifyBatch} = require("../verifier/batch-verifier");
+const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const ALL_FILTER = "All";
 
@@ -64,9 +66,12 @@ function validateListSubmissionsParams (params) {
 }
 
 class Submission {
-    constructor(logCollection, submissionCollection) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
+        this.batchService = batchService;
+        this.userService = userService;
+        this.organizationService = organizationService;
     }
 
     async createSubmission(params, context) {
@@ -136,7 +141,55 @@ class Submission {
         });
     }
 
+    async createBatch(params, context) {
+        verifySession(context)
+            .verifyInitialized();
+        verifyBatch(params)
+            .isUndefined()
+            .notEmpty()
+            .type([BATCH.TYPE.METADATA, BATCH.TYPE.FILE])
+        // Optional metadata intention
+        if (params.type === BATCH.TYPE.METADATA) {
+            verifyBatch(params)
+                .metadataIntention([BATCH.INTENTION.NEW]);
+        }
+        const aSubmission = await this.findByID(params.submissionID);
+        const aOrganization = await this.organizationService.getOrganizationByName(context?.userInfo?.organization?.orgName);
+        await verifyBatchPermission(this.userService, aSubmission, context.userInfo);
+        return await this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
+    }
 
+    async findByID(id) {
+        const result = await this.submissionCollection.aggregate([{
+            "$match": {
+                _id: id
+            }
+        }, {"$limit": 1}]);
+        return (result?.length > 0) ? result[0] : null;
+    }
+}
+
+const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
+    // verify submission owner
+    if (!aSubmission) {
+        throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+    }
+    const aUser = await userService.getUserByID(aSubmission?.submitterID);
+    if (isPermittedUser(aUser, userInfo)) {
+        return;
+    }
+    // verify submission's organization owner by an organization name
+    const organizationOwners = await userService.getOrgOwnerByOrgName(aSubmission?.organization);
+    for (const aUser of organizationOwners) {
+        if (isPermittedUser(aUser, userInfo)) {
+            return;
+        }
+    }
+    throw new Error(ERROR.INVALID_BATCH_PERMISSION);
+}
+
+const isPermittedUser = (aTargetUser, userInfo) => {
+    return aTargetUser?.email === userInfo.email && aTargetUser?.IDP === userInfo.IDP
 }
 
 module.exports = {

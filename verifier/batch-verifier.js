@@ -30,10 +30,6 @@ class BatchVerifier {
         if (!this.files||!this.files?.length || this.files.length === 0) {
             throw new Error(ERROR.VERIFY.EMPTY_BATCH_FILE);
         }
-
-        if (this.intention && this.intention === "") {
-            throw Error(ERROR.VERIFY.INVALID_BATCH_TYPE);
-        }
         return this;
     }
 
@@ -51,7 +47,8 @@ class BatchVerifier {
         if (!Array.isArray(intention)){
             intention = [intention];
         }
-        if (!intention.includes(this.intention.toLowerCase())) {
+        const isValidIntentionType = this.intention && intention.includes(this.intention.toLowerCase());
+        if (!isValidIntentionType || this.intention === "") {
             throw Error(ERROR.VERIFY.INVALID_METADATA_INTENTION_TYPE);
         }
         return this;

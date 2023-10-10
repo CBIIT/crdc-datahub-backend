@@ -12,9 +12,10 @@ class BatchService {
         this.bucketName = bucketName;
     }
 
-    async createBatch(params, rootPath, orgName) {
-        const prefix = createPrefix(params, rootPath, orgName);
-        const newBatch = Batch.createNewBatch(params.submissionID, this.bucketName, prefix, params.type, params?.metadataIntention);
+    async createBatch(params, rootPath, orgID) {
+        const prefix = createPrefix(params, rootPath, orgID);
+        const metadataIntention = params?.metadataIntention && params.type === BATCH.TYPE.METADATA ? params.metadataIntention : null;
+        const newBatch = Batch.createNewBatch(params.submissionID, this.bucketName, prefix, params.type, metadataIntention);
         if (BATCH.TYPE.METADATA === params.type.toLowerCase()) {
             const submissionID = params.submissionID;
             await Promise.all(params.files.map(async (file) => {
@@ -107,14 +108,14 @@ const listBatchConditions = (userID, userRole, aUserOrganization, submissionID) 
         {"$match": {"$or": conditions}}];
 }
 
-const createPrefix = (params, rootPath, orgName) => {
+const createPrefix = (params, rootPath, orgID) => {
     if (rootPath) {
-        return rootPath;
+        return `${rootPath}/${params.type}/`;
     }
-    if (!orgName) {
+    if (!orgID) {
         throw new Error(ERROR.NEW_BATCH_NO_ORGANIZATION);
     }
-    const prefixArray = [orgName, params.submissionID];
+    const prefixArray = [orgID, params.submissionID];
     prefixArray.push(params.type === BATCH.TYPE.METADATA ? BATCH.TYPE.METADATA : BATCH.TYPE.FILE);
     return prefixArray.join("/");
 }
