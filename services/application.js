@@ -13,12 +13,10 @@ const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-d
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const config = require('../config');
 const {parseJsonString} = require("../crdc-datahub-database-drivers/utility/string-utility");
-const {verifyBatch} = require("../verifier/batch-verifier");
-const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const {formatName} = require("../utility/format-name");
 
 class Application {
-    constructor(logCollection, applicationCollection, approvedStudiesService, submissionService, organizationService, batchService, userService, dbService, notificationsService, emailParams) {
+    constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams) {
         this.logCollection = logCollection;
         this.applicationCollection = applicationCollection;
         this.approvedStudiesService = approvedStudiesService;
@@ -26,9 +24,6 @@ class Application {
         this.dbService = dbService;
         this.notificationService = notificationsService;
         this.emailParams = emailParams;
-        this.submissionService = submissionService;
-        this.batchService = batchService;
-        this.organizationService = organizationService;
     }
 
     async getApplication(params, context) {
@@ -417,47 +412,6 @@ class Application {
             url: this.emailParams.url
         })
     }
-
-    async createBatch(params, context) {
-        verifySession(context)
-            .verifyInitialized();
-        verifyBatch(params)
-            .isUndefined()
-            .notEmpty()
-            .type([BATCH.TYPE.METADATA, BATCH.TYPE.FILE])
-        // Optional metadata intention
-        if (params.type === BATCH.TYPE.METADATA) {
-            verifyBatch(params)
-                .metadataIntention([BATCH.INTENTION.NEW]);
-        }
-        const aSubmission = await this.submissionService.findByID(params.submissionID);
-        const aOrganization = await this.organizationService.getOrganizationByName(context?.userInfo?.organization?.orgName);
-        await verifyBatchPermission(this.userService, aSubmission, context.userInfo);
-        return await this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
-    }
-}
-
-const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
-    // verify submission owner
-    if (!aSubmission) {
-        throw new Error(ERROR.SUBMISSION_NOT_EXIST);
-    }
-    const aUser = await userService.getUserByID(aSubmission?.submitterID);
-    if (isPermittedUser(aUser, userInfo)) {
-        return;
-    }
-    // verify submission's organization owner by an organization name
-    const organizationOwners = await userService.getOrgOwnerByOrgName(aSubmission?.organization);
-    for (const aUser of organizationOwners) {
-        if (isPermittedUser(aUser, userInfo)) {
-            return;
-        }
-    }
-    throw new Error(ERROR.INVALID_BATCH_PERMISSION);
-}
-
-const isPermittedUser = (aTargetUser, userInfo) => {
-    return aTargetUser?.email === userInfo.email && aTargetUser?.IDP === userInfo.IDP
 }
 
 function verifyReviewerPermission(context){

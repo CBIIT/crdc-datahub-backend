@@ -15,7 +15,6 @@ const {User} = require("../crdc-datahub-database-drivers/services/user");
 const {ApprovedStudiesService} = require("../services/approved-studies");
 const {BatchService} = require("../services/batch-service");
 const {S3Service} = require("../crdc-datahub-database-drivers/services/s3-service");
-const {SubmissionService} = require("../crdc-datahub-database-drivers/services/submission-service");
 const {Organization} = require("../crdc-datahub-database-drivers/services/organization");
 
 const schema = buildSchema(require("fs").readFileSync("resources/graphql/crdc-datahub.graphql", "utf8"));
@@ -34,16 +33,17 @@ dbConnector.connect().then(() => {
 
     const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
     const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection);
-    const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
-    const submissionService = new SubmissionService(submissionCollection);
+
+    const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
+    const organizationService = new Organization(organizationCollection);
+    const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams);
+
     const s3Service = new S3Service();
     const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
     const batchService = new BatchService(s3Service, batchCollection, config.submission_aws_bucket_name);
 
-    const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
-    const organizationService = new Organization(organizationCollection);
-    const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, submissionService, organizationService, batchService, userService, dbService, notificationsService, emailParams);
-    const submissionInterface = new Submission(logCollection, submissionCollection, new Organization(organizationCollection), userService, dbService, notificationsService, emailParams);
+    const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
+    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService);
     root = {
         version: () => {return config.version},
         saveApplication: dataInterface.saveApplication.bind(dataInterface),
@@ -57,9 +57,9 @@ dbConnector.connect().then(() => {
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
         deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
         listApprovedStudies: approvedStudiesService.listApprovedStudiesAPI.bind(approvedStudiesService),
-        createBatch: dataInterface.createBatch.bind(dataInterface),
-        createSubmission: submissionInterface.createSubmission.bind(submissionInterface),
-        listSubmissions:  submissionInterface.listSubmissions.bind(submissionInterface),
+        createBatch: submissionService.createBatch.bind(submissionService),
+        createSubmission: submissionService.createSubmission.bind(submissionService),
+        listSubmissions:  submissionService.listSubmissions.bind(submissionService),
     };
 });
 

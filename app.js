@@ -10,9 +10,7 @@ const createSession = require("./crdc-datahub-database-drivers/session-middlewar
 const statusRouter = require("./routers/status-endpoints-router");
 const graphqlRouter = require("./routers/graphql-router");
 const {MongoDBCollection} = require("./crdc-datahub-database-drivers/mongodb-collection");
-const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, LOG_COLLECTION, APPROVED_STUDIES_COLLECTION, SUBMISSIONS_COLLECTION,BATCH_COLLECTION,
-    ORGANIZATION_COLLECTION
-} = require("./crdc-datahub-database-drivers/database-constants");
+const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, LOG_COLLECTION, APPROVED_STUDIES_COLLECTION} = require("./crdc-datahub-database-drivers/database-constants");
 const {Application} = require("./services/application");
 const {MongoQueries} = require("./crdc-datahub-database-drivers/mongo-queries");
 const {DatabaseConnector} = require("./crdc-datahub-database-drivers/database-connector");
@@ -22,10 +20,6 @@ const {NotifyUser} = require("./services/notify-user");
 const {User} = require("./crdc-datahub-database-drivers/services/user");
 const {extractAndJoinFields} = require("./utility/string-util");
 const {ApprovedStudiesService} = require("./services/approved-studies");
-const {SubmissionService} = require("./crdc-datahub-database-drivers/services/submission-service");
-const {S3Service} = require("./crdc-datahub-database-drivers/services/s3-service");
-const {BatchService} = require("./services/batch-service");
-const {Organization} = require("./crdc-datahub-database-drivers/services/organization");
 const {USER} = require("./crdc-datahub-database-drivers/constants/user-constants");
 // print environment variables to log
 console.info(config);
@@ -68,15 +62,7 @@ cronJob.schedule(config.schedule_job, async () => {
 
         const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
         const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection);
-        const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
-        const submissionService = new SubmissionService(submissionCollection);
-        const s3Service = new S3Service();
-        const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
-        const batchService = new BatchService(s3Service, batchCollection, config.submission_aws_bucket_name);
-
-        const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
-        const organizationService = new Organization(organizationCollection);
-        const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, submissionService, organizationService, batchService, userService, dbService, notificationsService, emailParams);
+        const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams);
         console.log("Running a scheduled background task to delete inactive application at " + getCurrentTime());
         await dataInterface.deleteInactiveApplications();
         console.log("Running a scheduled job to disable user(s) because of no activities at " + getCurrentTime());
