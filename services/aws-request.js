@@ -30,7 +30,7 @@ class AWSService {
         const s3Params = {
             RoleArn: config.role_arn,
             RoleSessionName: `Temp_Session_${timestamp}`, 
-            DurationSeconds: config.role_timeout? parseInt(config.role_timeout): 12*3600 //set to 12 hours by requirement in the ticket crdcdh-446
+            DurationSeconds: config.role_timeout
         };
         return new Promise((resolve, reject) => {
             
