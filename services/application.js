@@ -12,12 +12,14 @@ const {USER} = require("../crdc-datahub-database-drivers/constants/user-constant
 const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const config = require('../config');
+const {parseJsonString} = require("../crdc-datahub-database-drivers/utility/string-utility");
+const {formatName} = require("../utility/format-name");
 
 class Application {
-    constructor(logCollection, applicationCollection, organizationService, userService, dbService, notificationsService, emailParams) {
+    constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams) {
         this.logCollection = logCollection;
         this.applicationCollection = applicationCollection;
-        this.organizationService = organizationService;
+        this.approvedStudiesService = approvedStudiesService;
         this.userService = userService;
         this.dbService = dbService;
         this.notificationService = notificationsService;
@@ -75,7 +77,7 @@ class Application {
             status: NEW,
             applicant: {
                 applicantID: userInfo._id,
-                applicantName: formatApplicantName(userInfo),
+                applicantName: formatName(userInfo),
                 applicantEmail: userInfo.email
             },
             organization: {
@@ -98,6 +100,10 @@ class Application {
         verifySession(context)
             .verifyInitialized();
         let inputApplication = params.application;
+        const studyAbbreviation = inputApplication?.studyAbbreviation;
+        if (studyAbbreviation && studyAbbreviation.trim() !== "") {
+            await isStudyAbbreviationUniqueOrThrow(this.applicationCollection, inputApplication?._id, inputApplication?.studyAbbreviation);
+        }
         inputApplication.updatedAt = getCurrentTime();
         const id = inputApplication?._id;
         if (!id) {
@@ -245,6 +251,7 @@ class Application {
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             const promises = [
                 await this.getApplicationById(document._id),
+                await saveApprovedStudies(this.approvedStudiesService, application),
                 this.logCollection.insert(
                     UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, APPROVED)
                 )
@@ -339,29 +346,22 @@ class Application {
 
     async sendEmailAfterApproveApplication(context, application) {
         // org owner email
-        let org = await this.organizationService.getOrganizationByID(application?.organization?._id);
-        let org_owner_email = null
-        let org_owner_id = org?.owner
-        if(org_owner_id){
-            let org_owner = await this.userService.getUserByID(org_owner_id);
-            if(org_owner?.email){
-                org_owner_email = org_owner?.email
-            }
+        let org_owner_email = ""
+        let orgOwner = await this.userService.getOrgOwner(application?.organization?._id)
+        for(let i of orgOwner){
+            org_owner_email  += i.email + " ; "
         }
         // concierge email
-        let concierge_email = null
-        let org_concierge_id = org?.concierges
-        if(org_concierge_id){
-            let org_concierge = await this.userService.getUserByID(org_concierge_id);
-            if(org_concierge?.email){
-                concierge_email = org_concierge?.email
-            }
+        let concierge = await this.userService.getConcierge(application?.organization?._id)
+        let concierge_email = ""
+        for(let i of concierge){
+            concierge_email += i.email + " ; "
         }
         // admin email
         let admin_user = await this.userService.getAdmin();
         let admin_email = ""
         for(let i of admin_user){
-            admin_email = admin_email + " ; " + i.email
+            admin_email += i.email + " ; "
         }
         // cc emil
         let cc_email
@@ -370,8 +370,10 @@ class Application {
         }else{
             cc_email = admin_email
         }
-        // submission documentation 
-        let sub_doc_url = config.submission_doc_url
+        
+        // submission documentation url
+        let sub_doc_url = this.emailParams.url
+
         // email body
         // doc_url 
         let doc_url
@@ -380,7 +382,7 @@ class Application {
         } else {
             doc_url = `review the submission documentation ${sub_doc_url}`
         }
-        // concierge_email = null
+
         // contact detail
         let contact_detail = `either your organization ${org_owner_email} or your CRDC Data Team member ${concierge_email}.`
         if(!org_owner_email &&!concierge_email ){
@@ -392,12 +394,12 @@ class Application {
         }
         await this.notificationService.approveQuestionNotification(application?.applicant?.applicantEmail,
             // Organization Owner and concierge assigned/Super Admin
-            `${org_owner_email} ; ${cc_email}`,
+            `${org_owner_email} ${cc_email}`,
         {
             firstName: application?.applicant?.applicantName
         }, {
             study: application?.studyAbbreviation,
-            doc_url: doc_url,
+            doc_url: this.emailParams.url,
             contact_detail: contact_detail
         })
     }
@@ -410,14 +412,6 @@ class Application {
             url: this.emailParams.url
         })
     }
-}
-
-function formatApplicantName(userInfo){
-    if (!userInfo) return "";
-    let firstName = userInfo?.firstName || "";
-    let lastName = userInfo?.lastName || "";
-    lastName = lastName.trim();
-    return firstName + (lastName.length > 0 ? " "+lastName : "");
 }
 
 function verifyReviewerPermission(context){
@@ -485,6 +479,28 @@ const sendEmails = {
             url: emailParams.url
         })
     }
+}
+
+const isStudyAbbreviationUniqueOrThrow = async (applicationCollection, applicationID, studyAbbreviation) => {
+    const uniqueCondition = {
+        studyAbbreviation,
+        ...(applicationID ? { _id: { $ne: applicationID } } : {})
+    };
+    const applications = await applicationCollection.aggregate([{"$match": uniqueCondition}, {"$limit": 1}]);
+    if (applications?.length > 0) {
+        throw new Error(ERROR.DUPLICATE_STUDY_ABBREVIATION);
+    }
+}
+
+const saveApprovedStudies = async (approvedStudiesService, aApplication) => {
+    const questionnaire = parseJsonString(aApplication?.questionnaireData);
+    if (!questionnaire) {
+        console.error(ERROR.FAILED_STORE_APPROVED_STUDIES);
+        return;
+    }
+    await approvedStudiesService.storeApprovedStudies(
+        questionnaire?.study?.name, aApplication?.studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name
+    );
 }
 
 module.exports = {
