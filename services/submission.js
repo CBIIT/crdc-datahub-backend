@@ -12,7 +12,7 @@ const ALL_FILTER = "All";
 
 
 
-function listConditions(userID, userRole, aUserOrganization, params){
+function listConditions(userID, userRole, userDataCommons, userOrganization, params){
     const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED]}};
     // Default conditons are:
     // Make sure application has valid status
@@ -25,13 +25,18 @@ function listConditions(userID, userRole, aUserOrganization, params){
         conditions = {...conditions, status: params.status};
     }
     // List all applications if Fed Lead / Admin / Data Concierge / Data Curator
-    const listAllApplicationRoles = [ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.DC_POC];
+    const listAllApplicationRoles = [ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.CURATOR];
     if (listAllApplicationRoles.includes(userRole)) {
         return [{"$match": conditions}];
     }
-    // If org owner, add condition to return all data submissions associated with their organization
-    if (userRole === ROLES.ORG_OWNER && aUserOrganization?.orgName) {
-        conditions = {...conditions, "organization.name": aUserOrganization.orgName};
+    // If data commons POC, return all data submissions assoicated with their data commons
+    if (userRole === ROLES.DC_POC) {
+        conditions = {...conditions, "dataCommons": {$in: userDataCommons}};
+        return [{"$match": conditions}];
+    }
+     // If org owner, add condition to return all data submissions associated with their organization
+    if (userRole === ROLES.ORG_OWNER && userOrganization?.orgName) {
+        conditions = {...conditions, "organization.name": userOrganization.orgName};
         return [{"$match": conditions}];
     }
 
@@ -79,7 +84,6 @@ class Submission {
         if (!userInfo.organization) {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_ORGANIZATION_ASSIGNED);
         }
-
         const newSubmission = {
             _id: v4(),
             name: params.name,
@@ -114,7 +118,7 @@ class Submission {
         verifySession(context)
             .verifyInitialized();
         validateListSubmissionsParams(params);
-        let pipeline = listConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization, params);
+        let pipeline = listConditions(context.userInfo._id, context.userInfo?.role, context.userInfo.dataCommons, context.userInfo?.organization, params);
         if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
 
         const pagination = [];
