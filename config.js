@@ -17,7 +17,7 @@ let config = {
     //session
     session_secret: process.env.SESSION_SECRET,
     session_timeout: parseInt(process.env.SESSION_TIMEOUT_SECONDS) * 1000 || 30 * 60 * 1000,
-    token_secret: process.env.TOKEN_SECRET,
+    token_secret: process.env.SESSION_SECRET,
     token_timeout: parseInt(process.env.TOKEN_TIMEOUT) * 1000 || 24 * 60 * 60 * 1000,
     // Email settings
     email_transport: getTransportConfig(),
