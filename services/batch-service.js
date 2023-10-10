@@ -4,7 +4,6 @@ const ERROR = require("../constants/error-constants");
 const {NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED} = require("../constants/application-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
-const {APPLICATION_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 class BatchService {
     constructor(s3Service, batchCollection, bucketName) {
         this.s3Service = s3Service;
@@ -67,45 +66,22 @@ class BatchService {
     }
 }
 
-const listBatchConditions = (userID, userRole, aUserOrganization, submissionID) => {
+const listBatchConditions = (userID, userRole, aUserOrganization, submissionID, userDataCommonsName) => {
     // list all applications
-    const applicationJoinConditions = [
-        {"$lookup": {
-            from: APPLICATION_COLLECTION,
-            localField: "submissionID",
-            foreignField: "_id",
-            as: "application"
-        }},
-        {"$unwind": {
-            path: "$application",
-        }}
-    ];
-
-    const validBatchStatus = {"application.status": {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
+    const validBatchStatusByID = {"submissionID": submissionID, "status": {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
     const listAllBatchRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR];
     if (listAllBatchRoles.includes(userRole)) {
-        return [...applicationJoinConditions, {"$match": {"submissionID": submissionID, ...validBatchStatus}}];
+        return [{"$match": validBatchStatusByID}];
     }
-
-    let conditions = [
-        // search by applicant's user id
-        {$and: [{"application.applicant.applicantID": userID}, validBatchStatus]}
-        // TODO customize and project queries
-        // {"$project" : {
-        //     "_id": 0,
-        //     "application.organization": 1,
-        //     "application.applicant": 1,
-        //     "submissionID": 1,
-        // }}
-    ];
     // search by user's organization
     if (userRole === USER.ROLES.ORG_OWNER && aUserOrganization?.orgID) {
-        conditions.push({$and: [{"application.organization._id": aUserOrganization.orgID}, validBatchStatus]})
+        return [{"$match": {...validBatchStatusByID, ...{"organization._id": aUserOrganization.orgID}}}];
     }
-    // TODO Data Commons POC roles
-    return [
-        ...applicationJoinConditions,
-        {"$match": {"$or": conditions}}];
+    // TODO Data Commons POC roles data is not created yet. Please, verify once data is ready
+    if (userRole === USER.ROLES.DC_POC && userDataCommonsName) {
+        return [{"$match": {...validBatchStatusByID, ...{"dataCommons": userDataCommonsName}}}];
+    }
+    return [];
 }
 
 const createPrefix = (params, rootPath, orgID) => {

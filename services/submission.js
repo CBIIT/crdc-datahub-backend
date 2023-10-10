@@ -159,6 +159,14 @@ class Submission {
         return await this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
     }
 
+    async listBatches(params, context) {
+        verifySession(context)
+            .verifyInitialized();
+        const aSubmission = await this.findByID(params?.submissionID);
+        await verifyBatchListPermission(aSubmission, params?.submissionID, context.userInfo?.role);
+        return this.batchService.listBatches(params, context);
+    }
+
     async findByID(id) {
         const result = await this.submissionCollection.aggregate([{
             "$match": {
@@ -167,6 +175,17 @@ class Submission {
         }, {"$limit": 1}]);
         return (result?.length > 0) ? result[0] : null;
     }
+}
+
+const verifyBatchListPermission = (aSubmission, submissionID, userRole) => {
+    if (!aSubmission) {
+        throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+    }
+    // TODO double check
+    if (aSubmission?.dataCommons && aSubmission.dataCommons === userRole) {
+        return;
+    }
+    throw new Error(ERROR.INVALID_BATCH_PERMISSION);
 }
 
 const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
