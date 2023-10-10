@@ -31,7 +31,7 @@ function listConditions(userID, userRole, userDataCommons, userOrganization, par
     }
     // If data commons POC, return all data submissions assoicated with their data commons
     if (userRole === ROLES.DC_POC) {
-        conditions = {...conditions, "dataCommons": userDataCommons};
+        conditions = {...conditions, "dataCommons": {$in: userDataCommons}};
         return [{"$match": conditions}];
     }
      // If org owner, add condition to return all data submissions associated with their organization
