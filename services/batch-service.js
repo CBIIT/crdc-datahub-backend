@@ -39,7 +39,7 @@ class BatchService {
     }
 
     async listBatches(params, context) {
-        let pipeline = listBatchConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization, params.submissionID);
+        let pipeline = listBatchConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization, params.submissionID, context.userInfo?.dataCommons);
         if (params.orderBy) {
             pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
         }
@@ -66,20 +66,20 @@ class BatchService {
     }
 }
 
-const listBatchConditions = (userID, userRole, aUserOrganization, submissionID, userDataCommonsName) => {
+const listBatchConditions = (userID, userRole, aUserOrganization, submissionID, userDataCommonsNames) => {
     // list all applications
     const validBatchStatusByID = {"submissionID": submissionID, "status": {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
     const listAllBatchRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR];
     if (listAllBatchRoles.includes(userRole)) {
         return [{"$match": validBatchStatusByID}];
     }
-    // search by user's organization
+    // organization's owner
     if (userRole === USER.ROLES.ORG_OWNER && aUserOrganization?.orgID) {
         return [{"$match": {...validBatchStatusByID, ...{"organization._id": aUserOrganization.orgID}}}];
     }
-    // TODO Data Commons POC roles data is not created yet. Please, verify once data is ready
-    if (userRole === USER.ROLES.DC_POC && userDataCommonsName) {
-        return [{"$match": {...validBatchStatusByID, ...{"dataCommons": userDataCommonsName}}}];
+    // data commons's role
+    if (userRole === USER.ROLES.DC_POC && userDataCommonsNames?.length > 0) {
+        return [{"$match": {...validBatchStatusByID, ...{"dataCommons": {$in: userDataCommonsNames}}}}];
     }
     return [];
 }
