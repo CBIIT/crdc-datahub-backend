@@ -1,6 +1,6 @@
 const ERROR = require("../constants/error-constants");
-const {API_TOKEN} = require("../crdc-datahub-database-drivers/constants/user-constants");
-const {decodeToken} = require("../crdc-datahub-database-drivers/services/tokenizer");
+const {API_TOKEN} = require("../constants/application-constants");
+const {decodeToken} = require("./token-verifier");
 
 function verifySession(context){
     return new UserInfoVerifier(context);

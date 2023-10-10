@@ -4,7 +4,7 @@ const config = require("../config");
 const {Application} = require("../services/application");
 const {AWSService} = require("../services/aws-request");
 const {MongoQueries} = require("../crdc-datahub-database-drivers/mongo-queries");
-const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, ORGANIZATION_COLLECTION, LOG_COLLECTION, SUBMISSION_COLLECTION, API_TOKEN} = require("../crdc-datahub-database-drivers/database-constants");
+const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, ORGANIZATION_COLLECTION, LOG_COLLECTION, SUBMISSIONS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoDBCollection} = require("../crdc-datahub-database-drivers/mongodb-collection");
 const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-connector");
 const {EmailService} = require("../services/email");
@@ -19,7 +19,7 @@ const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
 let root;
 dbConnector.connect().then(() => {
     const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
-    const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSION_COLLECTION);
+    const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
     const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
     const emailService = new EmailService(config.email_transport, config.emails_enabled);
