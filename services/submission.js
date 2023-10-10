@@ -69,10 +69,9 @@ function validateListSubmissionsParams (params) {
 }
 
 class Submission {
-    constructor(logCollection, submissionCollection, organizationCollection) {
+    constructor(logCollection, submissionCollection) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
-        this.organizationCollection = organizationCollection;
     }
 
     async createSubmission(params, context) {
@@ -85,7 +84,6 @@ class Submission {
         if (!userInfo.organization) {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_ORGANIZATION_ASSIGNED);
         }
-        this.organizationCollection.aggregate();
         const newSubmission = {
             _id: v4(),
             name: params.name,
