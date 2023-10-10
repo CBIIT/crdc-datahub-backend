@@ -199,6 +199,11 @@ type Mutation {
 
     "Submitter or Org Owner"
     createSubmission (studyAbbreviation: String!, dbGaPID: String!, dataCommons: String!, name: String!): Submission
+    submissionAction (
+        submissionID: ID!,
+        # in [Submit, Release, Withdraw, Reject, Complete, Cancel, Archive]
+        action: String!
+    ): Submission
     createBatch (submissionID: ID!, type: String, metadataIntention: String, files: [FileInput]): NewBatch
     updateBatch (batchID: ID!, files: [UploadResult]): Batch
     createTempCredentials (submissionID: ID!): TempCredentials
