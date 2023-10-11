@@ -42,9 +42,9 @@ class BatchService {
     async listBatches(params, context) {
         let pipeline = listBatchConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization, params.submissionID, context.userInfo?.dataCommons);
         const pagination = [
-            {"$sort": { [params?.orderBy || "displayID"]: getSortDirection(params?.sortDirection)}}, // default by displayID & Desc
-            {"$skip": params?.offset || 0},
-            {"$limit": Number.isInteger(params?.first) ? params.first : 10}
+            {"$sort": { [params.orderBy]: getSortDirection(params?.sortDirection)}}, // default by displayID & Desc
+            {"$skip": params.offset},
+            {"$limit": params.first}
         ];
         const promises = [
             await this.batchCollection.aggregate(pipeline.concat(pagination)),
