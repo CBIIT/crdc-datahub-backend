@@ -64,7 +64,7 @@ dbConnector.connect().then(() => {
 });
 
 const extractContext =(req) => {
-    context = null;
+    let context = null;
     token = req.headers.authorization;
     if(token && token.split(' ').length > 1) {
         token = token.split(' ')[1];
