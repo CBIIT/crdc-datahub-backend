@@ -20,6 +20,7 @@ const ERROR = {
     },
     INVALID_ROLE: "You do not have the correct role to perform this operation",
     INVALID_PERMISSION: "You do not have permission to view this application",
+    INVALID_SUBMISSION_PERMISSION: "You do not have permission to list submission",
     // Batch
     FAILED_NEW_BATCH_INSERTION: "An error occurred while creating a new batch",
     NEW_BATCH_NO_ORGANIZATION: "The user attempting to create a batch does not have any organizational record",

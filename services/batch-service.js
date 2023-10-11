@@ -4,6 +4,7 @@ const ERROR = require("../constants/error-constants");
 const {NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED} = require("../constants/application-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
+const {SUBMISSIONS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 class BatchService {
     constructor(s3Service, batchCollection, bucketName) {
         this.s3Service = s3Service;
@@ -40,23 +41,15 @@ class BatchService {
 
     async listBatches(params, context) {
         let pipeline = listBatchConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization, params.submissionID, context.userInfo?.dataCommons);
-        if (params.orderBy) {
-            pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
-        }
-        const pagination = [];
-        if (params.offset) {
-            pagination.push({"$skip": params.offset});
-        }
-        const disablePagination = Number.isInteger(params.first) && params.first === -1;
-        if (!disablePagination) {
-            pagination.push({"$limit": params.first});
-        }
+        const pagination = [
+            {"$sort": { [params?.orderBy || "displayID"]: getSortDirection(params?.sortDirection)}}, // default by displayID & Desc
+            {"$skip": params?.offset || 0},
+            {"$limit": Number.isInteger(params?.first) ? params.first : 10}
+        ];
         const promises = [
-            await this.batchCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline),
-            // only get the total number of items
+            await this.batchCollection.aggregate(pipeline.concat(pagination)),
             await this.batchCollection.aggregate(pipeline.concat([{$group: {_id: null, itemCount: { $sum: 1 }}}]))
         ];
-
         return await Promise.all(promises).then(function(results) {
             return {
                 batches: (results[0] || []).map((batch)=>(batch)),
@@ -67,21 +60,35 @@ class BatchService {
 }
 
 const listBatchConditions = (userID, userRole, aUserOrganization, submissionID, userDataCommonsNames) => {
-    // list all applications
-    const validBatchStatusByID = {"submissionID": submissionID, "status": {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
-    const listAllBatchRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR];
-    if (listAllBatchRoles.includes(userRole)) {
-        return [{"$match": validBatchStatusByID}];
+    const submissionJoin = [
+        {"$lookup": {
+            from: SUBMISSIONS_COLLECTION,
+            localField: "submissionID",
+            foreignField: "_id",
+            as: "batch"
+        }},
+        {"$unwind": {
+            path: "$batch",
+        }}
+    ];
+    const validStatusAndSubmissionID = {"submissionID": submissionID, "status": {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
+    const listAllSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR];
+    if (listAllSubmissionRoles.includes(userRole)) {
+        return [...submissionJoin, {"$match": {...validStatusAndSubmissionID}}];
     }
-    // organization's owner
+
     if (userRole === USER.ROLES.ORG_OWNER && aUserOrganization?.orgID) {
-        return [{"$match": {...validBatchStatusByID, ...{"organization._id": aUserOrganization.orgID}}}];
+        return [...submissionJoin, {"$match": {...validStatusAndSubmissionID,"batch.organization._id": aUserOrganization?.orgID}}];
     }
-    // data commons's role
+
+    if (userRole === USER.ROLES.SUBMITTER) {
+        return [...submissionJoin, {"$match": {"batch.submitterID": userID}}];
+    }
+
     if (userRole === USER.ROLES.DC_POC && userDataCommonsNames?.length > 0) {
-        return [{"$match": {...validBatchStatusByID, ...{"dataCommons": {$in: userDataCommonsNames}}}}];
+        return [...submissionJoin, {"$match": {...validStatusAndSubmissionID, "batch.dataCommons": {$in: userDataCommonsNames}}}];
     }
-    return [];
+    throw new Error(ERROR.INVALID_SUBMISSION_PERMISSION);
 }
 
 const createPrefix = (params, rootPath, orgID) => {
