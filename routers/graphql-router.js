@@ -64,8 +64,8 @@ dbConnector.connect().then(() => {
 });
 
 const extractContext =(req) => {
-    let context = null;
-    token = req.headers.authorization;
+    let context;
+    let token = req.headers.authorization;
     if(token && token.split(' ').length > 1) {
         token = token.split(' ')[1];
         context = {"api-token":  token} ;
@@ -73,7 +73,7 @@ const extractContext =(req) => {
     else context = req.session;
     if(!context) throw new Error(ERROR.INVALID_SESSION_OR_TOKEN);
     return context;
-};
+}
 
 module.exports = (req, res) => {
     createHandler({
