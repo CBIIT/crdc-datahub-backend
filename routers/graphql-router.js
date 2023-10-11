@@ -41,7 +41,7 @@ dbConnector.connect().then(() => {
     const batchService = new BatchService(s3Service, batchCollection, config.submission_aws_bucket_name);
     const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService);
     const awsService = new AWSService(submissionCollection, userService, new Organization(organizationCollection));
-    const dataInterface = new Application(logCollection, applicationCollection, submissionCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams);
+    const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams);
     
     root = {
         version: () => {return config.version},
@@ -64,8 +64,8 @@ dbConnector.connect().then(() => {
 });
 
 const extractContext =(req) => {
-    context = null;
-    token = req.headers.authorization;
+    let context;
+    let token = req.headers.authorization;
     if(token && token.split(' ').length > 1) {
         token = token.split(' ')[1];
         context = {"api-token":  token} ;
