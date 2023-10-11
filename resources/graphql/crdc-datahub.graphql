@@ -54,15 +54,14 @@ type ListSubmissions {
 
 type Submission {
     _id: ID # aka. submissionID
-    displayID: ID # minimum 6 digit integer with leading zeros, can have more digits
     name: String
     submitterID: ID
     submitterName: String # <first name> <last name>
-    organization: String
+    organization: Organization
     dataCommons: String
     modelVersion: String # for future use
     studyAbbreviation: String
-    dbGapID: String # aka. phs number
+    dbGaPID: String # aka. phs number
     bucketName: String # populated from organization
     rootPath: String # append "/<submission ID>" to organization's rootPath
     status: String # [New, In Progress, Submitted, Released, Canceled, Transferred, Completed, Archived]
@@ -74,7 +73,6 @@ type Submission {
 
 type Batch {
     _id: ID
-    displayID: ID # minimum 6 digit integer with leading zeros, can have more digits
     submissionID: ID # parent
     type: String # [metadata, file]
     metadataIntention: String # [New, Update, Delete], Update is meant for "Update or insert", metadata only! file batches are always treated as Update
@@ -103,7 +101,6 @@ type FileInfo {
 
 type NewBatch {
     _id: ID
-    displayID: ID
     submissionID: ID
     bucketName: String # S3 bucket of the submission, for file batch / CLI use
     filePrefix: String # prefix/path within S3 bucket, for file batch / CLI use
@@ -143,7 +140,7 @@ type ApprovedStudy {
     originalOrg: String # organization at the time of approval, can be absent if a submission request doesn't have an organization associated
     studyName: String
     studyAbbreviation: String # must be unique
-    dbGapID: String # aka. phs number
+    dbGaPID: String # aka. phs number
 }
 
 type Query {
@@ -166,7 +163,7 @@ type Query {
         status: String,
         first: Int = 10,
         offset: Int = 0,
-        # ["updatedAt", "createdAt", "displayID", "name", "dataCommons", "organization", "studyAbbreviation",
+        # ["updatedAt", "createdAt", "name", "dataCommons", "organization", "studyAbbreviation",
         #              "dbGapID", "status", "concierge"]
         orderBy: String = "updatedAt",
         sortDirection: String = "DESC"): ListSubmissions
@@ -175,8 +172,8 @@ type Query {
     listBatches(submissionID: ID!,
         first: Int = 10,
         offset: Int = 0,
-        # in ["updatedAt", "createdAt", "displayID", "fileCount", "status", "errors"]
-        orderBy: String = "displayID",
+        # in ["updatedAt", "createdAt", "fileCount", "status", "errors"]
+        orderBy: String = "updatedAt",
         sortDirection: String = "DESC" # ["DESC", "ASC"]
     ): ListBatches
     getBatch(batchID: ID!): Batch
@@ -199,9 +196,13 @@ type Mutation {
     deleteApplication (_id: ID!): Application
 
     "Submitter or Org Owner"
-    createSubmission (studyAbbreviation: String!, dbGapID: String!, dataCommons: String!, name: String!): Submission
+    createSubmission (studyAbbreviation: String!, dbGaPID: String!, dataCommons: String!, name: String!): Submission
+    submissionAction (
+        submissionID: ID!,
+        # in [Submit, Release, Withdraw, Reject, Complete, Cancel, Archive]
+        action: String!
+    ): Submission
     createBatch (submissionID: ID!, type: String, metadataIntention: String, files: [FileInput]): NewBatch
     updateBatch (batchID: ID!, files: [UploadResult]): Batch
     createTempCredentials (submissionID: ID!): TempCredentials
 }
-
