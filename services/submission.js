@@ -227,20 +227,6 @@ class Submission {
         }
         return fileList;
     }
-   
-    /**
-     * Don't need based on analysis
-     * @param {*} params as object {}  contains submissionID and file name
-     * @returns file object
-     */
-    async downloadLog(params){
-        let file = null;
-        //to do
-        //1) verify session
-        //2) verify submitter
-        //3) call aws s3 list objects based on the path.
-        return file;
-    }
 }
 
 const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
