@@ -1,6 +1,6 @@
 const ERROR = require("../constants/error-constants");
 const {API_TOKEN} = require("../constants/application-constants");
-const {decodeToken} = require("../crdc-datahub-database-drivers/services/tokenizer");
+const {decodeToken} = require("./token-verifier");
 
 function verifySession(context){
     return new UserInfoVerifier(context);
@@ -53,9 +53,9 @@ async function verifySubmitter(userInfo, submissionID, submissions, userService)
     }
     //3. verify if user is submitter or organization owner
     if(userInfo._id != submission[0].submitterID) {
+        const org = submission[0].organization;
+        const orgName = (typeof org == "string")? org: org.name;
         //check if the user is org owner of submitter
-        let orgName = submission[0].organization;
-        orgName = (typeof orgName == "string")? orgName : orgName.name;
         const orgOwners = await userService.getOrgOwnerByOrgName(orgName);
         if(!orgOwners || orgOwners.length == 0) {
             throw new Error(`${ERROR.INVALID_SUBMITTER}, ${submissionID}!`);

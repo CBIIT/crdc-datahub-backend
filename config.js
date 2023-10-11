@@ -17,13 +17,13 @@ let config = {
     //session
     session_secret: process.env.SESSION_SECRET,
     session_timeout: parseInt(process.env.SESSION_TIMEOUT_SECONDS) * 1000 || 30 * 60 * 1000,
-    token_secret: process.env.TOKEN_SECRET,
+    token_secret: process.env.SESSION_SECRET,
     token_timeout: parseInt(process.env.TOKEN_TIMEOUT) * 1000 || 24 * 60 * 60 * 1000,
     // Email settings
     email_transport: getTransportConfig(),
     emails_enabled: process.env.EMAILS_ENABLED ? process.env.EMAILS_ENABLED.toLowerCase() === 'true' : true,
     emails_url: process.env.EMAIL_URL ? process.env.EMAIL_URL : 'http://localhost:4010',
-    official_email: process.env.official ? process.env.OFFCIAL_EMAIL : 'CRDCHelpDesk@nih.gov',
+    official_email: process.env.OFFICIAL_EMAIL || 'CRDCHelpDesk@nih.gov',
     // Scheduled cronjob once a day (1am) eastern time at default
     schedule_job: process.env.SCHEDULE_JOB || "1 0 1 * * *",
     // temp url for email
@@ -33,6 +33,7 @@ let config = {
 
     //aws sts assume role
     role_arn: process.env.ROLE_ARN,
+    role_timeout: parseInt(process.env.ROLE_TIMEROUT) || 12*3600,
     presign_expration: process.env.PRESIGN_EXPIRATION
 };
 config.mongo_db_connection_string = `mongodb://${config.mongo_db_user}:${config.mongo_db_password}@${config.mongo_db_host}:${process.env.MONGO_DB_PORT}`;
