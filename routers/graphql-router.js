@@ -33,7 +33,7 @@ dbConnector.connect().then(() => {
     const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
     const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, new Organization(organizationCollection), userService, dbService, notificationsService, emailParams);
-    const submissionInterface = new Submission(logCollection, submissionCollection, new Organization(organizationCollection), userService, dbService, notificationsService, emailParams);
+    const submissionInterface = new Submission(logCollection, submissionCollection, organizationCollection);
     root = {
         version: () => {return config.version},
         saveApplication: dataInterface.saveApplication.bind(dataInterface),
