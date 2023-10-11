@@ -2,13 +2,17 @@ const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED} = require(".
 const {v4} = require('uuid')
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
-const {verifySession} = require("../verifier/user-info-verifier");
+const {verifySession, verifyApiToken} = require("../verifier/user-info-verifier");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {formatName} = require("../utility/format-name");
 const ERROR = require("../constants/error-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
+const {verifyBatch} = require("../verifier/batch-verifier");
+const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
+const { API_TOKEN } = require("../constants/application-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const ALL_FILTER = "All";
+const config = require("../config");
 
 // TODO: Data commons needs to be in a predefined list, currently only "CDS" is allowed
 const dataCommonsTempList = ["CDS"];
@@ -73,10 +77,12 @@ function validateListSubmissionsParams (params) {
 }
 
 class Submission {
-    constructor(logCollection, submissionCollection, organizationCollection) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
-        this.organizationCollection = organizationCollection;
+        this.batchService = batchService;
+        this.userService = userService;
+        this.organizationService = organizationService;
     }
 
     async createSubmission(params, context) {
@@ -88,9 +94,8 @@ class Submission {
         if (!userInfo.organization) {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_ORGANIZATION_ASSIGNED);
         }
-        const userOrgObject = await this.organizationCollection.aggregate([{ "$match": {"name": userInfo.organization.orgName}}]);
-        const orgApprovedStudies = userOrgObject[0].studies;
-        if (!orgApprovedStudies.some((study) => study.studyAbbreviation === params.studyAbbreviation)) {
+        const userOrgObject = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
+        if (!userOrgObject.studies.some((study) => study.studyAbbreviation === params.studyAbbreviation)) {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
         }
         const submissionID = v4();
@@ -104,11 +109,11 @@ class Submission {
             modelVersion: "string for future use",
             studyAbbreviation: params.studyAbbreviation,
             dbGaPID: params.dbGaPID,
-            bucketName: userOrgObject[0].bucketName,
-            rootPath: userOrgObject[0].rootPath.concat(`/${submissionID}`),
+            bucketName: userOrgObject.bucketName,
+            rootPath: userOrgObject.rootPath.concat(`/${submissionID}`),
             status: NEW,
             history: [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)],
-            concierge: userOrgObject[0].conciergeName,
+            concierge: userOrgObject.conciergeName,
             createdAt: getCurrentTime(),
             updatedAt: getCurrentTime()
         };
@@ -146,7 +151,63 @@ class Submission {
         });
     }
 
+    async createBatch(params, context) {
+        //updated to handle both API-token and session.
+        let userInfo = null;
+        if(context[API_TOKEN])
+            userInfo = verifyApiToken(context, config.token_secret);
+        else{
+            verifySession(context)
+            .verifyInitialized();
+            userInfo = context?.userInfo;
+        }
+        
+        verifyBatch(params)
+            .isUndefined()
+            .notEmpty()
+            .type([BATCH.TYPE.METADATA, BATCH.TYPE.FILE])
+        // Optional metadata intention
+        if (params.type === BATCH.TYPE.METADATA) {
+            verifyBatch(params)
+                .metadataIntention([BATCH.INTENTION.NEW]);
+        }
+        const aSubmission = await this.findByID(params.submissionID);
+        const aOrganization = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
+        await verifyBatchPermission(this.userService, aSubmission, userInfo);
+        return await this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
+    }
 
+    async findByID(id) {
+        const result = await this.submissionCollection.aggregate([{
+            "$match": {
+                _id: id
+            }
+        }, {"$limit": 1}]);
+        return (result?.length > 0) ? result[0] : null;
+    }
+}
+
+const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
+    // verify submission owner
+    if (!aSubmission) {
+        throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+    }
+    const aUser = await userService.getUserByID(aSubmission?.submitterID);
+    if (isPermittedUser(aUser, userInfo)) {
+        return;
+    }
+    // verify submission's organization owner by an organization name
+    const organizationOwners = await userService.getOrgOwnerByOrgName(aSubmission?.organization);
+    for (const aUser of organizationOwners) {
+        if (isPermittedUser(aUser, userInfo)) {
+            return;
+        }
+    }
+    throw new Error(ERROR.INVALID_BATCH_PERMISSION);
+}
+
+const isPermittedUser = (aTargetUser, userInfo) => {
+    return aTargetUser?.email === userInfo.email && aTargetUser?.IDP === userInfo.IDP
 }
 
 module.exports = {
