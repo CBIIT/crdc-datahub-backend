@@ -65,8 +65,8 @@ dbConnector.connect().then(() => {
 });
 
 const extractContext =(req) => {
-    context = null;
-    token = req.headers.authorization;
+    let context;
+    let token = req.headers.authorization;
     if(token && token.split(' ').length > 1) {
         token = token.split(' ')[1];
         context = {"api-token":  token} ;
