@@ -4,7 +4,7 @@ const {v4} = require('uuid')
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifyApplication} = require("../verifier/application-verifier");
-const {verifySession} = require("../verifier/user-info-verifier");
+const {verifySession, verifyApiToken,verifySubmitter} = require("../verifier/user-info-verifier");
 const ERROR = require("../constants/error-constants");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
@@ -16,14 +16,16 @@ const {parseJsonString} = require("../crdc-datahub-database-drivers/utility/stri
 const {formatName} = require("../utility/format-name");
 
 class Application {
-    constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams) {
+    constructor(logCollection, applicationCollection, submissionollection, approvedStudCoiesService, userService, dbService, notificationsService, emailParams) {
         this.logCollection = logCollection;
         this.applicationCollection = applicationCollection;
-        this.approvedStudiesService = approvedStudiesService;
+        this.approvedStudiesService = approvedStudCoiesService;
         this.userService = userService;
         this.dbService = dbService;
         this.notificationService = notificationsService;
         this.emailParams = emailParams;
+        this.submissions = submissionollection;
+
     }
 
     async getApplication(params, context) {

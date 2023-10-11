@@ -8,7 +8,7 @@
     "test": "jest"
   },
   "dependencies": {
-    "aws-sdk": "^2.1457.0",
+    "aws-sdk": "^2.1462.0",
     "connect-mongo": "^5.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.0.3",
@@ -19,13 +19,14 @@
     "handlebars": "^4.7.8",
     "http-errors": "^2.0.0",
     "js-yaml": "^4.1.0",
+    "jsonwebtoken": "^9.0.2",
     "moment": "^2.29.4",
     "mongodb": "^5.5.0",
     "morgan": "^1.10.0",
     "node-cron": "^3.0.2",
     "nodemailer": "^6.9.3",
-    "uuid": "^9.0.0",
-    "semver": "^7.5.4"
+    "semver": "^7.5.4",
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "jest": "^29.5.0"
