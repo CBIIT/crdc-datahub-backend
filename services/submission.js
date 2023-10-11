@@ -2,17 +2,18 @@ const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED} = require(".
 const {v4} = require('uuid')
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
-const {verifySession} = require("../verifier/user-info-verifier");
+const {verifySession, verifyApiToken} = require("../verifier/user-info-verifier");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {formatName} = require("../utility/format-name");
 const ERROR = require("../constants/error-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {verifyBatch} = require("../verifier/batch-verifier");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
+const { API_TOKEN } = require("../constants/application-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const ALL_FILTER = "All";
-
+const config = require("../config");
 
 
 function listConditions(userID, userRole, userDataCommons, userOrganization, params){
@@ -147,8 +148,16 @@ class Submission {
     }
 
     async createBatch(params, context) {
-        verifySession(context)
+        //updated to handle both API-token and session.
+        let userInfo = null;
+        if(context[API_TOKEN])
+            userInfo = verifyApiToken(context, config.token_secret);
+        else{
+            verifySession(context)
             .verifyInitialized();
+            userInfo = context?.userInfo;
+        }
+
         verifyBatch(params)
             .isUndefined()
             .notEmpty()
@@ -159,8 +168,8 @@ class Submission {
                 .metadataIntention([BATCH.INTENTION.NEW]);
         }
         const aSubmission = await this.findByID(params.submissionID);
-        const aOrganization = await this.organizationService.getOrganizationByName(context?.userInfo?.organization?.orgName);
-        await verifyBatchPermission(this.userService, aSubmission, context.userInfo);
+        const aOrganization = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
+        await verifyBatchPermission(this.userService, aSubmission, userInfo);
         return await this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
     }
 

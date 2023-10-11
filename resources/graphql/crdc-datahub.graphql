@@ -73,7 +73,6 @@ type Submission {
 
 type Batch {
     _id: ID
-    displayID: ID # minimum 6 digit integer with leading zeros, can have more digits
     submissionID: ID # parent
     type: String # [metadata, file]
     metadataIntention: String # [New, Update, Delete], Update is meant for "Update or insert", metadata only! file batches are always treated as Update
@@ -103,7 +102,6 @@ type FileInfo {
 
 type NewBatch {
     _id: ID
-    displayID: ID
     submissionID: ID
     bucketName: String # S3 bucket of the submission, for file batch / CLI use
     filePrefix: String # prefix/path within S3 bucket, for file batch / CLI use
@@ -167,7 +165,7 @@ type Query {
         first: Int = 10,
         offset: Int = 0,
         # ["updatedAt", "createdAt", "name", "dataCommons", "organization", "studyAbbreviation",
-        #              "dbGaPID", "status", "concierge"]
+        #              "dbGapID", "status", "concierge"]
         orderBy: String = "updatedAt",
         sortDirection: String = "DESC"): ListSubmissions
     getSubmission(_id: ID!): Submission
@@ -175,8 +173,8 @@ type Query {
     listBatches(submissionID: ID!,
         first: Int = 10,
         offset: Int = 0,
-        # in ["updatedAt", "createdAt", "displayID", "fileCount", "status", "errors"]
-        orderBy: String = "displayID",
+        # in ["updatedAt", "createdAt", "fileCount", "status", "errors"]
+        orderBy: String = "updatedAt",
         sortDirection: String = "DESC" # ["DESC", "ASC"]
     ): ListBatches
     getBatch(batchID: ID!): Batch
@@ -200,6 +198,11 @@ type Mutation {
 
     "Submitter or Org Owner"
     createSubmission (studyAbbreviation: String!, dbGaPID: String!, dataCommons: String!, name: String!): Submission
+    submissionAction (
+        submissionID: ID!,
+        # in [Submit, Release, Withdraw, Reject, Complete, Cancel, Archive]
+        action: String!
+    ): Submission
     createBatch (submissionID: ID!, type: String, metadataIntention: String, files: [FileInput]): NewBatch
     updateBatch (batchID: ID!, files: [UploadResult]): Batch
     createTempCredentials (submissionID: ID!): TempCredentials

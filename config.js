@@ -17,6 +17,8 @@ let config = {
     //session
     session_secret: process.env.SESSION_SECRET,
     session_timeout: parseInt(process.env.SESSION_TIMEOUT_SECONDS) * 1000 || 30 * 60 * 1000,
+    token_secret: process.env.SESSION_SECRET,
+    token_timeout: parseInt(process.env.TOKEN_TIMEOUT) * 1000 || 24 * 60 * 60 * 1000,
     // Email settings
     email_transport: getTransportConfig(),
     emails_enabled: process.env.EMAILS_ENABLED ? process.env.EMAILS_ENABLED.toLowerCase() === 'true' : true,
@@ -27,7 +29,11 @@ let config = {
     // temp url for email
     submission_doc_url: process.env.SUBMISSION_DOC_URL || "",
     submision_helpdesk: "CRDCSubmissions@nih.gov",
-    submission_system_portal: "https://datacommons.cancer.gov/"
+    submission_system_portal: "https://datacommons.cancer.gov/",
+
+    //aws sts assume role
+    role_arn: process.env.ROLE_ARN,
+    role_timeout: parseInt(process.env.ROLE_TIMEROUT) || 12*3600,
 };
 config.mongo_db_connection_string = `mongodb://${config.mongo_db_user}:${config.mongo_db_password}@${config.mongo_db_host}:${process.env.MONGO_DB_PORT}`;
 
