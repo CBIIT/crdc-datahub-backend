@@ -157,7 +157,6 @@ class Submission {
             .verifyInitialized();
             userInfo = context?.userInfo;
         }
-
         verifyBatch(params)
             .isUndefined()
             .notEmpty()
