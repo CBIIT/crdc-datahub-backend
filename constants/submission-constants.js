@@ -6,7 +6,4 @@ module.exports = Object.freeze({
     RELEASED: 'Released',
     COMPLETED: 'Completed',
     ARCHIVED: 'Archived',
-    WITHDRAWN: "Withdrawn",
-    REJECTED: "Rejected",
-    CANCELED: "Canceled",
 });

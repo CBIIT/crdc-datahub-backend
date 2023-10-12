@@ -1,4 +1,4 @@
-const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, REJECTED, WITHDRAWN, CANCELED} = require("../constants/submission-constants");
+const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED} = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
@@ -63,9 +63,6 @@ function validateListSubmissionsParams (params) {
         params.status !== RELEASED &&
         params.status !== COMPLETED &&
         params.status !== ARCHIVED &&
-        params.status !== REJECTED &&
-        params.status !== WITHDRAWN &&
-        params.status !== CANCELED &&
         params.status !== ALL_FILTER
         ) {
         throw new Error(ERROR.LIST_SUBMISSION_INVALID_STATUS_FILTER);
