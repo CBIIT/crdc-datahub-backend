@@ -40,7 +40,7 @@ dbConnector.connect().then(() => {
     const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
     const batchService = new BatchService(s3Service, batchCollection, config.submission_bucket);
     const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService);
-    const awsService = new AWSService(submissionCollection, userService, new Organization(organizationCollection));
+    const awsService = new AWSService(submissionCollection, organizationService, userService);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams);
 
     root = {
