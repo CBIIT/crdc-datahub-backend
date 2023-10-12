@@ -22,7 +22,7 @@ function listConditions(userID, userRole, userDataCommons, userOrganization, par
     let conditions = {...validApplicationStatus};
     // Filter on organization and status
     if (params.organization !== ALL_FILTER) {
-        conditions = {...conditions, "organization.name": params.organization};
+        conditions = {...conditions, "organization._id": params.organization};
     }
     if (params.status !== ALL_FILTER) {
         conditions = {...conditions, status: params.status};
