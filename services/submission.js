@@ -167,8 +167,9 @@ class Submission {
                 .metadataIntention([BATCH.INTENTION.NEW]);
         }
         const aSubmission = await this.findByID(params.submissionID);
+        const aOrganization = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
-        return await this.batchService.createBatch(params, aSubmission?.rootPath, userInfo?.organization?.orgID);
+        return await this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
     }
 
     async findByID(id) {
