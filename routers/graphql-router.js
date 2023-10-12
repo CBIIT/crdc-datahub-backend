@@ -57,6 +57,7 @@ dbConnector.connect().then(() => {
         deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
         listApprovedStudies: approvedStudiesService.listApprovedStudiesAPI.bind(approvedStudiesService),
         createBatch: submissionService.createBatch.bind(submissionService),
+        updateBatch: submissionService.updateBatch.bind(submissionService),
         createSubmission: submissionService.createSubmission.bind(submissionService),
         listSubmissions:  submissionService.listSubmissions.bind(submissionService),
         createTempCredentials: awsService.createTempCredentials.bind(awsService)

@@ -8,6 +8,15 @@ class BatchService {
         this.bucketName = bucketName;
     }
 
+    async findByID(id) {
+        const result = await this.batchCollection.aggregate([{
+            "$match": {
+                _id: id
+            }
+        }, {"$limit": 1}]);
+        return (result?.length > 0) ? result[0] : null;
+    }
+
     async createBatch(params, rootPath, orgID) {
         const prefix = createPrefix(params, rootPath, orgID);
         const metadataIntention = params?.metadataIntention && params.type === BATCH.TYPE.METADATA ? params.metadataIntention : null;
@@ -33,6 +42,49 @@ class BatchService {
             throw new Error(ERROR.FAILED_NEW_BATCH_INSERTION);
         }
         return newBatch;
+    }
+    async updateBatch(aBatch, files, succededFlag, userInfo) {
+        this._succededFlag = succededFlag;
+        // TODO if succeeded true
+        // TODO update batch succeeded status
+
+
+        // TODO if batch status is not new, throw error
+
+        // UploadResult
+        // input UploadResult {
+        //     fileName: String
+        //     succeeded: Boolean
+        //     errors: [String]
+        // }
+
+        // find by file names
+        //
+
+        // TODO FE might not send all files, creating overhead
+        // by batch ID, it could check all the files uploaded
+        aBatch.files.forEach((file) => {
+            // for the matched file from FE
+            const matchingFile = files.find((uploadFile) => uploadFile.fileName === file.fileName);
+            file.succeeded = matchingFile?.succeeded || false;
+
+            if (!matchingFile?.succeeded) {
+                aBatch.status = "failed";
+                return;
+            }
+        });
+        aBatch.status = "succeeded";
+
+        // todo update batch status
+
+
+
+
+
+
+        // TODO if succeeded false
+        // TODO store error values
+
     }
 
 }

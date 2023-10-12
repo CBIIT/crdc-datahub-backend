@@ -172,6 +172,20 @@ class Submission {
         return await this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
     }
 
+    async updateBatch({batchID, files}, context) {
+        // Check permissions here
+        // Retrieve the batch by batchID
+        const aBatch = await this.batchService.findByID(batchID);
+        if (!aBatch) {
+            throw new Error("Batch not found");
+        }
+
+        if (aBatch.state !== BATCH.STATUSES.NEW) {
+            throw new Error("Batch is not in New state");
+        }
+        return await this.batchService.updateBatch(aBatch, files, context?.userInfo);
+    }
+
     async findByID(id) {
         const result = await this.submissionCollection.aggregate([{
             "$match": {
