@@ -4,8 +4,9 @@ const { verifySession } = require('../verifier/user-info-verifier');
 
 class ApprovedStudiesService {
 
-    constructor(approvedStudiesCollection) {
+    constructor(approvedStudiesCollection, organizationService) {
         this.approvedStudiesCollection = approvedStudiesCollection;
+        this.organizationService = organizationService;
     }
 
     async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName) {
@@ -21,8 +22,7 @@ class ApprovedStudiesService {
      * List Approved Studies API Interface.
      *
      * Note:
-     * - This is currently an open API for all logged-in users
-     *   filtering on Organization is not implemented in MVP-2.
+     * - This is open to any authenticated user and returns all approved studies.
      *
      * @api
      * @param {Object} params Endpoint parameters
@@ -34,6 +34,42 @@ class ApprovedStudiesService {
           .verifyInitialized();
 
         return this.listApprovedStudies({});
+    }
+
+    /**
+     * List Approved Studies of My Org API Interface.
+     *
+     * Note:
+     * - This is open to any authenticated user, but returns only approved studies tied
+     *   to the user's organization.
+     * - If no organization is associated with the user, an empty array is returned.
+     * - If no studies are associated with the user's organization, an empty array is returned.
+     *
+     * @api
+     * @param {Object} params Endpoint parameters
+     * @param {{ cookie: Object, userInfo: Object }} context request context
+     * @returns {Promise<Object[]>} An array of ApprovedStudies
+     */
+    async listApprovedStudiesOfMyOrganizationAPI(params, context) {
+        verifySession(context)
+          .verifyInitialized();
+
+        if (!context.userInfo?.organization?.orgID) {
+            return [];
+        }
+
+        const organization = await this.organizationService.getOrganizationByID(context.userInfo.organization.orgID);
+        if (!organization || !organization?.studies?.length) {
+            return [];
+        }
+
+        const filters = {
+            // NOTE: `studyAbbreviation` is a unique constraint
+            studyAbbreviation: {
+                $in: organization.studies?.filter((s) => !!s.studyAbbreviation).map((s) => s.studyAbbreviation)
+            }
+        };
+        return this.listApprovedStudies(filters);
     }
 
     /**
