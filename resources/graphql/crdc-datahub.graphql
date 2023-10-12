@@ -154,11 +154,8 @@ type Query {
     # sortDirection in ["ASC", "DESC"]
     # orderBy in ["Submitter Name", "Organization", "Study", "Program", "Status", "Submitted Date"]
 
-    # Return all approved studies
+    # Submitter and Org Owner can only list studies for their own organization, other role can see all
     listApprovedStudies: [ApprovedStudy]
-
-    # Returns only approved studies associated with the authenticated user's organization
-    listApprovedStudiesOfMyOrganization: [ApprovedStudy]
 
     "Result depends on user's permission"
     listSubmissions(
