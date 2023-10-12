@@ -48,12 +48,13 @@ class BatchService {
         ];
         const promises = [
             await this.batchCollection.aggregate(pipeline.concat(pagination)),
-            await this.batchCollection.aggregate(pipeline.concat([{$group: {_id: null, itemCount: { $sum: 1 }}}]))
+            await this.batchCollection.aggregate(pipeline.concat([{$count: "count"}]))
         ];
         return await Promise.all(promises).then(function(results) {
+            const total = results[1]?.length > 0 ? results[1][0] : {};
             return {
                 batches: (results[0] || []).map((batch)=>(batch)),
-                total: results[1]?.itemCount || 0
+                total: total?.count || 0
             }
         });
     }
