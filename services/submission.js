@@ -206,7 +206,7 @@ const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
         return;
     }
     // verify submission's organization owner by an organization name
-    const organizationOwners = await userService.getOrgOwnerByOrgName(aSubmission?.organization);
+    const organizationOwners = await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name);
     for (const aUser of organizationOwners) {
         if (isPermittedUser(aUser, userInfo)) {
             return;
