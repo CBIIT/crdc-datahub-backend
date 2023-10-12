@@ -15,6 +15,7 @@ const ALL_FILTER = "All";
 const config = require("../config");
 
 
+
 function listConditions(userID, userRole, userDataCommons, userOrganization, params){
     const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED]}};
     // Default conditons are:
@@ -179,6 +180,33 @@ class Submission {
             }
         }, {"$limit": 1}]);
         return (result?.length > 0) ? result[0] : null;
+    }
+
+    async getSubmission(params, context){
+        verifySession(context)
+            .verifyInitialized()
+            .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.DC_POC, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN]);
+        let id = params?._id
+        let rUser = await this.userService.getUserByID(context?.userInfo?._id);
+        const aSubmission = await this.findByID(id);
+        if(context?.userInfo?.role == ROLES.DC_POC){
+            if((rUser?.dataCommons.includes(aSubmission?.dataCommons))){
+                return aSubmission
+            }
+        }
+        if(context?.userInfo?.role == ROLES.ORG_OWNER){
+            if(rUser?.organization?.orgID == aSubmission?.organization?._id){
+                return aSubmission
+            }
+        }
+        if(context?.userInfo?.role == ROLES.SUBMITTER){
+            if(rUser?._id == aSubmission?.submitterID){
+                return aSubmission
+            }
+        }
+        if([ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN].includes(context?.userInfo?.role )){
+            return aSubmission
+        }        
     }
 }
 
