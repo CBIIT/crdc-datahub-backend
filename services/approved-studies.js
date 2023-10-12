@@ -1,4 +1,5 @@
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
+const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ERROR = require("../constants/error-constants");
 const { verifySession } = require('../verifier/user-info-verifier');
 
@@ -22,7 +23,7 @@ class ApprovedStudiesService {
      * List Approved Studies API Interface.
      *
      * Note:
-     * - This is open to any authenticated user and returns all approved studies.
+     * - This is an ADMIN only operation.
      *
      * @api
      * @param {Object} params Endpoint parameters
@@ -31,7 +32,8 @@ class ApprovedStudiesService {
      */
     async listApprovedStudiesAPI(params, context) {
         verifySession(context)
-          .verifyInitialized();
+          .verifyInitialized()
+          .verifyRole([USER.ROLES.ADMIN]);
 
         return this.listApprovedStudies({});
     }
