@@ -167,9 +167,8 @@ class Submission {
                 .metadataIntention([BATCH.INTENTION.NEW]);
         }
         const aSubmission = await this.findByID(params.submissionID);
-        const aOrganization = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
-        return await this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
+        return await this.batchService.createBatch(params, aSubmission?.rootPath, userInfo?.organization?.orgID);
     }
 
     async findByID(id) {
@@ -192,7 +191,7 @@ const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
         return;
     }
     // verify submission's organization owner by an organization name
-    const organizationOwners = await userService.getOrgOwnerByOrgName(aSubmission?.organization);
+    const organizationOwners = await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name);
     for (const aUser of organizationOwners) {
         if (isPermittedUser(aUser, userInfo)) {
             return;

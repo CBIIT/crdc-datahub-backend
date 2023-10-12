@@ -34,11 +34,13 @@ class BatchFile {
     constructor(fileName, size, signedURL, filePrefix) {
         this.fileName = fileName;
         this.size = size;
+        this.status = BATCH.STATUSES.NEW;
         if (signedURL) {
             this.signedURL = signedURL;
         }
         this.filePrefix = filePrefix;
         this.createdAt = this.updatedAt = getCurrentTime();
+        this.errors = [];
     }
 }
 
