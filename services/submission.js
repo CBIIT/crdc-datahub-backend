@@ -186,20 +186,20 @@ class Submission {
         verifySession(context)
             .verifyInitialized()
             .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.DC_POC, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN]);
-        let id = params?._id
-        let rUser = await this.userService.getUserByID(context?.userInfo?._id);
+        const id = params?._id
+        const rUser = await this.userService.getUserByID(context?.userInfo?._id);
         const aSubmission = await this.findByID(id);
-        if(context?.userInfo?.role == ROLES.DC_POC){
+        if(context?.userInfo?.role === ROLES.DC_POC){
             if((rUser?.dataCommons.includes(aSubmission?.dataCommons))){
                 return aSubmission
             }
         }
-        if(context?.userInfo?.role == ROLES.ORG_OWNER){
+        if(context?.userInfo?.role === ROLES.ORG_OWNER){
             if(rUser?.organization?.orgID == aSubmission?.organization?._id){
                 return aSubmission
             }
         }
-        if(context?.userInfo?.role == ROLES.SUBMITTER){
+        if(context?.userInfo?.role === ROLES.SUBMITTER){
             if(rUser?._id == aSubmission?.submitterID){
                 return aSubmission
             }
