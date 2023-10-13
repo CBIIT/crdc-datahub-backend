@@ -14,6 +14,8 @@ const ROLES = USER_CONSTANTS.USER.ROLES;
 const ALL_FILTER = "All";
 const config = require("../config");
 
+// TODO: Data commons needs to be in a predefined list, currently only "CDS" is allowed
+const dataCommonsTempList = ["CDS"];
 
 function listConditions(userID, userRole, userDataCommons, userOrganization, params){
     const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED]}};
@@ -54,6 +56,9 @@ function validateCreateSubmissionParams (params) {
     if (!params.name || !params.studyAbbreviation || !params.dataCommons || !params.dbGaPID) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
     }
+    if (!dataCommonsTempList.some((value) => value === params.dataCommons)) {
+        throw new Error(ERROR.CREATE_SUBMISSION_INVALID_DATA_COMMONS);
+    }
 }
 
 function validateListSubmissionsParams (params) {
@@ -84,7 +89,6 @@ class Submission {
     }
 
     async createSubmission(params, context) {
-        // TODO: Add this requirement: Study abbreviation must have an approved application within user's organization
         verifySession(context)
             .verifyInitialized()
             .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER]);
@@ -93,25 +97,26 @@ class Submission {
         if (!userInfo.organization) {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_ORGANIZATION_ASSIGNED);
         }
+        const userOrgObject = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
+        if (!userOrgObject.studies.some((study) => study.studyAbbreviation === params.studyAbbreviation)) {
+            throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
+        }
+        const submissionID = v4();
         const newSubmission = {
-            _id: v4(),
+            _id: submissionID,
             name: params.name,
             submitterID: userInfo._id,
             submitterName: formatName(userInfo),
             organization: {_id: userInfo?.organization?.orgID, name: userInfo?.organization?.orgName},
-            // TODO: As of MVP2, only CDS is allowed. Change filtering in the future.
-            dataCommons: "CDS",
+            dataCommons: params.dataCommons,
             modelVersion: "string for future use",
             studyAbbreviation: params.studyAbbreviation,
             dbGaPID: params.dbGaPID,
-            // TODO: get bucket name from organziation database
-            bucketName: "get from database",
-            // TODO: get rootpath name from organziation database
-            rootPath: "organization/study?",
+            bucketName: userOrgObject.bucketName,
+            rootPath: userOrgObject.rootPath.concat(`/${submissionID}`),
             status: NEW,
             history: [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)],
-            // TODO: get conceirge data from organization database
-            concierge: "get from organization database?",
+            concierge: userOrgObject.conciergeName,
             createdAt: getCurrentTime(),
             updatedAt: getCurrentTime()
         };
@@ -129,7 +134,7 @@ class Submission {
         validateListSubmissionsParams(params);
         let pipeline = listConditions(context.userInfo._id, context.userInfo?.role, context.userInfo.dataCommons, context.userInfo?.organization, params);
         if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
-
+      
         const pagination = [];
         if (params.offset) pagination.push({"$skip": params.offset});
         const disablePagination = Number.isInteger(params.first) && params.first === -1;
