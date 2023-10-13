@@ -199,7 +199,7 @@ class Submission {
         if( Condition_DC_POC || Condition_ORG_OWNER || Condition_SUBMITTER || Condition_Admin){
             return aSubmission
         }else{
-            throw new Error.SUBMISSION_NOT_EXIST
+            throw new Error.INVALID_ROLE
         }    
     }
 }
