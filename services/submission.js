@@ -194,8 +194,6 @@ class Submission {
         const Condition_SUBMITTER  = (context?.userInfo?.role === ROLES.SUBMITTER) && (rUser?._id == aSubmission?.submitterID)
         const Condition_Admin  = [ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN].includes(context?.userInfo?.role )
 
-        console.log(Condition_Admin)
-
         if( Condition_DC_POC || Condition_ORG_OWNER || Condition_SUBMITTER || Condition_Admin){
             return aSubmission
         }else{
