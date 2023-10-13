@@ -200,26 +200,7 @@ class Submission {
             return aSubmission
         }else{
             throw new Error.SUBMISSION_NOT_EXIST
-        }
-
-        // if(context?.userInfo?.role === ROLES.DC_POC){
-        //     if((rUser?.dataCommons.includes(aSubmission?.dataCommons))){
-        //         return aSubmission
-        //     }
-        // }
-        // if(context?.userInfo?.role === ROLES.ORG_OWNER){
-        //     if(rUser?.organization?.orgID == aSubmission?.organization?._id){
-        //         return aSubmission
-        //     }
-        // }
-        // if(context?.userInfo?.role === ROLES.SUBMITTER){
-        //     if(rUser?._id == aSubmission?.submitterID){
-        //         return aSubmission
-        //     }
-        // }
-        // if([ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN].includes(context?.userInfo?.role )){
-        //     return aSubmission
-        // }        
+        }    
     }
 }
 
