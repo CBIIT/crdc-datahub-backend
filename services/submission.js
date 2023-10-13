@@ -1,8 +1,10 @@
-const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED} = require("../constants/submission-constants");
+const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELLED,
+    REJECTED, WITHDRAWN,ACTIONS} = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifySession, verifyApiToken} = require("../verifier/user-info-verifier");
+const {verifySubmissionAction} = require("../verifier/submission-verifier");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {formatName} = require("../utility/format-name");
 const ERROR = require("../constants/error-constants");
@@ -180,6 +182,40 @@ class Submission {
         }, {"$limit": 1}]);
         return (result?.length > 0) ? result[0] : null;
     }
+
+    async submissionAction(params, context){
+        verifySession(context)
+            .verifyInitialized();
+        const userInfo = context.userInfo;
+        const submissionID = params?.submissionID;
+        const action = params?.action;
+        //verify submission action
+        const verifier = verifySubmissionAction(submissionID, action);
+        //verify if a submission can be find by submissionID.
+        let submission = await verifier.exists(this.submissionCollection);
+        //verify if the action is valid based on current submission status
+        verifier.isValidAction(submissionActionMap);
+        //verify if user's role is valide for the action
+        const newStatus = verifier.inRoles(userInfo);
+        //update submission
+        submission.status = newStatus;
+        let events = submission.history;
+        if(!events) events = [];
+        events.push(HistoryEventBuilder.createEvent(userInfo._id, newStatus, null));
+        submission.history = events;
+        submission.updatedAt = getCurrentTime();
+        if(!submission.rootPath)
+            submission.rootPath = `${submission.organization._id}/${submission._id}`;
+        
+        //update submission status
+        const res = await this.submissionCollection.update(submission);
+        if (!(res?.acknowledged)) {
+            throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
+        }
+        //to do: send email to user and cc related users.
+
+        return submission;
+    }
 }
 
 const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
@@ -204,6 +240,24 @@ const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
 const isPermittedUser = (aTargetUser, userInfo) => {
     return aTargetUser?.email === userInfo.email && aTargetUser?.IDP === userInfo.IDP
 }
+
+//actions: NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED
+const submissionActionMap = [
+    {action:ACTIONS.SUBMIT, fromStatus: [IN_PROGRESS], 
+        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:SUBMITTED},
+    {action:ACTIONS.RELEASE, fromStatus: [SUBMITTED], 
+        roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:RELEASED},
+    {action:ACTIONS.WITHDRAW, fromStatus: [SUBMITTED], 
+        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER,], toStatus:WITHDRAWN},
+    {action:ACTIONS.REJECT, fromStatus: [SUBMITTED], 
+        roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:REJECTED},
+    {action:ACTIONS.COMPLETE, fromStatus: [RELEASED], 
+        roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:COMPLETED},
+    {action:ACTIONS.CANCEL, fromStatus: [NEW,IN_PROGRESS], 
+        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:CANCELLED},
+    {Action:ACTIONS.REJECT, fromStatus: [COMPLETED], 
+        roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:ARCHIVED}
+]
 
 module.exports = {
     Submission

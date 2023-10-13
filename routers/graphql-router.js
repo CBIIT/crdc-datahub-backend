@@ -59,7 +59,8 @@ dbConnector.connect().then(() => {
         createBatch: submissionService.createBatch.bind(submissionService),
         createSubmission: submissionService.createSubmission.bind(submissionService),
         listSubmissions:  submissionService.listSubmissions.bind(submissionService),
-        createTempCredentials: awsService.createTempCredentials.bind(awsService)
+        createTempCredentials: awsService.createTempCredentials.bind(awsService),
+        submissionAction: submissionService.submissionAction.bind(submissionService)
     };
 });
 
