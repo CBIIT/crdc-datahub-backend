@@ -189,24 +189,37 @@ class Submission {
         const id = params?._id
         const rUser = await this.userService.getUserByID(context?.userInfo?._id);
         const aSubmission = await this.findByID(id);
-        if(context?.userInfo?.role === ROLES.DC_POC){
-            if((rUser?.dataCommons.includes(aSubmission?.dataCommons))){
-                return aSubmission
-            }
-        }
-        if(context?.userInfo?.role === ROLES.ORG_OWNER){
-            if(rUser?.organization?.orgID == aSubmission?.organization?._id){
-                return aSubmission
-            }
-        }
-        if(context?.userInfo?.role === ROLES.SUBMITTER){
-            if(rUser?._id == aSubmission?.submitterID){
-                return aSubmission
-            }
-        }
-        if([ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN].includes(context?.userInfo?.role )){
+        const Condition_DC_POC  = (context?.userInfo?.role === ROLES.DC_POC )&& (rUser?.dataCommons.includes(aSubmission?.dataCommons))
+        const Condition_ORG_OWNER  = (context?.userInfo?.role === ROLES.ORG_OWNER )&& (rUser?.organization?.orgID == aSubmission?.organization?._id)
+        const Condition_SUBMITTER  = (context?.userInfo?.role === ROLES.SUBMITTER) && (rUser?._id == aSubmission?.submitterID)
+        const Condition_Admin  = [ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN].includes(context?.userInfo?.role )
+
+        console.log(Condition_Admin)
+
+        if( Condition_DC_POC || Condition_ORG_OWNER || Condition_SUBMITTER || Condition_Admin){
             return aSubmission
-        }        
+        }else{
+            throw new Error.SUBMISSION_NOT_EXIST
+        }
+
+        // if(context?.userInfo?.role === ROLES.DC_POC){
+        //     if((rUser?.dataCommons.includes(aSubmission?.dataCommons))){
+        //         return aSubmission
+        //     }
+        // }
+        // if(context?.userInfo?.role === ROLES.ORG_OWNER){
+        //     if(rUser?.organization?.orgID == aSubmission?.organization?._id){
+        //         return aSubmission
+        //     }
+        // }
+        // if(context?.userInfo?.role === ROLES.SUBMITTER){
+        //     if(rUser?._id == aSubmission?.submitterID){
+        //         return aSubmission
+        //     }
+        // }
+        // if([ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN].includes(context?.userInfo?.role )){
+        //     return aSubmission
+        // }        
     }
 }
 
