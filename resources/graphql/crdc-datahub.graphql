@@ -93,7 +93,6 @@ type FileInfo {
     filePrefix: String # prefix/path within S3 bucket
     fileName: String
     size: Int
-    # TODO the file status needs to be implemented for crateBatch API
     status: String # [New, Uploaded, Failed]
     errors: [String]
     createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
