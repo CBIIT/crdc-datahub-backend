@@ -167,22 +167,22 @@ class Submission {
                 .metadataIntention([BATCH.INTENTION.NEW]);
         }
         const aSubmission = await this.findByID(params.submissionID);
-        const aOrganization = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
+        const aOrganization = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
         return await this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
     }
 
     async updateBatch({batchID, files}, context) {
-        // Check permissions here
-        // Retrieve the batch by batchID
         const aBatch = await this.batchService.findByID(batchID);
         if (!aBatch) {
-            throw new Error("Batch not found");
+            throw new Error(ERROR.BATCH_NOT_EXIST);
         }
-
-        if (aBatch.state !== BATCH.STATUSES.NEW) {
-            throw new Error("Batch is not in New state");
+        if (![BATCH.STATUSES.NEW].includes(aBatch?.status)) {
+            throw new Error(ERROR.INVALID_UPDATE_BATCH_STATUS);
         }
+        const aSubmission = await this.findByID(aBatch.submissionID);
+        // submission owner & submitter's Org Owner
+        await verifyBatchPermission(this.userService, aSubmission, context?.userInfo);
         return await this.batchService.updateBatch(aBatch, files, context?.userInfo);
     }
 

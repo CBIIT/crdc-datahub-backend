@@ -1,6 +1,7 @@
 const {Batch} = require("../domain/batch");
-const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
+const {BATCH, FILE} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const ERROR = require("../constants/error-constants");
+const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 class BatchService {
     constructor(s3Service, batchCollection, bucketName) {
         this.s3Service = s3Service;
@@ -43,50 +44,40 @@ class BatchService {
         }
         return newBatch;
     }
-    async updateBatch(aBatch, files, succededFlag, userInfo) {
-        this._succededFlag = succededFlag;
-        // TODO if succeeded true
-        // TODO update batch succeeded status
-
-
-        // TODO if batch status is not new, throw error
-
-        // UploadResult
-        // input UploadResult {
-        //     fileName: String
-        //     succeeded: Boolean
-        //     errors: [String]
-        // }
-
-        // find by file names
-        //
-
-        // TODO FE might not send all files, creating overhead
-        // by batch ID, it could check all the files uploaded
-        aBatch.files.forEach((file) => {
-            // for the matched file from FE
-            const matchingFile = files.find((uploadFile) => uploadFile.fileName === file.fileName);
-            file.succeeded = matchingFile?.succeeded || false;
-
-            if (!matchingFile?.succeeded) {
-                aBatch.status = "failed";
-                return;
+    async updateBatch(aBatch, files) {
+        const uploadFiles = new Map(files
+            .filter(aFile => (aFile?.fileName) && aFile?.fileName.trim().length > 0)
+            .map(file => [file?.fileName, file]));
+        const succeededFiles = [];
+        for (const aFile of aBatch.files) {
+            if (!uploadFiles.has(aFile.fileName)) {
+                continue;
             }
-        });
-        aBatch.status = "succeeded";
-
-        // todo update batch status
-
-
-
-
-
-
-        // TODO if succeeded false
-        // TODO store error values
-
+            const aUploadFile = uploadFiles.get(aFile.fileName);
+            if (aUploadFile?.succeeded) {
+                aFile.status = FILE.UPLOAD_STATUSES.UPLOADED;
+                succeededFiles.push(aFile);
+                continue;
+            }
+            aFile.status = FILE.UPLOAD_STATUSES.FAILED;
+            aFile.error = uploadFiles.get[aFile.fileName]?.error || [];
+        }
+        // Count how many batch files updated from FE match the uploaded files.
+        const isAllUploaded = files?.length > 0 && succeededFiles.length === files?.length;
+        aBatch.status = isAllUploaded ? BATCH.STATUSES.UPLOADED : BATCH.STATUSES.FAILED;
+        aBatch.updatedAt = getCurrentTime();
+        await asyncUpdateBatch(this.batchCollection, aBatch);
+        return this.findByID(aBatch._id);
     }
+}
 
+const asyncUpdateBatch = async (batchCollection, aBatch) => {
+    const updated = await batchCollection.update(aBatch);
+    if (!updated?.acknowledged){
+        const error = ERROR.FAILED_BATCH_UPDATE;
+        console.error(error);
+        throw new Error(error);
+    }
 }
 
 const createPrefix = (params, rootPath, orgID) => {
