@@ -155,7 +155,10 @@ type Query {
     # sortDirection in ["ASC", "DESC"]
     # orderBy in ["Submitter Name", "Organization", "Study", "Program", "Status", "Submitted Date"]
 
-    # Submitter and Org Owner can only list studies for their own organization, other role can see all
+    # return approved studied for a user's organization
+    listApprovedStudiesOfMyOrganization: [ApprovedStudy]
+
+    # Admin only
     listApprovedStudies: [ApprovedStudy]
 
     "Result depends on user's permission"
