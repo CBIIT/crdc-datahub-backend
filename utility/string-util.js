@@ -52,6 +52,28 @@ const extractAndJoinFields = (data, fieldsToExtract, splitter = ",") => {
         .join(splitter)
     );
 }
+/**
+ * getSubmisssionRootPath
+ * @param {*} submission 
+ * @param {*} organizationService 
+ * @returns rootPath 
+ */
+async function getSubmisssionRootPath (submission, organizationService) {
+    let rootPath = submission.rootPath;
+    if(!rootPath){
+        let orgId = null;
+        if(typeof submission.organization != "string"){
+            orgId =submission.organization._id
+        }   
+        else{
+            const org = await organizationService.getOrganizationByName(submission.organization);
+            orgId = org._id;
+        }
+            
+        rootPath = `${orgId}/${submission._id}`;
+    }
+    return rootPath;
+}
 
 /**
  * Convert string to pascal case
@@ -79,5 +101,6 @@ module.exports = {
     parseArrToStr,
     replaceMessageVariables,
     extractAndJoinFields,
+    getSubmisssionRootPath,
     toPascalCase
 }

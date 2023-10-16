@@ -2,6 +2,7 @@ const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELLED,
     REJECTED, WITHDRAWN,ACTIONS} = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
+const {getSubmisssionRootPath} = require("../utility/string-util");
 const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifySession, verifyApiToken} = require("../verifier/user-info-verifier");
 const {verifySubmissionAction} = require("../verifier/submission-verifier");
@@ -9,6 +10,7 @@ const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mon
 const {formatName} = require("../utility/format-name");
 const ERROR = require("../constants/error-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
+const {SubmissionActionEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const {verifyBatch} = require("../verifier/batch-verifier");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const { API_TOKEN } = require("../constants/application-constants");
@@ -193,27 +195,34 @@ class Submission {
         const verifier = verifySubmissionAction(submissionID, action);
         //verify if a submission can be find by submissionID.
         let submission = await verifier.exists(this.submissionCollection);
+        let fromStatus = submission.status;
         //verify if the action is valid based on current submission status
         verifier.isValidAction(submissionActionMap);
         //verify if user's role is valide for the action
         const newStatus = verifier.inRoles(userInfo);
+
         //update submission
-        submission.status = newStatus;
-        let events = submission.history;
-        if(!events) events = [];
+        let events = submission.history || [];
         events.push(HistoryEventBuilder.createEvent(userInfo._id, newStatus, null));
-        submission.history = events;
-        submission.updatedAt = getCurrentTime();
-        if(!submission.rootPath)
-            submission.rootPath = `${submission.organization._id}/${submission._id}`;
-        
-        //update submission status
-        const res = await this.submissionCollection.update(submission);
-        if (!(res?.acknowledged)) {
+        submission = {
+            ...submission,
+            status: newStatus,
+            history: events,
+            rootPath: await getSubmisssionRootPath(submission, this.organizationService),
+            updatedAt: getCurrentTime()
+        }
+        //update submission
+        const updated = await this.submissionCollection.update(submission);
+        if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
             throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
         }
-        //to do: send email to user and cc related users.
 
+        const logEvent = SubmissionActionEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, submission._id, action, fromStatus, newStatus);
+        // await Promise.all([
+        //     this.logCollection.insert(logEvent),
+        //     //to do send email based on new submission status.
+        // ]);
+        await this.logCollection.insert(logEvent);
         return submission;
     }
 }
