@@ -49,13 +49,14 @@ class BatchService {
                 continue;
             }
             const aUploadFile = uploadFiles.get(aFile.fileName);
+            aFile.updatedAt = getCurrentTime();
             if (aUploadFile?.succeeded) {
                 aFile.status = FILE.UPLOAD_STATUSES.UPLOADED;
                 succeededFiles.push(aFile);
                 continue;
             }
             aFile.status = FILE.UPLOAD_STATUSES.FAILED;
-            aFile.error = uploadFiles.get[aFile.fileName]?.error || [];
+            aFile.errors = aUploadFile?.errors || [];
         }
         // Count how many batch files updated from FE match the uploaded files.
         const isAllUploaded = files?.length > 0 && succeededFiles.length === files?.length;
