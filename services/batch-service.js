@@ -62,7 +62,8 @@ class BatchService {
         aBatch.status = isAllUploaded ? BATCH.STATUSES.UPLOADED : BATCH.STATUSES.FAILED;
         aBatch.updatedAt = getCurrentTime();
         await asyncUpdateBatch(this.batchCollection, aBatch);
-        return this.batchCollection.findByID(aBatch._id);
+        const result = this.findByID(aBatch._id);
+        return result?.length > 0 || {};
     }
 
     async listBatches(params, context) {
@@ -84,19 +85,24 @@ class BatchService {
             }
         });
     }
+
+    async findByID(id) {
+        const aBatch = await this.batchCollection.find(id);
+        return (aBatch?.length > 0) ? aBatch[0] : null;
+    }
 }
 
 const listBatchConditions = (userID, userRole, aUserOrganization, submissionID, userDataCommonsNames) => {
     const submissionJoin = [
         {"$lookup": {
-                from: SUBMISSIONS_COLLECTION,
-                localField: "submissionID",
-                foreignField: "_id",
-                as: "batch"
-            }},
+            from: SUBMISSIONS_COLLECTION,
+            localField: "submissionID",
+            foreignField: "_id",
+            as: "batch"
+        }},
         {"$unwind": {
-                path: "$batch",
-            }}
+            path: "$batch",
+        }}
     ];
     const validStatusAndSubmissionID = {"submissionID": submissionID, "status": {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
     const listAllSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR];

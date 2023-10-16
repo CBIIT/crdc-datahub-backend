@@ -167,7 +167,7 @@ class Submission {
             verifyBatch(params)
                 .metadataIntention([BATCH.INTENTION.NEW]);
         }
-        const aSubmission = await this.submissionCollection.findByID(params.submissionID);
+        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
         const aOrganization = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
         return await this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
@@ -187,7 +187,7 @@ class Submission {
         if (![BATCH.STATUSES.NEW].includes(aBatch?.status)) {
             throw new Error(ERROR.INVALID_UPDATE_BATCH_STATUS);
         }
-        const aSubmission = await this.submissionCollection.findByID(aBatch.submissionID);
+        const aSubmission = await findByID(this.submissionCollection, aBatch.submissionID);
         // submission owner & submitter's Org Owner
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
         return await this.batchService.updateBatch(aBatch, params?.files, userInfo);
@@ -196,7 +196,7 @@ class Submission {
     async listBatches(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const aSubmission = await this.submissionCollection.findByID(params?.submissionID);
+        const aSubmission = await findByID(this.submissionCollection,params?.submissionID);
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
@@ -206,6 +206,11 @@ class Submission {
         }
         return this.batchService.listBatches(params, context);
     }
+}
+
+const findByID = async (submissionCollection, id) => {
+    const aSubmission = await submissionCollection.find(id);
+    return (aSubmission?.length > 0) ? aSubmission[0] : null;
 }
 
 const authenticateUser = (context) => {
