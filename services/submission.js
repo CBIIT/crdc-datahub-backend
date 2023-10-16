@@ -10,10 +10,13 @@ const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-
 const {verifyBatch} = require("../verifier/batch-verifier");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const { API_TOKEN } = require("../constants/application-constants");
+const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const ALL_FILTER = "All";
 const config = require("../config");
 
+// TODO: Data commons needs to be in a predefined list, currently only "CDS" is allowed
+const dataCommonsTempList = ["CDS"];
 
 function listConditions(userID, userRole, userDataCommons, userOrganization, params){
     const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED]}};
@@ -54,6 +57,9 @@ function validateCreateSubmissionParams (params) {
     if (!params.name || !params.studyAbbreviation || !params.dataCommons || !params.dbGaPID) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
     }
+    if (!dataCommonsTempList.some((value) => value === params.dataCommons)) {
+        throw new Error(ERROR.CREATE_SUBMISSION_INVALID_DATA_COMMONS);
+    }
 }
 
 function validateListSubmissionsParams (params) {
@@ -84,7 +90,6 @@ class Submission {
     }
 
     async createSubmission(params, context) {
-        // TODO: Add this requirement: Study abbreviation must have an approved application within user's organization
         verifySession(context)
             .verifyInitialized()
             .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER]);
@@ -93,25 +98,26 @@ class Submission {
         if (!userInfo.organization) {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_ORGANIZATION_ASSIGNED);
         }
+        const userOrgObject = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
+        if (!userOrgObject.studies.some((study) => study.studyAbbreviation === params.studyAbbreviation)) {
+            throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
+        }
+        const submissionID = v4();
         const newSubmission = {
-            _id: v4(),
+            _id: submissionID,
             name: params.name,
             submitterID: userInfo._id,
             submitterName: formatName(userInfo),
             organization: {_id: userInfo?.organization?.orgID, name: userInfo?.organization?.orgName},
-            // TODO: As of MVP2, only CDS is allowed. Change filtering in the future.
-            dataCommons: "CDS",
+            dataCommons: params.dataCommons,
             modelVersion: "string for future use",
             studyAbbreviation: params.studyAbbreviation,
             dbGaPID: params.dbGaPID,
-            // TODO: get bucket name from organziation database
-            bucketName: "get from database",
-            // TODO: get rootpath name from organziation database
-            rootPath: "organization/study?",
+            bucketName: userOrgObject.bucketName,
+            rootPath: userOrgObject.rootPath.concat(`/${submissionID}`),
             status: NEW,
             history: [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)],
-            // TODO: get conceirge data from organization database
-            concierge: "get from organization database?",
+            concierge: userOrgObject.conciergeName,
             createdAt: getCurrentTime(),
             updatedAt: getCurrentTime()
         };
@@ -185,6 +191,20 @@ class Submission {
         // submission owner & submitter's Org Owner
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
         return await this.batchService.updateBatch(aBatch, params?.files, userInfo);
+    }
+
+    async listBatches(params, context) {
+        verifySession(context)
+            .verifyInitialized();
+        const aSubmission = await this.submissionCollection.findByID(params?.submissionID);
+        if (!aSubmission) {
+            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+        }
+        const validSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.DC_POC, USER.ROLES.CURATOR, USER.ROLES.FEDERAL_LEAD, USER.ROLES.ORG_OWNER, USER.ROLES.SUBMITTER];
+        if (!validSubmissionRoles.includes(context?.userInfo?.role)) {
+            throw new Error(ERROR.INVALID_SUBMISSION_PERMISSION);
+        }
+        return this.batchService.listBatches(params, context);
     }
 }
 
