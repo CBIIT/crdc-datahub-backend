@@ -62,8 +62,7 @@ class BatchService {
         aBatch.status = isAllUploaded ? BATCH.STATUSES.UPLOADED : BATCH.STATUSES.FAILED;
         aBatch.updatedAt = getCurrentTime();
         await asyncUpdateBatch(this.batchCollection, aBatch);
-        const result = this.findByID(aBatch._id);
-        return result?.length > 0 || {};
+        return await this.findByID(aBatch._id);
     }
 
     async listBatches(params, context) {

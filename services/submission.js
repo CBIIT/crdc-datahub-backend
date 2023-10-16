@@ -177,8 +177,7 @@ class Submission {
         const userInfo = authenticateUser(context);
         verifyBatch(params)
             .isValidBatchID()
-            .notEmpty()
-            .type([BATCH.TYPE.METADATA, BATCH.TYPE.FILE])
+            .notEmpty();
 
         const aBatch = await this.batchService.findByID(params?.batchID);
         if (!aBatch) {
