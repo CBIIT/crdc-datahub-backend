@@ -194,8 +194,8 @@ class Submission {
         }else{
             // view condition
             const Condition_DC_POC  = (context?.userInfo?.role === ROLES.DC_POC )&& (rUser?.dataCommons.includes(aSubmission?.dataCommons))
-            const Condition_ORG_OWNER  = (context?.userInfo?.role === ROLES.ORG_OWNER )&& (rUser?.organization?.orgID == aSubmission?.organization?._id)
-            const Condition_SUBMITTER  = (context?.userInfo?.role === ROLES.SUBMITTER) && (rUser?._id == aSubmission?.submitterID)
+            const Condition_ORG_OWNER  = (context?.userInfo?.role === ROLES.ORG_OWNER )&& (rUser?.organization?.orgID === aSubmission?.organization?._id)
+            const Condition_SUBMITTER  = (context?.userInfo?.role === ROLES.SUBMITTER) && (rUser?._id === aSubmission?.submitterID)
             const Condition_Admin  = [ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN].includes(context?.userInfo?.role )
             //  role based access control
             if( Condition_DC_POC || Condition_ORG_OWNER || Condition_SUBMITTER || Condition_Admin){
