@@ -18,7 +18,6 @@ const ERROR = {
         INVALID_BATCH_TYPE: "Batch type is invalid",
         INVALID_METADATA_INTENTION_TYPE: "Metadata Intention type is invalid"
     },
-   
     // Batch
     FAILED_NEW_BATCH_INSERTION: "An error occurred while creating a new batch",
     NEW_BATCH_NO_ORGANIZATION: "The user attempting to create a batch does not have any organizational record",
@@ -36,9 +35,10 @@ const ERROR = {
     // List Submissions
     LIST_SUBMISSION_INVALID_STATUS_FILTER: "The status filter is invalid",
     DUPLICATE_STUDY_ABBREVIATION: "Study abbreviation must be a unique value as it already exists in the database.",
-
+    INVALID_SUBMISSION_PERMISSION: "You do not have the correct permissions to list submissions",
     INVALID_ROLE: "You do not have the correct role to perform this operation",
     INVALID_PERMISSION: "You do not have permission to view this application",
+    // Token
     INVALID_TOKEN_EMPTY: "Invalid token: it is empty string!",
     INVALID_TOKEN_NO_USER: "Invalid token: no user info!",
     INVALID_TOKEN_NO_USER_ID: 'Invalid token: no user id!',

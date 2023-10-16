@@ -10,6 +10,7 @@ const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-
 const {verifyBatch} = require("../verifier/batch-verifier");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const { API_TOKEN } = require("../constants/application-constants");
+const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const ALL_FILTER = "All";
 const config = require("../config");
@@ -164,7 +165,6 @@ class Submission {
             .verifyInitialized();
             userInfo = context?.userInfo;
         }
-        
         verifyBatch(params)
             .isUndefined()
             .notEmpty()
@@ -178,6 +178,20 @@ class Submission {
         const aOrganization = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
         return await this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
+    }
+
+    async listBatches(params, context) {
+        verifySession(context)
+            .verifyInitialized();
+        const aSubmission = await this.findByID(params?.submissionID);
+        if (!aSubmission) {
+            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+        }
+        const validSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.DC_POC, USER.ROLES.CURATOR, USER.ROLES.FEDERAL_LEAD, USER.ROLES.ORG_OWNER, USER.ROLES.SUBMITTER];
+        if (!validSubmissionRoles.includes(context?.userInfo?.role)) {
+            throw new Error(ERROR.INVALID_SUBMISSION_PERMISSION);
+        }
+        return this.batchService.listBatches(params, context);
     }
 
     async findByID(id) {
