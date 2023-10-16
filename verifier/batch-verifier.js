@@ -11,6 +11,7 @@ class BatchVerifier {
         this.files = batch?.files;
         // Optional
         this.intention = batch?.metadataIntention;
+        this.batchID = batch?.batchID;
     }
 
     isUndefined() {
@@ -29,6 +30,13 @@ class BatchVerifier {
     notEmpty() {
         if (!this.files||!this.files?.length || this.files.length === 0) {
             throw new Error(ERROR.VERIFY.EMPTY_BATCH_FILE);
+        }
+        return this;
+    }
+
+    isValidBatchID() {
+        if (!this.batchID) {
+            throw new Error(ERROR.VERIFY.UNDEFINED_BATCH_ID);
         }
         return this;
     }

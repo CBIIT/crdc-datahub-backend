@@ -29,7 +29,7 @@ const submissionCollection = new MongoDBCollection();
 const submissionService = new Submission(submissionCollection);
 const s3Service = new S3Service();
 const batchCollection = new MongoDBCollection();
-const batchService = new BatchService(s3Service, batchCollection, config.submission_bucket;
+const batchService = new BatchService(s3Service, batchCollection, config.submission_bucket);
 const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days};
 const dataInterface = new Application(logCollection, applicationCollection, approvedStudyService,submissionService ,batchService, userService, dbService, notificationsService, emailParams);
 
