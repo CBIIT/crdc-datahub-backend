@@ -12,7 +12,6 @@ let config = {
     mongo_db_password: process.env.MONGO_DB_PASSWORD,
     mongo_db_host: process.env.MONGO_DB_HOST,
     mongo_db_port: process.env.MONGO_DB_PORT,
-    submission_aws_bucket_name: process.env.SUBMISSION_AWS_BUCKET_NAME,
 
     //session
     session_secret: process.env.SESSION_SECRET,
@@ -30,10 +29,12 @@ let config = {
     submission_doc_url: process.env.SUBMISSION_DOC_URL || "",
     submision_helpdesk: "CRDCSubmissions@nih.gov",
     submission_system_portal: "https://datacommons.cancer.gov/",
-
+    submission_bucket: process.env.SUBMISSION_BUCKET, 
     //aws sts assume role
     role_arn: process.env.ROLE_ARN,
     role_timeout: parseInt(process.env.ROLE_TIMEOUT) || 12*3600,
+    
+    presign_expiration: parseInt(process.env.PRESIGN_EXPIRATION) || 3600
 };
 config.mongo_db_connection_string = `mongodb://${config.mongo_db_user}:${config.mongo_db_password}@${config.mongo_db_host}:${process.env.MONGO_DB_PORT}`;
 
