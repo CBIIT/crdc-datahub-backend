@@ -135,7 +135,7 @@ class Submission {
         validateListSubmissionsParams(params);
         let pipeline = listConditions(context.userInfo._id, context.userInfo?.role, context.userInfo.dataCommons, context.userInfo?.organization, params);
         if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
-      
+
         const pagination = [];
         if (params.offset) pagination.push({"$skip": params.offset});
         const disablePagination = Number.isInteger(params.first) && params.first === -1;
@@ -156,34 +156,46 @@ class Submission {
     }
 
     async createBatch(params, context) {
-        //updated to handle both API-token and session.
-        let userInfo = null;
-        if(context[API_TOKEN])
-            userInfo = verifyApiToken(context, config.token_secret);
-        else{
-            verifySession(context)
-            .verifyInitialized();
-            userInfo = context?.userInfo;
-        }
+        // updated to handle both API-token and session.
+        const userInfo = authenticateUser(context);
         verifyBatch(params)
             .isUndefined()
             .notEmpty()
-            .type([BATCH.TYPE.METADATA, BATCH.TYPE.FILE])
+            .type([BATCH.TYPE.METADATA, BATCH.TYPE.FILE]);
         // Optional metadata intention
         if (params.type === BATCH.TYPE.METADATA) {
             verifyBatch(params)
                 .metadataIntention([BATCH.INTENTION.NEW]);
         }
-        const aSubmission = await this.findByID(params.submissionID);
-        const aOrganization = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
+        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
+        const aOrganization = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
         return await this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
+    }
+
+    async updateBatch(params, context) {
+        const userInfo = authenticateUser(context);
+        verifyBatch(params)
+            .isValidBatchID()
+            .notEmpty();
+
+        const aBatch = await this.batchService.findByID(params?.batchID);
+        if (!aBatch) {
+            throw new Error(ERROR.BATCH_NOT_EXIST);
+        }
+        if (![BATCH.STATUSES.NEW].includes(aBatch?.status)) {
+            throw new Error(ERROR.INVALID_UPDATE_BATCH_STATUS);
+        }
+        const aSubmission = await findByID(this.submissionCollection, aBatch.submissionID);
+        // submission owner & submitter's Org Owner
+        await verifyBatchPermission(this.userService, aSubmission, userInfo);
+        return await this.batchService.updateBatch(aBatch, params?.files, userInfo);
     }
 
     async listBatches(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const aSubmission = await this.findByID(params?.submissionID);
+        const aSubmission = await findByID(this.submissionCollection,params?.submissionID);
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
@@ -193,15 +205,20 @@ class Submission {
         }
         return this.batchService.listBatches(params, context);
     }
+}
 
-    async findByID(id) {
-        const result = await this.submissionCollection.aggregate([{
-            "$match": {
-                _id: id
-            }
-        }, {"$limit": 1}]);
-        return (result?.length > 0) ? result[0] : null;
+const findByID = async (submissionCollection, id) => {
+    const aSubmission = await submissionCollection.find(id);
+    return (aSubmission?.length > 0) ? aSubmission[0] : null;
+}
+
+const authenticateUser = (context) => {
+    if (context[API_TOKEN]) {
+        return verifyApiToken(context, config.token_secret);
     }
+    verifySession(context)
+        .verifyInitialized();
+    return context?.userInfo;
 }
 
 const verifyBatchPermission= async(userService, aSubmission, userInfo) => {

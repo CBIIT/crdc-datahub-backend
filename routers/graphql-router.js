@@ -58,6 +58,7 @@ dbConnector.connect().then(() => {
         listApprovedStudies: approvedStudiesService.listApprovedStudiesAPI.bind(approvedStudiesService),
         listApprovedStudiesOfMyOrganization: approvedStudiesService.listApprovedStudiesOfMyOrganizationAPI.bind(approvedStudiesService),
         createBatch: submissionService.createBatch.bind(submissionService),
+        updateBatch: submissionService.updateBatch.bind(submissionService),
         listBatches: submissionService.listBatches.bind(submissionService),
         createSubmission: submissionService.createSubmission.bind(submissionService),
         listSubmissions:  submissionService.listSubmissions.bind(submissionService),
