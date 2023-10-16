@@ -150,53 +150,51 @@ class Submission {
     }
 
     async createBatch(params, context) {
-        //updated to handle both API-token and session.
-        let userInfo = null;
-        if(context[API_TOKEN])
-            userInfo = verifyApiToken(context, config.token_secret);
-        else{
-            verifySession(context)
-            .verifyInitialized();
-            userInfo = context?.userInfo;
-        }
-        
+        // updated to handle both API-token and session.
+        const userInfo = authenticateUser(context);
         verifyBatch(params)
             .isUndefined()
             .notEmpty()
-            .type([BATCH.TYPE.METADATA, BATCH.TYPE.FILE])
+            .type([BATCH.TYPE.METADATA, BATCH.TYPE.FILE]);
         // Optional metadata intention
         if (params.type === BATCH.TYPE.METADATA) {
             verifyBatch(params)
                 .metadataIntention([BATCH.INTENTION.NEW]);
         }
-        const aSubmission = await this.findByID(params.submissionID);
+        const aSubmission = await this.submissionCollection.findByID(params.submissionID);
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
         const aOrganization = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
         return await this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
     }
 
-    async updateBatch({batchID, files}, context) {
-        const aBatch = await this.batchService.findByID(batchID);
+    async updateBatch(params, context) {
+        const userInfo = authenticateUser(context);
+        verifyBatch(params)
+            .isValidBatchID()
+            .notEmpty()
+            .type([BATCH.TYPE.METADATA, BATCH.TYPE.FILE])
+
+        const aBatch = await this.batchService.findByID(params?.batchID);
         if (!aBatch) {
             throw new Error(ERROR.BATCH_NOT_EXIST);
         }
         if (![BATCH.STATUSES.NEW].includes(aBatch?.status)) {
             throw new Error(ERROR.INVALID_UPDATE_BATCH_STATUS);
         }
-        const aSubmission = await this.findByID(aBatch.submissionID);
+        const aSubmission = await this.submissionCollection.findByID(aBatch.submissionID);
         // submission owner & submitter's Org Owner
-        await verifyBatchPermission(this.userService, aSubmission, context?.userInfo);
-        return await this.batchService.updateBatch(aBatch, files, context?.userInfo);
+        await verifyBatchPermission(this.userService, aSubmission, userInfo);
+        return await this.batchService.updateBatch(aBatch, params?.files, userInfo);
     }
+}
 
-    async findByID(id) {
-        const result = await this.submissionCollection.aggregate([{
-            "$match": {
-                _id: id
-            }
-        }, {"$limit": 1}]);
-        return (result?.length > 0) ? result[0] : null;
+const authenticateUser = (context) => {
+    if (context[API_TOKEN]) {
+        return verifyApiToken(context, config.token_secret);
     }
+    verifySession(context)
+        .verifyInitialized();
+    return context?.userInfo;
 }
 
 const verifyBatchPermission= async(userService, aSubmission, userInfo) => {

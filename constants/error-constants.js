@@ -11,6 +11,7 @@ const ERROR = {
         INVALID_STATE_APPLICATION: "Application state is invalid",
         // Batch
         UNDEFINED_BATCH_SUBMISSION_ID: "Batch submission ID is undefined",
+        UNDEFINED_BATCH_ID: "Batch ID is undefined",
         UNDEFINED_BATCH_FILE: "Batch file is undefined",
         UNDEFINED_BATCH_METADATA_INTENTION: "Batch metadata-intention is undefined",
         UNDEFINED_BATCH_TYPE: "Batch metadata-intention is undefined",
