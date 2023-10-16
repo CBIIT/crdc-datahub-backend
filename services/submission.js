@@ -189,16 +189,21 @@ class Submission {
         const id = params?._id
         const rUser = await this.userService.getUserByID(context?.userInfo?._id);
         const aSubmission = await this.findByID(id);
-        const Condition_DC_POC  = (context?.userInfo?.role === ROLES.DC_POC )&& (rUser?.dataCommons.includes(aSubmission?.dataCommons))
-        const Condition_ORG_OWNER  = (context?.userInfo?.role === ROLES.ORG_OWNER )&& (rUser?.organization?.orgID == aSubmission?.organization?._id)
-        const Condition_SUBMITTER  = (context?.userInfo?.role === ROLES.SUBMITTER) && (rUser?._id == aSubmission?.submitterID)
-        const Condition_Admin  = [ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN].includes(context?.userInfo?.role )
-
-        if( Condition_DC_POC || Condition_ORG_OWNER || Condition_SUBMITTER || Condition_Admin){
-            return aSubmission
+        if(!aSubmission){
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }else{
-            throw new Error.INVALID_ROLE
-        }    
+            // view condition
+            const Condition_DC_POC  = (context?.userInfo?.role === ROLES.DC_POC )&& (rUser?.dataCommons.includes(aSubmission?.dataCommons))
+            const Condition_ORG_OWNER  = (context?.userInfo?.role === ROLES.ORG_OWNER )&& (rUser?.organization?.orgID == aSubmission?.organization?._id)
+            const Condition_SUBMITTER  = (context?.userInfo?.role === ROLES.SUBMITTER) && (rUser?._id == aSubmission?.submitterID)
+            const Condition_Admin  = [ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN].includes(context?.userInfo?.role )
+            //  role based access control
+            if( Condition_DC_POC || Condition_ORG_OWNER || Condition_SUBMITTER || Condition_Admin){
+                return aSubmission
+            }else if(!Condition_DC_POC || !Condition_ORG_OWNER || !Condition_SUBMITTER){
+                throw new Error(ERROR.INVALID_ROLE)
+            }    
+        }
     }
 }
 
