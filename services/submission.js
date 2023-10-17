@@ -147,6 +147,30 @@ class Submission {
         }
         return this.batchService.listBatches(params, context);
     }
+
+  async getSubmission(params, context){
+        verifySession(context)
+            .verifyInitialized()
+            .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.DC_POC, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN]);
+        const id = params?._id;
+        const rUser = await this.userService.getUserByID(context?.userInfo?._id);
+        const aSubmission = await this.findByID(id);
+        if(!aSubmission){
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
+        }else{
+            // view condition
+            const conditionDCPOC = (context?.userInfo?.role === ROLES.DC_POC )&& (rUser?.dataCommons.includes(aSubmission?.dataCommons));
+            const conditionORGOwner = (context?.userInfo?.role === ROLES.ORG_OWNER )&& (rUser?.organization?.orgID === aSubmission?.organization?._id);
+            const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (rUser?._id === aSubmission?.submitterID);
+            const conditionAdmin = [ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN].includes(context?.userInfo?.role );
+            //  role based access control
+            if( conditionDCPOC || conditionORGOwner || conditionSubmitter || conditionAdmin){
+                return aSubmission
+            }else if(!conditionDCPOC || !conditionORGOwner || !conditionSubmitter){
+                throw new Error(ERROR.INVALID_ROLE)
+            }    
+        }
+    }
     /**
      * API: submissionAction
      * @param {*} params 
@@ -178,12 +202,11 @@ class Submission {
             history: events,
             updatedAt: getCurrentTime()
         }
-        //update submission
         const updated = await this.submissionCollection.update(submission);
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
             throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
         }
-
+        //log event and send notification
         const logEvent = SubmissionActionEvent.create(userInfo._id, userInfo.email, userInfo.IDP, submission._id, action, fromStatus, newStatus);
         await Promise.all([
             this.logCollection.insert(logEvent),
@@ -192,6 +215,7 @@ class Submission {
         return submission;
     }
 }
+    
 /**
  * submissionActionNotification
  * @param {*} userInfo 

@@ -1,9 +1,0 @@
-[
-    {"action":"Submit", "fromStatus": ["In progress"], "roles": ["Submitter", "Org Owner", "Data Curator","Admin"], "toStatus":"Submitted"},
-    {"action":"Release", "fromStatus": ["Submitted"], "roles": ["Data Curator","Admin"], "toStatus":"Released"},
-    {"action":"Withdraw", "fromStatus": ["Submitted"], "roles": ["Submitter", "Org Owner"], "toStatus":"Withdrawn"},
-    {"action":"Reject", "fromStatus": ["Submitted"], "roles": [ "Data Curator","Admin"], "toStatus":"Rejected"},
-    {"action":"Complete", "fromStatus": ["Released"], "roles": ["Data Curator","Admin"], "toStatus":"Completed"},
-    {"action":"Cancel", "fromStatus": ["New","In progress"], "roles": ["Submitter", "Org Owner", "Data Curator","Admin"], "toStatus":"Cancelled"},
-    {"action":"Archive", "fromStatus": ["Completed"], "roles": ["Data Curator","Admin"], "toStatus":"Archived"}
-]
