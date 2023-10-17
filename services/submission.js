@@ -99,9 +99,9 @@ class Submission {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_ORGANIZATION_ASSIGNED);
         }
         const userOrgObject = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
-        // if (!userOrgObject.studies.some((study) => study.studyAbbreviation === params.studyAbbreviation)) {
-        //     throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
-        // }
+        if (!userOrgObject.studies.some((study) => study.studyAbbreviation === params.studyAbbreviation)) {
+            throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
+        }
         const submissionID = v4();
         const newSubmission = {
             _id: submissionID,
@@ -131,6 +131,7 @@ class Submission {
         const userConcierge = await this.userService.getConcierge(newSubmission?.organization?._id)
         const orgOwner = await this.userService.getOrgOwner(newSubmission?.organization?._id)
         const orgOwnerEmail = orgOwner[0]?.email
+        const dataComon_POC =  await this.userService.getUserByOrgAndRole(newSubmission?.organization?._id, ROLES.DC_POC)
         const admin_user = await this.userService.getAdmin();
         let admin_email = ""
         for(let i of admin_user){
@@ -138,7 +139,7 @@ class Submission {
         }
         const admin_list = admin_email
         await Promise.all([
-            await sendEmails.sendEmailAfteReleaseDataSubmission(this.notificationService, userInfo, newSubmission, userConcierge[0], orgOwnerEmail,admin_list)
+            await sendEmails.sendEmailAfteReleaseDataSubmission(this.notificationService, userInfo, newSubmission, userConcierge[0], orgOwnerEmail,admin_list, dataComon_POC[0])
         ]);
 
         return newSubmission;
@@ -230,24 +231,19 @@ const isPermittedUser = (aTargetUser, userInfo) => {
 }
 
 const sendEmails = {
-    sendEmailAfteReleaseDataSubmission: async (notificationService, userInfo, newSubmission, userConcierge, orgOwnerEmail,admin_email) => {
+    sendEmailAfteReleaseDataSubmission: async (notificationService, userInfo, newSubmission, userConcierge, orgOwnerEmail,admin_email, dataComon_POC) => {
         const conciergeEmail = userConcierge?.email
-        let ccEmail
-        if(conciergeEmail){
-            ccEmail = `${orgOwnerEmail} ; ${conciergeEmail}`
-        }else{
-            ccEmail = `${orgOwnerEmail} ; ${admin_email}`
-        }
-        const submitterEmail = userInfo?.email
-        await notificationService.releaseDataSubmissionNotification(submitterEmail, ccEmail, {
-            firstName: newSubmission?.submitterName
+        const ccEmail = `${orgOwnerEmail} ; ${conciergeEmail}; ${admin_email} `
+        const dataComonPOCEmail = dataComon_POC?.email
+        await notificationService.releaseDataSubmissionNotification(dataComonPOCEmail, ccEmail, {
+            firstName: dataComon_POC?.firstName
         },{
             idandname: `"${newSubmission?.name}" (ID: ${newSubmission?._id})`,
+            projectName: `tets`,
             dataconcierge: `${userConcierge?.firstName} ${userConcierge?.lastName} through email ${userConcierge?.email}`
         },{
             dataCommonName: `${newSubmission?.dataCommons}`
         });
-
     }
 }
 

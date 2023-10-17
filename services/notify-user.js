@@ -80,7 +80,8 @@ class NotifyUser {
     }
 
     async releaseDataSubmissionNotification(email, emailCCs,template_params, messageVariables, objectVariables) {
-        const message = replaceMessageVariables(this.email_constants.SUBMIT_DATA_SUBMISSION_CONTENT, messageVariables);
+        
+        const message = replaceMessageVariables(this.email_constants.RELEASE_DATA_SUBMISSION_CONTENT, messageVariables);
         const emailSubject = replaceMessageVariables(this.email_constants.RELEASE_DATA_SUBMISSION_SUBJECT, objectVariables)
         return await this.send(async () => {
             await this.emailService.sendNotification(
