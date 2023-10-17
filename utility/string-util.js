@@ -53,23 +53,6 @@ const extractAndJoinFields = (data, fieldsToExtract, splitter = ",") => {
     );
 }
 
-async function getSubmisssionRootPath (submission, organizationService) {
-    let rootPath = submission.rootPath;
-    if(!rootPath){
-        let orgId = null;
-        if(typeof submission.organization != "string"){
-            orgId =submission.organization._id
-        }   
-        else{
-            const org = await organizationService.getOrganizationByName(submission.organization);
-            orgId = org._id;
-        }
-            
-        rootPath = `${orgId}/${submission._id}`;
-    }
-    return rootPath;
-}
-
 module.exports = {
     isCaseInsensitiveEqual,
     isElementInArray,
@@ -78,6 +61,5 @@ module.exports = {
     getUniqueArr,
     parseArrToStr,
     replaceMessageVariables,
-    extractAndJoinFields,
-    getSubmisssionRootPath
+    extractAndJoinFields
 }

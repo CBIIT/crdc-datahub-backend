@@ -56,7 +56,7 @@ class AWSService {
         });
     }
     /**
-     * 
+     * getLastFileFromS3
      * @param {*} bucket s3 bucket name
      * @param {*} prefix s3 bucket file prefix
      * @returns file
@@ -76,14 +76,17 @@ class AWSService {
         }
         else return null;
     }
-    
+    /**
+     * createDownloadURL
+     * @param {*} bucketName 
+     * @param {*} key 
+     * @returns url as string 
+     */
     async  createDownloadURL(bucketName, key) {
-        let expiration = (config.presign_expration && /^[0-9]*$/.test(config.presign_expration))? 
-            parseInt(config.presign_expration):3600; //defult value is 1 hour
         const params = {
             Bucket: bucketName,
             Key: `${key}`,
-            Expires: expiration, 
+            Expires: config.presign_expration, 
         };
         return new Promise((resolve, reject) => {
             this.s3.getSignedUrl(S3_GET, params, (error, url) => {

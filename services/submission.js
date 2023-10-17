@@ -1,4 +1,4 @@
-const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED} = require("../constants/submission-constants");
+const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, REJECTED, WITHDRAWN, CANCELED} = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
@@ -10,13 +10,15 @@ const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-
 const {verifyBatch} = require("../verifier/batch-verifier");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const { API_TOKEN } = require("../constants/application-constants");
+const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const ALL_FILTER = "All";
 const config = require("../config");
 const path = require("path");
 const {AWSService} = require("./aws-request");
-const {getSubmisssionRootPath} = require("../utility/string-util");
 
+// TODO: Data commons needs to be in a predefined list, currently only "CDS" is allowed
+const dataCommonsTempList = ["CDS"];
 
 function listConditions(userID, userRole, userDataCommons, userOrganization, params){
     const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED]}};
@@ -25,7 +27,7 @@ function listConditions(userID, userRole, userDataCommons, userOrganization, par
     let conditions = {...validApplicationStatus};
     // Filter on organization and status
     if (params.organization !== ALL_FILTER) {
-        conditions = {...conditions, "organization.name": params.organization};
+        conditions = {...conditions, "organization._id": params.organization};
     }
     if (params.status !== ALL_FILTER) {
         conditions = {...conditions, status: params.status};
@@ -57,6 +59,9 @@ function validateCreateSubmissionParams (params) {
     if (!params.name || !params.studyAbbreviation || !params.dataCommons || !params.dbGaPID) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
     }
+    if (!dataCommonsTempList.some((value) => value === params.dataCommons)) {
+        throw new Error(ERROR.CREATE_SUBMISSION_INVALID_DATA_COMMONS);
+    }
 }
 
 function validateListSubmissionsParams (params) {
@@ -66,6 +71,9 @@ function validateListSubmissionsParams (params) {
         params.status !== RELEASED &&
         params.status !== COMPLETED &&
         params.status !== ARCHIVED &&
+        params.status !== REJECTED &&
+        params.status !== WITHDRAWN &&
+        params.status !== CANCELED &&
         params.status !== ALL_FILTER
         ) {
         throw new Error(ERROR.LIST_SUBMISSION_INVALID_STATUS_FILTER);
@@ -90,7 +98,6 @@ class Submission {
     }
 
     async createSubmission(params, context) {
-        // TODO: Add this requirement: Study abbreviation must have an approved application within user's organization
         verifySession(context)
             .verifyInitialized()
             .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER]);
@@ -99,25 +106,26 @@ class Submission {
         if (!userInfo.organization) {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_ORGANIZATION_ASSIGNED);
         }
+        const userOrgObject = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
+        if (!userOrgObject.studies.some((study) => study.studyAbbreviation === params.studyAbbreviation)) {
+            throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
+        }
+        const submissionID = v4();
         const newSubmission = {
-            _id: v4(),
+            _id: submissionID,
             name: params.name,
             submitterID: userInfo._id,
             submitterName: formatName(userInfo),
             organization: {_id: userInfo?.organization?.orgID, name: userInfo?.organization?.orgName},
-            // TODO: As of MVP2, only CDS is allowed. Change filtering in the future.
-            dataCommons: "CDS",
+            dataCommons: params.dataCommons,
             modelVersion: "string for future use",
             studyAbbreviation: params.studyAbbreviation,
             dbGaPID: params.dbGaPID,
-            // TODO: get bucket name from organziation database
-            bucketName: "get from database",
-            // TODO: get rootpath name from organziation database
-            rootPath: "organization/study?",
+            bucketName: userOrgObject.bucketName,
+            rootPath: userOrgObject.rootPath.concat(`/${submissionID}`),
             status: NEW,
             history: [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)],
-            // TODO: get conceirge data from organization database
-            concierge: "get from organization database?",
+            concierge: userOrgObject.conciergeName,
             createdAt: getCurrentTime(),
             updatedAt: getCurrentTime()
         };
@@ -156,38 +164,54 @@ class Submission {
     }
 
     async createBatch(params, context) {
-        //updated to handle both API-token and session.
-        let userInfo = null;
-        if(context[API_TOKEN])
-            userInfo = verifyApiToken(context, config.token_secret);
-        else{
-            verifySession(context)
-            .verifyInitialized();
-            userInfo = context?.userInfo;
-        }
-        
+        // updated to handle both API-token and session.
+        const userInfo = authenticateUser(context);
         verifyBatch(params)
             .isUndefined()
             .notEmpty()
-            .type([BATCH.TYPE.METADATA, BATCH.TYPE.FILE])
+            .type([BATCH.TYPE.METADATA, BATCH.TYPE.FILE]);
         // Optional metadata intention
         if (params.type === BATCH.TYPE.METADATA) {
             verifyBatch(params)
                 .metadataIntention([BATCH.INTENTION.NEW]);
         }
-        const aSubmission = await this.findByID(params.submissionID);
-        const aOrganization = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
+        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
+        const aOrganization = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
         return await this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
     }
 
-    async findByID(id) {
-        const result = await this.submissionCollection.aggregate([{
-            "$match": {
-                _id: id
-            }
-        }, {"$limit": 1}]);
-        return (result?.length > 0) ? result[0] : null;
+    async updateBatch(params, context) {
+        const userInfo = authenticateUser(context);
+        verifyBatch(params)
+            .isValidBatchID()
+            .notEmpty();
+
+        const aBatch = await this.batchService.findByID(params?.batchID);
+        if (!aBatch) {
+            throw new Error(ERROR.BATCH_NOT_EXIST);
+        }
+        if (![BATCH.STATUSES.NEW].includes(aBatch?.status)) {
+            throw new Error(ERROR.INVALID_UPDATE_BATCH_STATUS);
+        }
+        const aSubmission = await findByID(this.submissionCollection, aBatch.submissionID);
+        // submission owner & submitter's Org Owner
+        await verifyBatchPermission(this.userService, aSubmission, userInfo);
+        return await this.batchService.updateBatch(aBatch, params?.files, userInfo);
+    }
+
+    async listBatches(params, context) {
+        verifySession(context)
+            .verifyInitialized();
+        const aSubmission = await findByID(this.submissionCollection,params?.submissionID);
+        if (!aSubmission) {
+            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+        }
+        const validSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.DC_POC, USER.ROLES.CURATOR, USER.ROLES.FEDERAL_LEAD, USER.ROLES.ORG_OWNER, USER.ROLES.SUBMITTER];
+        if (!validSubmissionRoles.includes(context?.userInfo?.role)) {
+            throw new Error(ERROR.INVALID_SUBMISSION_PERMISSION);
+        }
+        return this.batchService.listBatches(params, context);
     }
     /**
      * API to get list of upload log files
@@ -202,9 +226,9 @@ class Submission {
         //2) verify submitter
         const submission = await verifySubmitter(context.userInfo, params?.submissionID, this.submissionCollection, this.userService);
         //3) get upload log files
-        const rootPath = await getSubmisssionRootPath(submission, this.organizationService);
+        const rootPath = submission.rootPath;
         try {
-            const fileList = await this.getLogFiles(config.submission_aws_bucket_name, rootPath);
+            const fileList = await this.getLogFiles(config.submission_bucket, rootPath);
             return {logFiles: fileList} 
         }
         catch(err)
@@ -229,6 +253,21 @@ class Submission {
     }
 }
 
+const findByID = async (submissionCollection, id) => {
+    const aSubmission = await submissionCollection.find(id);
+    return (aSubmission?.length > 0) ? aSubmission[0] : null;
+}
+
+const authenticateUser = (context) => {
+    if (context[API_TOKEN]) {
+        return verifyApiToken(context, config.token_secret);
+    }
+    verifySession(context)
+        .verifyInitialized();
+    return context?.userInfo;
+}
+    
+
 const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
     // verify submission owner
     if (!aSubmission) {
@@ -239,7 +278,7 @@ const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
         return;
     }
     // verify submission's organization owner by an organization name
-    const organizationOwners = await userService.getOrgOwnerByOrgName(aSubmission?.organization);
+    const organizationOwners = await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name);
     for (const aUser of organizationOwners) {
         if (isPermittedUser(aUser, userInfo)) {
             return;

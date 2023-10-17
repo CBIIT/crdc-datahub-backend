@@ -32,16 +32,17 @@ dbConnector.connect().then(() => {
     const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days};
     const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
     const userService = new User(userCollection, logCollection);
-    const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
-    const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection);
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
     const organizationService = new Organization(organizationCollection);
+    const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
+    const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, organizationService);
     const s3Service = new S3Service();
     const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
-    const batchService = new BatchService(s3Service, batchCollection, config.submission_aws_bucket_name);
+    const batchService = new BatchService(s3Service, batchCollection, config.submission_bucket);
     const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService);
     const awsService = new AWSService(submissionCollection, organizationService, userService);
-    const dataInterface = new Application(logCollection, applicationCollection, submissionCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams);
+    const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams);
+
     root = {
         version: () => {return config.version},
         saveApplication: dataInterface.saveApplication.bind(dataInterface),
@@ -55,7 +56,10 @@ dbConnector.connect().then(() => {
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
         deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
         listApprovedStudies: approvedStudiesService.listApprovedStudiesAPI.bind(approvedStudiesService),
+        listApprovedStudiesOfMyOrganization: approvedStudiesService.listApprovedStudiesOfMyOrganizationAPI.bind(approvedStudiesService),
         createBatch: submissionService.createBatch.bind(submissionService),
+        updateBatch: submissionService.updateBatch.bind(submissionService),
+        listBatches: submissionService.listBatches.bind(submissionService),
         createSubmission: submissionService.createSubmission.bind(submissionService),
         listSubmissions:  submissionService.listSubmissions.bind(submissionService),
         createTempCredentials: awsService.createTempCredentials.bind(awsService),
