@@ -2,7 +2,6 @@ const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELLED,
     REJECTED, WITHDRAWN,ACTIONS} = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
-const {getSubmisssionRootPath} = require("../utility/string-util");
 const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifySession, verifyApiToken} = require("../verifier/user-info-verifier");
 const {verifySubmissionAction} = require("../verifier/submission-verifier");
@@ -209,6 +208,12 @@ class Submission {
         }
         return this.batchService.listBatches(params, context);
     }
+    /**
+     * API: submissionAction
+     * @param {*} params 
+     * @param {*} context 
+     * @returns updated submission
+     */
     async submissionAction(params, context){
         verifySession(context)
             .verifyInitialized();
@@ -232,7 +237,6 @@ class Submission {
             ...submission,
             status: newStatus,
             history: events,
-            rootPath: await getSubmisssionRootPath(submission, this.organizationService),
             updatedAt: getCurrentTime()
         }
         //update submission
@@ -242,14 +246,53 @@ class Submission {
         }
 
         const logEvent = SubmissionActionEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, submission._id, action, fromStatus, newStatus);
-        // await Promise.all([
-        //     this.logCollection.insert(logEvent),
-        //     //to do send email based on new submission status.
-        // ]);
-        await this.logCollection.insert(logEvent);
+        await Promise.all([
+            this.logCollection.insert(logEvent),
+            submissionActionNotification(context.userInfo, action, submission, this.userService, this.organizationService)
+        ]);
         return submission;
     }
 }
+/**
+ * submissionActionNotification
+ * @param {*} userInfo 
+ * @param {*} action 
+ * @param {*} submission 
+ * @param {*} userService 
+ * @param {*} organizationService 
+ */
+async function submissionActionNotification(userInfo, action, submission, userService, organizationService) {
+    let toEmails;
+    let ccEmails;
+    let subject;
+    let body;
+    switch(action) {
+        case ACTIONS.SUBMIT:
+            //todo send submitted email
+            break;
+        case ACTIONS.RELEASE:
+            //todo send release email
+            break;
+        case ACTIONS.WITHDRAW:
+            //todo send withdrawn email
+            break;
+        case ACTIONS.REJECT:
+            //todo send rejected email
+            break;
+        case ACTIONS.COMPLETE:
+            //todo send completed email
+            break;
+        case ACTIONS.CANCEL:
+            //todo send cancelled email
+            break;
+        case ACTIONS.ARCHIVE:
+            //todo send archived email
+            break;
+        default:
+            break;
+    }
+}
+
 
 const findByID = async (submissionCollection, id) => {
     const aSubmission = await submissionCollection.find(id);
@@ -302,7 +345,7 @@ const submissionActionMap = [
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:COMPLETED},
     {action:ACTIONS.CANCEL, fromStatus: [NEW,IN_PROGRESS], 
         roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:CANCELLED},
-    {Action:ACTIONS.REJECT, fromStatus: [COMPLETED], 
+    {Action:ACTIONS.ARCHIVE, fromStatus: [COMPLETED], 
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:ARCHIVED}
 ]
 
