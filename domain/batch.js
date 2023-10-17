@@ -1,6 +1,6 @@
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {v4} = require("uuid");
-const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
+const {BATCH, FILE} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 class Batch {
     constructor(submissionID, bucketName, filePrefix, type, status, metadataIntention) {
         this._id = v4();
@@ -34,11 +34,13 @@ class BatchFile {
     constructor(fileName, size, signedURL, filePrefix) {
         this.fileName = fileName;
         this.size = size;
+        this.status = FILE.UPLOAD_STATUSES.NEW;
         if (signedURL) {
             this.signedURL = signedURL;
         }
         this.filePrefix = filePrefix;
         this.createdAt = this.updatedAt = getCurrentTime();
+        this.errors = [];
     }
 }
 

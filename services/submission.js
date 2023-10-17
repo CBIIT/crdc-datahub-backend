@@ -206,7 +206,7 @@ class Submission {
         return this.batchService.listBatches(params, context);
     }
 
-    async getSubmission(params, context){
+  async getSubmission(params, context){
         verifySession(context)
             .verifyInitialized()
             .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.DC_POC, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN]);
