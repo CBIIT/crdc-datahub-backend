@@ -170,7 +170,6 @@ class Submission {
             }    
         }
     }
-}
     /**
      * API: submissionAction
      * @param {*} params 
@@ -215,6 +214,7 @@ class Submission {
         return submission;
     }
 }
+    
 /**
  * submissionActionNotification
  * @param {*} userInfo 
