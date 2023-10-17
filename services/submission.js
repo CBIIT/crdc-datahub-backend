@@ -177,12 +177,11 @@ class Submission {
             history: events,
             updatedAt: getCurrentTime()
         }
-        //update submission
         const updated = await this.submissionCollection.update(submission);
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
             throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
         }
-
+        //log event and send notification
         const logEvent = SubmissionActionEvent.create(userInfo._id, userInfo.email, userInfo.IDP, submission._id, action, fromStatus, newStatus);
         await Promise.all([
             this.logCollection.insert(logEvent),
