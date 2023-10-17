@@ -80,11 +80,12 @@ function validateListSubmissionsParams (params) {
 }
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService,notificationsService, emailParams) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
         this.userService = userService;
+        this.notificationService = notificationsService;
         this.organizationService = organizationService;
     }
 
@@ -98,9 +99,9 @@ class Submission {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_ORGANIZATION_ASSIGNED);
         }
         const userOrgObject = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
-        if (!userOrgObject.studies.some((study) => study.studyAbbreviation === params.studyAbbreviation)) {
-            throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
-        }
+        // if (!userOrgObject.studies.some((study) => study.studyAbbreviation === params.studyAbbreviation)) {
+        //     throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
+        // }
         const submissionID = v4();
         const newSubmission = {
             _id: submissionID,
@@ -125,6 +126,21 @@ class Submission {
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
         }
+
+        // send confirmation email
+        const userConcierge = await this.userService.getConcierge(newSubmission?.organization?._id)
+        const orgOwner = await this.userService.getOrgOwner(newSubmission?.organization?._id)
+        const orgOwnerEmail = orgOwner[0]?.email
+        const admin_user = await this.userService.getAdmin();
+        let admin_email = ""
+        for(let i of admin_user){
+            admin_email += i.email + " ; "
+        }
+        const admin_list = admin_email
+        await Promise.all([
+            await sendEmails.sendEmailAftersubmitDataSubmission(this.notificationService, userInfo, newSubmission, userConcierge[0], orgOwnerEmail,admin_list)
+        ]);
+
         return newSubmission;
     }
 
@@ -211,6 +227,26 @@ const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
 
 const isPermittedUser = (aTargetUser, userInfo) => {
     return aTargetUser?.email === userInfo.email && aTargetUser?.IDP === userInfo.IDP
+}
+
+const sendEmails = {
+    sendEmailAftersubmitDataSubmission: async (notificationService, userInfo, newSubmission, userConcierge, orgOwnerEmail,admin_email) => {
+        const conciergeEmail = userConcierge?.email
+        let ccEmail
+        if(conciergeEmail){
+            ccEmail = `${orgOwnerEmail} ; ${conciergeEmail}`
+        }else{
+            ccEmail = `${orgOwnerEmail} ; ${admin_email}`
+        }
+        const submitterEmail = userInfo?.email
+        await notificationService.submitDataSubmissionNotification(submitterEmail, ccEmail, {
+            firstName: newSubmission?.submitterName
+        },{
+            idandname: `"${newSubmission?.name}" (ID: ${newSubmission?._id})`,
+            dataconcierge: `${userConcierge?.firstName} ${userConcierge?.lastName} through email ${userConcierge?.email}`
+        });
+
+    }
 }
 
 module.exports = {
