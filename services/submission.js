@@ -47,7 +47,6 @@ function listConditions(userID, userRole, userDataCommons, userOrganization, par
     }
 
     // Add condition so submitters will only see their data submissions
-    // User's cant make submissions, so they will always have no submissions 
     // search by applicant's user id
     conditions = {...conditions, "submitterID": userID};
     return [{"$match": conditions}];
@@ -133,6 +132,9 @@ class Submission {
         verifySession(context)
             .verifyInitialized();
         validateListSubmissionsParams(params);
+        if (context.userInfo.role === ROLES.USER) {
+            return {submissions: [], total: 0};
+        }
         let pipeline = listConditions(context.userInfo._id, context.userInfo?.role, context.userInfo.dataCommons, context.userInfo?.organization, params);
         if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
       
