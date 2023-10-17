@@ -22,12 +22,13 @@ const config = require("../config");
 const dataCommonsTempList = ["CDS"];
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
         this.userService = userService;
         this.organizationService = organizationService;
+        this.notificationService = notificationService;
     }
 
     async createSubmission(params, context) {
@@ -186,7 +187,7 @@ class Submission {
         const logEvent = SubmissionActionEvent.create(userInfo._id, userInfo.email, userInfo.IDP, submission._id, action, fromStatus, newStatus);
         await Promise.all([
             this.logCollection.insert(logEvent),
-            submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService)
+            await submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService)
         ]);
         return submission;
     }
@@ -195,15 +196,12 @@ class Submission {
  * submissionActionNotification
  * @param {*} userInfo 
  * @param {*} action 
- * @param {*} submission 
+ * @param {*} aSubmission
  * @param {*} userService 
- * @param {*} organizationService 
+ * @param {*} organizationService
+ * @param {*} notificationService
  */
-async function submissionActionNotification(userInfo, action, submission, userService, organizationService) {
-    let toEmails;
-    let ccEmails;
-    let subject;
-    let body;
+async function submissionActionNotification(userInfo, action, aSubmission, userService, organizationService, notificationService) {
     switch(action) {
         case ACTIONS.SUBMIT:
             //todo send submitted email
@@ -218,7 +216,7 @@ async function submissionActionNotification(userInfo, action, submission, userSe
             //todo send rejected email
             break;
         case ACTIONS.COMPLETE:
-            //todo send completed email
+            await sendEmails.completeSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
             break;
         case ACTIONS.CANCEL:
             //todo send cancelled email
@@ -229,6 +227,52 @@ async function submissionActionNotification(userInfo, action, submission, userSe
         default:
             break;
     }
+}
+
+const sendEmails = {
+    completeSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService) => {
+        const promises = [
+            await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
+            await userService.getAdmin(),
+            await userService.getPOCs(userInfo?.organization?.orgID),
+            await organizationService.getOrganizationByID(userInfo?.organization?.orgID)
+        ];
+        await Promise.all(promises).then(async function(results) {
+            const orgOwnerEmails = filterUniqueUserEmail(results[0] || [], []);
+            const adminEmails = filterUniqueUserEmail(results[1] || [], orgOwnerEmails);
+            // CCs for Submitter, org owner, admins
+            const ccEmails = [userInfo?.email, ...orgOwnerEmails, ...adminEmails];
+            // To POC role users
+            const POCs = results[2] || [];
+            if (POCs.length === 0) {
+                console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
+                return;
+            }
+
+            const aOrganization = results[3] || {};
+            const studyNames = aOrganization?.studies
+                ?.filter((aStudy) => aStudy?.studyAbbreviation === aSubmission?.studyAbbreviation)
+                ?.map((aStudy) => aStudy.studyName);
+            // could be multiple POCs
+            await Promise.all(POCs.map(async (aUser) => {
+                await notificationsService.completeSubmissionNotification(aUser?.email, ccEmails, {
+                    firstName: aUser?.firstName
+                }, {
+                    submissionName: aSubmission?.name,
+                    // only one study
+                    studyName: studyNames?.length > 0 ? studyNames[0] : "NA",
+                    conciergeName: aOrganization?.conciergeName,
+                    conciergeEmail: aOrganization?.conciergeEmail
+                });
+            }));
+        });
+    },
+}
+
+const filterUniqueUserEmail = (users, CCs) => {
+    return users
+        .filter((aUser) => aUser?.email && !CCs.includes(aUser?.email))
+        .map((aUser)=> aUser.email);
 }
 
 
