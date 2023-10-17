@@ -79,12 +79,13 @@ class NotifyUser {
         });
     }
 
-    async submitDataSubmissionNotification(email, emailCCs,template_params, messageVariables) {
+    async releaseDataSubmissionNotification(email, emailCCs,template_params, messageVariables, objectVariables) {
         const message = replaceMessageVariables(this.email_constants.SUBMIT_DATA_SUBMISSION_CONTENT, messageVariables);
+        const emailSubject = replaceMessageVariables(this.email_constants.RELEASE_DATA_SUBMISSION_SUBJECT, objectVariables)
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
-                this.email_constants.SUBMIT_DATA_SUBMISSION_SUBJECT,
+                emailSubject,
                                 await createEmailTemplate("notification-template.html", {
                     message, ...template_params
                 }),

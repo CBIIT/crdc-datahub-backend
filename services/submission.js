@@ -138,7 +138,7 @@ class Submission {
         }
         const admin_list = admin_email
         await Promise.all([
-            await sendEmails.sendEmailAftersubmitDataSubmission(this.notificationService, userInfo, newSubmission, userConcierge[0], orgOwnerEmail,admin_list)
+            await sendEmails.sendEmailAfteReleaseDataSubmission(this.notificationService, userInfo, newSubmission, userConcierge[0], orgOwnerEmail,admin_list)
         ]);
 
         return newSubmission;
@@ -230,7 +230,7 @@ const isPermittedUser = (aTargetUser, userInfo) => {
 }
 
 const sendEmails = {
-    sendEmailAftersubmitDataSubmission: async (notificationService, userInfo, newSubmission, userConcierge, orgOwnerEmail,admin_email) => {
+    sendEmailAfteReleaseDataSubmission: async (notificationService, userInfo, newSubmission, userConcierge, orgOwnerEmail,admin_email) => {
         const conciergeEmail = userConcierge?.email
         let ccEmail
         if(conciergeEmail){
@@ -239,11 +239,13 @@ const sendEmails = {
             ccEmail = `${orgOwnerEmail} ; ${admin_email}`
         }
         const submitterEmail = userInfo?.email
-        await notificationService.submitDataSubmissionNotification(submitterEmail, ccEmail, {
+        await notificationService.releaseDataSubmissionNotification(submitterEmail, ccEmail, {
             firstName: newSubmission?.submitterName
         },{
             idandname: `"${newSubmission?.name}" (ID: ${newSubmission?._id})`,
             dataconcierge: `${userConcierge?.firstName} ${userConcierge?.lastName} through email ${userConcierge?.email}`
+        },{
+            dataCommonName: `${newSubmission?.dataCommons}`
         });
 
     }
