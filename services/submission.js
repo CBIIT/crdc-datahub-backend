@@ -261,35 +261,37 @@ const sendEmails = {
             await userService.getPOCs(),
             await organizationService.getOrganizationByID(userInfo?.organization?.orgID)
         ];
-        await Promise.all(promises).then(async function(results) {
-            const orgOwnerEmails = filterUniqueUserEmail(results[0] || [], []);
-            const adminEmails = filterUniqueUserEmail(results[1] || [], orgOwnerEmails);
-            // CCs for Submitter, org owner, admins
-            const ccEmails = [userInfo?.email, ...orgOwnerEmails, ...adminEmails];
-            // To POC role users
-            const POCs = results[2] || [];
-            if (POCs.length === 0) {
-                console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
-                return;
-            }
-
-            const aOrganization = results[3] || {};
-            const studyNames = aOrganization?.studies
-                ?.filter((aStudy) => aStudy?.studyAbbreviation === aSubmission?.studyAbbreviation)
-                ?.map((aStudy) => aStudy.studyName);
-            // could be multiple POCs
-            await Promise.all(POCs.map(async (aUser) => {
-                await notificationsService.completeSubmissionNotification(aUser?.email, ccEmails, {
-                    firstName: aUser?.firstName
-                }, {
-                    submissionName: aSubmission?.name,
-                    // only one study
-                    studyName: studyNames?.length > 0 ? studyNames[0] : "NA",
-                    conciergeName: aOrganization?.conciergeName,
-                    conciergeEmail: aOrganization?.conciergeEmail
-                });
-            }));
+        let results;
+        await Promise.all(promises).then(async function(returns) {
+            results = returns;
         });
+        const orgOwnerEmails = filterUniqueUserEmail(results[0] || [], []);
+        const adminEmails = filterUniqueUserEmail(results[1] || [], orgOwnerEmails);
+        // CCs for Submitter, org owner, admins
+        const ccEmails = [userInfo?.email, ...orgOwnerEmails, ...adminEmails];
+        // To POC role users
+        const POCs = results[2] || [];
+        if (POCs.length === 0) {
+            console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
+            return;
+        }
+        const aOrganization = results[3] || {};
+        const studyNames = aOrganization?.studies
+            ?.filter((aStudy) => aStudy?.studyAbbreviation === aSubmission?.studyAbbreviation)
+            ?.map((aStudy) => aStudy.studyName);
+        // could be multiple POCs
+        const notificationPromises = POCs.map(aUser =>
+            notificationsService.completeSubmissionNotification(aUser?.email, ccEmails, {
+                firstName: aUser?.firstName
+            }, {
+                submissionName: aSubmission?.name,
+                // only one study
+                studyName: studyNames?.length > 0 ? studyNames[0] : "NA",
+                conciergeName: aOrganization?.conciergeName,
+                conciergeEmail: aOrganization?.conciergeEmail
+            })
+        );
+        await Promise.all(notificationPromises);
     },
 }
 
