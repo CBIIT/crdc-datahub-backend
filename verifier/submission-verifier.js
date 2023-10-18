@@ -8,7 +8,7 @@ function verifySubmissionAction(submissionId, action){
 
 class SubmissionActionVerifier {
     constructor(submissionId, action){
-        if(!submissionId) throw Error("submissionID is required!");
+        if(!submissionId) throw Error(ERROR.VERIFY.INVALID_SUBMISSION_ID);
         this.submissionId = submissionId;
         if(!action) throw Error("action is required!");
         this.action = action;
@@ -16,7 +16,7 @@ class SubmissionActionVerifier {
 
     async exists(submissionCollection){
         const submission = await submissionCollection.find(this.submissionId);
-        if (!submission || submission.length == 0) {
+        if (!submission || submission.length === 0) {
             throw new Error(`${ERROR.INVALID_SUBMISSION_NOT_FOUND}, ${this.submissionId }!`);
         }
         this.submission = submission[0];
@@ -26,12 +26,12 @@ class SubmissionActionVerifier {
     isValidAction(actionMaps){
         let actionMap = actionMaps?.filter((a)=>a.action === toPascalCase(this.action));
         if(!actionMap || actionMap.length === 0)
-            throw new Error(`Invalid submission action: ${this.action}!`);
+            throw new Error(`${ERROR.VERIFY.INVALID_SUBMISSION_ACTION} ${this.action}!`);
 
         this.actionMap = actionMap[0];
         const fromStatus = this.submission.status;
         if(this.actionMap.fromStatus.indexOf(fromStatus) < 0)
-            throw new Error(`Invalid submission status for the action: ${this.action}!`);
+            throw new Error(`${ERROR.VERIFY.INVALID_SUBMISSION_ACTION_STATUS} ${this.action}!`);
         this.newStatus = this.actionMap.toStatus;
     }
 

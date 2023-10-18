@@ -190,7 +190,7 @@ class Submission {
         let fromStatus = submission.status;
         //verify if the action is valid based on current submission status
         verifier.isValidAction(submissionActionMap);
-        //verify if user's role is valide for the action
+        //verify if user's role is valid for the action
         const newStatus = verifier.inRoles(userInfo);
 
         //update submission
@@ -209,7 +209,7 @@ class Submission {
         //log event and send notification
         const logEvent = SubmissionActionEvent.create(userInfo._id, userInfo.email, userInfo.IDP, submission._id, action, fromStatus, newStatus);
         await Promise.all([
-            this.logCollection.insert(logEvent),
+            await this.logCollection.insert(logEvent),
             await submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService)
         ]);
         return submission;
@@ -359,7 +359,7 @@ const submissionActionMap = [
 
 function listConditions(userID, userRole, userDataCommons, userOrganization, params){
     const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED]}};
-    // Default conditons are:
+    // Default conditions are:
     // Make sure application has valid status
     let conditions = {...validApplicationStatus};
     // Filter on organization and status
@@ -374,7 +374,7 @@ function listConditions(userID, userRole, userDataCommons, userOrganization, par
     if (listAllApplicationRoles.includes(userRole)) {
         return [{"$match": conditions}];
     }
-    // If data commons POC, return all data submissions assoicated with their data commons
+    // If data commons POC, return all data submissions associated with their data commons
     if (userRole === ROLES.DC_POC) {
         conditions = {...conditions, "dataCommons": {$in: userDataCommons}};
         return [{"$match": conditions}];

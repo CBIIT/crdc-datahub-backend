@@ -17,7 +17,12 @@ const ERROR = {
         UNDEFINED_BATCH_TYPE: "Batch metadata-intention is undefined",
         EMPTY_BATCH_FILE: "Batch file is empty",
         INVALID_BATCH_TYPE: "Batch type is invalid",
-        INVALID_METADATA_INTENTION_TYPE: "Metadata Intention type is invalid"
+        INVALID_METADATA_INTENTION_TYPE: "Metadata Intention type is invalid",
+        // submission action
+        INVALID_SUBMISSION_ACTION: "Invalid submission action:",
+        INVALID_SUBMISSION_ACTION_STATUS: "Invalid submission status for the action:",
+        INVALID_SUBMISSION_ACTION_ROLE: "Invalid user role for the action:",
+        INVALID_SUBMISSION_ID: "submissionID can't be empty!"
     },
     // Batch
     FAILED_NEW_BATCH_INSERTION: "An error occurred while creating a new batch",
