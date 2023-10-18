@@ -16,7 +16,7 @@ class SubmissionActionVerifier {
 
     async exists(submissionCollection){
         const submission = await submissionCollection.find(this.submissionId);
-        if (!submission || submission.length == 0) {
+        if (!submission || submission.length === 0) {
             throw new Error(`${ERROR.INVALID_SUBMISSION_NOT_FOUND}, ${this.submissionId }!`);
         }
         this.submission = submission[0];
