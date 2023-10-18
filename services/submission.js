@@ -243,12 +243,13 @@ async function submissionActionNotification(userInfo, action, aSubmission, userS
             await sendEmails.completeSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
             break;
         case ACTIONS.CANCEL:
-            //todo send cancelled email
+            await sendEmails.cancelSubmission(aSubmission, userService, organizationService, notificationService);
             break;
         case ACTIONS.ARCHIVE:
             //todo send archived email
             break;
         default:
+            // TODO ERROR MESSAGE
             break;
     }
 }
@@ -274,9 +275,6 @@ const sendEmails = {
             }
 
             const aOrganization = results[3] || {};
-            const studyNames = aOrganization?.studies
-                ?.filter((aStudy) => aStudy?.studyAbbreviation === aSubmission?.studyAbbreviation)
-                ?.map((aStudy) => aStudy.studyName);
             // could be multiple POCs
             await Promise.all(POCs.map(async (aUser) => {
                 await notificationsService.completeSubmissionNotification(aUser?.email, ccEmails, {
@@ -284,13 +282,52 @@ const sendEmails = {
                 }, {
                     submissionName: aSubmission?.name,
                     // only one study
-                    studyName: studyNames?.length > 0 ? studyNames[0] : "NA",
+                    studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
                     conciergeName: aOrganization?.conciergeName,
                     conciergeEmail: aOrganization?.conciergeEmail
                 });
             }));
         });
     },
+    cancelSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
+        const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
+        if (!aSubmitter) {
+            console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
+            return;
+        }
+        const promises = [
+            await userService.getOrgOwnerByOrgName(aSubmitter?.organization?.orgName),
+            await organizationService.getOrganizationByID(aSubmitter?.organization?.orgID)
+        ];
+
+        await Promise.all(promises).then(async function(results) {
+            const orgOwnerEmails = filterUniqueUserEmail(results[0] || [], []);
+            const aOrganization = results[1] || {};
+            const ccEmails = orgOwnerEmails;
+            if (aOrganization?.conciergeEmail && !ccEmails.includes(aOrganization.conciergeEmail)) {
+                ccEmails.push(aOrganization.conciergeEmail);
+            }
+            await notificationService.cancelSubmissionNotification(aSubmitter?.email, ccEmails, {
+                firstName: aSubmitter?.firstName
+            }, {
+                submissionID: aSubmission?._id,
+                submissionName: aSubmission?.name,
+                // is study name TODO
+                projectName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                canceledBy: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
+                conciergeName: aOrganization?.conciergeEmail || "NA",
+                conciergeEmail: aOrganization?.conciergeEmail || "NA"
+            });
+        });
+    }
+}
+
+// only one study name
+const getSubmissionStudyName = (studies, aSubmission) => {
+    const studyNames = studies
+        ?.filter((aStudy) => aStudy?.studyAbbreviation === aSubmission?.studyAbbreviation)
+        ?.map((aStudy) => aStudy.studyName);
+    return studyNames?.length > 0 ? studyNames[0] : "NA";
 }
 
 const filterUniqueUserEmail = (users, CCs) => {
