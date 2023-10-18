@@ -258,7 +258,7 @@ const sendEmails = {
         const promises = [
             await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
             await userService.getAdmin(),
-            await userService.getPOCs(userInfo?.organization?.orgID),
+            await userService.getPOCs(),
             await organizationService.getOrganizationByID(userInfo?.organization?.orgID)
         ];
         await Promise.all(promises).then(async function(results) {
