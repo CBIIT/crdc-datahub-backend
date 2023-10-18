@@ -21,6 +21,68 @@ const config = require("../config");
 // TODO: Data commons needs to be in a predefined list, currently only "CDS" is allowed
 const dataCommonsTempList = ["CDS"];
 
+function listConditions(userID, userRole, userDataCommons, userOrganization, params){
+    const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED]}};
+    // Default conditons are:
+    // Make sure application has valid status
+    let conditions = {...validApplicationStatus};
+    // Filter on organization and status
+    if (params.organization !== ALL_FILTER) {
+        conditions = {...conditions, "organization._id": params.organization};
+    }
+    if (params.status !== ALL_FILTER) {
+        conditions = {...conditions, status: params.status};
+    }
+    // List all applications if Fed Lead / Admin / Data Concierge / Data Curator
+    const listAllApplicationRoles = [ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.CURATOR];
+    if (listAllApplicationRoles.includes(userRole)) {
+        return [{"$match": conditions}];
+    }
+    // If data commons POC, return all data submissions assoicated with their data commons
+    if (userRole === ROLES.DC_POC) {
+        conditions = {...conditions, "dataCommons": {$in: userDataCommons}};
+        return [{"$match": conditions}];
+    }
+     // If org owner, add condition to return all data submissions associated with their organization
+    if (userRole === ROLES.ORG_OWNER && userOrganization?.orgName) {
+        conditions = {...conditions, "organization.name": userOrganization.orgName};
+        return [{"$match": conditions}];
+    }
+
+    // Add condition so submitters will only see their data submissions
+    // User's cant make submissions, so they will always have no submissions 
+    // search by applicant's user id
+    conditions = {...conditions, "submitterID": userID};
+    return [{"$match": conditions}];
+}
+
+function validateCreateSubmissionParams (params) {
+    if (!params.name || !params.studyAbbreviation || !params.dataCommons || !params.dbGaPID) {
+        throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
+    }
+    if (!dataCommonsTempList.some((value) => value === params.dataCommons)) {
+        throw new Error(ERROR.CREATE_SUBMISSION_INVALID_DATA_COMMONS);
+    }
+}
+
+function validateListSubmissionsParams (params) {
+    if (params.status !== NEW &&
+        params.status !== IN_PROGRESS &&
+        params.status !== SUBMITTED &&
+        params.status !== RELEASED &&
+        params.status !== COMPLETED &&
+        params.status !== ARCHIVED &&
+        params.status !== REJECTED &&
+        params.status !== WITHDRAWN &&
+        params.status !== CANCELED &&
+        params.status !== ALL_FILTER
+        ) {
+        throw new Error(ERROR.LIST_SUBMISSION_INVALID_STATUS_FILTER);
+    }
+    // Don't need to validate organization as frontend uses the same organization collection
+    // as backend does as selection options. AKA, frontend will only ever send valid organizations.
+}
+
 class Submission {
     constructor(logCollection, submissionCollection, batchService, userService, organizationService) {
         this.logCollection = logCollection;
@@ -74,6 +136,9 @@ class Submission {
         verifySession(context)
             .verifyInitialized();
         validateListSubmissionsParams(params);
+        if (context.userInfo.role === ROLES.USER) {
+            return {submissions: [], total: 0};
+        }
         let pipeline = listConditions(context.userInfo._id, context.userInfo?.role, context.userInfo.dataCommons, context.userInfo?.organization, params);
         if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
 
@@ -151,16 +216,14 @@ class Submission {
         verifySession(context)
             .verifyInitialized()
             .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.DC_POC, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN]);
-        const id = params?._id;
-        const rUser = await this.userService.getUserByID(context?.userInfo?._id);
-        const aSubmission = await this.findByID(id);
+        const aSubmission = await findByID(this.submissionCollection, params._id);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }else{
             // view condition
-            const conditionDCPOC = (context?.userInfo?.role === ROLES.DC_POC )&& (rUser?.dataCommons.includes(aSubmission?.dataCommons));
-            const conditionORGOwner = (context?.userInfo?.role === ROLES.ORG_OWNER )&& (rUser?.organization?.orgID === aSubmission?.organization?._id);
-            const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (rUser?._id === aSubmission?.submitterID);
+            const conditionDCPOC = (context?.userInfo?.role === ROLES.DC_POC )&& (context?.userInfo?.dataCommons.includes(aSubmission?.dataCommons));
+            const conditionORGOwner = (context?.userInfo?.role === ROLES.ORG_OWNER )&& (context?.userInfo?.organization?.orgID === aSubmission?.organization?._id);
+            const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
             const conditionAdmin = [ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN].includes(context?.userInfo?.role );
             //  role based access control
             if( conditionDCPOC || conditionORGOwner || conditionSubmitter || conditionAdmin){
