@@ -168,9 +168,8 @@ class Submission {
             //  role based access control
             if( conditionDCPOC || conditionORGOwner || conditionSubmitter || conditionAdmin){
                 return aSubmission
-            }else if(!conditionDCPOC || !conditionORGOwner || !conditionSubmitter){
-                throw new Error(ERROR.INVALID_ROLE)
-            }    
+            }
+            throw new Error(ERROR.INVALID_ROLE);
         }
     }
     /**
@@ -245,12 +244,13 @@ async function submissionActionNotification(userInfo, action, aSubmission, userS
             await sendEmails.completeSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
             break;
         case ACTIONS.CANCEL:
-            //todo send canceled email
+            await sendEmails.cancelSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
             break;
         case ACTIONS.ARCHIVE:
             //todo send archived email
             break;
         default:
+            // TODO should be ERROR MESSAGE
             break;
     }
 }
@@ -278,9 +278,6 @@ const sendEmails = {
             return;
         }
         const aOrganization = results[3] || {};
-        const studyNames = aOrganization?.studies
-            ?.filter((aStudy) => aStudy?.studyAbbreviation === aSubmission?.studyAbbreviation)
-            ?.map((aStudy) => aStudy.studyName);
         // could be multiple POCs
         const notificationPromises = POCs.map(aUser =>
             notificationsService.completeSubmissionNotification(aUser?.email, ccEmails, {
@@ -288,19 +285,59 @@ const sendEmails = {
             }, {
                 submissionName: aSubmission?.name,
                 // only one study
-                studyName: studyNames?.length > 0 ? studyNames[0] : "NA",
+                studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
                 conciergeName: aOrganization?.conciergeName,
                 conciergeEmail: aOrganization?.conciergeEmail
             })
         );
         await Promise.all(notificationPromises);
     },
+    cancelSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
+        const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
+        if (!aSubmitter) {
+            console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
+            return;
+        }
+        const promises = [
+            await userService.getOrgOwnerByOrgName(aSubmitter?.organization?.orgName),
+            await organizationService.getOrganizationByID(aSubmitter?.organization?.orgID)
+        ];
+
+        let results;
+        await Promise.all(promises).then(async function(returns) {
+            results = returns;
+        });
+
+        const orgOwnerEmails = filterUniqueUserEmail(results[0] || [], []);
+        const aOrganization = results[1] || {};
+        const curatorEmails = filterUniqueUserEmail([{email: aOrganization?.conciergeEmail}], orgOwnerEmails);
+        // CCs for org owner, curators
+        const ccEmails = [...orgOwnerEmails, ...curatorEmails];
+        await notificationService.cancelSubmissionNotification(aSubmitter?.email, ccEmails, {
+            firstName: aSubmitter?.firstName
+        }, {
+            submissionID: aSubmission?._id,
+            submissionName: aSubmission?.name,
+            studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+            canceledBy: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
+            conciergeEmail: aOrganization?.conciergeEmail || "NA",
+            conciergeName: aOrganization?.conciergeName || "NA"
+        });
+    }
+}
+
+// only one study name
+const getSubmissionStudyName = (studies, aSubmission) => {
+    const studyNames = studies
+        ?.filter((aStudy) => aStudy?.studyAbbreviation === aSubmission?.studyAbbreviation)
+        ?.map((aStudy) => aStudy.studyName);
+    return studyNames?.length > 0 ? studyNames[0] : "NA";
 }
 
 const filterUniqueUserEmail = (users, CCs) => {
     return users
-        .filter((aUser) => aUser?.email && !CCs.includes(aUser?.email))
-        .map((aUser)=> aUser.email);
+        ?.filter((aUser) => aUser?.email && !CCs.includes(aUser?.email))
+        ?.map((aUser)=> aUser.email);
 }
 
 
