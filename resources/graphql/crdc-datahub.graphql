@@ -66,7 +66,8 @@ type Submission {
     rootPath: String # append "/<submission ID>" to organization's rootPath
     status: String # [New, In Progress, Submitted, Released, Canceled, Transferred, Completed, Archived]
     history: [Event]
-    concierge: String # Concierge name
+    conciergeName: String # Concierge name
+    conciergeEmail: String # Concierge email
     createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
     updatedAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
 }
