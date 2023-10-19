@@ -21,67 +21,6 @@ const config = require("../config");
 // TODO: Data commons needs to be in a predefined list, currently only "CDS" is allowed
 const dataCommonsTempList = ["CDS"];
 
-function listConditions(userID, userRole, userDataCommons, userOrganization, params){
-    const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED]}};
-    // Default conditons are:
-    // Make sure application has valid status
-    let conditions = {...validApplicationStatus};
-    // Filter on organization and status
-    if (params.organization !== ALL_FILTER) {
-        conditions = {...conditions, "organization._id": params.organization};
-    }
-    if (params.status !== ALL_FILTER) {
-        conditions = {...conditions, status: params.status};
-    }
-    // List all applications if Fed Lead / Admin / Data Concierge / Data Curator
-    const listAllApplicationRoles = [ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.CURATOR];
-    if (listAllApplicationRoles.includes(userRole)) {
-        return [{"$match": conditions}];
-    }
-    // If data commons POC, return all data submissions assoicated with their data commons
-    if (userRole === ROLES.DC_POC) {
-        conditions = {...conditions, "dataCommons": {$in: userDataCommons}};
-        return [{"$match": conditions}];
-    }
-     // If org owner, add condition to return all data submissions associated with their organization
-    if (userRole === ROLES.ORG_OWNER && userOrganization?.orgName) {
-        conditions = {...conditions, "organization.name": userOrganization.orgName};
-        return [{"$match": conditions}];
-    }
-
-    // Add condition so submitters will only see their data submissions
-    // search by applicant's user id
-    conditions = {...conditions, "submitterID": userID};
-    return [{"$match": conditions}];
-}
-
-function validateCreateSubmissionParams (params) {
-    if (!params.name || !params.studyAbbreviation || !params.dataCommons || !params.dbGaPID) {
-        throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
-    }
-    if (!dataCommonsTempList.some((value) => value === params.dataCommons)) {
-        throw new Error(ERROR.CREATE_SUBMISSION_INVALID_DATA_COMMONS);
-    }
-}
-
-function validateListSubmissionsParams (params) {
-    if (params.status !== NEW &&
-        params.status !== IN_PROGRESS &&
-        params.status !== SUBMITTED &&
-        params.status !== RELEASED &&
-        params.status !== COMPLETED &&
-        params.status !== ARCHIVED &&
-        params.status !== REJECTED &&
-        params.status !== WITHDRAWN &&
-        params.status !== CANCELLED &&
-        params.status !== ALL_FILTER
-        ) {
-        throw new Error(ERROR.LIST_SUBMISSION_INVALID_STATUS_FILTER);
-    }
-    // Don't need to validate organization as frontend uses the same organization collection
-    // as backend does as selection options. AKA, frontend will only ever send valid organizations.
-}
-
 class Submission {
     constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService) {
         this.logCollection = logCollection;
@@ -228,14 +167,14 @@ class Submission {
             //  role based access control
             if( conditionDCPOC || conditionORGOwner || conditionSubmitter || conditionAdmin){
                 return aSubmission
-            }
+            }   
             throw new Error(ERROR.INVALID_ROLE)
         }
     }
     /**
      * API: submissionAction
-     * @param {*} params
-     * @param {*} context
+     * @param {*} params 
+     * @param {*} context 
      * @returns updated submission
      */
     async submissionAction(params, context){
@@ -251,7 +190,7 @@ class Submission {
         let fromStatus = submission.status;
         //verify if the action is valid based on current submission status
         verifier.isValidAction(submissionActionMap);
-        //verify if user's role is valide for the action
+        //verify if user's role is valid for the action
         const newStatus = verifier.inRoles(userInfo);
 
         //update submission
@@ -270,13 +209,13 @@ class Submission {
         //log event and send notification
         const logEvent = SubmissionActionEvent.create(userInfo._id, userInfo.email, userInfo.IDP, submission._id, action, fromStatus, newStatus);
         await Promise.all([
-            this.logCollection.insert(logEvent),
-            await submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService)
+            await this.logCollection.insert(logEvent),
+            await submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService,this.notificationService)
         ]);
         return submission;
     }
 }
-
+    
 /**
  * submissionActionNotification
  * @param {*} userInfo
@@ -410,7 +349,7 @@ const authenticateUser = (context) => {
     verifySession(context)
         .verifyInitialized();
     return context?.userInfo;
-}
+}  
 
 const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
     // verify submission owner
@@ -437,19 +376,19 @@ const isPermittedUser = (aTargetUser, userInfo) => {
 
 //actions: NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED
 const submissionActionMap = [
-    {action:ACTIONS.SUBMIT, fromStatus: [IN_PROGRESS],
+    {action:ACTIONS.SUBMIT, fromStatus: [IN_PROGRESS], 
         roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:SUBMITTED},
-    {action:ACTIONS.RELEASE, fromStatus: [SUBMITTED],
+    {action:ACTIONS.RELEASE, fromStatus: [SUBMITTED], 
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:RELEASED},
-    {action:ACTIONS.WITHDRAW, fromStatus: [SUBMITTED],
+    {action:ACTIONS.WITHDRAW, fromStatus: [SUBMITTED], 
         roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER,], toStatus:WITHDRAWN},
-    {action:ACTIONS.REJECT, fromStatus: [SUBMITTED],
+    {action:ACTIONS.REJECT, fromStatus: [SUBMITTED], 
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:REJECTED},
-    {action:ACTIONS.COMPLETE, fromStatus: [RELEASED],
+    {action:ACTIONS.COMPLETE, fromStatus: [RELEASED], 
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:COMPLETED},
-    {action:ACTIONS.CANCEL, fromStatus: [NEW,IN_PROGRESS],
+    {action:ACTIONS.CANCEL, fromStatus: [NEW,IN_PROGRESS], 
         roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:CANCELLED},
-    {Action:ACTIONS.ARCHIVE, fromStatus: [COMPLETED],
+    {Action:ACTIONS.ARCHIVE, fromStatus: [COMPLETED], 
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:ARCHIVED}
 ];
 
@@ -482,7 +421,7 @@ function listConditions(userID, userRole, userDataCommons, userOrganization, par
     }
 
     // Add condition so submitters will only see their data submissions
-    // User's cant make submissions, so they will always have no submissions
+    // User's cant make submissions, so they will always have no submissions 
     // search by applicant's user id
     conditions = {...conditions, "submitterID": userID};
     return [{"$match": conditions}];
