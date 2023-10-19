@@ -448,7 +448,7 @@ function validateListSubmissionsParams (params) {
         params.status !== ARCHIVED &&
         params.status !== REJECTED &&
         params.status !== WITHDRAWN &&
-        params.status !== CANCELED &&
+        params.status !== CANCELLED &&
         params.status !== ALL_FILTER
         ) {
         throw new Error(ERROR.LIST_SUBMISSION_INVALID_STATUS_FILTER);
