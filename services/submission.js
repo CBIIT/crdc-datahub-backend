@@ -249,7 +249,7 @@ async function submissionActionNotification(userInfo, action, aSubmission, userS
             //todo send archived email
             break;
         default:
-            // TODO ERROR MESSAGE
+            // TODO should be ERROR MESSAGE
             break;
     }
 }
