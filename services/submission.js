@@ -1,5 +1,5 @@
-const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELLED,
-    REJECTED, WITHDRAWN,ACTIONS} = require("../constants/submission-constants");
+const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
+    REJECTED, WITHDRAWN, ACTIONS } = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
@@ -59,7 +59,8 @@ class Submission {
             rootPath: userOrgObject.rootPath.concat(`/${submissionID}`),
             status: NEW,
             history: [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)],
-            concierge: userOrgObject.conciergeName,
+            conciergeName: userOrgObject.conciergeName,
+            conciergeEmail: userOrgObject.conciergeEmail,
             createdAt: getCurrentTime(),
             updatedAt: getCurrentTime()
         };
@@ -244,7 +245,7 @@ async function submissionActionNotification(userInfo, action, aSubmission, userS
             await sendEmails.completeSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
             break;
         case ACTIONS.CANCEL:
-            //todo send cancelled email
+            //todo send canceled email
             break;
         case ACTIONS.ARCHIVE:
             //todo send archived email
@@ -353,13 +354,14 @@ const submissionActionMap = [
     {action:ACTIONS.COMPLETE, fromStatus: [RELEASED], 
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:COMPLETED},
     {action:ACTIONS.CANCEL, fromStatus: [NEW,IN_PROGRESS], 
-        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:CANCELLED},
+        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:CANCELED},
     {Action:ACTIONS.ARCHIVE, fromStatus: [COMPLETED], 
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:ARCHIVED}
 ];
 
 function listConditions(userID, userRole, userDataCommons, userOrganization, params){
-    const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED]}};
+    const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
+        REJECTED, WITHDRAWN]}};
     // Default conditions are:
     // Make sure application has valid status
     let conditions = {...validApplicationStatus};
@@ -411,7 +413,7 @@ function validateListSubmissionsParams (params) {
         params.status !== ARCHIVED &&
         params.status !== REJECTED &&
         params.status !== WITHDRAWN &&
-        params.status !== CANCELLED &&
+        params.status !== CANCELED &&
         params.status !== ALL_FILTER
         ) {
         throw new Error(ERROR.LIST_SUBMISSION_INVALID_STATUS_FILTER);
