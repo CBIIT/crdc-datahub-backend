@@ -14,7 +14,7 @@ module.exports = Object.freeze({
         SUBMIT: "Submit",
         RELEASE: "Release",
         COMPLETE: "Complete",
-        ARCHIVE: "Archived",
+        ARCHIVE: "Archive",
         CANCEL: "Cancel",
         REJECT: "Reject",
         WITHDRAW: "Withdraw"

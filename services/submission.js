@@ -391,8 +391,8 @@ const submissionActionMap = [
     {action:ACTIONS.COMPLETE, fromStatus: [RELEASED], 
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:COMPLETED},
     {action:ACTIONS.CANCEL, fromStatus: [NEW,IN_PROGRESS], 
-        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:CANCELED},
-    {Action:ACTIONS.ARCHIVE, fromStatus: [COMPLETED], 
+        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:CANCELLED},
+    {action:ACTIONS.ARCHIVE, fromStatus: [COMPLETED], 
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:ARCHIVED}
 ];
 
