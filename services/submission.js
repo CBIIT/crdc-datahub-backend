@@ -312,8 +312,7 @@ const sendEmails = {
             }, {
                 submissionID: aSubmission?._id,
                 submissionName: aSubmission?.name,
-                // is study name TODO
-                projectName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
                 canceledBy: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
                 conciergeName: aOrganization?.conciergeEmail || "NA",
                 conciergeEmail: aOrganization?.conciergeEmail || "NA"
