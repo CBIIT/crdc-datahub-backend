@@ -319,8 +319,8 @@ const sendEmails = {
             submissionName: aSubmission?.name,
             studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
             canceledBy: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
-            conciergeName: aOrganization?.conciergeEmail || "NA",
-            conciergeEmail: aOrganization?.conciergeEmail || "NA"
+            conciergeEmail: aOrganization?.conciergeEmail || "NA",
+            conciergeName: aOrganization?.conciergeName || "NA"
         });
     }
 }

@@ -20,4 +20,4 @@ REMIND_EXPIRED_APPLICATION_CONTENT: "Your request to submit data to CRDC for the
 COMPLETE_DATA_SUBMISSION_SUBJECT: "CRDC Data Submission Completed"
 COMPLETE_DATA_SUBMISSION_CONTENT: "The Data Submission, $submissionName , for the $studyName study has been completed and all data successfully transferred to the appropriate data commons. If you believe this is an error, please contact $conciergeName at $conciergeEmail"
 CANCEL_DATA_SUBMISSION_SUBJECT: "CRDC Data Submission Cancelled"
-CANCEL_DATA_SUBMISSION_CONTENT: "Data Submission $submissionID / $submissionName for Project $studyName has been cancelled by user $canceledBy and no further work on this submission will be possible. If this cancellation is in error, please contact $conciergeName at $conciergeEmail"
+CANCEL_DATA_SUBMISSION_CONTENT: "Data Submission $submissionID / $submissionName for study $studyName has been cancelled by user $canceledBy and no further work on this submission will be possible. If this cancellation is in error, please contact $conciergeName at $conciergeEmail"
