@@ -243,7 +243,7 @@ async function submissionActionNotification(userInfo, action, aSubmission, userS
             await sendEmails.completeSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
             break;
         case ACTIONS.CANCEL:
-            await sendEmails.cancelSubmission(aSubmission, userService, organizationService, notificationService);
+            await sendEmails.cancelSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
             break;
         case ACTIONS.ARCHIVE:
             //todo send archived email
@@ -277,9 +277,6 @@ const sendEmails = {
             return;
         }
         const aOrganization = results[3] || {};
-        const studyNames = aOrganization?.studies
-            ?.filter((aStudy) => aStudy?.studyAbbreviation === aSubmission?.studyAbbreviation)
-            ?.map((aStudy) => aStudy.studyName);
         // could be multiple POCs
         const notificationPromises = POCs.map(aUser =>
             notificationsService.completeSubmissionNotification(aUser?.email, ccEmails, {
@@ -287,7 +284,7 @@ const sendEmails = {
             }, {
                 submissionName: aSubmission?.name,
                 // only one study
-                studyName: studyNames?.length > 0 ? studyNames[0] : "NA",
+                studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
                 conciergeName: aOrganization?.conciergeName,
                 conciergeEmail: aOrganization?.conciergeEmail
             })
@@ -305,23 +302,25 @@ const sendEmails = {
             await organizationService.getOrganizationByID(aSubmitter?.organization?.orgID)
         ];
 
-        await Promise.all(promises).then(async function(results) {
-            const orgOwnerEmails = filterUniqueUserEmail(results[0] || [], []);
-            const aOrganization = results[1] || {};
-            const ccEmails = orgOwnerEmails;
-            if (aOrganization?.conciergeEmail && !ccEmails.includes(aOrganization.conciergeEmail)) {
-                ccEmails.push(aOrganization.conciergeEmail);
-            }
-            await notificationService.cancelSubmissionNotification(aSubmitter?.email, ccEmails, {
-                firstName: aSubmitter?.firstName
-            }, {
-                submissionID: aSubmission?._id,
-                submissionName: aSubmission?.name,
-                studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
-                canceledBy: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
-                conciergeName: aOrganization?.conciergeEmail || "NA",
-                conciergeEmail: aOrganization?.conciergeEmail || "NA"
-            });
+        let results;
+        await Promise.all(promises).then(async function(returns) {
+            results = returns;
+        });
+
+        const orgOwnerEmails = filterUniqueUserEmail(results[0] || [], []);
+        const aOrganization = results[1] || {};
+        const curatorEmails = filterUniqueUserEmail([{email: aOrganization?.conciergeEmail}], orgOwnerEmails);
+        // CCs for org owner, curators
+        const ccEmails = [...orgOwnerEmails, ...curatorEmails];
+        await notificationService.cancelSubmissionNotification(aSubmitter?.email, ccEmails, {
+            firstName: aSubmitter?.firstName
+        }, {
+            submissionID: aSubmission?._id,
+            submissionName: aSubmission?.name,
+            studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+            canceledBy: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
+            conciergeName: aOrganization?.conciergeEmail || "NA",
+            conciergeEmail: aOrganization?.conciergeEmail || "NA"
         });
     }
 }
@@ -336,8 +335,8 @@ const getSubmissionStudyName = (studies, aSubmission) => {
 
 const filterUniqueUserEmail = (users, CCs) => {
     return users
-        .filter((aUser) => aUser?.email && !CCs.includes(aUser?.email))
-        .map((aUser)=> aUser.email);
+        ?.filter((aUser) => aUser?.email && !CCs.includes(aUser?.email))
+        ?.map((aUser)=> aUser.email);
 }
 
 
