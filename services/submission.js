@@ -1,12 +1,15 @@
-const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, REJECTED, WITHDRAWN, CANCELED} = require("../constants/submission-constants");
+const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELLED,
+    REJECTED, WITHDRAWN,ACTIONS} = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifySession, verifyApiToken} = require("../verifier/user-info-verifier");
+const {verifySubmissionAction} = require("../verifier/submission-verifier");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {formatName} = require("../utility/format-name");
 const ERROR = require("../constants/error-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
+const {SubmissionActionEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const {verifyBatch} = require("../verifier/batch-verifier");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const { API_TOKEN } = require("../constants/application-constants");
@@ -18,74 +21,14 @@ const config = require("../config");
 // TODO: Data commons needs to be in a predefined list, currently only "CDS" is allowed
 const dataCommonsTempList = ["CDS"];
 
-function listConditions(userID, userRole, userDataCommons, userOrganization, params){
-    const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED]}};
-    // Default conditons are:
-    // Make sure application has valid status
-    let conditions = {...validApplicationStatus};
-    // Filter on organization and status
-    if (params.organization !== ALL_FILTER) {
-        conditions = {...conditions, "organization._id": params.organization};
-    }
-    if (params.status !== ALL_FILTER) {
-        conditions = {...conditions, status: params.status};
-    }
-    // List all applications if Fed Lead / Admin / Data Concierge / Data Curator
-    const listAllApplicationRoles = [ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.CURATOR];
-    if (listAllApplicationRoles.includes(userRole)) {
-        return [{"$match": conditions}];
-    }
-    // If data commons POC, return all data submissions assoicated with their data commons
-    if (userRole === ROLES.DC_POC) {
-        conditions = {...conditions, "dataCommons": {$in: userDataCommons}};
-        return [{"$match": conditions}];
-    }
-     // If org owner, add condition to return all data submissions associated with their organization
-    if (userRole === ROLES.ORG_OWNER && userOrganization?.orgName) {
-        conditions = {...conditions, "organization.name": userOrganization.orgName};
-        return [{"$match": conditions}];
-    }
-
-    // Add condition so submitters will only see their data submissions
-    // search by applicant's user id
-    conditions = {...conditions, "submitterID": userID};
-    return [{"$match": conditions}];
-}
-
-function validateCreateSubmissionParams (params) {
-    if (!params.name || !params.studyAbbreviation || !params.dataCommons || !params.dbGaPID) {
-        throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
-    }
-    if (!dataCommonsTempList.some((value) => value === params.dataCommons)) {
-        throw new Error(ERROR.CREATE_SUBMISSION_INVALID_DATA_COMMONS);
-    }
-}
-
-function validateListSubmissionsParams (params) {
-    if (params.status !== NEW &&
-        params.status !== IN_PROGRESS &&
-        params.status !== SUBMITTED &&
-        params.status !== RELEASED &&
-        params.status !== COMPLETED &&
-        params.status !== ARCHIVED &&
-        params.status !== REJECTED &&
-        params.status !== WITHDRAWN &&
-        params.status !== CANCELED &&
-        params.status !== ALL_FILTER
-        ) {
-        throw new Error(ERROR.LIST_SUBMISSION_INVALID_STATUS_FILTER);
-    }
-    // Don't need to validate organization as frontend uses the same organization collection
-    // as backend does as selection options. AKA, frontend will only ever send valid organizations.
-}
-
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
         this.userService = userService;
         this.organizationService = organizationService;
+        this.notificationService = notificationService;
     }
 
     async createSubmission(params, context) {
@@ -224,11 +167,141 @@ class Submission {
             //  role based access control
             if( conditionDCPOC || conditionORGOwner || conditionSubmitter || conditionAdmin){
                 return aSubmission
-            }   
-            throw new Error(ERROR.INVALID_ROLE)
+            }else if(!conditionDCPOC || !conditionORGOwner || !conditionSubmitter){
+                throw new Error(ERROR.INVALID_ROLE)
+            }    
         }
     }
+    /**
+     * API: submissionAction
+     * @param {*} params 
+     * @param {*} context 
+     * @returns updated submission
+     */
+    async submissionAction(params, context){
+        verifySession(context)
+            .verifyInitialized();
+        const userInfo = context.userInfo;
+        const submissionID = params?.submissionID;
+        const action = params?.action;
+        //verify submission action
+        const verifier = verifySubmissionAction(submissionID, action);
+        //verify if a submission can be find by submissionID.
+        let submission = await verifier.exists(this.submissionCollection);
+        let fromStatus = submission.status;
+        //verify if the action is valid based on current submission status
+        verifier.isValidAction(submissionActionMap);
+        //verify if user's role is valid for the action
+        const newStatus = verifier.inRoles(userInfo);
+
+        //update submission
+        let events = submission.history || [];
+        events.push(HistoryEventBuilder.createEvent(userInfo._id, newStatus, null));
+        submission = {
+            ...submission,
+            status: newStatus,
+            history: events,
+            updatedAt: getCurrentTime()
+        }
+        const updated = await this.submissionCollection.update(submission);
+        if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
+            throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
+        }
+        //log event and send notification
+        const logEvent = SubmissionActionEvent.create(userInfo._id, userInfo.email, userInfo.IDP, submission._id, action, fromStatus, newStatus);
+        await Promise.all([
+            await this.logCollection.insert(logEvent),
+            await submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService)
+        ]);
+        return submission;
+    }
 }
+    
+/**
+ * submissionActionNotification
+ * @param {*} userInfo 
+ * @param {*} action 
+ * @param {*} aSubmission
+ * @param {*} userService 
+ * @param {*} organizationService
+ * @param {*} notificationService
+ */
+async function submissionActionNotification(userInfo, action, aSubmission, userService, organizationService, notificationService) {
+    switch(action) {
+        case ACTIONS.SUBMIT:
+            //todo send submitted email
+            break;
+        case ACTIONS.RELEASE:
+            //todo send release email
+            break;
+        case ACTIONS.WITHDRAW:
+            //todo send withdrawn email
+            break;
+        case ACTIONS.REJECT:
+            //todo send rejected email
+            break;
+        case ACTIONS.COMPLETE:
+            await sendEmails.completeSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
+            break;
+        case ACTIONS.CANCEL:
+            //todo send cancelled email
+            break;
+        case ACTIONS.ARCHIVE:
+            //todo send archived email
+            break;
+        default:
+            break;
+    }
+}
+
+const sendEmails = {
+    completeSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService) => {
+        const promises = [
+            await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
+            await userService.getAdmin(),
+            await userService.getPOCs(),
+            await organizationService.getOrganizationByID(userInfo?.organization?.orgID)
+        ];
+        let results;
+        await Promise.all(promises).then(async function(returns) {
+            results = returns;
+        });
+        const orgOwnerEmails = filterUniqueUserEmail(results[0] || [], []);
+        const adminEmails = filterUniqueUserEmail(results[1] || [], orgOwnerEmails);
+        // CCs for Submitter, org owner, admins
+        const ccEmails = [userInfo?.email, ...orgOwnerEmails, ...adminEmails];
+        // To POC role users
+        const POCs = results[2] || [];
+        if (POCs.length === 0) {
+            console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
+            return;
+        }
+        const aOrganization = results[3] || {};
+        const studyNames = aOrganization?.studies
+            ?.filter((aStudy) => aStudy?.studyAbbreviation === aSubmission?.studyAbbreviation)
+            ?.map((aStudy) => aStudy.studyName);
+        // could be multiple POCs
+        const notificationPromises = POCs.map(aUser =>
+            notificationsService.completeSubmissionNotification(aUser?.email, ccEmails, {
+                firstName: aUser?.firstName
+            }, {
+                submissionName: aSubmission?.name,
+                // only one study
+                studyName: studyNames?.length > 0 ? studyNames[0] : "NA",
+                conciergeName: aOrganization?.conciergeName,
+                conciergeEmail: aOrganization?.conciergeEmail
+            })
+        );
+        await Promise.all(notificationPromises);
+    },
+}
+
+const filterUniqueUserEmail = (users, CCs) => {
+    return users
+        .filter((aUser) => aUser?.email && !CCs.includes(aUser?.email))
+        .map((aUser)=> aUser.email);
+}
+
 
 const findByID = async (submissionCollection, id) => {
     const aSubmission = await submissionCollection.find(id);
@@ -242,7 +315,7 @@ const authenticateUser = (context) => {
     verifySession(context)
         .verifyInitialized();
     return context?.userInfo;
-}
+}  
 
 const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
     // verify submission owner
@@ -265,6 +338,86 @@ const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
 
 const isPermittedUser = (aTargetUser, userInfo) => {
     return aTargetUser?.email === userInfo.email && aTargetUser?.IDP === userInfo.IDP
+}
+
+//actions: NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED
+const submissionActionMap = [
+    {action:ACTIONS.SUBMIT, fromStatus: [IN_PROGRESS], 
+        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:SUBMITTED},
+    {action:ACTIONS.RELEASE, fromStatus: [SUBMITTED], 
+        roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:RELEASED},
+    {action:ACTIONS.WITHDRAW, fromStatus: [SUBMITTED], 
+        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER,], toStatus:WITHDRAWN},
+    {action:ACTIONS.REJECT, fromStatus: [SUBMITTED], 
+        roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:REJECTED},
+    {action:ACTIONS.COMPLETE, fromStatus: [RELEASED], 
+        roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:COMPLETED},
+    {action:ACTIONS.CANCEL, fromStatus: [NEW,IN_PROGRESS], 
+        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:CANCELLED},
+    {Action:ACTIONS.ARCHIVE, fromStatus: [COMPLETED], 
+        roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:ARCHIVED}
+];
+
+function listConditions(userID, userRole, userDataCommons, userOrganization, params){
+    const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED]}};
+    // Default conditions are:
+    // Make sure application has valid status
+    let conditions = {...validApplicationStatus};
+    // Filter on organization and status
+    if (params.organization !== ALL_FILTER) {
+        conditions = {...conditions, "organization._id": params.organization};
+    }
+    if (params.status !== ALL_FILTER) {
+        conditions = {...conditions, status: params.status};
+    }
+    // List all applications if Fed Lead / Admin / Data Concierge / Data Curator
+    const listAllApplicationRoles = [ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.CURATOR];
+    if (listAllApplicationRoles.includes(userRole)) {
+        return [{"$match": conditions}];
+    }
+    // If data commons POC, return all data submissions associated with their data commons
+    if (userRole === ROLES.DC_POC) {
+        conditions = {...conditions, "dataCommons": {$in: userDataCommons}};
+        return [{"$match": conditions}];
+    }
+     // If org owner, add condition to return all data submissions associated with their organization
+    if (userRole === ROLES.ORG_OWNER && userOrganization?.orgName) {
+        conditions = {...conditions, "organization.name": userOrganization.orgName};
+        return [{"$match": conditions}];
+    }
+
+    // Add condition so submitters will only see their data submissions
+    // User's cant make submissions, so they will always have no submissions 
+    // search by applicant's user id
+    conditions = {...conditions, "submitterID": userID};
+    return [{"$match": conditions}];
+}
+
+function validateCreateSubmissionParams (params) {
+    if (!params.name || !params.studyAbbreviation || !params.dataCommons || !params.dbGaPID) {
+        throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
+    }
+    if (!dataCommonsTempList.some((value) => value === params.dataCommons)) {
+        throw new Error(ERROR.CREATE_SUBMISSION_INVALID_DATA_COMMONS);
+    }
+}
+
+function validateListSubmissionsParams (params) {
+    if (params.status !== NEW &&
+        params.status !== IN_PROGRESS &&
+        params.status !== SUBMITTED &&
+        params.status !== RELEASED &&
+        params.status !== COMPLETED &&
+        params.status !== ARCHIVED &&
+        params.status !== REJECTED &&
+        params.status !== WITHDRAWN &&
+        params.status !== CANCELED &&
+        params.status !== ALL_FILTER
+        ) {
+        throw new Error(ERROR.LIST_SUBMISSION_INVALID_STATUS_FILTER);
+    }
+    // Don't need to validate organization as frontend uses the same organization collection
+    // as backend does as selection options. AKA, frontend will only ever send valid organizations.
 }
 
 module.exports = {

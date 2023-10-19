@@ -39,7 +39,7 @@ dbConnector.connect().then(() => {
     const s3Service = new S3Service();
     const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
     const batchService = new BatchService(s3Service, batchCollection, config.submission_bucket);
-    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService);
+    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService);
     const awsService = new AWSService(submissionCollection, organizationService, userService);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams);
 
@@ -63,7 +63,8 @@ dbConnector.connect().then(() => {
         createSubmission: submissionService.createSubmission.bind(submissionService),
         listSubmissions:  submissionService.listSubmissions.bind(submissionService),
         getSubmission:  submissionService.getSubmission.bind(submissionService),
-        createTempCredentials: awsService.createTempCredentials.bind(awsService)
+        createTempCredentials: awsService.createTempCredentials.bind(awsService),
+        submissionAction: submissionService.submissionAction.bind(submissionService)
     };
 });
 

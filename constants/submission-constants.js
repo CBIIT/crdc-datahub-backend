@@ -6,7 +6,17 @@ module.exports = Object.freeze({
     RELEASED: 'Released',
     COMPLETED: 'Completed',
     ARCHIVED: 'Archived',
-    WITHDRAWN: "Withdrawn",
-    REJECTED: "Rejected",
-    CANCELED: "Canceled",   
+    CANCELLED:'Cancelled',
+    REJECTED:'Rejected',
+    WITHDRAWN: 'Withdrawn',
+    //data submission actions
+    ACTIONS: {
+        SUBMIT: "Submit",
+        RELEASE: "Release",
+        COMPLETE: "Complete",
+        ARCHIVE: "Archived",
+        CANCEL: "Cancel",
+        REJECT: "Reject",
+        WITHDRAW: "Withdraw"
+    }
 });
