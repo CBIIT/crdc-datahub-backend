@@ -48,6 +48,8 @@ const ERROR = {
     INVALID_SUBMISSION_PERMISSION: "You do not have the correct permissions to list submissions",
     INVALID_ROLE: "You do not have the correct role to perform this operation",
     INVALID_PERMISSION: "You do not have permission to view this application",
+    // Submission Notification
+    NO_SUBMISSION_RECEIVER: "Submission is unable to send an email notification",
     // Token
     INVALID_TOKEN_EMPTY: "Invalid token: it is empty string!",
     INVALID_TOKEN_NO_USER: "Invalid token: no user info!",
