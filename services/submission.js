@@ -167,14 +167,14 @@ class Submission {
             //  role based access control
             if( conditionDCPOC || conditionORGOwner || conditionSubmitter || conditionAdmin){
                 return aSubmission
-            }   
+            }
             throw new Error(ERROR.INVALID_ROLE)
         }
-    }
+  }
     /**
      * API: submissionAction
-     * @param {*} params 
-     * @param {*} context 
+     * @param {*} params
+     * @param {*} context
      * @returns updated submission
      */
     async submissionAction(params, context){
@@ -210,12 +210,12 @@ class Submission {
         const logEvent = SubmissionActionEvent.create(userInfo._id, userInfo.email, userInfo.IDP, submission._id, action, fromStatus, newStatus);
         await Promise.all([
             await this.logCollection.insert(logEvent),
-            await submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService,this.notificationService)
+            await submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService)
         ]);
         return submission;
     }
 }
-    
+
 /**
  * submissionActionNotification
  * @param {*} userInfo
@@ -262,32 +262,37 @@ const sendEmails = {
             await userService.getPOCs(),
             await organizationService.getOrganizationByID(userInfo?.organization?.orgID)
         ];
-        await Promise.all(promises).then(async function(results) {
-            const orgOwnerEmails = filterUniqueUserEmail(results[0] || [], []);
-            const adminEmails = filterUniqueUserEmail(results[1] || [], orgOwnerEmails);
-            // CCs for Submitter, org owner, admins
-            const ccEmails = [userInfo?.email, ...orgOwnerEmails, ...adminEmails];
-            // To POC role users
-            const POCs = results[2] || [];
-            if (POCs.length === 0) {
-                console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
-                return;
-            }
-
-            const aOrganization = results[3] || {};
-            // could be multiple POCs
-            await Promise.all(POCs.map(async (aUser) => {
-                await notificationsService.completeSubmissionNotification(aUser?.email, ccEmails, {
-                    firstName: aUser?.firstName
-                }, {
-                    submissionName: aSubmission?.name,
-                    // only one study
-                    studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
-                    conciergeName: aOrganization?.conciergeName,
-                    conciergeEmail: aOrganization?.conciergeEmail
-                });
-            }));
+        let results;
+        await Promise.all(promises).then(async function(returns) {
+            results = returns;
         });
+        const orgOwnerEmails = filterUniqueUserEmail(results[0] || [], []);
+        const adminEmails = filterUniqueUserEmail(results[1] || [], orgOwnerEmails);
+        // CCs for Submitter, org owner, admins
+        const ccEmails = [userInfo?.email, ...orgOwnerEmails, ...adminEmails];
+        // To POC role users
+        const POCs = results[2] || [];
+        if (POCs.length === 0) {
+            console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
+            return;
+        }
+        const aOrganization = results[3] || {};
+        const studyNames = aOrganization?.studies
+            ?.filter((aStudy) => aStudy?.studyAbbreviation === aSubmission?.studyAbbreviation)
+            ?.map((aStudy) => aStudy.studyName);
+        // could be multiple POCs
+        const notificationPromises = POCs.map(aUser =>
+            notificationsService.completeSubmissionNotification(aUser?.email, ccEmails, {
+                firstName: aUser?.firstName
+            }, {
+                submissionName: aSubmission?.name,
+                // only one study
+                studyName: studyNames?.length > 0 ? studyNames[0] : "NA",
+                conciergeName: aOrganization?.conciergeName,
+                conciergeEmail: aOrganization?.conciergeEmail
+            })
+        );
+        await Promise.all(notificationPromises);
     },
     cancelSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
         const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
@@ -348,7 +353,7 @@ const authenticateUser = (context) => {
     verifySession(context)
         .verifyInitialized();
     return context?.userInfo;
-}  
+}
 
 const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
     // verify submission owner
@@ -375,25 +380,25 @@ const isPermittedUser = (aTargetUser, userInfo) => {
 
 //actions: NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED
 const submissionActionMap = [
-    {action:ACTIONS.SUBMIT, fromStatus: [IN_PROGRESS], 
+    {action:ACTIONS.SUBMIT, fromStatus: [IN_PROGRESS],
         roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:SUBMITTED},
-    {action:ACTIONS.RELEASE, fromStatus: [SUBMITTED], 
+    {action:ACTIONS.RELEASE, fromStatus: [SUBMITTED],
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:RELEASED},
-    {action:ACTIONS.WITHDRAW, fromStatus: [SUBMITTED], 
+    {action:ACTIONS.WITHDRAW, fromStatus: [SUBMITTED],
         roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER,], toStatus:WITHDRAWN},
-    {action:ACTIONS.REJECT, fromStatus: [SUBMITTED], 
+    {action:ACTIONS.REJECT, fromStatus: [SUBMITTED],
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:REJECTED},
-    {action:ACTIONS.COMPLETE, fromStatus: [RELEASED], 
+    {action:ACTIONS.COMPLETE, fromStatus: [RELEASED],
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:COMPLETED},
-    {action:ACTIONS.CANCEL, fromStatus: [NEW,IN_PROGRESS], 
+    {action:ACTIONS.CANCEL, fromStatus: [NEW,IN_PROGRESS],
         roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:CANCELLED},
-    {Action:ACTIONS.ARCHIVE, fromStatus: [COMPLETED], 
+    {Action:ACTIONS.ARCHIVE, fromStatus: [COMPLETED],
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:ARCHIVED}
 ];
 
 function listConditions(userID, userRole, userDataCommons, userOrganization, params){
     const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED]}};
-    // Default conditons are:
+    // Default conditions are:
     // Make sure application has valid status
     let conditions = {...validApplicationStatus};
     // Filter on organization and status
@@ -408,7 +413,7 @@ function listConditions(userID, userRole, userDataCommons, userOrganization, par
     if (listAllApplicationRoles.includes(userRole)) {
         return [{"$match": conditions}];
     }
-    // If data commons POC, return all data submissions assoicated with their data commons
+    // If data commons POC, return all data submissions associated with their data commons
     if (userRole === ROLES.DC_POC) {
         conditions = {...conditions, "dataCommons": {$in: userDataCommons}};
         return [{"$match": conditions}];
@@ -420,7 +425,7 @@ function listConditions(userID, userRole, userDataCommons, userOrganization, par
     }
 
     // Add condition so submitters will only see their data submissions
-    // User's cant make submissions, so they will always have no submissions 
+    // User's cant make submissions, so they will always have no submissions
     // search by applicant's user id
     conditions = {...conditions, "submitterID": userID};
     return [{"$match": conditions}];
@@ -444,7 +449,7 @@ function validateListSubmissionsParams (params) {
         params.status !== ARCHIVED &&
         params.status !== REJECTED &&
         params.status !== WITHDRAWN &&
-        params.status !== CANCELLED &&
+        params.status !== CANCELED &&
         params.status !== ALL_FILTER
         ) {
         throw new Error(ERROR.LIST_SUBMISSION_INVALID_STATUS_FILTER);
