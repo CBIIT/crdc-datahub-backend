@@ -267,14 +267,18 @@ const sendEmails = {
         await Promise.all(promises).then(async function(returns) {
             results = returns;
         });
+        const aOrganization = results[1] || {};
+
         const orgOwnerEmails = filterUniqueUserEmail(results[0] || [], []);
         const adminEmails = filterUniqueUserEmail(results[1] || [], orgOwnerEmails);
+        const curatorEmails = filterUniqueUserEmail([{email: aOrganization?.conciergeEmail}], orgOwnerEmails);
+
         // CCs for org owner, Data Curator (or admins if not yet assigned exists)
         let ccEmailsVar 
         if(!aSubmitter?.conciergeEmail){
             ccEmailsVar = adminEmails
         }else{
-            ccEmailsVar = aSubmitter?.conciergeEmail
+            ccEmailsVar = curatorEmails
         }
         const ccEmails = [...orgOwnerEmails, ...ccEmailsVar];
         await notificationService.submitDataSubmissionNotification(aSubmitter?.email, ccEmails, {
