@@ -260,7 +260,7 @@ const sendEmails = {
         const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
 
         const promises = [
-            await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
+            await userService.getOrgOwner(aSubmission?.organization?._id),
             await organizationService.getOrganizationByID(aSubmitter?.organization?.orgID),
             await userService.getAdmin(),
         ];
@@ -272,11 +272,12 @@ const sendEmails = {
 
         const orgOwnerEmails = filterUniqueUserEmail(results[0] || [], []);
         const adminEmails = filterUniqueUserEmail(results[2] || [], orgOwnerEmails);
-        const curatorEmails = filterUniqueUserEmail([{email: aOrganization?.conciergeEmail}], orgOwnerEmails);
+        const curatorEmails = {email: aOrganization?.conciergeEmail || null}
+
 
         // CCs for org owner, Data Curator (or admins if not yet assigned exists)
         let ccEmailsVar 
-        if(!curatorEmails){
+        if(!curatorEmails?.email){
             ccEmailsVar = adminEmails
         }else{
             ccEmailsVar = curatorEmails
