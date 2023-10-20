@@ -229,7 +229,7 @@ class Submission {
 async function submissionActionNotification(userInfo, action, aSubmission, userService, organizationService, notificationService) {
     switch(action) {
         case ACTIONS.SUBMIT:
-            //todo send submitted email
+            await sendEmails.submitSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
             break;
         case ACTIONS.RELEASE:
             //todo send release email
@@ -256,6 +256,35 @@ async function submissionActionNotification(userInfo, action, aSubmission, userS
 }
 
 const sendEmails = {
+    submitSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
+        const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
+
+        const promises = [
+            await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
+            await userService.getAdmin(),
+        ];
+        let results;
+        await Promise.all(promises).then(async function(returns) {
+            results = returns;
+        });
+        const orgOwnerEmails = filterUniqueUserEmail(results[0] || [], []);
+        const adminEmails = filterUniqueUserEmail(results[1] || [], orgOwnerEmails);
+        // CCs for org owner, Data Curator (or admins if not yet assigned exists)
+        let ccEmailsVar 
+        if(!aSubmitter?.conciergeEmail){
+            ccEmailsVar = adminEmails
+        }else{
+            ccEmailsVar = aSubmitter?.conciergeEmail
+        }
+        const ccEmails = [...orgOwnerEmails, ...ccEmailsVar];
+        await notificationService.submitDataSubmissionNotification(aSubmitter?.email, ccEmails, {
+            firstName: aSubmitter?.firstName
+            }, {
+            idandname: `${aSubmission?.name} (ID: ${aSubmission?._id})`,
+            dataconcierge: `${aSubmission?.conciergeName || 'NA'} at ${aSubmission?.conciergeEmail||'NA'}`
+            }
+        );
+    },
     completeSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService) => {
         const promises = [
             await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
@@ -391,7 +420,7 @@ const submissionActionMap = [
     {action:ACTIONS.COMPLETE, fromStatus: [RELEASED], 
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:COMPLETED},
     {action:ACTIONS.CANCEL, fromStatus: [NEW,IN_PROGRESS], 
-        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:CANCELLED},
+        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:CANCELED},
     {action:ACTIONS.ARCHIVE, fromStatus: [COMPLETED], 
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:ARCHIVED}
 ];
