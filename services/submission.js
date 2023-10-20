@@ -326,8 +326,6 @@ const sendEmails = {
             canceledBy: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
             conciergeEmail: aOrganization?.conciergeEmail || NA,
             conciergeName: aOrganization?.conciergeName || NA
-            conciergeEmail: aOrganization?.conciergeEmail || "NA",
-            conciergeName: aOrganization?.conciergeName || "NA"
         });
     },
     withdrawSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, officialUrl) => {
@@ -360,8 +358,8 @@ const sendEmails = {
             return;
         }
         const promises = [
-            await userService.getOrgOwnerByOrgName(aSubmitter?.organization?.orgName),
-            await organizationService.getOrganizationByID(aSubmitter?.organization?.orgID),
+            await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
+            await organizationService.getOrganizationByID(aSubmission?.organization?._id),
             await userService.getAdmin()
         ];
         const results = await Promise.all(promises);
@@ -376,8 +374,8 @@ const sendEmails = {
         }, {
             submissionID: aSubmission?._id,
             submissionName: aSubmission?.name,
-            conciergeEmail: aOrganization?.conciergeEmail || "NA",
-            conciergeName: aOrganization?.conciergeName || "NA"
+            conciergeEmail: aOrganization?.conciergeEmail || NA,
+            conciergeName: aOrganization?.conciergeName || NA
         });
     },
 }
@@ -387,7 +385,7 @@ const getSubmissionStudyName = (studies, aSubmission) => {
     const studyNames = studies
         ?.filter((aStudy) => aStudy?.studyAbbreviation === aSubmission?.studyAbbreviation)
         ?.map((aStudy) => aStudy.studyName);
-    return studyNames?.length > 0 ? studyNames[0] : "NA";
+    return studyNames?.length > 0 ? studyNames[0] : NA;
 }
 
 const filterUniqueUserEmail = (users, CCs) => {
