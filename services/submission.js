@@ -269,7 +269,7 @@ const completeOrWithdrawSubmissionEmailInfo = async (userInfo, aSubmission, user
     const results = await Promise.all(promises);
     const orgOwnerEmails = filterUniqueUserEmail(results[0] || [], []);
     const adminEmails = filterUniqueUserEmail(results[1] || [], orgOwnerEmails);
-    const submitterEmails = filterUniqueUserEmail(results[2] || [], [...orgOwnerEmails, ...adminEmails]);
+    const submitterEmails = filterUniqueUserEmail([results[2] || {}], [...orgOwnerEmails, ...adminEmails]);
 
     // CCs for Submitter, org owner, admins
     const ccEmails = [...submitterEmails, ...orgOwnerEmails, ...adminEmails];
@@ -336,7 +336,7 @@ const sendEmails = {
         }
         // could be multiple POCs
         const notificationPromises = POCs.map(aUser =>
-            notificationsService.withdrawSubmission(aUser?.email, ccEmails, {
+            notificationsService.withdrawSubmissionNotification(aUser?.email, ccEmails, {
                 firstName: aUser?.firstName
             }, {
                 submissionID: aSubmission?._id,
