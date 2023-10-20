@@ -238,7 +238,7 @@ async function submissionActionNotification(userInfo, action, aSubmission, userS
             //todo send withdrawn email
             break;
         case ACTIONS.REJECT:
-            //todo send rejected email
+            await sendEmails.rejectSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
             break;
         case ACTIONS.COMPLETE:
             await sendEmails.completeSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
@@ -320,6 +320,33 @@ const sendEmails = {
             submissionName: aSubmission?.name,
             studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
             canceledBy: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
+            conciergeEmail: aOrganization?.conciergeEmail || "NA",
+            conciergeName: aOrganization?.conciergeName || "NA"
+        });
+    },
+    rejectSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
+        const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
+        if (!aSubmitter) {
+            console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
+            return;
+        }
+        const promises = [
+            await userService.getOrgOwnerByOrgName(aSubmitter?.organization?.orgName),
+            await organizationService.getOrganizationByID(aSubmitter?.organization?.orgID),
+            await userService.getAdmin()
+        ];
+        const results = await Promise.all(promises);
+        const orgOwnerEmails = filterUniqueUserEmail(results[0] || [], []);
+        const aOrganization = results[1] || {};
+        const curatorEmails = filterUniqueUserEmail([{email: aOrganization?.conciergeEmail}], orgOwnerEmails);
+        const adminEmails = filterUniqueUserEmail(results[2] || [], [...curatorEmails, ...orgOwnerEmails]);
+        // CCs for org owner, curators
+        const ccEmails = [...orgOwnerEmails, ...curatorEmails, ...adminEmails];
+        await notificationService.rejectSubmissionNotification(aSubmitter?.email, ccEmails, {
+            firstName: aSubmitter?.firstName
+        }, {
+            submissionID: aSubmission?._id,
+            submissionName: aSubmission?.name,
             conciergeEmail: aOrganization?.conciergeEmail || "NA",
             conciergeName: aOrganization?.conciergeName || "NA"
         });
