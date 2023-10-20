@@ -16,19 +16,21 @@ const { API_TOKEN } = require("../constants/application-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const ALL_FILTER = "All";
+const NA = "NA"
 const config = require("../config");
 
 // TODO: Data commons needs to be in a predefined list, currently only "CDS" is allowed
 const dataCommonsTempList = ["CDS"];
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, emailParams) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
         this.userService = userService;
         this.organizationService = organizationService;
         this.notificationService = notificationService;
+        this.emailParams = emailParams;
     }
 
     async createSubmission(params, context) {
@@ -211,7 +213,7 @@ class Submission {
         const logEvent = SubmissionActionEvent.create(userInfo._id, userInfo.email, userInfo.IDP, submission._id, action, fromStatus, newStatus);
         await Promise.all([
             await this.logCollection.insert(logEvent),
-            await submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService)
+            await submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService, this.emailParams)
         ]);
         return submission;
     }
@@ -226,7 +228,7 @@ class Submission {
  * @param {*} organizationService
  * @param {*} notificationService
  */
-async function submissionActionNotification(userInfo, action, aSubmission, userService, organizationService, notificationService) {
+async function submissionActionNotification(userInfo, action, aSubmission, userService, organizationService, notificationService, emailParams) {
     switch(action) {
         case ACTIONS.SUBMIT:
             //todo send submitted email
@@ -235,7 +237,7 @@ async function submissionActionNotification(userInfo, action, aSubmission, userS
             //todo send release email
             break;
         case ACTIONS.WITHDRAW:
-            //todo send withdrawn email
+            await sendEmails.withdrawSubmission(userInfo, aSubmission, userService, organizationService, notificationService, emailParams?.officialUrl);
             break;
         case ACTIONS.REJECT:
             await sendEmails.rejectSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
@@ -250,34 +252,40 @@ async function submissionActionNotification(userInfo, action, aSubmission, userS
             //todo send archived email
             break;
         default:
-            // TODO should be ERROR MESSAGE
+            console.error(ERROR.NO_SUBMISSION_RECEIVER+ `id=${aSubmission?._id}`);
             break;
     }
 }
 
+const completeOrWithdrawSubmissionEmailInfo = async (userInfo, aSubmission, userService, organizationService) => {
+    const promises = [
+        await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
+        await userService.getAdmin(),
+        await userService.getUserByID(aSubmission?.submitterID),
+        await userService.getPOCs(),
+        await organizationService.getOrganizationByID(aSubmission?.organization?._id)
+    ];
+
+    const results = await Promise.all(promises);
+    const orgOwnerEmails = filterUniqueUserEmail(results[0] || [], []);
+    const adminEmails = filterUniqueUserEmail(results[1] || [], orgOwnerEmails);
+    const submitterEmails = filterUniqueUserEmail([results[2] || {}], [...orgOwnerEmails, ...adminEmails]);
+
+    // CCs for Submitter, org owner, admins
+    const ccEmails = [...submitterEmails, ...orgOwnerEmails, ...adminEmails];
+    // To POC role users
+    const POCs = results[3] || [];
+    const aOrganization = results[4] || {};
+    return [ccEmails, POCs, aOrganization];
+}
+
 const sendEmails = {
     completeSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService) => {
-        const promises = [
-            await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
-            await userService.getAdmin(),
-            await userService.getPOCs(),
-            await organizationService.getOrganizationByID(userInfo?.organization?.orgID)
-        ];
-        let results;
-        await Promise.all(promises).then(async function(returns) {
-            results = returns;
-        });
-        const orgOwnerEmails = filterUniqueUserEmail(results[0] || [], []);
-        const adminEmails = filterUniqueUserEmail(results[1] || [], orgOwnerEmails);
-        // CCs for Submitter, org owner, admins
-        const ccEmails = [userInfo?.email, ...orgOwnerEmails, ...adminEmails];
-        // To POC role users
-        const POCs = results[2] || [];
+        const [ccEmails, POCs, aOrganization] = await completeOrWithdrawSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
         if (POCs.length === 0) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
             return;
         }
-        const aOrganization = results[3] || {};
         // could be multiple POCs
         const notificationPromises = POCs.map(aUser =>
             notificationsService.completeSubmissionNotification(aUser?.email, ccEmails, {
@@ -286,8 +294,8 @@ const sendEmails = {
                 submissionName: aSubmission?.name,
                 // only one study
                 studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
-                conciergeName: aOrganization?.conciergeName,
-                conciergeEmail: aOrganization?.conciergeEmail
+                conciergeName: aOrganization?.conciergeName || NA,
+                conciergeEmail: aOrganization?.conciergeEmail || NA
             })
         );
         await Promise.all(notificationPromises);
@@ -299,15 +307,11 @@ const sendEmails = {
             return;
         }
         const promises = [
-            await userService.getOrgOwnerByOrgName(aSubmitter?.organization?.orgName),
-            await organizationService.getOrganizationByID(aSubmitter?.organization?.orgID)
+            await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
+            await organizationService.getOrganizationByID(aSubmission?.organization?._id)
         ];
 
-        let results;
-        await Promise.all(promises).then(async function(returns) {
-            results = returns;
-        });
-
+        const results = await Promise.all(promises);
         const orgOwnerEmails = filterUniqueUserEmail(results[0] || [], []);
         const aOrganization = results[1] || {};
         const curatorEmails = filterUniqueUserEmail([{email: aOrganization?.conciergeEmail}], orgOwnerEmails);
@@ -320,9 +324,34 @@ const sendEmails = {
             submissionName: aSubmission?.name,
             studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
             canceledBy: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
+            conciergeEmail: aOrganization?.conciergeEmail || NA,
+            conciergeName: aOrganization?.conciergeName || NA
             conciergeEmail: aOrganization?.conciergeEmail || "NA",
             conciergeName: aOrganization?.conciergeName || "NA"
         });
+    },
+    withdrawSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, officialUrl) => {
+        const [ccEmails, POCs, aOrganization] = await completeOrWithdrawSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
+        if (POCs.length === 0) {
+            console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
+            return;
+        }
+        // could be multiple POCs
+        const notificationPromises = POCs.map(aUser =>
+            notificationsService.withdrawSubmissionNotification(aUser?.email, ccEmails, {
+                firstName: aUser?.firstName
+            }, {
+                submissionID: aSubmission?._id,
+                submissionName: aSubmission?.name,
+                // only one study
+                studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                withdrawnBy: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
+                conciergeName: aOrganization?.conciergeName || NA,
+                conciergeEmail: aOrganization?.conciergeEmail || NA,
+                officialUrl,
+            })
+        );
+        await Promise.all(notificationPromises);
     },
     rejectSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
         const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
@@ -350,7 +379,7 @@ const sendEmails = {
             conciergeEmail: aOrganization?.conciergeEmail || "NA",
             conciergeName: aOrganization?.conciergeName || "NA"
         });
-    }
+    },
 }
 
 // only one study name
