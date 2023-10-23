@@ -21,6 +21,10 @@ const config = require("../config");
 
 // TODO: Data commons needs to be in a predefined list, currently only "CDS" is allowed
 const dataCommonsTempList = ["CDS"];
+// Set to array
+Set.prototype.toArray = function() {
+    return Array.from(this);
+};
 
 class Submission {
     constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, emailParams) {
@@ -240,7 +244,7 @@ async function submissionActionNotification(userInfo, action, aSubmission, userS
             await sendEmails.withdrawSubmission(userInfo, aSubmission, userService, organizationService, notificationService, emailParams?.officialUrl);
             break;
         case ACTIONS.REJECT:
-            //todo send rejected email
+            await sendEmails.rejectSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
             break;
         case ACTIONS.COMPLETE:
             await sendEmails.completeSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
@@ -267,12 +271,12 @@ const completeOrWithdrawSubmissionEmailInfo = async (userInfo, aSubmission, user
     ];
 
     const results = await Promise.all(promises);
-    const orgOwnerEmails = filterUniqueUserEmail(results[0] || [], []);
-    const adminEmails = filterUniqueUserEmail(results[1] || [], orgOwnerEmails);
-    const submitterEmails = filterUniqueUserEmail([results[2] || {}], [...orgOwnerEmails, ...adminEmails]);
+    const orgOwnerEmails = getUserEmails(results[0] || []);
+    const adminEmails = getUserEmails(results[1] || []);
+    const submitterEmails = getUserEmails([results[2] || {}]);
 
     // CCs for Submitter, org owner, admins
-    const ccEmails = [...submitterEmails, ...orgOwnerEmails, ...adminEmails];
+    const ccEmails = new Set([...submitterEmails, ...orgOwnerEmails, ...adminEmails]).toArray();
     // To POC role users
     const POCs = results[3] || [];
     const aOrganization = results[4] || {};
@@ -312,11 +316,11 @@ const sendEmails = {
         ];
 
         const results = await Promise.all(promises);
-        const orgOwnerEmails = filterUniqueUserEmail(results[0] || [], []);
+        const orgOwnerEmails = getUserEmails(results[0] || []);
         const aOrganization = results[1] || {};
-        const curatorEmails = filterUniqueUserEmail([{email: aOrganization?.conciergeEmail}], orgOwnerEmails);
+        const curatorEmails = getUserEmails([{email: aOrganization?.conciergeEmail}]);
         // CCs for org owner, curators
-        const ccEmails = [...orgOwnerEmails, ...curatorEmails];
+        const ccEmails = new Set([...orgOwnerEmails, ...curatorEmails]).toArray();
         await notificationService.cancelSubmissionNotification(aSubmitter?.email, ccEmails, {
             firstName: aSubmitter?.firstName
         }, {
@@ -350,7 +354,34 @@ const sendEmails = {
             })
         );
         await Promise.all(notificationPromises);
-    }
+    },
+    rejectSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
+        const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
+        if (!aSubmitter) {
+            console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
+            return;
+        }
+        const promises = [
+            await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
+            await organizationService.getOrganizationByID(aSubmission?.organization?._id),
+            await userService.getAdmin()
+        ];
+        const results = await Promise.all(promises);
+        const orgOwnerEmails = getUserEmails(results[0] || []);
+        const aOrganization = results[1] || {};
+        const curatorEmails = getUserEmails([{email: aOrganization?.conciergeEmail}]);
+        const adminEmails = getUserEmails(results[2] || []);
+        // CCs for org owner, curators
+        const ccEmails = new Set([...orgOwnerEmails, ...curatorEmails, ...adminEmails]).toArray();
+        await notificationService.rejectSubmissionNotification(aSubmitter?.email, ccEmails, {
+            firstName: aSubmitter?.firstName
+        }, {
+            submissionID: aSubmission?._id,
+            submissionName: aSubmission?.name,
+            conciergeEmail: aOrganization?.conciergeEmail || NA,
+            conciergeName: aOrganization?.conciergeName || NA
+        });
+    },
 }
 
 // only one study name
@@ -358,12 +389,12 @@ const getSubmissionStudyName = (studies, aSubmission) => {
     const studyNames = studies
         ?.filter((aStudy) => aStudy?.studyAbbreviation === aSubmission?.studyAbbreviation)
         ?.map((aStudy) => aStudy.studyName);
-    return studyNames?.length > 0 ? studyNames[0] : "NA";
+    return studyNames?.length > 0 ? studyNames[0] : NA;
 }
 
-const filterUniqueUserEmail = (users, CCs) => {
+const getUserEmails = (users) => {
     return users
-        ?.filter((aUser) => aUser?.email && !CCs.includes(aUser?.email))
+        ?.filter((aUser) => aUser?.email)
         ?.map((aUser)=> aUser.email);
 }
 
