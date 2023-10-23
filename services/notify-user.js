@@ -1,6 +1,5 @@
 const yaml = require('js-yaml');
 const fs = require('fs');
-const {createEmailTemplate} = require("../crdc-datahub-database-drivers/lib/create-email-template");
 const {replaceMessageVariables} = require("../crdc-datahub-database-drivers/utility/string-utility");
 
 class NotifyUser {
@@ -26,83 +25,71 @@ class NotifyUser {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
                 this.email_constants.SUBMISSION_SUBJECT,
-                await createEmailTemplate("notification-template.html", {
-                    message, firstName: this.email_constants.APPLICATION_COMMITTEE_NAME
-                }),
+                {message, templateParams: {firstName: this.email_constants.APPLICATION_COMMITTEE_NAME}},
                 this.email_constants.APPLICATION_COMMITTEE_EMAIL
             );
         });
     }
 
-    async inactiveApplicationsNotification(email, template_params, messageVariables) {
+    async inactiveApplicationsNotification(email, templateParams, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.INACTIVE_APPLICATION_CONTENT, messageVariables);
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
                 this.email_constants.INACTIVE_APPLICATION_SUBJECT,
-                await createEmailTemplate("notification-template.html", {
-                    message, ...template_params
-                }),
+                {message, templateParams},
                 email,
                 []
             );
         });
     }
 
-    async rejectQuestionNotification(email, template_params, messageVariables) {
+    async rejectQuestionNotification(email, templateParams, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.REJECT_CONTENT, messageVariables);
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
                 this.email_constants.REJECT_SUBJECT,
-                await createEmailTemplate("notification-template.html", {
-                    message, ...template_params
-                }),
+                {message, templateParams},
                 email,
                 []
             );
         });
     }
 
-    async approveQuestionNotification(email, emailCCs,template_params, messageVariables) {
+    async approveQuestionNotification(email, emailCCs,templateParams, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.APPROVE_CONTENT, messageVariables);
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
                 this.email_constants.APPROVE_SUBJECT,
-                                await createEmailTemplate("notification-template.html", {
-                    message, ...template_params
-                }),
+                {message, templateParams},
                 email,
                 emailCCs
             );
         });
     }
 
-    async inactiveUserNotification(email, template_params, messageVariables) {
+    async inactiveUserNotification(email, templateParams, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.INACTIVE_USER_CONTENT, messageVariables);
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
                 this.email_constants.INACTIVE_USER_SUBJECT,
-                await createEmailTemplate("notification-template.html", {
-                    message, ...template_params
-                }),
+                {message, templateParams},
                 email,
                 []
             );
         });
     }
 
-    async inactiveUserAdminNotification(email, template_params, messageVariables) {
+    async inactiveUserAdminNotification(email, templateParams, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.INACTIVE_ADMIN_USER_CONTENT, messageVariables);
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
                 this.email_constants.INACTIVE_ADMIN_USER_SUBJECT,
-                await createEmailTemplate("notification-template.html", {
-                    message, ...template_params
-                }),
+                {message, templateParams},
                 email,
                 []
             );
@@ -110,60 +97,52 @@ class NotifyUser {
     }
 
 
-    async remindApplicationsNotification(email, template_params, messageVariables) {
+    async remindApplicationsNotification(email, templateParams, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.REMIND_EXPIRED_APPLICATION_CONTENT, messageVariables);
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
                 this.email_constants.REMIND_EXPIRED_APPLICATION_SUBJECT,
-                await createEmailTemplate("notification-template.html", {
-                    message, ...template_params
-                }),
+                {message, templateParams},
                 email,
                 []
             );
         });
     }
 
-    async completeSubmissionNotification(email, CCs, template_params, messageVariables) {
+    async completeSubmissionNotification(email, CCs, templateParams, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.COMPLETE_DATA_SUBMISSION_CONTENT, messageVariables);
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
                 this.email_constants.COMPLETE_DATA_SUBMISSION_SUBJECT,
-                await createEmailTemplate("notification-template.html", {
-                    message, ...template_params
-                }),
+                {message, templateParams},
                 email,
                 CCs
             );
         });
     }
 
-    async cancelSubmissionNotification(email, CCs, template_params, messageVariables) {
+    async cancelSubmissionNotification(email, CCs, templateParams, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.CANCEL_DATA_SUBMISSION_CONTENT, messageVariables);
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
                 this.email_constants.CANCEL_DATA_SUBMISSION_SUBJECT,
-                await createEmailTemplate("notification-template.html", {
-                    message, ...template_params
-                }),
+                {message, templateParams},
                 email,
                 CCs
             );
         });
     }
 
-    async withdrawSubmissionNotification(email, CCs, template_params, messageVariables) {
+    async withdrawSubmissionNotification(email, CCs, templateParams, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.WITHDRAW_DATA_SUBMISSION_CONTENT, messageVariables);
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
                 this.email_constants.WITHDRAW_DATA_SUBMISSION_SUBJECT,
-                await createEmailTemplate("notification-template.html", {
-                    message, ...template_params
-                }),
+                {message, templateParams},
                 email,
                 CCs
             );
