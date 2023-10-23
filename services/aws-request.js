@@ -86,7 +86,7 @@ class AWSService {
         const params = {
             Bucket: bucketName,
             Key: `${key}`,
-            Expires: config.presign_expration, 
+            Expires: config.presign_expiration, 
         };
         return new Promise((resolve, reject) => {
             this.s3.getSignedUrl(S3_GET, params, (error, url) => {

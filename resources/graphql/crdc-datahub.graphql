@@ -189,6 +189,8 @@ type Query {
         orderBy: String = "updatedAt",
         sortDirection: String = "DESC" # ["DESC", "ASC"]
     ): ListBatches
+
+    getBatch(batchID: ID!): Batch
     
     #upload log queries
     listLogs (submissionID: ID!) : ListLogFiles
