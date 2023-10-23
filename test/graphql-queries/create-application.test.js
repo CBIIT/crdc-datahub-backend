@@ -6,7 +6,7 @@ const {TEST_SESSION, TEST_APPLICATION} = require("../test-constants");
 const {MongoQueries} = require("../../crdc-datahub-database-drivers/mongo-queries");
 const config = require("../../config");
 const {DATABASE_NAME} = require("../../crdc-datahub-database-drivers/database-constants");
-const {EmailService} = require("../../services/email");
+const {EmailService} = require("../../crdc-datahub-database-drivers/services/email");
 const {NotifyUser} = require("../../services/notify-user");
 const {application} = require("express");
 

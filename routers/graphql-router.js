@@ -10,7 +10,7 @@ const {DATABASE_NAME, APPLICATION_COLLECTION, SUBMISSIONS_COLLECTION, USER_COLLE
 } = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoDBCollection} = require("../crdc-datahub-database-drivers/mongodb-collection");
 const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-connector");
-const {EmailService} = require("../services/email");
+const {EmailService} = require("../crdc-datahub-database-drivers/services/email");
 const {NotifyUser} = require("../services/notify-user");
 const {User} = require("../crdc-datahub-database-drivers/services/user");
 const {ApprovedStudiesService} = require("../services/approved-studies");

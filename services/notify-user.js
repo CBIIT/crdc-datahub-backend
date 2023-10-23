@@ -1,7 +1,7 @@
 const yaml = require('js-yaml');
 const fs = require('fs');
-const {createEmailTemplate} = require("../lib/create-email-template");
-const {replaceMessageVariables} = require("../utility/string-util");
+const {createEmailTemplate} = require("../crdc-datahub-database-drivers/lib/create-email-template");
+const {replaceMessageVariables} = require("../crdc-datahub-database-drivers/utility/string-utility");
 
 class NotifyUser {
 

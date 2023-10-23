@@ -28,14 +28,6 @@ const isUndefined = (p) => {
     return p === undefined;
 }
 
-const replaceMessageVariables = (input, messageVariables) => {
-    for (let key in messageVariables){
-        // message variable must start with $
-        input = input.replace(`$${key}`, messageVariables[key]);
-    }
-    return input;
-}
-
 /**
  * Extracts and joins specified fields from an array of objects, joining values with a specified separator.
  *
@@ -77,7 +69,6 @@ module.exports = {
     isUndefined,
     getUniqueArr,
     parseArrToStr,
-    replaceMessageVariables,
     extractAndJoinFields,
     toPascalCase
 }
