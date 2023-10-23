@@ -18,6 +18,11 @@ const ERROR = {
         EMPTY_BATCH_FILE: "Batch file is empty",
         INVALID_BATCH_TYPE: "Batch type is invalid",
         INVALID_METADATA_INTENTION_TYPE: "Metadata Intention type is invalid",
+        // submission action
+        INVALID_SUBMISSION_ACTION: "Invalid submission action:",
+        INVALID_SUBMISSION_ACTION_STATUS: "Invalid submission status for the action:",
+        INVALID_SUBMISSION_ACTION_ROLE: "Invalid user role for the action:",
+        INVALID_SUBMISSION_ID: "submissionID can't be empty!",
         EMPTY_ROOT_PATH: "RootPath is missing in the submission",
     },
     // Batch
@@ -35,6 +40,7 @@ const ERROR = {
     CREATE_SUBMISSION_NO_ORGANIZATION_ASSIGNED: "The submitter/organization owner does not have an organization assigned. Thus, the data submission was not created",
     CREATE_SUBMISSION_INSERTION_ERROR: "An error occurred while attempting to insert the created data submission into the database",
     CREATE_SUBMISSION_INVALID_PARAMS: "One or more of the parameters for creating a submission is invalid",
+    UPDATE_SUBMISSION_ERROR:"An error occurred while attempting to update the submission in the database",
     CREATE_SUBMISSION_INVALID_DATA_COMMONS: "Invalid Data Commons for creating a submission",
     CREATE_SUBMISSION_NO_MATCHING_STUDY: "The study provided does not match an approved study within the user's organization",
     // List Submissions
@@ -43,6 +49,8 @@ const ERROR = {
     INVALID_SUBMISSION_PERMISSION: "You do not have the correct permissions to list submissions",
     INVALID_ROLE: "You do not have the correct role to perform this operation",
     INVALID_PERMISSION: "You do not have permission to view this application",
+    // Submission Notification
+    NO_SUBMISSION_RECEIVER: "Submission is unable to send an email notification",
     // Token
     INVALID_TOKEN_EMPTY: "Invalid token: it is empty string!",
     INVALID_TOKEN_NO_USER: "Invalid token: no user info!",
