@@ -1,13 +1,13 @@
-const {getCurrentTimeYYYYMMDDSS} = require("../utility/time-utility");
+const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 class HistoryEventBuilder {
-    constructor(status, comment, userID) {
+    constructor(userID, status, comment) {
+        this._userID = userID;
         this._status = status;
         this._comment = comment;
-        this._userID = userID;
     }
 
-    static createEvent(event) {
-        return new HistoryEventBuilder(event.status, event.comment, event.userID)
+    static createEvent(userID, status, comment) {
+        return new HistoryEventBuilder(userID, status, comment)
             .build();
     }
 
@@ -16,7 +16,7 @@ class HistoryEventBuilder {
         if (this._status) event.status = this._status;
         if (this._comment) event.reviewComment = this._comment;
         if (this._userID) event.userID = this._userID;
-        event.dateTime = getCurrentTimeYYYYMMDDSS();
+        event.dateTime = getCurrentTime();
         return event;
     }
 }

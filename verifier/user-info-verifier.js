@@ -13,7 +13,12 @@ class UserInfoVerifier {
     }
 
     verifyInitialized(){
-        if (!this.userInfo.userID) throw new Error(ERROR.SESSION_NOT_INITIALIZED);
+        if (!this?.userInfo?._id) throw new Error(ERROR.SESSION_NOT_INITIALIZED);
+        return this;
+    }
+
+    verifyRole(roles) {
+        if (!roles.includes(this?.userInfo?.role)) throw new Error(ERROR.INVALID_ROLE);
         return this;
     }
 
