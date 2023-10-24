@@ -64,7 +64,8 @@ dbConnector.connect().then(() => {
         listSubmissions:  submissionService.listSubmissions.bind(submissionService),
         getSubmission:  submissionService.getSubmission.bind(submissionService),
         createTempCredentials: awsService.createTempCredentials.bind(awsService),
-        submissionAction: submissionService.submissionAction.bind(submissionService)
+        submissionAction: submissionService.submissionAction.bind(submissionService),
+        listLogs: submissionService.listLogs.bind(submissionService) 
     };
 });
 
@@ -78,7 +79,7 @@ const extractContext =(req) => {
     else context = req.session;
     if(!context) throw new Error(ERROR.INVALID_SESSION_OR_TOKEN);
     return context;
-};
+}
 
 module.exports = (req, res) => {
     createHandler({

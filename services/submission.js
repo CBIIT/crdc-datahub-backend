@@ -3,7 +3,7 @@ const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
 const {v4} = require('uuid')
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
-const {verifySession, verifyApiToken} = require("../verifier/user-info-verifier");
+const {verifySession, verifyApiToken, verifySubmitter} = require("../verifier/user-info-verifier");
 const {verifySubmissionAction} = require("../verifier/submission-verifier");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {formatName} = require("../utility/format-name");
@@ -14,6 +14,7 @@ const {verifyBatch} = require("../verifier/batch-verifier");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const { API_TOKEN } = require("../constants/application-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
+const {AWSService} = require("../services/aws-request")
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const ALL_FILTER = "All";
 const NA = "NA"
@@ -21,6 +22,9 @@ const config = require("../config");
 
 // TODO: Data commons needs to be in a predefined list, currently only "CDS" is allowed
 const dataCommonsTempList = ["CDS"];
+const UPLOAD_TYPES = ['file','metadata'];
+const LOG_DIR = 'log';
+const LOG_FILE_EXT ='.log';
 // Set to array
 Set.prototype.toArray = function() {
     return Array.from(this);
@@ -220,6 +224,45 @@ class Submission {
             await submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService, this.emailParams)
         ]);
         return submission;
+    }
+
+    /**
+     * API to get list of upload log files
+     * @param {*} params 
+     * @param {*} context 
+     * @returns filelist []
+     */
+    async listLogs(params, context){
+        //1) verify session
+        verifySession(context)
+            .verifyInitialized();
+        //2) verify submitter
+        const submission = await verifySubmitter(context.userInfo, params?.submissionID, this.submissionCollection, this.userService);
+        //3) get upload log files
+        const rootPath = submission.rootPath;
+        try {
+            const fileList = await this.getLogFiles(config.submission_bucket, rootPath);
+            return {logFiles: fileList} 
+        }
+        catch(err)
+        {
+            throw new Error(`${ERROR.FAILED_LIST_LOG}, ${params.submissionID}! ${err}`);
+        }
+    }
+    /**
+     * 
+     * @param {*} params as objerct {} cotains submissisonID
+     * @param {*} context 
+     * @returns fileList []
+     */
+    async getLogFiles(bucket, rootPath){
+        this.aws = new AWSService();
+        let fileList = []; 
+        for (let type of UPLOAD_TYPES){
+            let file = await this.aws.getLastFileFromS3(bucket, `${rootPath}/${type}/${LOG_DIR}`, type, LOG_FILE_EXT);
+            if(file) fileList.push(file);
+        }
+        return fileList;
     }
 }
     

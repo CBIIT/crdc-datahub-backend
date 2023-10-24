@@ -10,6 +10,7 @@ const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mon
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
+const {LogService} = require("./submission");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const config = require('../config');
 const {parseJsonString} = require("../crdc-datahub-database-drivers/utility/string-utility");
@@ -413,6 +414,14 @@ class Application {
             url: this.emailParams.url
         })
     }
+}
+
+function formatApplicantName(userInfo){
+    if (!userInfo) return "";
+    let firstName = userInfo?.firstName || "";
+    let lastName = userInfo?.lastName || "";
+    lastName = lastName.trim();
+    return firstName + (lastName.length > 0 ? " "+lastName : "");
 }
 
 function verifyReviewerPermission(context){
