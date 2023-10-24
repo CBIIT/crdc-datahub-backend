@@ -362,7 +362,7 @@ const sendEmails = {
             notificationsService.releaseDataSubmissionNotification(aUser?.email, ccEmails, {
                 firstName: aUser?.firstName
             },{
-                dataCommonName: "test"
+                dataCommonName: `${aSubmission?.dataCommons}`
             }, {
                 idandname: `${aSubmission?.name} (id: ${aSubmission?._id})`,
                 // only one study
