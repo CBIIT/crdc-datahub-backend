@@ -350,6 +350,27 @@ const sendEmails = {
             })
         );
         await Promise.all(notificationPromises);
+    },
+    releaseSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, officialUrl) => {
+        const [ccEmails, POCs, aOrganization] = await completeOrWithdrawSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
+        if (POCs.length === 0) {
+            console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
+            return;
+        }
+        // could be multiple POCs
+        const notificationPromises = POCs.map(aUser =>
+            notificationsService.releaseDataSubmissionNotification(aUser?.email, ccEmails, {
+                firstName: aUser?.firstName
+            },{
+                dataCommonName: "test"
+            }, {
+                idandname: `${aSubmission?.name} (id: ${aSubmission?._id})`,
+                // only one study
+                projectName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                dataconcierge: `${aOrganization?.conciergeName || NA} at ${aOrganization?.conciergeEmail || NA}`,
+            })
+        );
+        await Promise.all(notificationPromises);
     }
 }
 
