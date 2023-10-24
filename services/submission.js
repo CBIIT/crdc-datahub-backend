@@ -158,7 +158,7 @@ class Submission {
         return this.batchService.listBatches(params, context);
     }
 
-  async getSubmission(params, context){
+    async getSubmission(params, context){
         verifySession(context)
             .verifyInitialized()
             .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.DC_POC, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN]);
@@ -238,7 +238,7 @@ async function submissionActionNotification(userInfo, action, aSubmission, userS
             //todo send submitted email
             break;
         case ACTIONS.RELEASE:
-            //todo send release email
+            await sendEmails.releaseSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
             break;
         case ACTIONS.WITHDRAW:
             await sendEmails.withdrawSubmission(userInfo, aSubmission, userService, organizationService, notificationService, emailParams?.officialUrl);
@@ -355,7 +355,7 @@ const sendEmails = {
         );
         await Promise.all(notificationPromises);
     },
-    releaseSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, officialUrl) => {
+    releaseSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService) => {
         const [ccEmails, POCs, aOrganization] = await completeOrWithdrawSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
         if (POCs.length === 0) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
@@ -371,7 +371,7 @@ const sendEmails = {
                 idandname: `${aSubmission?.name} (id: ${aSubmission?._id})`,
                 // only one study
                 projectName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
-                dataconcierge: `${aOrganization?.conciergeName || NA} at ${aOrganization?.conciergeEmail || NA}`,
+                dataconcierge: `${aSubmission?.conciergeName || NA} at ${aSubmission?.conciergeEmail || NA}`,
             })
         );
         await Promise.all(notificationPromises);

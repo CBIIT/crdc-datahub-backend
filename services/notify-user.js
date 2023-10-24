@@ -125,7 +125,7 @@ class NotifyUser {
         });
     }
 
-    async releaseDataSubmissionNotification(email, emailCCs,template_params, messageVariables, objectVariables) {
+    async releaseDataSubmissionNotification(email, emailCCs,template_params, objectVariables, messageVariables) {
 
         const message = replaceMessageVariables(this.email_constants.RELEASE_DATA_SUBMISSION_CONTENT, messageVariables);
         const emailSubject = replaceMessageVariables(this.email_constants.RELEASE_DATA_SUBMISSION_SUBJECT, objectVariables)
