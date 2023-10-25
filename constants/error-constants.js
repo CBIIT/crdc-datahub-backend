@@ -22,7 +22,8 @@ const ERROR = {
         INVALID_SUBMISSION_ACTION: "Invalid submission action:",
         INVALID_SUBMISSION_ACTION_STATUS: "Invalid submission status for the action:",
         INVALID_SUBMISSION_ACTION_ROLE: "Invalid user role for the action:",
-        INVALID_SUBMISSION_ID: "submissionID can't be empty!"
+        INVALID_SUBMISSION_ID: "submissionID can't be empty!",
+        EMPTY_ROOT_PATH: "RootPath is missing in the submission",
     },
     // Batch
     FAILED_NEW_BATCH_INSERTION: "An error occurred while creating a new batch",
@@ -57,7 +58,8 @@ const ERROR = {
     INVALID_SUBMISSION_EMPTY: 'Invalid submissionID: it can not be empty string!',
     INVALID_SUBMISSION_NOT_FOUND: "Cant find the submission by submissionID",
     INVALID_SUBMITTER: "The user has no permissions to upload data for the submission",
-    INVALID_SESSION_OR_TOKEN: "No valid session or valid API token"
+    INVALID_SESSION_OR_TOKEN: "No valid session or valid API token",
+    FAILED_LIST_LOG: "Failed to get log file(s) for submission"
 }
 
 module.exports = ERROR;
