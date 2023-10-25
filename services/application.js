@@ -10,14 +10,13 @@ const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mon
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
-const {LogService} = require("./submission");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const config = require('../config');
 const {parseJsonString} = require("../crdc-datahub-database-drivers/utility/string-utility");
 const {formatName} = require("../utility/format-name");
 
 class Application {
-    constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams) {
+    constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService) {
         this.logCollection = logCollection;
         this.applicationCollection = applicationCollection;
         this.approvedStudiesService = approvedStudiesService;
@@ -25,7 +24,7 @@ class Application {
         this.dbService = dbService;
         this.notificationService = notificationsService;
         this.emailParams = emailParams;
-
+        this.organizationService = organizationService;
     }
 
     async getApplication(params, context) {
@@ -253,7 +252,7 @@ class Application {
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             const promises = [
                 await this.getApplicationById(document._id),
-                await saveApprovedStudies(this.approvedStudiesService, application),
+                await saveApprovedStudies(this.approvedStudiesService, this.organizationService, application),
                 this.logCollection.insert(
                     UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, APPROVED)
                 )
@@ -416,14 +415,6 @@ class Application {
     }
 }
 
-function formatApplicantName(userInfo){
-    if (!userInfo) return "";
-    let firstName = userInfo?.firstName || "";
-    let lastName = userInfo?.lastName || "";
-    lastName = lastName.trim();
-    return firstName + (lastName.length > 0 ? " "+lastName : "");
-}
-
 function verifyReviewerPermission(context){
     verifySession(context)
         .verifyInitialized()
@@ -502,15 +493,16 @@ const isStudyAbbreviationUniqueOrThrow = async (applicationCollection, applicati
     }
 }
 
-const saveApprovedStudies = async (approvedStudiesService, aApplication) => {
+const saveApprovedStudies = async (approvedStudiesService, organizationService, aApplication) => {
     const questionnaire = parseJsonString(aApplication?.questionnaireData);
     if (!questionnaire) {
-        console.error(ERROR.FAILED_STORE_APPROVED_STUDIES);
+        console.error(ERROR.FAILED_STORE_APPROVED_STUDIES + ` id=${aApplication?._id}`);
         return;
     }
     await approvedStudiesService.storeApprovedStudies(
         questionnaire?.study?.name, aApplication?.studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name
     );
+    await organizationService.storeApprovedStudies(questionnaire?.study?.name, aApplication?.studyAbbreviation);
 }
 
 module.exports = {

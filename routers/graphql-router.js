@@ -41,7 +41,7 @@ dbConnector.connect().then(() => {
     const batchService = new BatchService(s3Service, batchCollection, config.submission_bucket);
     const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, {officialUrl: config.emails_url});
     const awsService = new AWSService(submissionCollection, organizationService, userService);
-    const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams);
+    const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService);
 
     root = {
         version: () => {return config.version},
