@@ -21,7 +21,7 @@ const NA = "NA"
 const config = require("../config");
 
 // TODO: Data commons needs to be in a predefined list, currently only "CDS" is allowed
-const dataCommonsTempList = ["CDS"];
+const dataCommonsTempList = ["CDS", "CCDI"];
 const UPLOAD_TYPES = ['file','metadata'];
 const LOG_DIR = 'log';
 const LOG_FILE_EXT ='.log';
