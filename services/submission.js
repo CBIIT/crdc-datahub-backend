@@ -287,7 +287,7 @@ const sendEmails = {
             firstName: aSubmitter?.firstName
             }, {
             idandname: `${aSubmission?.name} (ID: ${aSubmission?._id})`,
-            dataconcierge: `${aSubmission?.conciergeName || 'NA'} at ${aSubmission?.conciergeEmail||'NA'}`
+            dataconcierge: `${aSubmission?.conciergeName || 'NA'} at ${aSubmission?.conciergeEmail||'NA'}.`
             }
         );
     },
