@@ -277,7 +277,7 @@ class Submission {
 async function submissionActionNotification(userInfo, action, aSubmission, userService, organizationService, notificationService) {
     switch(action) {
         case ACTIONS.SUBMIT:
-            //todo send submitted email
+            await sendEmails.submitSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
             break;
         case ACTIONS.RELEASE:
             //todo send release email
@@ -340,6 +340,41 @@ const cancelOrWithdrawSubmissionEmailInfo = async (aSubmission, userService, org
 }
 
 const sendEmails = {
+    submitSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
+        const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
+
+        const promises = [
+            await userService.getOrgOwner(aSubmission?.organization?._id),
+            await organizationService.getOrganizationByID(aSubmitter?.organization?.orgID),
+            await userService.getAdmin(),
+        ];
+        let results;
+        await Promise.all(promises).then(async function(returns) {
+            results = returns;
+        });
+        const aOrganization = results[1] || {};
+
+        const orgOwnerEmails = filterUniqueUserEmail(results[0] || [], []);
+        const adminEmails = filterUniqueUserEmail(results[2] || [], orgOwnerEmails);
+        const curatorEmails = {email: aOrganization?.conciergeEmail || null}
+
+
+        // CCs for org owner, Data Curator (or admins if not yet assigned exists)
+        let ccEmailsVar 
+        if(!curatorEmails?.email){
+            ccEmailsVar = adminEmails
+        }else{
+            ccEmailsVar = curatorEmails
+        }
+        const ccEmails = [...orgOwnerEmails, ...ccEmailsVar];
+        await notificationService.submitDataSubmissionNotification(aSubmitter?.email, ccEmails, {
+            firstName: aSubmitter?.firstName
+            }, {
+            idandname: `${aSubmission?.name} (ID: ${aSubmission?._id})`,
+            dataconcierge: `${aSubmission?.conciergeName || 'NA'} at ${aSubmission?.conciergeEmail||'NA'}.`
+            }
+        );
+    },
     completeSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService) => {
         const [ccEmails, POCs, aOrganization] = await completeSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
         if (POCs.length === 0) {
