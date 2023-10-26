@@ -23,7 +23,7 @@ const config = require("../config");
 // TODO: Data commons needs to be in a predefined list, currently only "CDS" is allowed
 const dataCommonsTempList = ["CDS"];
 const UPLOAD_TYPES = ['file','metadata'];
-const LOG_DIR = 'log';
+const LOG_DIR = 'logs';
 const LOG_FILE_EXT ='.log';
 // Set to array
 Set.prototype.toArray = function() {
