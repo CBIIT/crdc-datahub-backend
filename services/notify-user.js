@@ -138,7 +138,7 @@ class NotifyUser {
                 }),
                 email,
                 emailCCs
-                          );
+            );
         });
     }
 
