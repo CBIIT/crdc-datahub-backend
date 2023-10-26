@@ -354,8 +354,8 @@ const sendEmails = {
         });
         const aOrganization = results[1] || {};
 
-        const orgOwnerEmails = filterUniqueUserEmail(results[0] || [], []);
-        const adminEmails = filterUniqueUserEmail(results[2] || [], orgOwnerEmails);
+        const orgOwnerEmails = getUserEmails(results[0] || []);
+        const adminEmails = getUserEmails(results[2] || []);
         const curatorEmails = {email: aOrganization?.conciergeEmail || null}
 
 
