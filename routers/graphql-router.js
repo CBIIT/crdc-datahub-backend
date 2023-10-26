@@ -39,7 +39,7 @@ dbConnector.connect().then(() => {
     const s3Service = new S3Service();
     const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
     const batchService = new BatchService(s3Service, batchCollection, config.submission_bucket);
-    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, {officialUrl: config.emails_url});
+    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService);
     const awsService = new AWSService(submissionCollection, organizationService, userService);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams);
 
@@ -64,7 +64,8 @@ dbConnector.connect().then(() => {
         listSubmissions:  submissionService.listSubmissions.bind(submissionService),
         getSubmission:  submissionService.getSubmission.bind(submissionService),
         createTempCredentials: awsService.createTempCredentials.bind(awsService),
-        submissionAction: submissionService.submissionAction.bind(submissionService)
+        submissionAction: submissionService.submissionAction.bind(submissionService),
+        listLogs: submissionService.listLogs.bind(submissionService) 
     };
 });
 
@@ -78,7 +79,7 @@ const extractContext =(req) => {
     else context = req.session;
     if(!context) throw new Error(ERROR.INVALID_SESSION_OR_TOKEN);
     return context;
-};
+}
 
 module.exports = (req, res) => {
     createHandler({
