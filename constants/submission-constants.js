@@ -17,6 +17,7 @@ module.exports = Object.freeze({
         ARCHIVE: "Archive",
         CANCEL: "Cancel",
         REJECT: "Reject",
-        WITHDRAW: "Withdraw"
+        WITHDRAW: "Withdraw",
+        RESUME: "Resume"
     }
 });
