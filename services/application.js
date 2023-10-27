@@ -1,4 +1,4 @@
-const {SUBMITTED, APPROVED, REJECTED, IN_PROGRESS, IN_REVIEW, DELETED, NEW} = require("../constants/application-constants");
+const {SUBMITTED, APPROVED, REJECTED, IN_PROGRESS, IN_REVIEW, DELETED, NEW, INQUIRED} = require("../constants/application-constants");
 const {APPLICATION_COLLECTION: APPLICATION} = require("../crdc-datahub-database-drivers/database-constants");
 const {v4} = require('uuid')
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
@@ -204,15 +204,15 @@ class Application {
         const application = await this.getApplicationById(document._id);
         // TODO 1. If Reviewer opened the application, the status changes to IN_REVIEW
         if (application && application.status) {
-            const history = HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, null);
+            const history = HistoryEventBuilder.createEvent(context.userInfo._id, INQUIRED, null);
             const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-                $set: {status: IN_PROGRESS, updatedAt: history.dateTime},
+                $set: {status: INQUIRED, updatedAt: history.dateTime},
                 $push: {history}
             });
             if (updated?.modifiedCount && updated?.modifiedCount > 0) {
                 const promises = [
                     await this.getApplicationById(document._id),
-                    await this.logCollection.insert(UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, IN_PROGRESS))
+                    await this.logCollection.insert(UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, INQUIRED))
                 ];
                 return await Promise.all(promises).then(function(results) {
                     return results[0];
@@ -265,7 +265,7 @@ class Application {
         return null;
     }
 
-    async rejectApplication(document, context) {
+    async inquireApplication(document, context) {
         verifyReviewerPermission(context);
         const application = await this.getApplicationById(document._id);
         // In Reviewed -> Rejected
