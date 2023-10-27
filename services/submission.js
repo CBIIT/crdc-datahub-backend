@@ -294,6 +294,9 @@ async function submissionActionNotification(userInfo, action, aSubmission, userS
         case ACTIONS.CANCEL:
             await sendEmails.cancelSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
             break;
+        case ACTIONS.RESUME:
+            //todo send resume email
+            break;
         case ACTIONS.ARCHIVE:
             //todo send archived email
             break;
@@ -532,7 +535,7 @@ const isPermittedUser = (aTargetUser, userInfo) => {
     return aTargetUser?.email === userInfo.email && aTargetUser?.IDP === userInfo.IDP
 }
 
-//actions: NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED
+//actions: NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, RESUME
 const submissionActionMap = [
     {action:ACTIONS.SUBMIT, fromStatus: [IN_PROGRESS], 
         roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:SUBMITTED},
@@ -547,7 +550,9 @@ const submissionActionMap = [
     {action:ACTIONS.CANCEL, fromStatus: [NEW,IN_PROGRESS], 
         roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:CANCELED},
     {action:ACTIONS.ARCHIVE, fromStatus: [COMPLETED], 
-        roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:ARCHIVED}
+        roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:ARCHIVED},
+    {action:ACTIONS.RESUME, fromStatus: [REJECTED], 
+            roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER], toStatus:IN_PROGRESS},
 ];
 
 function listConditions(userID, userRole, userDataCommons, userOrganization, params){
