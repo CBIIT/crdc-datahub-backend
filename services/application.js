@@ -265,6 +265,32 @@ class Application {
         return null;
     }
 
+    async rejectApplication(document, context) {
+        verifyReviewerPermission(context);
+        const application = await this.getApplicationById(document._id);
+        // In Reviewed -> Rejected
+        verifyApplication(application)
+            .notEmpty()
+            .state([IN_REVIEW, SUBMITTED]);
+        const history = HistoryEventBuilder.createEvent(context.userInfo._id, REJECTED, document.comment);
+        const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
+            $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime},
+            $push: {history}
+        });
+        await sendEmails.rejectApplication(this.notificationService, this.emailParams, context, application);
+        if (updated?.modifiedCount && updated?.modifiedCount > 0) {
+            const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, REJECTED);
+            const promises = [
+                await this.getApplicationById(document._id),
+                this.logCollection.insert(log)
+            ];
+            return await Promise.all(promises).then(function(results) {
+                return results[0];
+            });
+        }
+        return null;
+    }
+
     async inquireApplication(document, context) {
         verifyReviewerPermission(context);
         const application = await this.getApplicationById(document._id);
@@ -407,6 +433,7 @@ class Application {
     }
 }
 
+
 function formatApplicantName(userInfo){
     if (!userInfo) return "";
     let firstName = userInfo?.firstName || "";
@@ -482,6 +509,14 @@ const sendEmails = {
     },
     inquireApplication: async(notificationService, emailParams, context, application) => {
         await notificationService.inquireQuestionNotification(application?.applicant?.applicantEmail, {
+            firstName: application?.applicant?.applicantName
+        }, {
+            study: application?.studyAbbreviation,
+            url: emailParams.url
+        });
+    },
+    rejectApplication: async(notificationService, emailParams, context, application) => {
+        await notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, {
             firstName: application?.applicant?.applicantName
         }, {
             study: application?.studyAbbreviation,

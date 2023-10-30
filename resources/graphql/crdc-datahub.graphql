@@ -208,6 +208,7 @@ type Mutation {
     "Fed lead initiated operations"
     reviewApplication (_id: ID!): Application # same as getApplication but will set Application to "In Review" state
     approveApplication (_id: ID!, wholeProgram: Boolean, comment: String): Application
+    rejectApplication (_id: ID!, comment: String!): Application
     inquireApplication (_id: ID!, comment: String!): Application
 
     "Admin only operations"
