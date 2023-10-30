@@ -6,11 +6,13 @@ const {USER} = require("../crdc-datahub-database-drivers/constants/user-constant
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {SUBMISSIONS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
+const LOAD_METADATA = "Load Metadata";
 class BatchService {
-    constructor(s3Service, batchCollection, bucketName) {
+    constructor(s3Service, batchCollection, bucketName, awsService) {
         this.s3Service = s3Service;
         this.batchCollection = batchCollection;
         this.bucketName = bucketName;
+        this.awsService = awsService;
     }
 
     async createBatch(params, rootPath, orgID) {
@@ -130,6 +132,11 @@ const asyncUpdateBatch = async (batchCollection, aBatch) => {
         const error = ERROR.FAILED_BATCH_UPDATE;
         console.error(error);
         throw new Error(error);
+    }
+
+    if (aBatch?.type === BATCH.TYPE.METADATA) {
+        const message = { type: LOAD_METADATA, batchID: aBatch?._id };
+        await this.awsService.sendSQSMessage(message);
     }
 }
 
