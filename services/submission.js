@@ -199,7 +199,7 @@ class Submission {
         let submission = await verifier.exists(this.submissionCollection);
         let fromStatus = submission.status;
         //verify if the action is valid based on current submission status
-        verifier.isValidAction(submissionActionMap);
+        verifier.isValidAction();
         //verify if user's role is valid for the action
         const newStatus = verifier.inRoles(userInfo);
 
@@ -514,25 +514,7 @@ const isPermittedUser = (aTargetUser, userInfo) => {
     return aTargetUser?.email === userInfo.email && aTargetUser?.IDP === userInfo.IDP
 }
 
-//actions: NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, RESUME
-const submissionActionMap = [
-    {action:ACTIONS.SUBMIT, fromStatus: [IN_PROGRESS], 
-        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:SUBMITTED},
-    {action:ACTIONS.RELEASE, fromStatus: [SUBMITTED], 
-        roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:RELEASED},
-    {action:ACTIONS.WITHDRAW, fromStatus: [SUBMITTED], 
-        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER,], toStatus:WITHDRAWN},
-    {action:ACTIONS.REJECT, fromStatus: [SUBMITTED], 
-        roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:REJECTED},
-    {action:ACTIONS.COMPLETE, fromStatus: [RELEASED], 
-        roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:COMPLETED},
-    {action:ACTIONS.CANCEL, fromStatus: [NEW,IN_PROGRESS], 
-        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:CANCELED},
-    {action:ACTIONS.ARCHIVE, fromStatus: [COMPLETED], 
-        roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:ARCHIVED},
-    {action:ACTIONS.RESUME, fromStatus: [REJECTED], 
-            roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER], toStatus:IN_PROGRESS},
-];
+
 
 function listConditions(userID, userRole, userDataCommons, userOrganization, params){
     const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
