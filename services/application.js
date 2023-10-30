@@ -139,7 +139,7 @@ class Application {
 
     listApplicationConditions(userID, userRole) {
         // list all applications
-        const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
+        const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED]}};
         const listAllApplicationRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD];
         if (listAllApplicationRoles.includes(userRole)) return [{"$match": {...validApplicationStatus}}];
         // search by applicant's user id
@@ -268,7 +268,7 @@ class Application {
     async inquireApplication(document, context) {
         verifyReviewerPermission(context);
         const application = await this.getApplicationById(document._id);
-        // In Reviewed -> Rejected
+        // In Reviewed or Submitted -> Inquired
         verifyApplication(application)
             .notEmpty()
             .state([IN_REVIEW, SUBMITTED]);
@@ -296,7 +296,7 @@ class Application {
             updatedAt: {
                 $lt: subtractDaysFromNow(this.emailParams.inactiveDays)
             },
-            status: {$in: [NEW, IN_PROGRESS, REJECTED]}
+            status: {$in: [NEW, IN_PROGRESS, INQUIRED]}
         };
         const applications = await this.applicationCollection.aggregate([{$match: inactiveCondition}]);
         verifyApplication(applications)
@@ -329,7 +329,7 @@ class Application {
                 $lt: subtractDaysFromNow(inactiveDuration),
                 $gt: subtractDaysFromNow(inactiveDuration + 1),
             },
-            status: {$in: [NEW, IN_PROGRESS, REJECTED]},
+            status: {$in: [NEW, IN_PROGRESS, INQUIRED]},
             inactiveReminder: {$ne: true}
         };
         const applications = await this.applicationCollection.aggregate([{$match: remindCondition}]);
