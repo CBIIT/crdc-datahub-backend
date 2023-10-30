@@ -49,7 +49,7 @@ class NotifyUser {
         });
     }
 
-    async rejectQuestionNotification(email, template_params, messageVariables) {
+    async inquireQuestionNotification(email, template_params, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.REJECT_CONTENT, messageVariables);
         return await this.send(async () => {
             await this.emailService.sendNotification(
