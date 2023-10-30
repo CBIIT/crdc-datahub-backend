@@ -204,15 +204,15 @@ class Application {
         const application = await this.getApplicationById(document._id);
         // TODO 1. If Reviewer opened the application, the status changes to IN_REVIEW
         if (application && application.status) {
-            const history = HistoryEventBuilder.createEvent(context.userInfo._id, INQUIRED, null);
+            const history = HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, null);
             const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-                $set: {status: INQUIRED, updatedAt: history.dateTime},
+                $set: {status: IN_PROGRESS, updatedAt: history.dateTime},
                 $push: {history}
             });
             if (updated?.modifiedCount && updated?.modifiedCount > 0) {
                 const promises = [
                     await this.getApplicationById(document._id),
-                    await this.logCollection.insert(UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, INQUIRED))
+                    await this.logCollection.insert(UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, IN_PROGRESS))
                 ];
                 return await Promise.all(promises).then(function(results) {
                     return results[0];
@@ -225,7 +225,7 @@ class Application {
     async deleteApplication(document, context) {
         // TODO Deleting the application requires permission control.
         const aApplication = await this.getApplicationById(document._id);
-        const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED];
+        const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED, INQUIRED];
         if (validApplicationStatus.includes(aApplication.status)) {
             const history = HistoryEventBuilder.createEvent(context.userInfo._id, DELETED, null);
             const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
@@ -272,14 +272,14 @@ class Application {
         verifyApplication(application)
             .notEmpty()
             .state([IN_REVIEW, SUBMITTED]);
-        const history = HistoryEventBuilder.createEvent(context.userInfo._id, REJECTED, document.comment);
+        const history = HistoryEventBuilder.createEvent(context.userInfo._id, INQUIRED, document.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-            $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime},
+            $set: {reviewComment: document.comment, status: INQUIRED, updatedAt: history.dateTime},
             $push: {history}
         });
         await this.sendEmailAfterRejectApplication(context, application);
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
-            const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, REJECTED);
+            const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, INQUIRED);
             const promises = [
                 await this.getApplicationById(document._id),
                 this.logCollection.insert(log)
