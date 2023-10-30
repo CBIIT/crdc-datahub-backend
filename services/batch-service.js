@@ -64,7 +64,7 @@ class BatchService {
         const isAllUploaded = files?.length > 0 && succeededFiles.length === files?.length;
         aBatch.status = isAllUploaded ? BATCH.STATUSES.UPLOADED : BATCH.STATUSES.FAILED;
         aBatch.updatedAt = getCurrentTime();
-        await asyncUpdateBatch(this.batchCollection, aBatch);
+        await asyncUpdateBatch(this.awsService, this.batchCollection, aBatch);
         return await this.findByID(aBatch._id);
     }
 
@@ -126,7 +126,7 @@ const listBatchConditions = (userID, userRole, aUserOrganization, submissionID, 
     throw new Error(ERROR.INVALID_SUBMISSION_PERMISSION);
 }
 
-const asyncUpdateBatch = async (batchCollection, aBatch) => {
+const asyncUpdateBatch = async (awsService, batchCollection, aBatch) => {
     const updated = await batchCollection.update(aBatch);
     if (!updated?.acknowledged){
         const error = ERROR.FAILED_BATCH_UPDATE;
@@ -136,7 +136,7 @@ const asyncUpdateBatch = async (batchCollection, aBatch) => {
 
     if (aBatch?.type === BATCH.TYPE.METADATA) {
         const message = { type: LOAD_METADATA, batchID: aBatch?._id };
-        await this.awsService.sendSQSMessage(message);
+        await awsService.sendSQSMessage(message);
     }
 }
 

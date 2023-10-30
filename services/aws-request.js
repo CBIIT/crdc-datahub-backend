@@ -3,6 +3,7 @@ require('aws-sdk/lib/maintenance_mode_message').suppress = true;
 const {verifyApiToken,verifySubmitter} = require("../verifier/user-info-verifier");
 const path = require("path");
 const config = require('../config');
+const ERROR = require("../constants/error-constants");
 
 const S3_GET = 'getObject';
 const S3_KEY = 'Key';
@@ -114,6 +115,7 @@ class AWSService {
         return new Promise((resolve, reject) => {
             this.sqs.sendMessage(params, (err, data) => {
                 if (err) {
+                    console.error(ERROR.FAILED_SQS_SEND, messageBody);
                     reject(err);
                 }
                 else {
