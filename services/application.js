@@ -303,7 +303,8 @@ class Application {
             $set: {reviewComment: document.comment, status: INQUIRED, updatedAt: history.dateTime},
             $push: {history}
         });
-        await sendEmails.inquireApplication(this.notificationService, this.emailParams, context, application);
+        // TODO: Uncomment this in ticket 518
+        // await sendEmails.inquireApplication(this.notificationService, this.emailParams, context, application);
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, INQUIRED);
             const promises = [
@@ -498,14 +499,15 @@ const sendEmails = {
             url: emailParams.url
         })
     },
-    inquireApplication: async(notificationService, emailParams, context, application) => {
-        await notificationService.inquireQuestionNotification(application?.applicant?.applicantEmail, {
-            firstName: application?.applicant?.applicantName
-        }, {
-            study: application?.studyAbbreviation,
-            url: emailParams.url
-        });
-    },
+    // TODO: Uncomment this in ticket 518
+    // inquireApplication: async(notificationService, emailParams, context, application) => {
+    //     await notificationService.inquireQuestionNotification(application?.applicant?.applicantEmail, {
+    //         firstName: application?.applicant?.applicantName
+    //     }, {
+    //         study: application?.studyAbbreviation,
+    //         url: emailParams.url
+    //     });
+    // },
     rejectApplication: async(notificationService, emailParams, context, application) => {
         await notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, {
             firstName: application?.applicant?.applicantName
