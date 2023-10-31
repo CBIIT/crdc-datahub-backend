@@ -265,21 +265,21 @@ class Application {
         return null;
     }
 
-    async inquireApplication(document, context) {
+    async rejectApplication(document, context) {
         verifyReviewerPermission(context);
         const application = await this.getApplicationById(document._id);
         // In Reviewed or Submitted -> Inquired
         verifyApplication(application)
             .notEmpty()
             .state([IN_REVIEW, SUBMITTED]);
-        const history = HistoryEventBuilder.createEvent(context.userInfo._id, INQUIRED, document.comment);
+        const history = HistoryEventBuilder.createEvent(context.userInfo._id, REJECTED, document.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-            $set: {reviewComment: document.comment, status: INQUIRED, updatedAt: history.dateTime},
+            $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime},
             $push: {history}
         });
         await sendEmails.rejectApplication(this.notificationService, this.emailParams, context, application);
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
-            const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, INQUIRED);
+            const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, REJECTED);
             const promises = [
                 await this.getApplicationById(document._id),
                 this.logCollection.insert(log)
