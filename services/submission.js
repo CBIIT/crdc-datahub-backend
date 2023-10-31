@@ -295,11 +295,8 @@ async function submissionActionNotification(userInfo, action, aSubmission, userS
         case ACTIONS.CANCEL:
             await sendEmails.cancelSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
             break;
-        case ACTIONS.RESUME:
-            //todo send resume email
-            break;
         case ACTIONS.ARCHIVE:
-            //todo send archived email
+            //todo TBD send archived email
             break;
         default:
             console.error(ERROR.NO_SUBMISSION_RECEIVER+ `id=${aSubmission?._id}`);
