@@ -502,7 +502,7 @@ const saveApprovedStudies = async (approvedStudiesService, organizationService, 
     await approvedStudiesService.storeApprovedStudies(
         questionnaire?.study?.name, aApplication?.studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name
     );
-    await organizationService.storeApprovedStudies(questionnaire?.study?.name, aApplication?.studyAbbreviation);
+    await organizationService.storeApprovedStudies(aApplication?.organization?._id, questionnaire?.study?.name, aApplication?.studyAbbreviation);
 }
 
 module.exports = {
