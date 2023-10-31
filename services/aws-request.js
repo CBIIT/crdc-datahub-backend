@@ -107,10 +107,12 @@ class AWSService {
      * @param {Object} messageBody - The message body to be sent.
      * @returns {Promise} - Resolves with the data from SQS if successful, rejects with an error otherwise.
      */
-    async sendSQSMessage(messageBody) {
+    async sendSQSMessage(messageBody,groupID, deDuplicationId) {
         const params = {
             MessageBody: JSON.stringify(messageBody),
-            QueueUrl: this.sqsLoaderQueue
+            QueueUrl: this.sqsLoaderQueue,
+            MessageGroupId: groupID,
+            MessageDeduplicationId: deDuplicationId
         }
         return new Promise((resolve, reject) => {
             this.sqs.sendMessage(params, (err, data) => {

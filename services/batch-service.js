@@ -7,6 +7,8 @@ const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mon
 const {SUBMISSIONS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const LOAD_METADATA = "Load Metadata";
+// SQS FIFO Parameters
+const GROUP_ID = "crdcdh-batch";
 class BatchService {
     constructor(s3Service, batchCollection, bucketName, awsService) {
         this.s3Service = s3Service;
@@ -136,7 +138,7 @@ const asyncUpdateBatch = async (awsService, batchCollection, aBatch, isAllUpload
 
     if (aBatch?.type === BATCH.TYPE.METADATA && isAllUploaded) {
         const message = { type: LOAD_METADATA, batchID: aBatch?._id };
-        await awsService.sendSQSMessage(message);
+        await awsService.sendSQSMessage(message, GROUP_ID, aBatch?._id);
     }
 }
 
