@@ -1,4 +1,4 @@
-const {SUBMITTED, APPROVED, REJECTED, IN_PROGRESS, IN_REVIEW, DELETED, NEW} = require("../constants/application-constants");
+const {SUBMITTED, APPROVED, REJECTED, IN_PROGRESS, IN_REVIEW, DELETED, NEW, INQUIRED} = require("../constants/application-constants");
 const {APPLICATION_COLLECTION: APPLICATION} = require("../crdc-datahub-database-drivers/database-constants");
 const {v4} = require('uuid')
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
@@ -139,7 +139,7 @@ class Application {
 
     listApplicationConditions(userID, userRole) {
         // list all applications
-        const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
+        const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED]}};
         const listAllApplicationRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD];
         if (listAllApplicationRoles.includes(userRole)) return [{"$match": {...validApplicationStatus}}];
         // search by applicant's user id
@@ -225,7 +225,7 @@ class Application {
     async deleteApplication(document, context) {
         // TODO Deleting the application requires permission control.
         const aApplication = await this.getApplicationById(document._id);
-        const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED];
+        const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED, INQUIRED];
         if (validApplicationStatus.includes(aApplication.status)) {
             const history = HistoryEventBuilder.createEvent(context.userInfo._id, DELETED, null);
             const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
@@ -265,21 +265,21 @@ class Application {
         return null;
     }
 
-    async rejectApplication(document, context) {
+    async inquireApplication(document, context) {
         verifyReviewerPermission(context);
         const application = await this.getApplicationById(document._id);
-        // In Reviewed -> Rejected
+        // In Reviewed or Submitted -> Inquired
         verifyApplication(application)
             .notEmpty()
             .state([IN_REVIEW, SUBMITTED]);
-        const history = HistoryEventBuilder.createEvent(context.userInfo._id, REJECTED, document.comment);
+        const history = HistoryEventBuilder.createEvent(context.userInfo._id, INQUIRED, document.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-            $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime},
+            $set: {reviewComment: document.comment, status: INQUIRED, updatedAt: history.dateTime},
             $push: {history}
         });
-        await this.sendEmailAfterRejectApplication(context, application);
+        await sendEmails.inquireApplication(this.notificationService, this.emailParams, context, application);
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
-            const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, REJECTED);
+            const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, INQUIRED);
             const promises = [
                 await this.getApplicationById(document._id),
                 this.logCollection.insert(log)
@@ -296,7 +296,7 @@ class Application {
             updatedAt: {
                 $lt: subtractDaysFromNow(this.emailParams.inactiveDays)
             },
-            status: {$in: [NEW, IN_PROGRESS, REJECTED]}
+            status: {$in: [NEW, IN_PROGRESS, INQUIRED]}
         };
         const applications = await this.applicationCollection.aggregate([{$match: inactiveCondition}]);
         verifyApplication(applications)
@@ -329,7 +329,7 @@ class Application {
                 $lt: subtractDaysFromNow(inactiveDuration),
                 $gt: subtractDaysFromNow(inactiveDuration + 1),
             },
-            status: {$in: [NEW, IN_PROGRESS, REJECTED]},
+            status: {$in: [NEW, IN_PROGRESS, INQUIRED]},
             inactiveReminder: {$ne: true}
         };
         const applications = await this.applicationCollection.aggregate([{$match: remindCondition}]);
@@ -403,15 +403,6 @@ class Application {
             study: application?.studyAbbreviation,
             doc_url: this.emailParams.url,
             contact_detail: contact_detail
-        })
-    }
-
-    async sendEmailAfterRejectApplication(context, application) {
-        await this.notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, {
-            firstName: application?.applicant?.applicantName
-        }, {
-            study: application?.studyAbbreviation,
-            url: this.emailParams.url
         })
     }
 }
@@ -488,6 +479,14 @@ const sendEmails = {
             associate,
             url: emailParams.url
         })
+    },
+    inquireApplication: async(notificationService, emailParams, context, application) => {
+        await notificationService.inquireQuestionNotification(application?.applicant?.applicantEmail, {
+            firstName: application?.applicant?.applicantName
+        }, {
+            study: application?.studyAbbreviation,
+            url: emailParams.url
+        });
     }
 }
 

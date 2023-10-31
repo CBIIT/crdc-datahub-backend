@@ -52,7 +52,7 @@ dbConnector.connect().then(() => {
         listApplications: dataInterface.listApplications.bind(dataInterface),
         submitApplication: dataInterface.submitApplication.bind(dataInterface),
         approveApplication: dataInterface.approveApplication.bind(dataInterface),
-        rejectApplication: dataInterface.rejectApplication.bind(dataInterface),
+        inquireApplication: dataInterface.inquireApplication.bind(dataInterface),
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
         deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
         listApprovedStudies: approvedStudiesService.listApprovedStudiesAPI.bind(approvedStudiesService),
