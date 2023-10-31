@@ -431,23 +431,6 @@ class Application {
             contact_detail: contact_detail
         })
     }
-
-    async sendEmailAfterRejectApplication(context, application) {
-        await this.notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, {
-            firstName: application?.applicant?.applicantName
-        }, {
-            study: application?.studyAbbreviation,
-            url: this.emailParams.url
-        })
-    }
-}
-
-function formatApplicantName(userInfo){
-    if (!userInfo) return "";
-    let firstName = userInfo?.firstName || "";
-    let lastName = userInfo?.lastName || "";
-    lastName = lastName.trim();
-    return firstName + (lastName.length > 0 ? " "+lastName : "");
 }
 
 function verifyReviewerPermission(context){
