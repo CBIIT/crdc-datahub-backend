@@ -55,7 +55,7 @@ const submissionActionMap = [
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:RELEASED},
     {action:ACTIONS.WITHDRAW, fromStatus: [SUBMITTED], 
         roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER,], toStatus:WITHDRAWN},
-    {action:ACTIONS.REJECT, fromStatus: [SUBMITTED], 
+    {action:ACTIONS.REJECT, fromStatus: [SUBMITTED, RELEASED], 
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:REJECTED},
     {action:ACTIONS.COMPLETE, fromStatus: [RELEASED], 
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:COMPLETED},

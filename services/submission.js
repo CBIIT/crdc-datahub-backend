@@ -24,7 +24,7 @@ const config = require("../config");
 // eventually frontend and backend will use same source for this list.
 const dataCommonsTempList = ["CDS", "CCDI"];
 const UPLOAD_TYPES = ['file','metadata'];
-const LOG_DIR = 'log';
+const LOG_DIR = 'logs';
 const LOG_FILE_EXT ='.log';
 // Set to array
 Set.prototype.toArray = function() {
