@@ -86,7 +86,8 @@ const runDeactivateInactiveUsers = async (userService, notificationsService) => 
         await Promise.all(disabledUsers.map(async (user) => {
             await notificationsService.inactiveUserNotification(user.email,
                 {firstName: user.firstName},
-                {inactiveDays: config.inactive_user_days, officialEmail: config.official_email});
+                {inactiveDays: config.inactive_user_days, officialEmail: config.official_email},
+                config.devTier);
         }));
         // Email admin(s)
         const adminUsers = await userService.getAdminUserEmails();
@@ -102,7 +103,8 @@ const runDeactivateInactiveUsers = async (userService, notificationsService) => 
                 const commaJoinedUsers = extractAndJoinFields(disabledUserList, ["firstName", "lastName", "email", "role", "organization"]);
                 await notificationsService.inactiveUserAdminNotification(admin.email,
                     {firstName: admin.firstName,users: commaJoinedUsers},
-                    {inactiveDays: config.inactive_user_days});
+                    {inactiveDays: config.inactive_user_days},
+                    config.devTier);
             }
         }));
     }

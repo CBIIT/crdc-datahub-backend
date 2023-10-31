@@ -265,21 +265,21 @@ class Application {
         return null;
     }
 
-    async rejectApplication(document, context) {
+    async inquireApplication(document, context) {
         verifyReviewerPermission(context);
         const application = await this.getApplicationById(document._id);
-        // In Reviewed -> Rejected
+        // In Reviewed or Submitted -> Inquired
         verifyApplication(application)
             .notEmpty()
             .state([IN_REVIEW, SUBMITTED]);
-        const history = HistoryEventBuilder.createEvent(context.userInfo._id, REJECTED, document.comment);
+        const history = HistoryEventBuilder.createEvent(context.userInfo._id, INQUIRED, document.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-            $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime},
+            $set: {reviewComment: document.comment, status: INQUIRED, updatedAt: history.dateTime},
             $push: {history}
         });
         await sendEmails.rejectApplication(this.notificationService, this.emailParams, context, application);
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
-            const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, REJECTED);
+            const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, INQUIRED);
             const promises = [
                 await this.getApplicationById(document._id),
                 this.logCollection.insert(log)
@@ -431,8 +431,16 @@ class Application {
             contact_detail: contact_detail
         })
     }
-}
 
+    async sendEmailAfterRejectApplication(context, application) {
+        await this.notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, {
+            firstName: application?.applicant?.applicantName
+        }, {
+            study: application?.studyAbbreviation,
+            url: this.emailParams.url
+        })
+    }
+}
 
 function formatApplicantName(userInfo){
     if (!userInfo) return "";
