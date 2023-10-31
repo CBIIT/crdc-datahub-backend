@@ -115,7 +115,7 @@ const listBatchConditions = (userID, userRole, aUserOrganization, submissionID, 
     }
 
     if (userRole === USER.ROLES.SUBMITTER) {
-        return [...submissionJoin, {"$match": {"batch.submitterID": userID}}];
+        return [...submissionJoin, {"$match": {...validStatusAndSubmissionID, "batch.submitterID": userID}}];
     }
 
     if (userRole === USER.ROLES.DC_POC && userDataCommonsNames?.length > 0) {
