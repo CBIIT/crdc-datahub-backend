@@ -265,6 +265,32 @@ class Application {
         return null;
     }
 
+    async rejectApplication(document, context) {
+        verifyReviewerPermission(context);
+        const application = await this.getApplicationById(document._id);
+        // In Reviewed or Submitted -> Inquired
+        verifyApplication(application)
+            .notEmpty()
+            .state([IN_REVIEW, SUBMITTED]);
+        const history = HistoryEventBuilder.createEvent(context.userInfo._id, REJECTED, document.comment);
+        const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
+            $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime},
+            $push: {history}
+        });
+        await sendEmails.rejectApplication(this.notificationService, this.emailParams, context, application);
+        if (updated?.modifiedCount && updated?.modifiedCount > 0) {
+            const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, REJECTED);
+            const promises = [
+                await this.getApplicationById(document._id),
+                this.logCollection.insert(log)
+            ];
+            return await Promise.all(promises).then(function(results) {
+                return results[0];
+            });
+        }
+        return null;
+    }
+
     async inquireApplication(document, context) {
         verifyReviewerPermission(context);
         const application = await this.getApplicationById(document._id);
@@ -277,7 +303,8 @@ class Application {
             $set: {reviewComment: document.comment, status: INQUIRED, updatedAt: history.dateTime},
             $push: {history}
         });
-        await sendEmails.inquireApplication(this.notificationService, this.emailParams, context, application);
+        // TODO: Uncomment this in ticket 518
+        // await sendEmails.inquireApplication(this.notificationService, this.emailParams, context, application);
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, INQUIRED);
             const promises = [
@@ -407,14 +434,6 @@ class Application {
     }
 }
 
-function formatApplicantName(userInfo){
-    if (!userInfo) return "";
-    let firstName = userInfo?.firstName || "";
-    let lastName = userInfo?.lastName || "";
-    lastName = lastName.trim();
-    return firstName + (lastName.length > 0 ? " "+lastName : "");
-}
-
 function verifyReviewerPermission(context){
     verifySession(context)
         .verifyInitialized()
@@ -480,8 +499,17 @@ const sendEmails = {
             url: emailParams.url
         })
     },
-    inquireApplication: async(notificationService, emailParams, context, application) => {
-        await notificationService.inquireQuestionNotification(application?.applicant?.applicantEmail, {
+    // TODO: Uncomment this in ticket 518
+    // inquireApplication: async(notificationService, emailParams, context, application) => {
+    //     await notificationService.inquireQuestionNotification(application?.applicant?.applicantEmail, {
+    //         firstName: application?.applicant?.applicantName
+    //     }, {
+    //         study: application?.studyAbbreviation,
+    //         url: emailParams.url
+    //     });
+    // },
+    rejectApplication: async(notificationService, emailParams, context, application) => {
+        await notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, {
             firstName: application?.applicant?.applicantName
         }, {
             study: application?.studyAbbreviation,

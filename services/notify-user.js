@@ -48,8 +48,23 @@ class NotifyUser {
             );
         });
     }
+    // TODO: Uncomment this and add functionality in ticket 518
+    // async inquireQuestionNotification(email, template_params, messageVariables) {
+    //     const message = replaceMessageVariables(this.email_constants.INQUIRE_CONTENT, messageVariables);
+    //     return await this.send(async () => {
+    //         await this.emailService.sendNotification(
+    //             this.email_constants.NOTIFICATION_SENDER,
+    //             this.email_constants.INQUIRE_SUBJECT,
+    //             await createEmailTemplate("notification-template.html", {
+    //                 message, ...template_params
+    //             }),
+    //             email,
+    //             []
+    //         );
+    //     });
+    // }
 
-    async inquireQuestionNotification(email, template_params, messageVariables) {
+    async rejectQuestionNotification(email, template_params, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.REJECT_CONTENT, messageVariables);
         return await this.send(async () => {
             await this.emailService.sendNotification(
