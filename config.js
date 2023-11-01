@@ -27,7 +27,7 @@ let config = {
     schedule_job: process.env.SCHEDULE_JOB || "1 0 1 * * *",
     // temp url for email
     submission_doc_url: process.env.SUBMISSION_DOC_URL || "",
-    submision_helpdesk: "CRDCSubmissions@nih.gov",
+    submission_helpdesk: "CRDCSubmissions@nih.gov",
     submission_system_portal: "https://datacommons.cancer.gov/",
     submission_bucket: process.env.SUBMISSION_BUCKET, 
     //aws sts assume role

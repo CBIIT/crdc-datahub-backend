@@ -10,14 +10,12 @@ const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mon
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
-const {LogService} = require("./submission");
 const ROLES = USER_CONSTANTS.USER.ROLES;
-const config = require('../config');
 const {parseJsonString} = require("../crdc-datahub-database-drivers/utility/string-utility");
 const {formatName} = require("../utility/format-name");
 
 class Application {
-    constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams) {
+    constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, devTier) {
         this.logCollection = logCollection;
         this.applicationCollection = applicationCollection;
         this.approvedStudiesService = approvedStudiesService;
@@ -25,6 +23,7 @@ class Application {
         this.dbService = dbService;
         this.notificationService = notificationsService;
         this.emailParams = emailParams;
+        this.devTier = devTier;
 
     }
 
@@ -303,8 +302,11 @@ class Application {
             $set: {reviewComment: document.comment, status: INQUIRED, updatedAt: history.dateTime},
             $push: {history}
         });
-        // TODO: Uncomment this in ticket 518
-        // await sendEmails.inquireApplication(this.notificationService, this.emailParams, context, application);
+        // admin email CCs
+        const adminEmails = (await this.userService.getAdmin())
+            ?.filter((aUser) => aUser?.email)
+            ?.map((aUser)=> aUser.email);
+        await sendEmails.inquireApplication(this.notificationService, this.emailParams, context, application, adminEmails, this.devTier);
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, INQUIRED);
             const promises = [
@@ -399,27 +401,15 @@ class Application {
         }else{
             cc_email = admin_email
         }
-        
-        // submission documentation url
-        let sub_doc_url = this.emailParams.url
-
-        // email body
-        // doc_url 
-        let doc_url
-        if(!sub_doc_url){
-            doc_url = `log into the submission system ${config.submission_system_portal}`
-        } else {
-            doc_url = `review the submission documentation ${sub_doc_url}`
-        }
 
         // contact detail
         let contact_detail = `either your organization ${org_owner_email} or your CRDC Data Team member ${concierge_email}.`
         if(!org_owner_email &&!concierge_email ){
-            contact_detail = `the Submission Helpdesk ${config.submision_helpdesk}`
+            contact_detail = `the Submission Helpdesk ${this.emailParams.submissionHelpdesk}`
         } else if(!org_owner_email){
             contact_detail = `your CRDC Data Team member ${concierge_email}`
         } else if(!concierge_email){
-            contact_detail = `either your organization ${org_owner_email} or the Submission Helpdesk ${config.submision_helpdesk}`
+            contact_detail = `either your organization ${org_owner_email} or the Submission Helpdesk ${this.emailParams.submissionHelpdesk}`
         }
         await this.notificationService.approveQuestionNotification(application?.applicant?.applicantEmail,
             // Organization Owner and concierge assigned/Super Admin
@@ -499,15 +489,13 @@ const sendEmails = {
             url: emailParams.url
         })
     },
-    // TODO: Uncomment this in ticket 518
-    // inquireApplication: async(notificationService, emailParams, context, application) => {
-    //     await notificationService.inquireQuestionNotification(application?.applicant?.applicantEmail, {
-    //         firstName: application?.applicant?.applicantName
-    //     }, {
-    //         study: application?.studyAbbreviation,
-    //         url: emailParams.url
-    //     });
-    // },
+    inquireApplication: async(notificationService, emailParams, context, application, emailCCs, devTier) => {
+        await notificationService.inquireQuestionNotification(application?.applicant?.applicantEmail, emailCCs,{
+            firstName: application?.applicant?.applicantName
+        }, {
+            officialEmail: emailParams.submissionHelpdesk
+        }, devTier);
+    },
     rejectApplication: async(notificationService, emailParams, context, application) => {
         await notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, {
             firstName: application?.applicant?.applicantName
