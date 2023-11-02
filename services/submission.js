@@ -288,7 +288,7 @@ async function submissionActionNotification(userInfo, action, aSubmission, userS
             await sendEmails.withdrawSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
             break;
         case ACTIONS.REJECT:
-            await sendEmails.rejectSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
+            await sendEmails.rejectSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
             break;
         case ACTIONS.COMPLETE:
             await sendEmails.completeSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
@@ -432,7 +432,7 @@ const sendEmails = {
             submitterEmail: `${userInfo?.email}`
         }, devTier);
     },
-    rejectSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
+    rejectSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService, devTier) => {
         const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
         if (!aSubmitter) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
@@ -457,7 +457,7 @@ const sendEmails = {
             submissionName: aSubmission?.name,
             conciergeEmail: aOrganization?.conciergeEmail || NA,
             conciergeName: aOrganization?.conciergeName || NA
-        });
+        }, devTier);
     },
 }
 
