@@ -18,6 +18,8 @@ module.exports = Object.freeze({
         CANCEL: "Cancel",
         REJECT: "Reject",
         WITHDRAW: "Withdraw",
-        RESUME: "Resume"
+        RESUME: "Resume",
+        REJECT_SUBMIT: "Reject_Submitted",
+        REJECT_RELEASE: "Reject_Released"
     }
 });
