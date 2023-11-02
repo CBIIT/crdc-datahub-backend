@@ -282,7 +282,7 @@ async function submissionActionNotification(userInfo, action, aSubmission, userS
             await sendEmails.submitSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
             break;
         case ACTIONS.RELEASE:
-            await sendEmails.releaseSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
+            await sendEmails.releaseSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
             break;
         case ACTIONS.WITHDRAW:
             await sendEmails.withdrawSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
@@ -432,7 +432,7 @@ const sendEmails = {
             submitterEmail: `${userInfo?.email}`
         }, devTier);
     },
-    releaseSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService) => {
+    releaseSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService,devTier) => {
         const [ccEmails, POCs, aOrganization] = await completeOrWithdrawSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
         if (POCs.length === 0) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
@@ -443,6 +443,7 @@ const sendEmails = {
             notificationsService.releaseDataSubmissionNotification(aUser?.email, ccEmails, {
                 firstName: aUser?.firstName
             },{
+                Tier: devTier,
                 dataCommonName: `${aSubmission?.dataCommons}`
             }, {
                 idandname: `${aSubmission?.name} (id: ${aSubmission?._id})`,
