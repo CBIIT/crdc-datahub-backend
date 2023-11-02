@@ -282,7 +282,7 @@ async function submissionActionNotification(userInfo, action, aSubmission, userS
             await sendEmails.submitSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
             break;
         case ACTIONS.RELEASE:
-            //todo send release email
+            await sendEmails.releaseSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
             break;
         case ACTIONS.WITHDRAW:
             await sendEmails.withdrawSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
