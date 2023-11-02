@@ -358,12 +358,12 @@ const sendEmails = {
 
         const orgOwnerEmails = getUserEmails(results[0] || []);
         const adminEmails = getUserEmails(results[2] || []);
-        const curatorEmails = {email: aOrganization?.conciergeEmail || null}
+        const curatorEmails = getUserEmails([{email: aOrganization?.conciergeEmail}] || []);
 
 
         // CCs for org owner, Data Curator (or admins if not yet assigned exists)
         let ccEmailsVar 
-        if(!curatorEmails?.email){
+        if(!aOrganization?.conciergeEmail){
             ccEmailsVar = adminEmails
         }else{
             ccEmailsVar = curatorEmails
