@@ -126,10 +126,14 @@ class Submission {
         }
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
+        // The submission status must be valid states
+        if (![NEW, IN_PROGRESS ,WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
+            throw new Error(ERROR.INVALID_SUBMISSION_STATUS);
+        }
         const aOrganization = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
         const result = this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
         // The submission status needs to be updated after createBatch
-        if ([NEW, WITHDRAWN, REJECTED].includes(aSubmission.status)) {
+        if ([NEW, WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
             await updateSubmissionStatus(this.submissionCollection, params.submissionID, IN_PROGRESS);
         }
         return result;
