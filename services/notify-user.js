@@ -125,10 +125,10 @@ class NotifyUser {
         });
     }
 
-    async releaseDataSubmissionNotification(email, emailCCs,template_params, objectVariables, messageVariables) {
+    async releaseDataSubmissionNotification(email, emailCCs,template_params, subjectVariables, messageVariables) {
 
         const message = replaceMessageVariables(this.email_constants.RELEASE_DATA_SUBMISSION_CONTENT, messageVariables);
-        const emailSubject = replaceMessageVariables(this.email_constants.RELEASE_DATA_SUBMISSION_SUBJECT, objectVariables)
+        const emailSubject = replaceMessageVariables(this.email_constants.RELEASE_DATA_SUBMISSION_SUBJECT, subjectVariables)
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
