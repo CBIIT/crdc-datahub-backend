@@ -104,7 +104,7 @@ const listBatchConditions = (userID, userRole, aUserOrganization, submissionID, 
             path: "$batch",
         }}
     ];
-    const validStatusAndSubmissionID = {"submissionID": submissionID, "status": {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
+    const validStatusAndSubmissionID = {"submissionID": submissionID, "batch.status": {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
     const listAllSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR];
     if (listAllSubmissionRoles.includes(userRole)) {
         return [...submissionJoin, {"$match": {...validStatusAndSubmissionID}}];
@@ -115,7 +115,7 @@ const listBatchConditions = (userID, userRole, aUserOrganization, submissionID, 
     }
 
     if (userRole === USER.ROLES.SUBMITTER) {
-        return [...submissionJoin, {"$match": {"batch.submitterID": userID}}];
+        return [...submissionJoin, {"$match": {...validStatusAndSubmissionID, "batch.submitterID": userID}}];
     }
 
     if (userRole === USER.ROLES.DC_POC && userDataCommonsNames?.length > 0) {

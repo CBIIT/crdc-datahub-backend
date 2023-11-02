@@ -56,13 +56,14 @@ cronJob.schedule(config.schedule_job, async () => {
     dbConnector.connect().then( async () => {
         const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
         const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
-        const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days};
+        const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days,
+            submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk};
         const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
         const userService = new User(userCollection, logCollection);
 
         const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
         const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection);
-        const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams);
+        const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, config.devTier);
         console.log("Running a scheduled background task to delete inactive application at " + getCurrentTime());
         await dataInterface.deleteInactiveApplications();
         console.log("Running a scheduled job to disable user(s) because of no activities at " + getCurrentTime());
@@ -86,7 +87,8 @@ const runDeactivateInactiveUsers = async (userService, notificationsService) => 
         await Promise.all(disabledUsers.map(async (user) => {
             await notificationsService.inactiveUserNotification(user.email,
                 {firstName: user.firstName},
-                {inactiveDays: config.inactive_user_days, officialEmail: config.official_email});
+                {inactiveDays: config.inactive_user_days, officialEmail: config.official_email},
+                config.devTier);
         }));
         // Email admin(s)
         const adminUsers = await userService.getAdminUserEmails();
@@ -102,7 +104,8 @@ const runDeactivateInactiveUsers = async (userService, notificationsService) => 
                 const commaJoinedUsers = extractAndJoinFields(disabledUserList, ["firstName", "lastName", "email", "role", "organization"]);
                 await notificationsService.inactiveUserAdminNotification(admin.email,
                     {firstName: admin.firstName,users: commaJoinedUsers},
-                    {inactiveDays: config.inactive_user_days});
+                    {inactiveDays: config.inactive_user_days},
+                    config.devTier);
             }
         }));
     }
