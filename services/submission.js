@@ -374,9 +374,8 @@ const sendEmails = {
             }, {
             idandname: `${aSubmission?.name} (ID: ${aSubmission?._id})`,
             dataconcierge: `${aSubmission?.conciergeName || 'NA'} at ${aSubmission?.conciergeEmail||'NA'}.`
-            },{
-                Tier: devTier
-            }
+            },devTier
+            
         );
     },
     completeSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService) => {
