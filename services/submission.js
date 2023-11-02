@@ -279,7 +279,7 @@ class Submission {
 async function submissionActionNotification(userInfo, action, aSubmission, userService, organizationService, notificationService, devTier) {
     switch(action) {
         case ACTIONS.SUBMIT:
-            await sendEmails.submitSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
+            await sendEmails.submitSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
             break;
         case ACTIONS.RELEASE:
             await sendEmails.releaseSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
@@ -342,7 +342,7 @@ const cancelOrWithdrawSubmissionEmailInfo = async (aSubmission, userService, org
 }
 
 const sendEmails = {
-    submitSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
+    submitSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService, devTier) => {
         const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
 
         const promises = [
@@ -374,7 +374,8 @@ const sendEmails = {
             }, {
             idandname: `${aSubmission?.name} (ID: ${aSubmission?._id})`,
             dataconcierge: `${aSubmission?.conciergeName || 'NA'} at ${aSubmission?.conciergeEmail||'NA'}.`
-            }
+            },devTier
+            
         );
     },
     completeSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, devTier) => {
