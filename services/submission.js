@@ -282,7 +282,7 @@ async function submissionActionNotification(userInfo, action, aSubmission, userS
             await sendEmails.submitSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
             break;
         case ACTIONS.RELEASE:
-            //todo send release email
+            await sendEmails.releaseSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
             break;
         case ACTIONS.WITHDRAW:
             await sendEmails.withdrawSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
@@ -431,6 +431,28 @@ const sendEmails = {
             submitterName: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
             submitterEmail: `${userInfo?.email}`
         }, devTier);
+    },
+    releaseSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService,devTier) => {
+        const [ccEmails, POCs, aOrganization] = await completeOrWithdrawSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
+        if (POCs.length === 0) {
+            console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
+            return;
+        }
+        // could be multiple POCs
+        const notificationPromises = POCs.map(aUser =>
+            notificationsService.releaseDataSubmissionNotification(aUser?.email, ccEmails, {
+                firstName: aUser?.firstName
+            },{
+                Tier: devTier,
+                dataCommonName: `${aSubmission?.dataCommons}`
+            }, {
+                idandname: `${aSubmission?.name} (id: ${aSubmission?._id})`,
+                // only one study
+                projectName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                dataconcierge: `${aSubmission?.conciergeName || NA} at ${aSubmission?.conciergeEmail || NA}`,
+            })
+        );
+        await Promise.all(notificationPromises);
     },
     rejectSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
         const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
