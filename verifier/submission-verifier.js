@@ -28,7 +28,10 @@ class SubmissionActionVerifier {
     }
 
     isValidAction(){
-        let actionMap = submissionActionMap?.filter((a)=>a.action === toPascalCase(this.action));
+        if(this.action === ACTIONS.REJECT)
+            this.action = `${this.action}_${this.submission.status}`;
+
+        let actionMap = submissionActionMap?.filter((a)=>a.action === this.action);
         if(!actionMap || actionMap.length === 0)
             throw new Error(`${ERROR.VERIFY.INVALID_SUBMISSION_ACTION} ${this.action}!`);
 
@@ -55,8 +58,10 @@ const submissionActionMap = [
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:RELEASED},
     {action:ACTIONS.WITHDRAW, fromStatus: [SUBMITTED], 
         roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER,], toStatus:WITHDRAWN},
-    {action:ACTIONS.REJECT, fromStatus: [SUBMITTED, RELEASED], 
+    {action:ACTIONS.REJECT_SUBMIT, fromStatus: [SUBMITTED], 
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:REJECTED},
+    {action:ACTIONS.REJECT_RELEASE, fromStatus: [RELEASED], 
+        roles: [ROLES.ADMIN, ROLES.DC_POC], toStatus:REJECTED},
     {action:ACTIONS.COMPLETE, fromStatus: [RELEASED], 
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:COMPLETED},
     {action:ACTIONS.CANCEL, fromStatus: [NEW,IN_PROGRESS], 
