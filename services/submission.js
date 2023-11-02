@@ -288,13 +288,13 @@ async function submissionActionNotification(userInfo, action, aSubmission, userS
             await sendEmails.withdrawSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
             break;
         case ACTIONS.REJECT:
-            await sendEmails.rejectSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
+            await sendEmails.rejectSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
             break;
         case ACTIONS.COMPLETE:
-            await sendEmails.completeSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
+            await sendEmails.completeSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
             break;
         case ACTIONS.CANCEL:
-            await sendEmails.cancelSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
+            await sendEmails.cancelSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
             break;
         case ACTIONS.ARCHIVE:
             //todo TBD send archived email
@@ -377,7 +377,7 @@ const sendEmails = {
             }
         );
     },
-    completeSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService) => {
+    completeSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, devTier) => {
         const [ccEmails, POCs, aOrganization] = await completeSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
         if (POCs.length === 0) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
@@ -393,11 +393,11 @@ const sendEmails = {
                 studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
                 conciergeName: aOrganization?.conciergeName || NA,
                 conciergeEmail: aOrganization?.conciergeEmail || NA
-            })
+            }, devTier)
         );
         await Promise.all(notificationPromises);
     },
-    cancelSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
+    cancelSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService, devTier) => {
         const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
         if (!aSubmitter) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
@@ -413,7 +413,7 @@ const sendEmails = {
             canceledBy: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
             conciergeEmail: aOrganization?.conciergeEmail || NA,
             conciergeName: aOrganization?.conciergeName || NA
-        });
+        }, devTier);
     },
     withdrawSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, devTier) => {
         if (!userInfo?.email) {
@@ -432,7 +432,8 @@ const sendEmails = {
             submitterEmail: `${userInfo?.email}`
         }, devTier);
     },
-    releaseSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService,devTier) => {
+
+    releaseSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, devTier) => {
         const [ccEmails, POCs, aOrganization] = await completeOrWithdrawSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
         if (POCs.length === 0) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
@@ -454,7 +455,9 @@ const sendEmails = {
         );
         await Promise.all(notificationPromises);
     },
-    rejectSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
+
+    rejectSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService, devTier) => {
+
         const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
         if (!aSubmitter) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
@@ -479,7 +482,7 @@ const sendEmails = {
             submissionName: aSubmission?.name,
             conciergeEmail: aOrganization?.conciergeEmail || NA,
             conciergeName: aOrganization?.conciergeName || NA
-        });
+        }, devTier);
     },
 }
 
