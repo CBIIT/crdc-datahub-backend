@@ -144,6 +144,23 @@ class NotifyUser {
         });
     }
 
+    async releaseDataSubmissionNotification(email, emailCCs,template_params, subjectVariables, messageVariables) {
+
+        const message = replaceMessageVariables(this.email_constants.RELEASE_DATA_SUBMISSION_CONTENT, messageVariables);
+        const emailSubject = replaceMessageVariables(this.email_constants.RELEASE_DATA_SUBMISSION_SUBJECT, subjectVariables)
+        return await this.send(async () => {
+            await this.emailService.sendNotification(
+                this.email_constants.NOTIFICATION_SENDER,
+                emailSubject,
+                await createEmailTemplate("notification-template.html", {
+                    message, ...template_params
+                }),
+                email,
+                emailCCs
+            );
+        });
+    }
+
     async submitDataSubmissionNotification(email, emailCCs,template_params, messageVariables, subjectVariables) {
         const message = replaceMessageVariables(this.email_constants.SUBMIT_DATA_SUBMISSION_CONTENT, messageVariables);
         const subject = this.email_constants.WITHDRAW_DATA_SUBMISSION_SUBJECT;
