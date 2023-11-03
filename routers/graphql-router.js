@@ -31,9 +31,9 @@ dbConnector.connect().then(() => {
     const notificationsService = new NotifyUser(emailService);
     const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days};
     const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
-    const userService = new User(userCollection, logCollection, config.devTier);
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
     const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection);
+    const userService = new User(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.devTier);
     const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
     const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, organizationService);
     const s3Service = new S3Service();
@@ -41,20 +41,20 @@ dbConnector.connect().then(() => {
     const batchService = new BatchService(s3Service, batchCollection, config.submission_bucket);
     const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService);
     const awsService = new AWSService(submissionCollection, organizationService, userService);
-    const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams);
+    const applicationService = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams);
 
     root = {
         version: () => {return config.version},
-        saveApplication: dataInterface.saveApplication.bind(dataInterface),
-        getApplication: dataInterface.getApplication.bind(dataInterface),
-        reviewApplication: dataInterface.reviewApplication.bind(dataInterface),
-        getMyLastApplication: dataInterface.getMyLastApplication.bind(dataInterface),
-        listApplications: dataInterface.listApplications.bind(dataInterface),
-        submitApplication: dataInterface.submitApplication.bind(dataInterface),
-        approveApplication: dataInterface.approveApplication.bind(dataInterface),
-        rejectApplication: dataInterface.rejectApplication.bind(dataInterface),
-        reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
-        deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
+        saveApplication: applicationService.saveApplication.bind(applicationService),
+        getApplication: applicationService.getApplication.bind(applicationService),
+        reviewApplication: applicationService.reviewApplication.bind(applicationService),
+        getMyLastApplication: applicationService.getMyLastApplication.bind(applicationService),
+        listApplications: applicationService.listApplications.bind(applicationService),
+        submitApplication: applicationService.submitApplication.bind(applicationService),
+        approveApplication: applicationService.approveApplication.bind(applicationService),
+        rejectApplication: applicationService.rejectApplication.bind(applicationService),
+        reopenApplication: applicationService.reopenApplication.bind(applicationService),
+        deleteApplication: applicationService.deleteApplication.bind(applicationService),
         listApprovedStudies: approvedStudiesService.listApprovedStudiesAPI.bind(approvedStudiesService),
         listApprovedStudiesOfMyOrganization: approvedStudiesService.listApprovedStudiesOfMyOrganizationAPI.bind(approvedStudiesService),
         createBatch: submissionService.createBatch.bind(submissionService),
@@ -67,17 +67,17 @@ dbConnector.connect().then(() => {
         submissionAction: submissionService.submissionAction.bind(submissionService),
         listLogs: submissionService.listLogs.bind(submissionService),
 
-        getMyUser : userService.getMyUser.bind(dataInterface),
-        getUser : userService.getUser.bind(dataInterface),
-        updateMyUser : userService.updateMyUser.bind(dataInterface),
-        listUsers : userService.listUsers.bind(dataInterface),
-        editUser : userService.editUser.bind(dataInterface),
-        listActiveCurators: userService.listActiveCuratorsAPI.bind(dataInterface),
+        getMyUser : userService.getMyUser.bind(userService),
+        getUser : userService.getUser.bind(userService),
+        updateMyUser : userService.updateMyUser.bind(userService),
+        listUsers : userService.listUsers.bind(userService),
+        editUser : userService.editUser.bind(userService),
+        grantToken : userService.grantToken.bind(userService),
+        listActiveCurators: userService.listActiveCuratorsAPI.bind(userService),
         listOrganizations : organizationService.listOrganizationsAPI.bind(organizationService),
         getOrganization : organizationService.getOrganizationAPI.bind(organizationService),
         editOrganization : organizationService.editOrganizationAPI.bind(organizationService),
-        createOrganization : organizationService.createOrganizationAPI.bind(organizationService),
-        grantToken : userService.grantToken.bind(dataInterface)
+        createOrganization : organizationService.createOrganizationAPI.bind(organizationService)
     };
 });
 
