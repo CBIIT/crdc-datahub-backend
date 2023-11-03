@@ -327,6 +327,29 @@ const completeSubmissionEmailInfo = async (userInfo, aSubmission, userService, o
     return [ccEmails, POCs, aOrganization];
 }
 
+const releaseSubmissionEmailInfo = async (userInfo, aSubmission, userService, organizationService) => {
+    const promises = [
+        await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
+        await userService.getAdmin(),
+        await userService.getUserByID(aSubmission?.submitterID),
+        await userService.getPOCs(),
+        await organizationService.getOrganizationByID(aSubmission?.organization?._id)
+    ];
+
+    const results = await Promise.all(promises);
+    const orgOwnerEmails = getUserEmails(results[0] || []);
+    const adminEmails = getUserEmails(results[1] || []);
+    const submitterEmails = getUserEmails([results[2] || {}]);
+
+    // CCs for Submitter, org owner, admins
+    const ccEmails = new Set([...submitterEmails, ...orgOwnerEmails, ...adminEmails]).toArray();
+    // To POC role users
+    const POCs = results[3] || [];
+    const aOrganization = results[4] || {};
+    return [ccEmails, POCs, aOrganization];
+}
+
+
 const cancelOrWithdrawSubmissionEmailInfo = async (aSubmission, userService, organizationService) => {
     const promises = [
         await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
@@ -435,7 +458,7 @@ const sendEmails = {
     },
 
     releaseSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, devTier) => {
-        const [ccEmails, POCs, aOrganization] = await completeOrWithdrawSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
+        const [ccEmails, POCs, aOrganization] = await releaseSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
         if (POCs.length === 0) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
             return;
