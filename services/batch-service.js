@@ -18,10 +18,9 @@ class BatchService {
         const metadataIntention = params?.metadataIntention && params.type === BATCH.TYPE.METADATA ? params.metadataIntention : null;
         const newBatch = Batch.createNewBatch(params.submissionID, this.bucketName, prefix, params.type, metadataIntention);
         if (BATCH.TYPE.METADATA === params.type.toLowerCase()) {
-            const submissionID = params.submissionID;
             await Promise.all(params.files.map(async (file) => {
                 if (file.fileName) {
-                    const signedURL = await this.s3Service.createPreSignedURL(this.bucketName, submissionID, file.fileName);
+                    const signedURL = await this.s3Service.createPreSignedURL(this.bucketName, newBatch.filePrefix, file.fileName);
                     newBatch.addFile(file.fileName, file.size , signedURL);
                 }
             }));
@@ -135,7 +134,7 @@ const asyncUpdateBatch = async (batchCollection, aBatch) => {
 
 const createPrefix = (params, rootPath, orgID) => {
     if (rootPath) {
-        return `${rootPath}/${params.type}/`;
+        return `${rootPath}/${params.type}`;
     }
     if (!orgID) {
         throw new Error(ERROR.NEW_BATCH_NO_ORGANIZATION);
