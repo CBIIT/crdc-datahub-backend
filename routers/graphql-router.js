@@ -31,9 +31,9 @@ dbConnector.connect().then(() => {
     const notificationsService = new NotifyUser(emailService);
     const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days};
     const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
-    const userService = new User(userCollection, logCollection);
+    const userService = new User(userCollection, logCollection, config.devTier);
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
-    const organizationService = new Organization(organizationCollection);
+    const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection);
     const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
     const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, organizationService);
     const s3Service = new S3Service();
@@ -65,7 +65,19 @@ dbConnector.connect().then(() => {
         getSubmission:  submissionService.getSubmission.bind(submissionService),
         createTempCredentials: awsService.createTempCredentials.bind(awsService),
         submissionAction: submissionService.submissionAction.bind(submissionService),
-        listLogs: submissionService.listLogs.bind(submissionService) 
+        listLogs: submissionService.listLogs.bind(submissionService),
+
+        getMyUser : userService.getMyUser.bind(dataInterface),
+        getUser : userService.getUser.bind(dataInterface),
+        updateMyUser : userService.updateMyUser.bind(dataInterface),
+        listUsers : userService.listUsers.bind(dataInterface),
+        editUser : userService.editUser.bind(dataInterface),
+        listActiveCurators: userService.listActiveCuratorsAPI.bind(dataInterface),
+        listOrganizations : organizationService.listOrganizationsAPI.bind(organizationService),
+        getOrganization : organizationService.getOrganizationAPI.bind(organizationService),
+        editOrganization : organizationService.editOrganizationAPI.bind(organizationService),
+        createOrganization : organizationService.createOrganizationAPI.bind(organizationService),
+        grantToken : userService.grantToken.bind(dataInterface),
     };
 });
 

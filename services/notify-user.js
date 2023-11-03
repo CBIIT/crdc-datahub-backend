@@ -184,7 +184,28 @@ class NotifyUser {
             );
         });
     }
+
+    async deactivateUserNotification(email, CCs, template_params, messageVariables, devTier) {
+        const content = replaceMessageVariables(this.email_constants.DEACTIVATE_USER_CONTENT, messageVariables);
+        const message = isTierAdded(devTier) ? `${devTier} ${content}` : content;
+        const subject = this.email_constants.DEACTIVATE_USER_SUBJECT;
+        return await this.send(async () => {
+            await this.emailService.sendNotification(
+                this.email_constants.NOTIFICATION_SENDER,
+                isTierAdded(devTier) ? `${devTier} ${subject}` : subject,
+                await createEmailTemplate("notification-template.html", {
+                    message, ...template_params
+                }),
+                email,
+                CCs
+            );
+        });
+    }
 }
+
+const isTierAdded = (devTier) => {
+    return devTier?.trim()?.length > 0
+};
 
 module.exports = {
     NotifyUser
