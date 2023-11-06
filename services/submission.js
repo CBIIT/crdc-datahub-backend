@@ -131,7 +131,7 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_STATUS);
         }
         const aOrganization = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
-        const result = this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
+        const result = await this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
         // The submission status needs to be updated after createBatch
         if ([NEW, WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
             await updateSubmissionStatus(this.submissionCollection, params.submissionID, IN_PROGRESS);
