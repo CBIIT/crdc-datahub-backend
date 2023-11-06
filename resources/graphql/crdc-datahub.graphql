@@ -79,7 +79,7 @@ type Batch {
     metadataIntention: String # [New, Update, Delete], Update is meant for "Update or insert", metadata only! file batches are always treated as Update
     fileCount: Int # calculated by BE
     files: [FileInfo]
-    status: String # [New, Uploaded, Upload Failed, Loaded, Rejected] Loaded and Rejected are for metadata batch only
+    status: String # [Uploading, Uploaded, Upload Failed, Loaded, Rejected] Loaded and Rejected are for metadata batch only
     errors: [String]
     createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
     updatedAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
@@ -109,7 +109,7 @@ type NewBatch {
     metadataIntention: String # [New, Update, Delete], Update is meant for "Update or insert", metadata only! file batches are always treated as Update
     fileCount: Int
     files: [FileURL] # only available for metadata batch
-    status: String # [New, Uploaded, Upload Failed, Loaded, Rejected]
+    status: String # [Uploading, Uploaded, Upload Failed, Loaded, Rejected]
     createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
     updatedAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
 }

@@ -126,8 +126,17 @@ class Submission {
         }
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
+        // The submission status must be valid states
+        if (![NEW, IN_PROGRESS ,WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
+            throw new Error(ERROR.INVALID_SUBMISSION_STATUS);
+        }
         const aOrganization = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
-        return await this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
+        const result = await this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
+        // The submission status needs to be updated after createBatch
+        if ([NEW, WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
+            await updateSubmissionStatus(this.submissionCollection, params.submissionID, IN_PROGRESS);
+        }
+        return result;
     }
 
     async updateBatch(params, context) {
@@ -140,7 +149,7 @@ class Submission {
         if (!aBatch) {
             throw new Error(ERROR.BATCH_NOT_EXIST);
         }
-        if (![BATCH.STATUSES.NEW].includes(aBatch?.status)) {
+        if (![BATCH.STATUSES.UPLOADING].includes(aBatch?.status)) {
             throw new Error(ERROR.INVALID_UPDATE_BATCH_STATUS);
         }
         const aSubmission = await findByID(this.submissionCollection, aBatch.submissionID);
@@ -266,7 +275,15 @@ class Submission {
         return fileList;
     }
 }
-    
+
+const updateSubmissionStatus = async (submissionCollection, aSubmissionID, newStatus) => {
+    const updated = await submissionCollection.update({_id: aSubmissionID, status: newStatus});
+    if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
+        console.error(ERROR.UPDATE_SUBMISSION_ERROR, aSubmissionID);
+        throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
+    }
+}
+
 /**
  * submissionActionNotification
  * @param {*} userInfo 
