@@ -285,7 +285,7 @@ class Submission {
 
 const updateSubmissionStatus = async (submissionCollection, aSubmissionID, userInfo, newStatus) => {
     const history = HistoryEventBuilder.createEvent(userInfo?._id, newStatus, null);
-    const updated = await submissionCollection.update({_id: aSubmissionID, status: newStatus}, {$push: {history}});
+    const updated = await submissionCollection.update({_id: aSubmissionID, status: newStatus, updatedAt: getCurrentTime()}, {$push: {history}});
     if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
         console.error(ERROR.UPDATE_SUBMISSION_ERROR, aSubmissionID);
         throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
