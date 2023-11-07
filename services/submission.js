@@ -9,7 +9,7 @@ const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mon
 const {formatName} = require("../utility/format-name");
 const ERROR = require("../constants/error-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
-const {SubmissionActionEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
+const {SubmissionActionEvent, UpdateSubmissionEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const {verifyBatch} = require("../verifier/batch-verifier");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const { API_TOKEN } = require("../constants/application-constants");
@@ -136,6 +136,9 @@ class Submission {
         // The submission status needs to be updated after createBatch
         if ([NEW, WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
             await updateSubmissionStatus(this.submissionCollection, params.submissionID, IN_PROGRESS);
+            await this.logCollection.insert(
+                UpdateSubmissionEvent.create(userInfo._id, userInfo.email, userInfo.IDP, params.submissionID, aSubmission?.status, IN_PROGRESS)
+            );
         }
         return result;
     }
