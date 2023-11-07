@@ -25,7 +25,8 @@ const config = require("../config");
 const dataCommonsTempList = ["CDS", "CCDI"];
 const UPLOAD_TYPES = ['file','metadata'];
 const LOG_DIR = 'logs';
-const LOG_FILE_EXT ='.log';
+const LOG_FILE_EXT_ZIP ='.zip';
+const LOG_FILE_EXT_LOG ='.log';
 // Set to array
 Set.prototype.toArray = function() {
     return Array.from(this);
@@ -240,7 +241,7 @@ class Submission {
      * API to get list of upload log files
      * @param {*} params 
      * @param {*} context 
-     * @returns filelist []
+     * @returns dictionary
      */
     async listLogs(params, context){
         //1) verify session
@@ -261,7 +262,7 @@ class Submission {
     }
     /**
      * 
-     * @param {*} params as objerct {} cotains submissisonID
+     * @param {*} params as object {} contains submission ID
      * @param {*} context 
      * @returns fileList []
      */
@@ -269,7 +270,13 @@ class Submission {
         this.aws = new AWSService();
         let fileList = []; 
         for (let type of UPLOAD_TYPES){
-            let file = await this.aws.getLastFileFromS3(bucket, `${rootPath}/${type}/${LOG_DIR}`, type, LOG_FILE_EXT);
+            //check if zip existing
+            let file = await this.aws.getLastFileFromS3(bucket, `${rootPath}/${type}/${LOG_DIR}`, type, LOG_FILE_EXT_ZIP);
+            // if not, check log file.
+            if (!file || !file.downloadUrl) {
+                file = await this.aws.getLastFileFromS3(bucket, `${rootPath}/${type}/${LOG_DIR}`, type, LOG_FILE_EXT_LOG);
+            }
+
             if(file) fileList.push(file);
         }
         return fileList;
