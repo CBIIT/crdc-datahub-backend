@@ -20,9 +20,9 @@ const ALL_FILTER = "All";
 const NA = "NA"
 const config = require("../config");
 
-// TODO: Data commons needs to be in a predefined list, currently only "CDS" and "CCDI" are allowed
+// TODO: Data commons needs to be in a predefined list, currently only "CDS" and "ICDC" are allowed
 // eventually frontend and backend will use same source for this list.
-const dataCommonsTempList = ["CDS", "CCDI"];
+const dataCommonsTempList = ["CDS", "ICDC"];
 const UPLOAD_TYPES = ['file','metadata'];
 const LOG_DIR = 'logs';
 const LOG_FILE_EXT_ZIP ='.zip';
