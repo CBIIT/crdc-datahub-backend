@@ -284,7 +284,7 @@ class Submission {
 }
 
 const updateSubmissionStatus = async (submissionCollection, aSubmissionID, newStatus) => {
-    const updated = await submissionCollection.update({_id: aSubmissionID, status: newStatus});
+    const updated = await submissionCollection.update({_id: aSubmissionID, status: newStatus, updatedAt: getCurrentTime()});
     if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
         console.error(ERROR.UPDATE_SUBMISSION_ERROR, aSubmissionID);
         throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
