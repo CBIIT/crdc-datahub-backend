@@ -163,7 +163,7 @@ class NotifyUser {
 
     async submitDataSubmissionNotification(email, emailCCs,template_params, messageVariables, subjectVariables) {
         const message = replaceMessageVariables(this.email_constants.SUBMIT_DATA_SUBMISSION_CONTENT, messageVariables);
-        const subject = this.email_constants.WITHDRAW_DATA_SUBMISSION_SUBJECT;
+        const subject = this.email_constants.SUBMIT_DATA_SUBMISSION_SUBJECT;
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
