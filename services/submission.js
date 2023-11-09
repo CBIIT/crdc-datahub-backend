@@ -454,7 +454,7 @@ const sendEmails = {
         }
         const [ccEmails, aOrganization] = await cancelOrWithdrawSubmissionEmailInfo(aSubmission, userService, organizationService);
         await notificationService.cancelSubmissionNotification(aSubmitter?.email, ccEmails, {
-            firstName: aSubmitter?.firstName
+            firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
         }, {
             submissionID: aSubmission?._id,
             submissionName: aSubmission?.name,
