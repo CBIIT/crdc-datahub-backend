@@ -133,14 +133,18 @@ const asyncUpdateBatch = async (batchCollection, aBatch) => {
 }
 
 const createPrefix = (params, rootPath, orgID) => {
-    if (rootPath) {
-        return `${rootPath}/${params.type}`;
-    }
-    if (!orgID) {
+    if (!rootPath && !orgID) {
         throw new Error(ERROR.NEW_BATCH_NO_ORGANIZATION);
     }
-    const prefixArray = [orgID, params.submissionID];
-    prefixArray.push(params.type === BATCH.TYPE.METADATA ? BATCH.TYPE.METADATA : BATCH.TYPE.FILE);
+    const prefixArray = rootPath ? [rootPath, params.type] : [orgID, params.submissionID];
+    if (rootPath && params.type === BATCH.TYPE.METADATA) {
+        // adds timestamp
+        prefixArray.push(getCurrentTime()?.getTime());
+    }
+
+    if (!rootPath && params.type === BATCH.TYPE.FILE) {
+        prefixArray.push(BATCH.TYPE.FILE);
+    }
     return prefixArray.join("/");
 }
 
