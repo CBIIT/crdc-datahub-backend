@@ -3,7 +3,6 @@ const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
     REJECTED, WITHDRAWN, ACTIONS } = require("../constants/submission-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
-const {toPascalCase} = require("../utility/string-util")
 
 function verifySubmissionAction(submissionId, action){ 
 
@@ -63,7 +62,7 @@ const submissionActionMap = [
     {action:ACTIONS.REJECT_RELEASE, fromStatus: [RELEASED], 
         roles: [ROLES.ADMIN, ROLES.DC_POC], toStatus:REJECTED},
     {action:ACTIONS.COMPLETE, fromStatus: [RELEASED], 
-        roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:COMPLETED},
+        roles: [ROLES.CURATOR,ROLES.ADMIN, ROLES.DC_POC], toStatus:COMPLETED},
     {action:ACTIONS.CANCEL, fromStatus: [NEW,IN_PROGRESS], 
         roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:CANCELED},
     {action:ACTIONS.ARCHIVE, fromStatus: [COMPLETED], 
