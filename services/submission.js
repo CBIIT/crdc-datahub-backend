@@ -1,5 +1,5 @@
-const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
-    REJECTED, WITHDRAWN, ACTIONS } = require("../constants/submission-constants");
+const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, REJECTED, WITHDRAWN, ACTIONS, CANCELLED
+} = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
@@ -590,7 +590,7 @@ const isPermittedUser = (aTargetUser, userInfo) => {
 
 
 function listConditions(userID, userRole, userDataCommons, userOrganization, params){
-    const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
+    const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELLED,
         REJECTED, WITHDRAWN]}};
     // Default conditions are:
     // Make sure application has valid status
@@ -643,7 +643,7 @@ function validateListSubmissionsParams (params) {
         params.status !== ARCHIVED &&
         params.status !== REJECTED &&
         params.status !== WITHDRAWN &&
-        params.status !== CANCELED &&
+        params.status !== CANCELLED &&
         params.status !== ALL_FILTER
         ) {
         throw new Error(ERROR.LIST_SUBMISSION_INVALID_STATUS_FILTER);

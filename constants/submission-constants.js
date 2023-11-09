@@ -6,7 +6,7 @@ module.exports = Object.freeze({
     RELEASED: 'Released',
     COMPLETED: 'Completed',
     ARCHIVED: 'Archived',
-    CANCELED:'Canceled',
+    CANCELLED:'Cancelled',
     REJECTED:'Rejected',
     WITHDRAWN: 'Withdrawn',
     //data submission actions

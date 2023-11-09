@@ -1,5 +1,5 @@
 const ERROR = require("../constants/error-constants");
-const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
+const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELLED,
     REJECTED, WITHDRAWN, ACTIONS } = require("../constants/submission-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
@@ -65,7 +65,7 @@ const submissionActionMap = [
     {action:ACTIONS.COMPLETE, fromStatus: [RELEASED], 
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:COMPLETED},
     {action:ACTIONS.CANCEL, fromStatus: [NEW,IN_PROGRESS], 
-        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:CANCELED},
+        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:CANCELLED},
     {action:ACTIONS.ARCHIVE, fromStatus: [COMPLETED], 
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:ARCHIVED},
     {action:ACTIONS.RESUME, fromStatus: [REJECTED], 
