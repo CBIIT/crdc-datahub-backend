@@ -29,6 +29,6 @@ WITHDRAW_DATA_SUBMISSION_SUBJECT: "CRDC Data Submission Withdrawn"
 WITHDRAW_DATA_SUBMISSION_CONTENT: "Data Submission $submissionName / $submissionID for study $studyName has been withdrawn by $submitterName Please contact the submitter at $submitterEmail to clarify why the submission was withdrawn and determine if any action is needed."
 REJECT_DATA_SUBMISSION_SUBJECT: "CRDC Data Submission Rejected"
 REJECT_DATA_SUBMISSION_CONTENT: "Your data submission request $submissionID / $submissionName has been rejected by the CRDC Data Team. Please review the status of your submission and correct any errors that have been reported. If you have any questions, please contact $conciergeName at $conciergeEmail"
-RELEASE_DATA_SUBMISSION_SUBJECT: "$Tier CRDC Data Submission Released to $dataCommonName team"
+RELEASE_DATA_SUBMISSION_SUBJECT: "$Tier CRDC Data Submission Released to $dataCommonName"
 RELEASE_DATA_SUBMISSION_CONTENT: "Data Submission $idandname for study $projectName has passed all validation tests and is ready to be copied to your data commons. Please contact $dataconcierge to arrange the transfer."
 
