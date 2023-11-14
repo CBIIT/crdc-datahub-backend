@@ -435,7 +435,7 @@ const sendEmails = {
         // could be multiple POCs
         const notificationPromises = POCs.map(aUser =>
             notificationsService.completeSubmissionNotification(aUser?.email, ccEmails, {
-                firstName: aUser?.firstName
+                firstName: `${aSubmission.dataCommons} team`
             }, {
                 submissionName: aSubmission?.name,
                 // only one study
