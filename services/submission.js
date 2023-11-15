@@ -135,7 +135,7 @@ class Submission {
         const result = await this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
         // The submission status needs to be updated after createBatch
         if ([NEW, WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
-            await updateSubmissionStatus(this.submissionCollection, params.submissionID, context?.userInfo, IN_PROGRESS);
+            await updateSubmissionStatus(this.submissionCollection, aSubmission, context?.userInfo, IN_PROGRESS);
         }
         return result;
     }
@@ -283,11 +283,12 @@ class Submission {
     }
 }
 
-const updateSubmissionStatus = async (submissionCollection, aSubmissionID, userInfo, newStatus) => {
-    const history = HistoryEventBuilder.createEvent(userInfo?._id, newStatus, null);
-    const updated = await submissionCollection.update({_id: aSubmissionID, status: newStatus, updatedAt: getCurrentTime()}, {$push: {history}});
+const updateSubmissionStatus = async (submissionCollection, aSubmission, userInfo, newStatus) => {
+    const newHistory = HistoryEventBuilder.createEvent(userInfo?._id, newStatus, null);
+    aSubmission.history = [...(aSubmission.history || []), newHistory];
+    const updated = await submissionCollection.update({...aSubmission, status: newStatus, updatedAt: getCurrentTime()});
     if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
-        console.error(ERROR.UPDATE_SUBMISSION_ERROR, aSubmissionID);
+        console.error(ERROR.UPDATE_SUBMISSION_ERROR, aSubmission?._id);
         throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
     }
 }
