@@ -33,13 +33,14 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, devTier) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordsCollection, devTier) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
         this.userService = userService;
         this.organizationService = organizationService;
         this.notificationService = notificationService;
+        this.dataRecordsCollection = dataRecordsCollection;
         this.devTier = devTier;
     }
 
@@ -236,6 +237,30 @@ class Submission {
         ]);
         return submission;
     }
+
+
+    async submissionStats(params, context) {
+
+        verifySession(context)
+            .verifyInitialized();
+
+        // user permission control
+        const userInfo = context.userInfo;
+        const submissionID = params?.submissionID;
+
+
+
+
+
+
+
+
+
+
+
+    }
+
+
 
     /**
      * API to get list of upload log files
