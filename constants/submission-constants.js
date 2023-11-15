@@ -21,5 +21,11 @@ module.exports = Object.freeze({
         RESUME: "Resume",
         REJECT_SUBMIT: "Reject_Submitted",
         REJECT_RELEASE: "Reject_Released"
+    },
+    NODE_STATUS: {
+        NEW: "New",
+        PASSED: "Passed",
+        WARNING: "Warning",
+        ERROR: "Error"
     }
 });

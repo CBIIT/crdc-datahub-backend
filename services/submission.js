@@ -1,5 +1,6 @@
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
-    REJECTED, WITHDRAWN, ACTIONS } = require("../constants/submission-constants");
+    REJECTED, WITHDRAWN, ACTIONS, NODE_STATUS
+} = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
@@ -240,27 +241,28 @@ class Submission {
 
 
     async submissionStats(params, context) {
-
         verifySession(context)
             .verifyInitialized();
+        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        isSubmissionPermitted(aSubmission?.organization, aSubmission, context?.userInfo);
 
-        // user permission control
-        const userInfo = context.userInfo;
-        const submissionID = params?.submissionID;
-
-
-
-
-
-
-
-
-
-
-
+        const groupPipeline = { "$group": { _id: "$nodeType", count: { $sum: 1 }} };
+        const promises = [
+            await this.submissionCollection.aggregate([{ "$match": {submissionID: params?.submissionID} },groupPipeline]),
+            await this.submissionCollection.aggregate([{ "$match": {submissionID: params?.submissionID, status: NODE_STATUS.NEW} },groupPipeline]),
+            await this.submissionCollection.aggregate([{ "$match": {submissionID: params?.submissionID, status: NODE_STATUS.ERROR} },groupPipeline]),
+            await this.submissionCollection.aggregate([{ "$match": {submissionID: params?.submissionID, status: NODE_STATUS.PASSED} },groupPipeline]),
+            await this.submissionCollection.aggregate([{ "$match": {submissionID: params?.submissionID, status: NODE_STATUS.WARNING} },groupPipeline]),
+        ];
+        const results = await Promise.all(promises);
+        const [allNodes] = getNodes(results[0] || []);
+        const [newNodes, newCount] = getNodes(results[1] || []);
+        const [errorNodes, errorCount] = getNodes(results[2] || []);
+        const [passedNodes, passedCount] = getNodes(results[3] || []);
+        const [warningNodes, warningCount] = getNodes(results[4] || []);
+        const totalCount = newCount + errorCount + passedCount + warningCount;
+        return [allNodes, newNodes, errorNodes, errorNodes, passedNodes, warningNodes, totalCount];
     }
-
-
 
     /**
      * API to get list of upload log files
@@ -675,6 +677,37 @@ function validateListSubmissionsParams (params) {
     }
     // Don't need to validate organization as frontend uses the same organization collection
     // as backend does as selection options. AKA, frontend will only ever send valid organizations.
+}
+
+const getNodes = (nodes) => {
+    let totalCount = 0;
+    const transformedNodes = nodes?.map(node => {
+        totalCount += node?.count || 0;
+        return {
+            name: node?._id,
+            count: node?.count
+        };
+    });
+
+    return [transformedNodes, totalCount];
+};
+
+const isSubmissionPermitted = (aUserOrganization, aSubmission, userInfo) => {
+    const userRole = userInfo?.userRole;
+    const allSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR];
+    if (allSubmissionRoles.includes(userRole)) {
+        return;
+    }
+    if (userRole === USER.ROLES.ORG_OWNER && aUserOrganization?.orgID === aSubmission?.organization) {
+        return;
+    }
+    if (userRole === USER.ROLES.SUBMITTER && userInfo?._id === aSubmission?.submitterID) {
+        return;
+    }
+    if (userRole === USER.ROLES.DC_POC && userInfo?.dataCommons.includes(aSubmission?.dataCommons)) {
+        return;
+    }
+    throw new Error(ERROR.INVALID_SUBMISSION_PERMISSION);
 }
 
 module.exports = {
