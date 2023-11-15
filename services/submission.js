@@ -478,7 +478,7 @@ const sendEmails = {
         const results = await Promise.all(promises);
         const orgOwnerEmails = getUserEmails(results[0] || []);
         const submitterEmails = getUserEmails([results[1]] || []);
-        const ccEmails = new Set([orgOwnerEmails, submitterEmails]).toArray();
+        const ccEmails = new Set([...orgOwnerEmails, ...submitterEmails]).toArray();
         await notificationsService.withdrawSubmissionNotification(aCurator?.email, ccEmails, {
             firstName: `${aCurator.firstName} ${aCurator?.lastName || ''}`
         }, {
