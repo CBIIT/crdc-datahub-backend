@@ -374,7 +374,6 @@ const releaseSubmissionEmailInfo = async (userInfo, aSubmission, userService, or
     return [ccEmails, POCs, aOrganization];
 }
 
-
 const cancelOrRejectSubmissionEmailInfo = async (aSubmission, userService, organizationService) => {
     const promises = [
         await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
@@ -436,7 +435,7 @@ const sendEmails = {
         // could be multiple POCs
         const notificationPromises = POCs.map(aUser =>
             notificationsService.completeSubmissionNotification(aUser?.email, ccEmails, {
-                firstName: aUser?.firstName
+                firstName: `${aSubmission.dataCommons} team`
             }, {
                 submissionName: aSubmission?.name,
                 // only one study
@@ -477,6 +476,7 @@ const sendEmails = {
         const results = await Promise.all(promises);
         const orgOwnerEmails = getUserEmails(results[0] || []);
         const aOrganization = results[1] || {};
+
         const curatorEmails = getUserEmails([{email: aOrganization?.conciergeEmail}]);
         const ccEmails = new Set([orgOwnerEmails, curatorEmails]).toArray();
         await notificationsService.withdrawSubmissionNotification(userInfo?.email, ccEmails, {
@@ -520,7 +520,7 @@ const sendEmails = {
         }
         const [ccEmails, aOrganization] = await cancelOrRejectSubmissionEmailInfo(aSubmission, userService, organizationService);
         await notificationService.rejectSubmissionNotification(aSubmitter?.email, ccEmails, {
-            firstName: aSubmitter?.firstName
+            firstName: `${aSubmission?.dataCommons} team`
         }, {
             submissionID: aSubmission?._id,
             submissionName: aSubmission?.name,
