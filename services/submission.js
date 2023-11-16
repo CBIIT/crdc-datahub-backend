@@ -487,7 +487,7 @@ const sendEmails = {
             submissionName: aSubmission?.name,
             // only one study
             studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
-            withdrawnByName: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
+            withdrawnByName: `${userInfo.firstName} ${userInfo?.lastName || ''}.`,
             withdrawnByEmail: `${userInfo?.email}`
         }, devTier);
     },
