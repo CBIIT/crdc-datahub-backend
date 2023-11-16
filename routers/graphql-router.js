@@ -39,14 +39,10 @@ dbConnector.connect().then(() => {
     const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, organizationService);
     const s3Service = new S3Service();
     const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
-    const batchService = new BatchService(s3Service, batchCollection, config.submission_bucket);
-    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, config.devTier);
-    const awsService = new AWSService(submissionCollection, organizationService, userService);
-    const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.devTier);
     const awsService = new AWSService(submissionCollection, userService, config.sqs_loader_queue);
     const batchService = new BatchService(s3Service, batchCollection, config.submission_bucket, awsService);
-    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService);
-    const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams);
+    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, config.devTier);
+    const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.devTier);
 
     root = {
         version: () => {return config.version},
