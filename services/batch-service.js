@@ -103,6 +103,7 @@ const listBatchConditions = (userID, userRole, aUserOrganization, submissionID, 
             path: "$batch",
         }}
     ];
+
     const validStatusAndSubmissionID = {"submissionID": submissionID, "batch.status": {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED, REJECTED, WITHDRAWN]}};
     const listAllSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR];
     if (listAllSubmissionRoles.includes(userRole)) {

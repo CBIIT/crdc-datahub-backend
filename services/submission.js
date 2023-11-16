@@ -435,7 +435,7 @@ const sendEmails = {
         // could be multiple POCs
         const notificationPromises = POCs.map(aUser =>
             notificationsService.completeSubmissionNotification(aUser?.email, ccEmails, {
-                firstName: aUser?.firstName
+                firstName: `${aSubmission.dataCommons} team`
             }, {
                 submissionName: aSubmission?.name,
                 // only one study
@@ -491,7 +491,7 @@ const sendEmails = {
         // could be multiple POCs
         const notificationPromises = POCs.map(aUser =>
             notificationsService.releaseDataSubmissionNotification(aUser?.email, ccEmails, {
-                firstName: aUser?.firstName
+                firstName: `${aSubmission?.dataCommons} team`
             },{
                 Tier: devTier,
                 dataCommonName: `${aSubmission?.dataCommons}`
@@ -626,7 +626,7 @@ function listConditions(userID, userRole, userDataCommons, userOrganization, par
 }
 
 function validateCreateSubmissionParams (params) {
-    if (!params.name || !params.studyAbbreviation || !params.dataCommons || !params.dbGaPID) {
+    if (!params.name || !params.studyAbbreviation || !params.dataCommons) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
     }
     if (!dataCommonsTempList.some((value) => value === params.dataCommons)) {
