@@ -20,25 +20,27 @@ const ALL_FILTER = "All";
 const NA = "NA"
 const config = require("../config");
 
-// TODO: Data commons needs to be in a predefined list, currently only "CDS" and "CCDI" are allowed
+// TODO: Data commons needs to be in a predefined list, currently only "CDS" and "ICDC" are allowed
 // eventually frontend and backend will use same source for this list.
-const dataCommonsTempList = ["CDS", "CCDI"];
+const dataCommonsTempList = ["CDS", "ICDC"];
 const UPLOAD_TYPES = ['file','metadata'];
-const LOG_DIR = 'log';
-const LOG_FILE_EXT ='.log';
+const LOG_DIR = 'logs';
+const LOG_FILE_EXT_ZIP ='.zip';
+const LOG_FILE_EXT_LOG ='.log';
 // Set to array
 Set.prototype.toArray = function() {
     return Array.from(this);
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, devTier) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
         this.userService = userService;
         this.organizationService = organizationService;
         this.notificationService = notificationService;
+        this.devTier = devTier;
     }
 
     async createSubmission(params, context) {
@@ -125,8 +127,17 @@ class Submission {
         }
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
+        // The submission status must be valid states
+        if (![NEW, IN_PROGRESS ,WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
+            throw new Error(ERROR.INVALID_SUBMISSION_STATUS);
+        }
         const aOrganization = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
-        return await this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
+        const result = await this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
+        // The submission status needs to be updated after createBatch
+        if ([NEW, WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
+            await updateSubmissionStatus(this.submissionCollection, params.submissionID, context?.userInfo, IN_PROGRESS);
+        }
+        return result;
     }
 
     async updateBatch(params, context) {
@@ -139,7 +150,7 @@ class Submission {
         if (!aBatch) {
             throw new Error(ERROR.BATCH_NOT_EXIST);
         }
-        if (![BATCH.STATUSES.NEW].includes(aBatch?.status)) {
+        if (![BATCH.STATUSES.UPLOADING].includes(aBatch?.status)) {
             throw new Error(ERROR.INVALID_UPDATE_BATCH_STATUS);
         }
         const aSubmission = await findByID(this.submissionCollection, aBatch.submissionID);
@@ -200,7 +211,7 @@ class Submission {
         let submission = await verifier.exists(this.submissionCollection);
         let fromStatus = submission.status;
         //verify if the action is valid based on current submission status
-        verifier.isValidAction(submissionActionMap);
+        verifier.isValidAction();
         //verify if user's role is valid for the action
         const newStatus = verifier.inRoles(userInfo);
 
@@ -221,7 +232,7 @@ class Submission {
         const logEvent = SubmissionActionEvent.create(userInfo._id, userInfo.email, userInfo.IDP, submission._id, action, fromStatus, newStatus);
         await Promise.all([
             await this.logCollection.insert(logEvent),
-            await submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService)
+            await submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService, this.devTier)
         ]);
         return submission;
     }
@@ -230,7 +241,7 @@ class Submission {
      * API to get list of upload log files
      * @param {*} params 
      * @param {*} context 
-     * @returns filelist []
+     * @returns dictionary
      */
     async listLogs(params, context){
         //1) verify session
@@ -251,7 +262,7 @@ class Submission {
     }
     /**
      * 
-     * @param {*} params as objerct {} cotains submissisonID
+     * @param {*} params as object {} contains submission ID
      * @param {*} context 
      * @returns fileList []
      */
@@ -259,13 +270,28 @@ class Submission {
         this.aws = new AWSService();
         let fileList = []; 
         for (let type of UPLOAD_TYPES){
-            let file = await this.aws.getLastFileFromS3(bucket, `${rootPath}/${type}/${LOG_DIR}`, type, LOG_FILE_EXT);
+            //check if zip existing
+            let file = await this.aws.getLastFileFromS3(bucket, `${rootPath}/${type}/${LOG_DIR}`, type, LOG_FILE_EXT_ZIP);
+            // if not, check log file.
+            if (!file || !file.downloadUrl) {
+                file = await this.aws.getLastFileFromS3(bucket, `${rootPath}/${type}/${LOG_DIR}`, type, LOG_FILE_EXT_LOG);
+            }
+
             if(file) fileList.push(file);
         }
         return fileList;
     }
 }
-    
+
+const updateSubmissionStatus = async (submissionCollection, aSubmissionID, userInfo, newStatus) => {
+    const history = HistoryEventBuilder.createEvent(userInfo?._id, newStatus, null);
+    const updated = await submissionCollection.update({_id: aSubmissionID, status: newStatus, updatedAt: getCurrentTime()}, {$push: {history}});
+    if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
+        console.error(ERROR.UPDATE_SUBMISSION_ERROR, aSubmissionID);
+        throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
+    }
+}
+
 /**
  * submissionActionNotification
  * @param {*} userInfo 
@@ -275,28 +301,28 @@ class Submission {
  * @param {*} organizationService
  * @param {*} notificationService
  */
-async function submissionActionNotification(userInfo, action, aSubmission, userService, organizationService, notificationService) {
+async function submissionActionNotification(userInfo, action, aSubmission, userService, organizationService, notificationService, devTier) {
     switch(action) {
         case ACTIONS.SUBMIT:
-            //todo send submitted email
+            await sendEmails.submitSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
             break;
         case ACTIONS.RELEASE:
-            //todo send release email
+            await sendEmails.releaseSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
             break;
         case ACTIONS.WITHDRAW:
-            await sendEmails.withdrawSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
+            await sendEmails.withdrawSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
             break;
         case ACTIONS.REJECT:
-            await sendEmails.rejectSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
+            await sendEmails.rejectSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
             break;
         case ACTIONS.COMPLETE:
-            await sendEmails.completeSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
+            await sendEmails.completeSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
             break;
         case ACTIONS.CANCEL:
-            await sendEmails.cancelSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
+            await sendEmails.cancelSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
             break;
         case ACTIONS.ARCHIVE:
-            //todo send archived email
+            //todo TBD send archived email
             break;
         default:
             console.error(ERROR.NO_SUBMISSION_RECEIVER+ `id=${aSubmission?._id}`);
@@ -326,6 +352,29 @@ const completeSubmissionEmailInfo = async (userInfo, aSubmission, userService, o
     return [ccEmails, POCs, aOrganization];
 }
 
+const releaseSubmissionEmailInfo = async (userInfo, aSubmission, userService, organizationService) => {
+    const promises = [
+        await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
+        await userService.getAdmin(),
+        await userService.getUserByID(aSubmission?.submitterID),
+        await userService.getPOCs(),
+        await organizationService.getOrganizationByID(aSubmission?.organization?._id)
+    ];
+
+    const results = await Promise.all(promises);
+    const orgOwnerEmails = getUserEmails(results[0] || []);
+    const adminEmails = getUserEmails(results[1] || []);
+    const submitterEmails = getUserEmails([results[2] || {}]);
+
+    // CCs for Submitter, org owner, admins
+    const ccEmails = new Set([...submitterEmails, ...orgOwnerEmails, ...adminEmails]).toArray();
+    // To POC role users
+    const POCs = results[3] || [];
+    const aOrganization = results[4] || {};
+    return [ccEmails, POCs, aOrganization];
+}
+
+
 const cancelOrWithdrawSubmissionEmailInfo = async (aSubmission, userService, organizationService) => {
     const promises = [
         await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
@@ -341,7 +390,43 @@ const cancelOrWithdrawSubmissionEmailInfo = async (aSubmission, userService, org
 }
 
 const sendEmails = {
-    completeSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService) => {
+    submitSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService, devTier) => {
+        const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
+
+        const promises = [
+            await userService.getOrgOwner(aSubmission?.organization?._id),
+            await organizationService.getOrganizationByID(aSubmitter?.organization?.orgID),
+            await userService.getAdmin(),
+        ];
+        let results;
+        await Promise.all(promises).then(async function(returns) {
+            results = returns;
+        });
+        const aOrganization = results[1] || {};
+
+        const orgOwnerEmails = getUserEmails(results[0] || []);
+        const adminEmails = getUserEmails(results[2] || []);
+        const curatorEmails = getUserEmails([{email: aOrganization?.conciergeEmail}] || []);
+
+
+        // CCs for org owner, Data Curator (or admins if not yet assigned exists)
+        let ccEmailsVar 
+        if(!aOrganization?.conciergeEmail){
+            ccEmailsVar = adminEmails
+        }else{
+            ccEmailsVar = curatorEmails
+        }
+        const ccEmails = [...orgOwnerEmails, ...ccEmailsVar];
+        await notificationService.submitDataSubmissionNotification(aSubmitter?.email, ccEmails, {
+            firstName: aSubmitter?.firstName
+            }, {
+            idandname: `${aSubmission?.name} (ID: ${aSubmission?._id})`,
+            dataconcierge: `${aSubmission?.conciergeName || 'NA'} at ${aSubmission?.conciergeEmail||'NA'}.`
+            },devTier
+            
+        );
+    },
+    completeSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, devTier) => {
         const [ccEmails, POCs, aOrganization] = await completeSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
         if (POCs.length === 0) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
@@ -350,18 +435,18 @@ const sendEmails = {
         // could be multiple POCs
         const notificationPromises = POCs.map(aUser =>
             notificationsService.completeSubmissionNotification(aUser?.email, ccEmails, {
-                firstName: aUser?.firstName
+                firstName: `${aSubmission.dataCommons} team`
             }, {
                 submissionName: aSubmission?.name,
                 // only one study
                 studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
                 conciergeName: aOrganization?.conciergeName || NA,
                 conciergeEmail: aOrganization?.conciergeEmail || NA
-            })
+            }, devTier)
         );
         await Promise.all(notificationPromises);
     },
-    cancelSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
+    cancelSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService, devTier) => {
         const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
         if (!aSubmitter) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
@@ -369,7 +454,7 @@ const sendEmails = {
         }
         const [ccEmails, aOrganization] = await cancelOrWithdrawSubmissionEmailInfo(aSubmission, userService, organizationService);
         await notificationService.cancelSubmissionNotification(aSubmitter?.email, ccEmails, {
-            firstName: aSubmitter?.firstName
+            firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
         }, {
             submissionID: aSubmission?._id,
             submissionName: aSubmission?.name,
@@ -377,9 +462,9 @@ const sendEmails = {
             canceledBy: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
             conciergeEmail: aOrganization?.conciergeEmail || NA,
             conciergeName: aOrganization?.conciergeName || NA
-        });
+        }, devTier);
     },
-    withdrawSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService) => {
+    withdrawSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, devTier) => {
         if (!userInfo?.email) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
             return;
@@ -394,9 +479,34 @@ const sendEmails = {
             studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
             submitterName: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
             submitterEmail: `${userInfo?.email}`
-        });
+        }, devTier);
     },
-    rejectSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
+
+    releaseSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, devTier) => {
+        const [ccEmails, POCs, aOrganization] = await releaseSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
+        if (POCs.length === 0) {
+            console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
+            return;
+        }
+        // could be multiple POCs
+        const notificationPromises = POCs.map(aUser =>
+            notificationsService.releaseDataSubmissionNotification(aUser?.email, ccEmails, {
+                firstName: `${aSubmission?.dataCommons} team`
+            },{
+                Tier: devTier,
+                dataCommonName: `${aSubmission?.dataCommons}`
+            }, {
+                idandname: `${aSubmission?.name} (id: ${aSubmission?._id})`,
+                // only one study
+                projectName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                dataconcierge: `${aSubmission?.conciergeName || NA} at ${aSubmission?.conciergeEmail || NA}`,
+            })
+        );
+        await Promise.all(notificationPromises);
+    },
+
+    rejectSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService, devTier) => {
+
         const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
         if (!aSubmitter) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
@@ -421,7 +531,7 @@ const sendEmails = {
             submissionName: aSubmission?.name,
             conciergeEmail: aOrganization?.conciergeEmail || NA,
             conciergeName: aOrganization?.conciergeName || NA
-        });
+        }, devTier);
     },
 }
 
@@ -477,23 +587,7 @@ const isPermittedUser = (aTargetUser, userInfo) => {
     return aTargetUser?.email === userInfo.email && aTargetUser?.IDP === userInfo.IDP
 }
 
-//actions: NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED
-const submissionActionMap = [
-    {action:ACTIONS.SUBMIT, fromStatus: [IN_PROGRESS], 
-        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:SUBMITTED},
-    {action:ACTIONS.RELEASE, fromStatus: [SUBMITTED], 
-        roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:RELEASED},
-    {action:ACTIONS.WITHDRAW, fromStatus: [SUBMITTED], 
-        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER,], toStatus:WITHDRAWN},
-    {action:ACTIONS.REJECT, fromStatus: [SUBMITTED], 
-        roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:REJECTED},
-    {action:ACTIONS.COMPLETE, fromStatus: [RELEASED], 
-        roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:COMPLETED},
-    {action:ACTIONS.CANCEL, fromStatus: [NEW,IN_PROGRESS], 
-        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:CANCELED},
-    {action:ACTIONS.ARCHIVE, fromStatus: [COMPLETED], 
-        roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:ARCHIVED}
-];
+
 
 function listConditions(userID, userRole, userDataCommons, userOrganization, params){
     const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
@@ -532,7 +626,7 @@ function listConditions(userID, userRole, userDataCommons, userOrganization, par
 }
 
 function validateCreateSubmissionParams (params) {
-    if (!params.name || !params.studyAbbreviation || !params.dataCommons || !params.dbGaPID) {
+    if (!params.name || !params.studyAbbreviation || !params.dataCommons) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
     }
     if (!dataCommonsTempList.some((value) => value === params.dataCommons)) {

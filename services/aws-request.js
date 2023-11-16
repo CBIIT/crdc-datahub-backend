@@ -24,7 +24,7 @@ class AWSService {
      * createTempCredentials
      * @param {*} context 
      * @param {*} submissionID 
-     * @returnsv {
+     * @return {
             accessKeyId: String
             secretAccessKey: String
             sessionToken: String

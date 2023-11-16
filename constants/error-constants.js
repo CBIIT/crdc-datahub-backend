@@ -36,6 +36,8 @@ const ERROR = {
     // Approved Studies
     APPROVED_STUDIES_INSERTION: "An error occurred while attempting to insert the approved studies into the database.",
     FAILED_STORE_APPROVED_STUDIES: "The approved studies are not being stored because the questionnaire data string is not correctly parsed",
+    // Submission Permission
+    INVALID_SUBMISSION_STATUS: "The batch creation is aborted because the current submission is not in the valid state to be created.",
     // Create Submission
     CREATE_SUBMISSION_NO_ORGANIZATION_ASSIGNED: "The submitter/organization owner does not have an organization assigned. Thus, the data submission was not created",
     CREATE_SUBMISSION_INSERTION_ERROR: "An error occurred while attempting to insert the created data submission into the database",

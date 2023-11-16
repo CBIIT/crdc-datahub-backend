@@ -27,14 +27,14 @@ let config = {
     schedule_job: process.env.SCHEDULE_JOB || "1 0 1 * * *",
     // temp url for email
     submission_doc_url: process.env.SUBMISSION_DOC_URL || "",
-    submision_helpdesk: "CRDCSubmissions@nih.gov",
+    submission_helpdesk: "CRDCSubmissions@nih.gov",
     submission_system_portal: "https://datacommons.cancer.gov/",
     submission_bucket: process.env.SUBMISSION_BUCKET, 
     //aws sts assume role
     role_arn: process.env.ROLE_ARN,
     role_timeout: parseInt(process.env.ROLE_TIMEOUT) || 12*3600,
     presign_expiration: parseInt(process.env.PRESIGN_EXPIRATION) || 3600,
-    sqs_loader_queue: process.env.LOADER_QUEUE || "crdcdh-queue"
+    devTier: process.env.DEV_TIER || ""
 };
 config.mongo_db_connection_string = `mongodb://${config.mongo_db_user}:${config.mongo_db_password}@${config.mongo_db_host}:${process.env.MONGO_DB_PORT}`;
 
