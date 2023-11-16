@@ -154,6 +154,100 @@ type LogFile {
     fileSize: Int #size in byte
 }
 
+type SubmissionStats {
+    submissionID: ID
+    stats: [Stats]
+}
+
+type Stats {
+    nodeName: String
+    total: Int
+    new: Int
+    passed: Int
+    warning: Int
+    error: Int
+}
+
+type QCResults {
+    submissionID: ID
+    nodeType: String
+    batchID: String
+    nodeID: String
+    CRDC_ID: String
+    severity: String # [Error, Warning]
+    uploadedDate: Date # batch.updatedAt
+    description: [ErrorMessage]
+}
+
+type ErrorMessage {
+    title: String
+    description: String
+}
+
+type DataRecord {
+    _id: ID
+    submissionID: ID
+    batchIDs: [ID] # all batch IDs, each time this record is reloaded in a new batch, append batchID here
+    status: String # [New, Passed, Error, Warning], Loaded is the initial state each time it's loaded
+    errors: [ErrorMessage]
+    warnings: [ErrorMessage]
+    createdAt: Date
+    updatedAt: Date
+    orginalFileName: String # holds original file name the data is read from
+    lineNumber: Int # line number in the original file
+    nodeType: String # type of the node, in "type" column of the file
+    nodeID: String # ID of the node, for example: "cds-case-99907"
+#    props: Properties # properties of the node
+    parents: [ParentNode]
+#    relationshipProps: [RelationshipProperty] # for future use
+#    rawData: RawData
+    s3FileInfo: S3FileInfo # only for "file" types, should be null for other nodes
+}
+
+type S3FileInfo {
+    fileName: String
+    size: Int
+    md5: String
+    status: String # [New, Passed, Error]
+    errors: [ErrorMessage]
+    warnings: [ErrorMessage]
+    createdAt: Date
+    updatedAt: Date
+}
+
+# this type holds all the node properties in raw data (doesn't contain parent pointers and relationship properties)
+#type Properties {
+#    propertyName1: String # e.g, "gender": "Male"
+#    propertyName2: Int # e.g, "age": 78
+    # ...
+#}
+
+type ParentNode {
+    parentType: String # node type of the parent node, e.g. "study"
+    parentIDPropName: String # ID property name can be used to identify parent node, e.g., "study_id"
+    parentIDValue: String # Value for above ID property, e.g. "CDS-study-007"
+}
+
+# for future use
+#type RelationshipProperty {
+#    relationshipName: String # name of the relationship
+#    relationshipPropName: String # property name of the relationship
+#    value: String # or other types
+#}
+
+# this type holds all data as is in a row in the file, including properties of the node,
+# parent pointers and relationship properties if any
+#type RawData {
+#    type: String # node type is required
+#    # "study.study_id": "CDS-study-007"
+#    # "case_id": "cds-case-99907"
+#    # "gender": "Male"
+#    # "age": 78
+#    # ...
+#}
+
+
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -182,6 +276,8 @@ type Query {
         orderBy: String = "updatedAt",
         sortDirection: String = "DESC"): ListSubmissions
     getSubmission(_id: ID!): Submission
+    submissionStats(_id: ID!): SubmissionStats
+    submissionQCResults(_id: ID!): QCResults
 
     listBatches(submissionID: ID!,
         first: Int = 10,
@@ -192,7 +288,7 @@ type Query {
     ): ListBatches
 
     getBatch(batchID: ID!): Batch
-    
+
     #upload log queries
     listLogs (submissionID: ID!) : ListLogFiles
 
@@ -224,4 +320,9 @@ type Mutation {
     createBatch (submissionID: ID!, type: String, metadataIntention: String, files: [FileInput]): NewBatch
     updateBatch (batchID: ID!, files: [UploadResult]): Batch
     createTempCredentials (submissionID: ID!): TempCredentials
+    validateSubmission(
+        _id: ID!,
+        types: [String] # [file, metadata]
+        scope: String # [New, All] case-insensitive
+    ): String # TODO what to return?
 }
