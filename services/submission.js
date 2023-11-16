@@ -520,7 +520,7 @@ const sendEmails = {
         }
         const [ccEmails, aOrganization] = await cancelOrRejectSubmissionEmailInfo(aSubmission, userService, organizationService);
         await notificationService.rejectSubmissionNotification(aSubmitter?.email, ccEmails, {
-            firstName: `${aSubmission?.dataCommons} team`
+            firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
         }, {
             submissionID: aSubmission?._id,
             submissionName: aSubmission?.name,
