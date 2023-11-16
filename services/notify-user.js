@@ -48,6 +48,21 @@ class NotifyUser {
             );
         });
     }
+    async inquireQuestionNotification(email, emailCCs, template_params, messageVariables, devTier) {
+        const message = replaceMessageVariables(this.email_constants.INQUIRE_CONTENT, messageVariables);
+        const subject = this.email_constants.INQUIRE_SUBJECT;
+        return await this.send(async () => {
+            await this.emailService.sendNotification(
+                this.email_constants.NOTIFICATION_SENDER,
+                isTierAdded(devTier) ? `${devTier} ${subject}` : subject,
+                await createEmailTemplate("notification-template.html", {
+                    message, ...template_params
+                }),
+                email,
+                emailCCs
+            );
+        });
+    }
 
     async rejectQuestionNotification(email, template_params, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.REJECT_CONTENT, messageVariables);
@@ -79,12 +94,13 @@ class NotifyUser {
         });
     }
 
-    async inactiveUserNotification(email, template_params, messageVariables) {
+    async inactiveUserNotification(email, template_params, messageVariables, devTier) {
         const message = replaceMessageVariables(this.email_constants.INACTIVE_USER_CONTENT, messageVariables);
+        const subject = this.email_constants.INACTIVE_USER_SUBJECT;
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
-                this.email_constants.INACTIVE_USER_SUBJECT,
+                isTierAdded(devTier) ? `${devTier} ${subject}` : subject,
                 await createEmailTemplate("notification-template.html", {
                     message, ...template_params
                 }),
@@ -94,12 +110,13 @@ class NotifyUser {
         });
     }
 
-    async inactiveUserAdminNotification(email, template_params, messageVariables) {
+    async inactiveUserAdminNotification(email, template_params, messageVariables, devTier) {
         const message = replaceMessageVariables(this.email_constants.INACTIVE_ADMIN_USER_CONTENT, messageVariables);
+        const subject = this.email_constants.INACTIVE_ADMIN_USER_SUBJECT;
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
-                this.email_constants.INACTIVE_ADMIN_USER_SUBJECT,
+                isTierAdded(devTier) ? `${devTier} ${subject}` : subject,
                 await createEmailTemplate("notification-template.html", {
                     message, ...template_params
                 }),
@@ -125,12 +142,46 @@ class NotifyUser {
         });
     }
 
-    async completeSubmissionNotification(email, CCs, template_params, messageVariables) {
+    async releaseDataSubmissionNotification(email, emailCCs,template_params, subjectVariables, messageVariables) {
+
+        const message = replaceMessageVariables(this.email_constants.RELEASE_DATA_SUBMISSION_CONTENT, messageVariables);
+        const emailSubject = replaceMessageVariables(this.email_constants.RELEASE_DATA_SUBMISSION_SUBJECT, subjectVariables)
+        return await this.send(async () => {
+            await this.emailService.sendNotification(
+                this.email_constants.NOTIFICATION_SENDER,
+                emailSubject,
+                await createEmailTemplate("notification-template.html", {
+                    message, ...template_params
+                }),
+                email,
+                emailCCs
+            );
+        });
+    }
+
+    async submitDataSubmissionNotification(email, emailCCs,template_params, messageVariables, subjectVariables) {
+        const message = replaceMessageVariables(this.email_constants.SUBMIT_DATA_SUBMISSION_CONTENT, messageVariables);
+        const subject = this.email_constants.SUBMIT_DATA_SUBMISSION_SUBJECT;
+        return await this.send(async () => {
+            await this.emailService.sendNotification(
+                this.email_constants.NOTIFICATION_SENDER,
+                isTierAdded(subjectVariables) ? `${subjectVariables} ${subject}` : subject,
+                await createEmailTemplate("notification-template.html", {
+                    message, ...template_params
+                }),
+                email,
+                emailCCs
+            );
+        });
+    }
+
+    async completeSubmissionNotification(email, CCs, template_params, messageVariables, devTier) {
         const message = replaceMessageVariables(this.email_constants.COMPLETE_DATA_SUBMISSION_CONTENT, messageVariables);
+        const subject = this.email_constants.COMPLETE_DATA_SUBMISSION_SUBJECT;
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
-                this.email_constants.COMPLETE_DATA_SUBMISSION_SUBJECT,
+                isTierAdded(devTier) ? `${devTier} ${subject}` : subject,
                 await createEmailTemplate("notification-template.html", {
                     message, ...template_params
                 }),
@@ -140,12 +191,13 @@ class NotifyUser {
         });
     }
 
-    async cancelSubmissionNotification(email, CCs, template_params, messageVariables) {
+    async cancelSubmissionNotification(email, CCs, template_params, messageVariables, devTier) {
         const message = replaceMessageVariables(this.email_constants.CANCEL_DATA_SUBMISSION_CONTENT, messageVariables);
+        const subject = this.email_constants.CANCEL_DATA_SUBMISSION_SUBJECT;
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
-                this.email_constants.CANCEL_DATA_SUBMISSION_SUBJECT,
+                isTierAdded(devTier) ? `${devTier} ${subject}` : subject,
                 await createEmailTemplate("notification-template.html", {
                     message, ...template_params
                 }),
@@ -155,12 +207,13 @@ class NotifyUser {
         });
     }
 
-    async withdrawSubmissionNotification(email, CCs, template_params, messageVariables) {
+    async withdrawSubmissionNotification(email, CCs, template_params, messageVariables, devTier) {
         const message = replaceMessageVariables(this.email_constants.WITHDRAW_DATA_SUBMISSION_CONTENT, messageVariables);
+        const subject = this.email_constants.WITHDRAW_DATA_SUBMISSION_SUBJECT;
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
-                this.email_constants.WITHDRAW_DATA_SUBMISSION_SUBJECT,
+                isTierAdded(devTier) ? `${devTier} ${subject}` : subject,
                 await createEmailTemplate("notification-template.html", {
                     message, ...template_params
                 }),
@@ -170,12 +223,13 @@ class NotifyUser {
         });
     }
 
-    async rejectSubmissionNotification(email, CCs, template_params, messageVariables) {
+    async rejectSubmissionNotification(email, CCs, template_params, messageVariables, devTier) {
         const message = replaceMessageVariables(this.email_constants.REJECT_DATA_SUBMISSION_CONTENT, messageVariables);
+        const subject = this.email_constants.REJECT_DATA_SUBMISSION_SUBJECT;
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
-                this.email_constants.REJECT_DATA_SUBMISSION_SUBJECT,
+                isTierAdded(devTier) ? `${devTier} ${subject}` : subject,
                 await createEmailTemplate("notification-template.html", {
                     message, ...template_params
                 }),
@@ -185,6 +239,10 @@ class NotifyUser {
         });
     }
 }
+
+const isTierAdded = (devTier) => {
+    return devTier?.trim()?.length > 0
+};
 
 module.exports = {
     NotifyUser
