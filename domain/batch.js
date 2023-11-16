@@ -25,7 +25,7 @@ class Batch {
     }
 
     static createNewBatch(submissionID, bucketName, filePrefix, type, metadataIntention = null) {
-        const status = BATCH.STATUSES.NEW;
+        const status = BATCH.STATUSES.UPLOADING;
         return new Batch(submissionID, bucketName, filePrefix, type, status, metadataIntention);
     }
 }

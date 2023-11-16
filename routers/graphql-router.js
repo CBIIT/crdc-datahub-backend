@@ -29,32 +29,34 @@ dbConnector.connect().then(() => {
     const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
     const emailService = new EmailService(config.email_transport, config.emails_enabled);
     const notificationsService = new NotifyUser(emailService);
-    const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days};
+    const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days,
+        submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk};
     const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
+    const userService = new User(userCollection, logCollection);
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
-    const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection);
-    const userService = new User(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.devTier);
+    const organizationService = new Organization(organizationCollection);
     const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
     const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, organizationService);
     const s3Service = new S3Service();
     const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
     const batchService = new BatchService(s3Service, batchCollection, config.submission_bucket);
-    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService);
+    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, config.devTier);
     const awsService = new AWSService(submissionCollection, organizationService, userService);
-    const applicationService = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams);
+    const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.devTier);
 
     root = {
         version: () => {return config.version},
-        saveApplication: applicationService.saveApplication.bind(applicationService),
-        getApplication: applicationService.getApplication.bind(applicationService),
-        reviewApplication: applicationService.reviewApplication.bind(applicationService),
-        getMyLastApplication: applicationService.getMyLastApplication.bind(applicationService),
-        listApplications: applicationService.listApplications.bind(applicationService),
-        submitApplication: applicationService.submitApplication.bind(applicationService),
-        approveApplication: applicationService.approveApplication.bind(applicationService),
-        rejectApplication: applicationService.rejectApplication.bind(applicationService),
-        reopenApplication: applicationService.reopenApplication.bind(applicationService),
-        deleteApplication: applicationService.deleteApplication.bind(applicationService),
+        saveApplication: dataInterface.saveApplication.bind(dataInterface),
+        getApplication: dataInterface.getApplication.bind(dataInterface),
+        reviewApplication: dataInterface.reviewApplication.bind(dataInterface),
+        getMyLastApplication: dataInterface.getMyLastApplication.bind(dataInterface),
+        listApplications: dataInterface.listApplications.bind(dataInterface),
+        submitApplication: dataInterface.submitApplication.bind(dataInterface),
+        approveApplication: dataInterface.approveApplication.bind(dataInterface),
+        rejectApplication: dataInterface.rejectApplication.bind(dataInterface),
+        inquireApplication: dataInterface.inquireApplication.bind(dataInterface),
+        reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
+        deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
         listApprovedStudies: approvedStudiesService.listApprovedStudiesAPI.bind(approvedStudiesService),
         listApprovedStudiesOfMyOrganization: approvedStudiesService.listApprovedStudiesOfMyOrganizationAPI.bind(approvedStudiesService),
         createBatch: submissionService.createBatch.bind(submissionService),
@@ -66,7 +68,7 @@ dbConnector.connect().then(() => {
         createTempCredentials: awsService.createTempCredentials.bind(awsService),
         submissionAction: submissionService.submissionAction.bind(submissionService),
         listLogs: submissionService.listLogs.bind(submissionService),
-
+        // AuthZ
         getMyUser : userService.getMyUser.bind(userService),
         getUser : userService.getUser.bind(userService),
         updateMyUser : userService.updateMyUser.bind(userService),

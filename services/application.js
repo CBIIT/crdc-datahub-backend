@@ -1,4 +1,4 @@
-const {SUBMITTED, APPROVED, REJECTED, IN_PROGRESS, IN_REVIEW, DELETED, NEW} = require("../constants/application-constants");
+const {SUBMITTED, APPROVED, REJECTED, IN_PROGRESS, IN_REVIEW, DELETED, NEW, INQUIRED} = require("../constants/application-constants");
 const {APPLICATION_COLLECTION: APPLICATION} = require("../crdc-datahub-database-drivers/database-constants");
 const {v4} = require('uuid')
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
@@ -10,14 +10,12 @@ const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mon
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
-const {LogService} = require("./submission");
 const ROLES = USER_CONSTANTS.USER.ROLES;
-const config = require('../config');
 const {parseJsonString} = require("../crdc-datahub-database-drivers/utility/string-utility");
 const {formatName} = require("../utility/format-name");
 
 class Application {
-    constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams) {
+    constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, devTier) {
         this.logCollection = logCollection;
         this.applicationCollection = applicationCollection;
         this.approvedStudiesService = approvedStudiesService;
@@ -25,7 +23,8 @@ class Application {
         this.dbService = dbService;
         this.notificationService = notificationsService;
         this.emailParams = emailParams;
-
+        this.organizationService = organizationService;
+        this.devTier = devTier;
     }
 
     async getApplication(params, context) {
@@ -139,7 +138,7 @@ class Application {
 
     listApplicationConditions(userID, userRole) {
         // list all applications
-        const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
+        const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED]}};
         const listAllApplicationRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD];
         if (listAllApplicationRoles.includes(userRole)) return [{"$match": {...validApplicationStatus}}];
         // search by applicant's user id
@@ -225,7 +224,7 @@ class Application {
     async deleteApplication(document, context) {
         // TODO Deleting the application requires permission control.
         const aApplication = await this.getApplicationById(document._id);
-        const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED];
+        const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED, INQUIRED];
         if (validApplicationStatus.includes(aApplication.status)) {
             const history = HistoryEventBuilder.createEvent(context.userInfo._id, DELETED, null);
             const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
@@ -253,7 +252,7 @@ class Application {
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             const promises = [
                 await this.getApplicationById(document._id),
-                await saveApprovedStudies(this.approvedStudiesService, application),
+                await saveApprovedStudies(this.approvedStudiesService, this.organizationService, application),
                 this.logCollection.insert(
                     UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, APPROVED)
                 )
@@ -268,7 +267,7 @@ class Application {
     async rejectApplication(document, context) {
         verifyReviewerPermission(context);
         const application = await this.getApplicationById(document._id);
-        // In Reviewed -> Rejected
+        // In Reviewed or Submitted -> Inquired
         verifyApplication(application)
             .notEmpty()
             .state([IN_REVIEW, SUBMITTED]);
@@ -277,9 +276,39 @@ class Application {
             $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime},
             $push: {history}
         });
-        await this.sendEmailAfterRejectApplication(context, application);
+        await sendEmails.rejectApplication(this.notificationService, this.emailParams, context, application);
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, REJECTED);
+            const promises = [
+                await this.getApplicationById(document._id),
+                this.logCollection.insert(log)
+            ];
+            return await Promise.all(promises).then(function(results) {
+                return results[0];
+            });
+        }
+        return null;
+    }
+
+    async inquireApplication(document, context) {
+        verifyReviewerPermission(context);
+        const application = await this.getApplicationById(document._id);
+        // In Reviewed or Submitted -> Inquired
+        verifyApplication(application)
+            .notEmpty()
+            .state([IN_REVIEW, SUBMITTED]);
+        const history = HistoryEventBuilder.createEvent(context.userInfo._id, INQUIRED, document.comment);
+        const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
+            $set: {reviewComment: document.comment, status: INQUIRED, updatedAt: history.dateTime},
+            $push: {history}
+        });
+        // admin email CCs
+        const adminEmails = (await this.userService.getAdmin())
+            ?.filter((aUser) => aUser?.email)
+            ?.map((aUser)=> aUser.email);
+        await sendEmails.inquireApplication(this.notificationService, this.emailParams, context, application, adminEmails, this.devTier);
+        if (updated?.modifiedCount && updated?.modifiedCount > 0) {
+            const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, INQUIRED);
             const promises = [
                 await this.getApplicationById(document._id),
                 this.logCollection.insert(log)
@@ -296,7 +325,7 @@ class Application {
             updatedAt: {
                 $lt: subtractDaysFromNow(this.emailParams.inactiveDays)
             },
-            status: {$in: [NEW, IN_PROGRESS, REJECTED]}
+            status: {$in: [NEW, IN_PROGRESS, INQUIRED]}
         };
         const applications = await this.applicationCollection.aggregate([{$match: inactiveCondition}]);
         verifyApplication(applications)
@@ -329,7 +358,7 @@ class Application {
                 $lt: subtractDaysFromNow(inactiveDuration),
                 $gt: subtractDaysFromNow(inactiveDuration + 1),
             },
-            status: {$in: [NEW, IN_PROGRESS, REJECTED]},
+            status: {$in: [NEW, IN_PROGRESS, INQUIRED]},
             inactiveReminder: {$ne: true}
         };
         const applications = await this.applicationCollection.aggregate([{$match: remindCondition}]);
@@ -372,27 +401,15 @@ class Application {
         }else{
             cc_email = admin_email
         }
-        
-        // submission documentation url
-        let sub_doc_url = this.emailParams.url
-
-        // email body
-        // doc_url 
-        let doc_url
-        if(!sub_doc_url){
-            doc_url = `log into the submission system ${config.submission_system_portal}`
-        } else {
-            doc_url = `review the submission documentation ${sub_doc_url}`
-        }
 
         // contact detail
         let contact_detail = `either your organization ${org_owner_email} or your CRDC Data Team member ${concierge_email}.`
         if(!org_owner_email &&!concierge_email ){
-            contact_detail = `the Submission Helpdesk ${config.submision_helpdesk}`
+            contact_detail = `the Submission Helpdesk ${this.emailParams.submissionHelpdesk}`
         } else if(!org_owner_email){
             contact_detail = `your CRDC Data Team member ${concierge_email}`
         } else if(!concierge_email){
-            contact_detail = `either your organization ${org_owner_email} or the Submission Helpdesk ${config.submision_helpdesk}`
+            contact_detail = `either your organization ${org_owner_email} or the Submission Helpdesk ${this.emailParams.submissionHelpdesk}`
         }
         await this.notificationService.approveQuestionNotification(application?.applicant?.applicantEmail,
             // Organization Owner and concierge assigned/Super Admin
@@ -405,23 +422,6 @@ class Application {
             contact_detail: contact_detail
         })
     }
-
-    async sendEmailAfterRejectApplication(context, application) {
-        await this.notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, {
-            firstName: application?.applicant?.applicantName
-        }, {
-            study: application?.studyAbbreviation,
-            url: this.emailParams.url
-        })
-    }
-}
-
-function formatApplicantName(userInfo){
-    if (!userInfo) return "";
-    let firstName = userInfo?.firstName || "";
-    let lastName = userInfo?.lastName || "";
-    lastName = lastName.trim();
-    return firstName + (lastName.length > 0 ? " "+lastName : "");
 }
 
 function verifyReviewerPermission(context){
@@ -488,6 +488,21 @@ const sendEmails = {
             associate,
             url: emailParams.url
         })
+    },
+    inquireApplication: async(notificationService, emailParams, context, application, emailCCs, devTier) => {
+        await notificationService.inquireQuestionNotification(application?.applicant?.applicantEmail, emailCCs,{
+            firstName: application?.applicant?.applicantName
+        }, {
+            officialEmail: emailParams.submissionHelpdesk
+        }, devTier);
+    },
+    rejectApplication: async(notificationService, emailParams, context, application) => {
+        await notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, {
+            firstName: application?.applicant?.applicantName
+        }, {
+            study: application?.studyAbbreviation,
+            url: emailParams.url
+        });
     }
 }
 
@@ -502,15 +517,16 @@ const isStudyAbbreviationUniqueOrThrow = async (applicationCollection, applicati
     }
 }
 
-const saveApprovedStudies = async (approvedStudiesService, aApplication) => {
+const saveApprovedStudies = async (approvedStudiesService, organizationService, aApplication) => {
     const questionnaire = parseJsonString(aApplication?.questionnaireData);
     if (!questionnaire) {
-        console.error(ERROR.FAILED_STORE_APPROVED_STUDIES);
+        console.error(ERROR.FAILED_STORE_APPROVED_STUDIES + ` id=${aApplication?._id}`);
         return;
     }
     await approvedStudiesService.storeApprovedStudies(
         questionnaire?.study?.name, aApplication?.studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name
     );
+    await organizationService.storeApprovedStudies(aApplication?.organization?._id, questionnaire?.study?.name, aApplication?.studyAbbreviation);
 }
 
 module.exports = {

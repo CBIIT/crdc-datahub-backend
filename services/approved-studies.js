@@ -1,7 +1,7 @@
-const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ERROR = require("../constants/error-constants");
 const { verifySession } = require('../verifier/user-info-verifier');
+const {ApprovedStudies} = require("../crdc-datahub-database-drivers/domain/approved-studies");
 
 class ApprovedStudiesService {
 
@@ -14,8 +14,8 @@ class ApprovedStudiesService {
         const approvedStudies = ApprovedStudies.createApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName);
         // A study name must be unique to avoid duplication.
         const res = await this.approvedStudiesCollection.findOneAndUpdate({ studyName: studyName },approvedStudies);
-        if (!res?.acknowledged) {
-            console.error(ERROR.APPROVED_STUDIES_INSERTION);
+        if (!res?.ok) {
+            console.error(ERROR.APPROVED_STUDIES_INSERTION + ` studyName: ${studyName}`);
         }
     }
 
@@ -83,25 +83,6 @@ class ApprovedStudiesService {
      */
     async listApprovedStudies(filters = {}) {
         return await this.approvedStudiesCollection.aggregate([{ "$match": filters }]);
-    }
-}
-
-class ApprovedStudies {
-    constructor(studyName, studyAbbreviation, dbGaPID, organizationName) {
-        this.studyName = studyName;
-        this.studyAbbreviation = studyAbbreviation;
-        if (dbGaPID) {
-            this.dbGaPID = dbGaPID;
-        }
-        // Optional
-        if (organizationName) {
-            this.originalOrg = organizationName;
-        }
-        this.createdAt = this.updatedAt = getCurrentTime();
-    }
-
-    static createApprovedStudies(studyName, studyAbbreviation, dbGaPID, organization) {
-        return new ApprovedStudies(studyName, studyAbbreviation, dbGaPID, organization);
     }
 }
 

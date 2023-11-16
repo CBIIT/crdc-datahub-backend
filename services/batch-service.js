@@ -1,7 +1,7 @@
 const {Batch} = require("../domain/batch");
 const {BATCH, FILE} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const ERROR = require("../constants/error-constants");
-const {NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED} = require("../constants/application-constants");
+const {NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED, REJECTED, WITHDRAWN} = require("../constants/submission-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {SUBMISSIONS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
@@ -18,10 +18,9 @@ class BatchService {
         const metadataIntention = params?.metadataIntention && params.type === BATCH.TYPE.METADATA ? params.metadataIntention : null;
         const newBatch = Batch.createNewBatch(params.submissionID, this.bucketName, prefix, params.type, metadataIntention);
         if (BATCH.TYPE.METADATA === params.type.toLowerCase()) {
-            const submissionID = params.submissionID;
             await Promise.all(params.files.map(async (file) => {
                 if (file.fileName) {
-                    const signedURL = await this.s3Service.createPreSignedURL(this.bucketName, submissionID, file.fileName);
+                    const signedURL = await this.s3Service.createPreSignedURL(this.bucketName, newBatch.filePrefix, file.fileName);
                     newBatch.addFile(file.fileName, file.size , signedURL);
                 }
             }));
@@ -104,7 +103,8 @@ const listBatchConditions = (userID, userRole, aUserOrganization, submissionID, 
             path: "$batch",
         }}
     ];
-    const validStatusAndSubmissionID = {"submissionID": submissionID, "batch.status": {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED]}};
+
+    const validStatusAndSubmissionID = {"submissionID": submissionID, "batch.status": {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED, REJECTED, WITHDRAWN]}};
     const listAllSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR];
     if (listAllSubmissionRoles.includes(userRole)) {
         return [...submissionJoin, {"$match": {...validStatusAndSubmissionID}}];
@@ -135,7 +135,7 @@ const asyncUpdateBatch = async (batchCollection, aBatch) => {
 
 const createPrefix = (params, rootPath, orgID) => {
     if (rootPath) {
-        return `${rootPath}/${params.type}/`;
+        return `${rootPath}/${params.type}`;
     }
     if (!orgID) {
         throw new Error(ERROR.NEW_BATCH_NO_ORGANIZATION);
