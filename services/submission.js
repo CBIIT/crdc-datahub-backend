@@ -466,29 +466,29 @@ const sendEmails = {
         }, devTier);
     },
     withdrawSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, devTier) => {
-        if (!userInfo?.email) {
-            console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
+        const aOrganization = await organizationService.getOrganizationByID(aSubmission?.organization?._id);
+        const aCurator = await userService.getUserByID(aOrganization?.conciergeID);
+        if (!aCurator) {
+            console.error(ERROR.NO_SUBMISSION_RECEIVER, `id=${aSubmission?._id}`);
             return;
         }
         const promises = [
             await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
-            await organizationService.getOrganizationByID(aSubmission?.organization?._id)
+            await userService.getUserByID(aSubmission?.submitterID)
         ];
         const results = await Promise.all(promises);
         const orgOwnerEmails = getUserEmails(results[0] || []);
-        const aOrganization = results[1] || {};
-
-        const curatorEmails = getUserEmails([{email: aOrganization?.conciergeEmail}]);
-        const ccEmails = new Set([orgOwnerEmails, curatorEmails]).toArray();
-        await notificationsService.withdrawSubmissionNotification(userInfo?.email, ccEmails, {
-            firstName: userInfo.firstName
+        const submitterEmails = getUserEmails([results[1]] || []);
+        const ccEmails = new Set([...orgOwnerEmails, ...submitterEmails]).toArray();
+        await notificationsService.withdrawSubmissionNotification(aCurator?.email, ccEmails, {
+            firstName: `${aCurator.firstName} ${aCurator?.lastName || ''}`
         }, {
             submissionID: aSubmission?._id,
             submissionName: aSubmission?.name,
             // only one study
             studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
-            submitterName: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
-            submitterEmail: `${userInfo?.email}`
+            withdrawnByName: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
+            withdrawnByEmail: `${userInfo?.email}`
         }, devTier);
     },
     releaseSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, devTier) => {
