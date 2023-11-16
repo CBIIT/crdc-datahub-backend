@@ -240,8 +240,7 @@ class NotifyUser {
     }
 
     async deactivateUserNotification(email, CCs, template_params, messageVariables, devTier) {
-        const content = replaceMessageVariables(this.email_constants.DEACTIVATE_USER_CONTENT, messageVariables);
-        const message = isTierAdded(devTier) ? `${devTier} ${content}` : content;
+        const message = replaceMessageVariables(this.email_constants.DEACTIVATE_USER_CONTENT, messageVariables);
         const subject = this.email_constants.DEACTIVATE_USER_SUBJECT;
         return await this.send(async () => {
             await this.emailService.sendNotification(
