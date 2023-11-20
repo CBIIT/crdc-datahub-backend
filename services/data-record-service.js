@@ -1,4 +1,4 @@
-const {NODE_STATUS} = require("../constants/submission-constants");
+const {NODE_TYPE} = require("../constants/submission-constants");
 
 class DataRecordService {
     constructor(dataRecordsCollection) {
@@ -7,7 +7,7 @@ class DataRecordService {
 
     async submissionStats(submissionID) {
         const groupPipeline = { "$group": { _id: "$nodeType", count: { $sum: 1 }} };
-        const groupByNodeType = await this.dataRecordsCollection.aggregate([{ "$match": {submissionID: submissionID, status: {$in: [NODE_STATUS.NEW, NODE_STATUS.PASSED, NODE_STATUS.WARNING, NODE_STATUS.ERROR]}}}, groupPipeline]);
+        const groupByNodeType = await this.dataRecordsCollection.aggregate([{ "$match": {submissionID: submissionID, status: {$in: [NODE_TYPE.NEW, NODE_TYPE.PASSED, NODE_TYPE.WARNING, NODE_TYPE.ERROR]}}}, groupPipeline]);
 
         const statusPipeline = { "$group": { _id: "$status", count: { $sum: 1 }} };
         const promises = groupByNodeType.map(async node =>
@@ -47,19 +47,19 @@ class Stat {
     }
 
     countNodeType(node) {
-        if (node === NODE_STATUS.NEW) {
+        if (node === NODE_TYPE.NEW) {
             this.new += 1;
             this.#addTotal();
         }
-        if (node ===NODE_STATUS.ERROR) {
+        if (node ===NODE_TYPE.ERROR) {
             this.error += 1;
             this.#addTotal();
         }
-        if (node ===NODE_STATUS.WARNING) {
+        if (node ===NODE_TYPE.WARNING) {
             this.warning += 1;
             this.#addTotal();
         }
-        if (node ===NODE_STATUS.PASSED) {
+        if (node ===NODE_TYPE.PASSED) {
             this.passed += 1;
             this.#addTotal();
         }

@@ -1,6 +1,5 @@
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
-    REJECTED, WITHDRAWN, ACTIONS, NODE_STATUS
-} = require("../constants/submission-constants");
+    REJECTED, WITHDRAWN, ACTIONS} = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
