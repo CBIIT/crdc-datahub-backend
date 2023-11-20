@@ -246,7 +246,7 @@ class Submission {
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
-        isSubmissionPermitted(aSubmission?.organization, aSubmission, context?.userInfo);
+        isSubmissionPermitted(aSubmission, context?.userInfo);
         return this.dataRecordsService.submissionStats(aSubmission?._id);
     }
 
@@ -666,13 +666,13 @@ function validateListSubmissionsParams (params) {
 }
 
 
-const isSubmissionPermitted = (aUserOrganization, aSubmission, userInfo) => {
+const isSubmissionPermitted = (aSubmission, userInfo) => {
     const userRole = userInfo?.role;
     const allSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR];
     if (allSubmissionRoles.includes(userRole)) {
         return;
     }
-    if (userRole === USER.ROLES.ORG_OWNER && aUserOrganization?._id === aSubmission?.organization?._id) {
+    if (userRole === USER.ROLES.ORG_OWNER && userInfo?.organization?.orgID === aSubmission?.organization?._id) {
         return;
     }
     if (userRole === USER.ROLES.SUBMITTER && userInfo?._id === aSubmission?.submitterID) {
