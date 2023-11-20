@@ -243,9 +243,12 @@ class Submission {
     async submissionStats(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        const aSubmission = await findByID(this.submissionCollection, params?._id);
+        if (!aSubmission) {
+            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+        }
         isSubmissionPermitted(aSubmission?.organization, aSubmission, context?.userInfo);
-        return this.dataRecordsService.submissionStats(params);
+        return this.dataRecordsService.submissionStats(aSubmission?._id);
     }
 
     /**
@@ -665,12 +668,12 @@ function validateListSubmissionsParams (params) {
 
 
 const isSubmissionPermitted = (aUserOrganization, aSubmission, userInfo) => {
-    const userRole = userInfo?.userRole;
+    const userRole = userInfo?.role;
     const allSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR];
     if (allSubmissionRoles.includes(userRole)) {
         return;
     }
-    if (userRole === USER.ROLES.ORG_OWNER && aUserOrganization?.orgID === aSubmission?.organization) {
+    if (userRole === USER.ROLES.ORG_OWNER && aUserOrganization?._id === aSubmission?.organization?._id) {
         return;
     }
     if (userRole === USER.ROLES.SUBMITTER && userInfo?._id === aSubmission?.submitterID) {
@@ -679,7 +682,7 @@ const isSubmissionPermitted = (aUserOrganization, aSubmission, userInfo) => {
     if (userRole === USER.ROLES.DC_POC && userInfo?.dataCommons.includes(aSubmission?.dataCommons)) {
         return;
     }
-    throw new Error(ERROR.INVALID_SUBMISSION_PERMISSION);
+    throw new Error(ERROR.INVALID_STATS_SUBMISSION_PERMISSION);
 }
 
 module.exports = {

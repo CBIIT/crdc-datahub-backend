@@ -5,23 +5,23 @@ class DataRecordService {
         this.dataRecordsCollection = dataRecordsCollection;
     }
 
-    async submissionStats(params) {
+    async submissionStats(submissionID) {
         const groupPipeline = { "$group": { _id: "$nodeType", count: { $sum: 1 }} };
-        const groupByNodeType = await this.dataRecordsCollection.aggregate([{ "$match": {submissionID: params?.submissionID, status: {$in: [NODE_STATUS.NEW, NODE_STATUS.PASSED, NODE_STATUS.WARNING, NODE_STATUS.ERROR]}}}, groupPipeline]);
+        const groupByNodeType = await this.dataRecordsCollection.aggregate([{ "$match": {submissionID: submissionID, status: {$in: [NODE_STATUS.NEW, NODE_STATUS.PASSED, NODE_STATUS.WARNING, NODE_STATUS.ERROR]}}}, groupPipeline]);
 
         const statusPipeline = { "$group": { _id: "$status", count: { $sum: 1 }} };
-        const promises = groupByNodeType.map(node =>
-            [this.dataRecordsCollection.aggregate([{ "$match": {submissionID: params?.submissionID, nodeType: node?._id}}, statusPipeline]), node?._id]
+        const promises = groupByNodeType.map(async node =>
+            [await this.dataRecordsCollection.aggregate([{ "$match": {submissionID: submissionID, nodeType: node?._id}}, statusPipeline]), node?._id]
         );
         const submissionStatsRecords = await Promise.all(promises) || [];
-        const submissionStats = SubmissionStats.createSubmissionStats(params?.submissionID);
-        submissionStatsRecords.forEach(aSubmissionStat => {
-            const [nodes, nodeName] = aSubmissionStat;
+        const submissionStats = SubmissionStats.createSubmissionStats(submissionID);
+        submissionStatsRecords.forEach(aStatSet => {
+            const [nodes, nodeName] = aStatSet;
             const stat = Stat.createStat(nodeName);
-            const result = nodes.map((node) => {
-                stat.countNode(node?._id);
+            nodes.forEach((node) => {
+                stat.countNodeType(node?._id);
             });
-            submissionStats.addStats(result);
+            submissionStats.addStats(stat);
         });
         return submissionStats;
     }
@@ -46,7 +46,7 @@ class Stat {
         this.total += 1;
     }
 
-    countNode(node) {
+    countNodeType(node) {
         if (node === NODE_STATUS.NEW) {
             this.new += 1;
             this.#addTotal();
