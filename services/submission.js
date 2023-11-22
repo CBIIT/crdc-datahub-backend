@@ -33,13 +33,14 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, devTier) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, devTier) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
         this.userService = userService;
         this.organizationService = organizationService;
         this.notificationService = notificationService;
+        this.dataRecordService = dataRecordService;
         this.devTier = devTier;
     }
 
@@ -281,6 +282,12 @@ class Submission {
         }
         return fileList;
     }
+
+
+    async validateSubmission(params, context) {
+
+    }
+
 }
 
 const updateSubmissionStatus = async (submissionCollection, aSubmissionID, userInfo, newStatus) => {
