@@ -13,8 +13,8 @@ class BatchService {
         this.bucketName = bucketName;
     }
 
-    async createBatch(params, rootPath, orgID) {
-        const prefix = createPrefix(params, rootPath, orgID);
+    async createBatch(params, rootPath) {
+        const prefix = createPrefix(params, rootPath);
         const metadataIntention = params?.metadataIntention && params.type === BATCH.TYPE.METADATA ? params.metadataIntention : null;
         const newBatch = Batch.createNewBatch(params.submissionID, this.bucketName, prefix, params.type, metadataIntention);
         if (BATCH.TYPE.METADATA === params.type.toLowerCase()) {
@@ -133,19 +133,11 @@ const asyncUpdateBatch = async (batchCollection, aBatch) => {
     }
 }
 
-const createPrefix = (params, rootPath, orgID) => {
-    if (!rootPath && !orgID) {
-        throw new Error(ERROR.NEW_BATCH_NO_ORGANIZATION);
+const createPrefix = (params, rootPath) => {
+    if (!rootPath || rootPath?.trim()?.length === 0) {
+        throw new Error(ERROR.FAILED_NEW_BATCH_NO_ROOT_PATH);
     }
-    const prefixArray = rootPath ? [rootPath, params.type] : [orgID, params.submissionID];
-    if (rootPath && params.type === BATCH.TYPE.METADATA) {
-        // adds timestamp
-        prefixArray.push(getCurrentTime()?.getTime());
-    }
-
-    if (!rootPath && params.type === BATCH.TYPE.FILE) {
-        prefixArray.push(BATCH.TYPE.FILE);
-    }
+    const prefixArray = [rootPath, params.type];
     return prefixArray.join("/");
 }
 

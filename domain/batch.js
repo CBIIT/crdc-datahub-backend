@@ -5,7 +5,6 @@ class Batch {
     constructor(submissionID, bucketName, filePrefix, type, status, metadataIntention) {
         this._id = v4();
         this.bucketName = bucketName;
-        this.filePrefix = filePrefix;
         this.submissionID = submissionID;
         this.type = type;
         this.status = status;
@@ -16,6 +15,10 @@ class Batch {
         }
         this.files = [];
         this.createdAt = this.updatedAt = getCurrentTime();
+        if (type === BATCH.TYPE.METADATA) {
+            filePrefix += `/${this.createdAt?.getTime()}`;
+        }
+        this.filePrefix = filePrefix;
     }
 
     addFile(name, size, signedURL) {
