@@ -419,7 +419,7 @@ const sendEmails = {
         }
         const ccEmails = [...orgOwnerEmails, ...ccEmailsVar];
         await notificationService.submitDataSubmissionNotification(aSubmitter?.email, ccEmails, {
-            firstName: aSubmitter?.firstName
+            firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
             }, {
             idandname: `${aSubmission?.name} (ID: ${aSubmission?._id})`,
             dataconcierge: `${aSubmission?.conciergeName || 'NA'} at ${aSubmission?.conciergeEmail||'NA'}.`
