@@ -13,12 +13,11 @@ const S3_CONTENTS = 'Contents'
  * This class provides services for aWS requests
  */
 class AWSService {
-    constructor(submissionCollection, userService, sqsLoaderQueue) {
+    constructor(submissionCollection, userService) {
         this.userService = userService;
         this.submissions = submissionCollection;
         this.s3 = new AWS.S3();
         this.sqs = new AWS.SQS();
-        this.sqsLoaderQueue = sqsLoaderQueue
     }
     /**
      * createTempCredentials
@@ -107,8 +106,8 @@ class AWSService {
      * @param {Object} messageBody - The message body to be sent.
      * @returns {Promise} - Resolves with the data from SQS if successful, rejects with an error otherwise.
      */
-    async sendSQSMessage(messageBody,groupID, deDuplicationId) {
-        const queueUrl = await getQueueUrl(this.sqs, this.sqsLoaderQueue, messageBody);
+    async sendSQSMessage(messageBody,groupID, deDuplicationId, queueName) {
+        const queueUrl = await getQueueUrl(this.sqs, queueName, messageBody);
         const params = {
             MessageBody: JSON.stringify(messageBody),
             QueueUrl: queueUrl,

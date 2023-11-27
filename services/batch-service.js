@@ -10,10 +10,11 @@ const LOAD_METADATA = "Load Metadata";
 // SQS FIFO Parameters
 const GROUP_ID = "crdcdh-batch";
 class BatchService {
-    constructor(s3Service, batchCollection, bucketName, awsService) {
+    constructor(s3Service, batchCollection, bucketName, sqsLoaderQueue, awsService) {
         this.s3Service = s3Service;
         this.batchCollection = batchCollection;
         this.bucketName = bucketName;
+        this.sqsLoaderQueue = sqsLoaderQueue;
         this.awsService = awsService;
     }
 
@@ -138,7 +139,7 @@ const asyncUpdateBatch = async (awsService, batchCollection, aBatch, isAllUpload
 
     if (aBatch?.type === BATCH.TYPE.METADATA && isAllUploaded) {
         const message = { type: LOAD_METADATA, batchID: aBatch?._id };
-        await awsService.sendSQSMessage(message, GROUP_ID, aBatch?._id);
+        await awsService.sendSQSMessage(message, GROUP_ID, aBatch?._id, this.sqsLoaderQueue);
     }
 }
 
