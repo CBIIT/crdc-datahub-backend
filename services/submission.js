@@ -285,6 +285,11 @@ class Submission {
 
 
     async validateSubmission(params, context) {
+        // TODO permission control
+
+
+        await this.dataRecordService.validateSubmission(params?.submissionID, params?.types, params?.scope);
+
 
     }
 

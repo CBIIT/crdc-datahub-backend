@@ -43,10 +43,11 @@ dbConnector.connect().then(() => {
     const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
     const batchService = new BatchService(s3Service, batchCollection, config.submission_bucket);
 
-    const dataRecordCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_COLLECTION);
-    const dataRecordService = new DataRecordService(dataRecordCollection);
-    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.devTier);
     const awsService = new AWSService(submissionCollection, organizationService, userService);
+    const dataRecordCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_COLLECTION);
+    const dataRecordService = new DataRecordService(dataRecordCollection, config.file_queue, config.metadata_queue, awsService);
+
+    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.devTier);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.devTier);
 
     root = {
@@ -72,7 +73,8 @@ dbConnector.connect().then(() => {
         getSubmission:  submissionService.getSubmission.bind(submissionService),
         createTempCredentials: awsService.createTempCredentials.bind(awsService),
         submissionAction: submissionService.submissionAction.bind(submissionService),
-        listLogs: submissionService.listLogs.bind(submissionService) 
+        listLogs: submissionService.listLogs.bind(submissionService),
+        validateSubmission: submissionService.validateSubmission.bind(submissionService)
     };
 });
 

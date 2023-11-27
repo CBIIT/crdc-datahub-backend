@@ -53,6 +53,9 @@ const ERROR = {
     INVALID_PERMISSION: "You do not have permission to view this application",
     // Submission Notification
     NO_SUBMISSION_RECEIVER: "Submission is unable to send an email notification",
+    // Validate Submission
+    INVALID_SUBMISSION_SCOPE: "submission scope is invalid",
+    INVALID_SUBMISSION_TYPE: "submission type is invalid",
     // Token
     INVALID_TOKEN_EMPTY: "Invalid token: it is empty string!",
     INVALID_TOKEN_NO_USER: "Invalid token: no user info!",
@@ -61,7 +64,9 @@ const ERROR = {
     INVALID_SUBMISSION_NOT_FOUND: "Cant find the submission by submissionID",
     INVALID_SUBMITTER: "The user has no permissions to upload data for the submission",
     INVALID_SESSION_OR_TOKEN: "No valid session or valid API token",
-    FAILED_LIST_LOG: "Failed to get log file(s) for submission"
+    FAILED_LIST_LOG: "Failed to get log file(s) for submission",
+    // AWS
+    FAILED_SQS_SEND: "Failed to send a message to aws SQS queue",
 }
 
 module.exports = ERROR;
