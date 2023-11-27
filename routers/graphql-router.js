@@ -6,8 +6,7 @@ const {Submission} = require("../services/submission");
 const {AWSService} = require("../services/aws-request");
 const {MongoQueries} = require("../crdc-datahub-database-drivers/mongo-queries");
 const {DATABASE_NAME, APPLICATION_COLLECTION, SUBMISSIONS_COLLECTION, USER_COLLECTION, ORGANIZATION_COLLECTION, LOG_COLLECTION,
-    APPROVED_STUDIES_COLLECTION, BATCH_COLLECTION,
-    DATA_RECORDS_COLLECTION
+    APPROVED_STUDIES_COLLECTION, BATCH_COLLECTION
 } = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoDBCollection} = require("../crdc-datahub-database-drivers/mongodb-collection");
 const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-connector");
@@ -19,7 +18,6 @@ const {BatchService} = require("../services/batch-service");
 const {S3Service} = require("../crdc-datahub-database-drivers/services/s3-service");
 const {Organization} = require("../crdc-datahub-database-drivers/services/organization");
 const ERROR = require("../constants/error-constants");
-const {DataRecordService} = require("../services/data-record-service");
 const schema = buildSchema(require("fs").readFileSync("resources/graphql/crdc-datahub.graphql", "utf8"));
 const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
 const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
@@ -41,13 +39,9 @@ dbConnector.connect().then(() => {
     const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, organizationService);
     const s3Service = new S3Service();
     const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
-    const batchService = new BatchService(s3Service, batchCollection, config.submission_bucket);
-
-    const awsService = new AWSService(submissionCollection, organizationService, userService);
-    const dataRecordCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_COLLECTION);
-    const dataRecordService = new DataRecordService(dataRecordCollection, config.file_queue, config.metadata_queue, awsService);
-
-    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.devTier);
+    const awsService = new AWSService(submissionCollection, userService, config.sqs_loader_queue);
+    const batchService = new BatchService(s3Service, batchCollection, config.submission_bucket, awsService);
+    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, config.devTier);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.devTier);
 
     root = {
@@ -73,8 +67,7 @@ dbConnector.connect().then(() => {
         getSubmission:  submissionService.getSubmission.bind(submissionService),
         createTempCredentials: awsService.createTempCredentials.bind(awsService),
         submissionAction: submissionService.submissionAction.bind(submissionService),
-        listLogs: submissionService.listLogs.bind(submissionService),
-        validateSubmission: submissionService.validateSubmission.bind(submissionService)
+        listLogs: submissionService.listLogs.bind(submissionService) 
     };
 });
 

@@ -36,6 +36,7 @@ let config = {
     presign_expiration: parseInt(process.env.PRESIGN_EXPIRATION) || 3600,
     devTier: process.env.DEV_TIER || "",
     // aws SQS names
+    sqs_loader_queue: process.env.LOADER_QUEUE || "crdcdh-queue",
     metadata_queue: process.env.METADATA_QUEUE,
     file_queue: process.env.FILE_QUEUE
 };
