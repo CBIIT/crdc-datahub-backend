@@ -56,6 +56,7 @@ const ERROR = {
     // Validate Submission
     INVALID_SUBMISSION_SCOPE: "submission scope is invalid",
     INVALID_SUBMISSION_TYPE: "submission type is invalid",
+    INVALID_VALIDATE_METADATA: "You do not have permission to validate the metadata",
     // Token
     INVALID_TOKEN_EMPTY: "Invalid token: it is empty string!",
     INVALID_TOKEN_NO_USER: "Invalid token: no user info!",
