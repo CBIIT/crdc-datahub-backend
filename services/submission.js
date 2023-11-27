@@ -304,7 +304,7 @@ class Submission {
         if (!isPermittedAccess) {
             throw new Error(ERROR.INVALID_VALIDATE_METADATA)
         }
-        return await this.dataRecordService.validateSubmission(params?.submissionID, params?.types, params?.scope);
+        return await this.dataRecordService.validateMetadata(params?._id, params?.types, params?.scope);
     }
 
 }

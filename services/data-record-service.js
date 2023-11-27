@@ -1,7 +1,6 @@
 const {VALIDATION, NODES} = require("../constants/submission-constants");
 const ERROR = require("../constants/error-constants");
-// TODO
-const GROUP_ID = "crdcdh-validation";
+const GROUP_ID = "crdcdh-metadata-validation";
 class DataRecordService {
     constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService) {
         this.dataRecordsCollection = dataRecordsCollection;
@@ -10,40 +9,51 @@ class DataRecordService {
         this.awsService = awsService;
     }
 
-    async validateSubmission(submissionID, types, scope) {
-        isValidSubmission(types, scope);
+    async validateMetadata(submissionID, types, scope) {
+        isValidMetadata(types, scope);
         const isMetadata = types.some(t => t === VALIDATION.TYPES.METADATA);
         if (isMetadata) {
             const msg = Message.createMetadataMessage("Validate Metadata", submissionID);
-            await this.awsService.sendSQSMessage(msg, GROUP_ID, submissionID, this.metadataQueueName);
-            return true;
+            try {
+                await this.awsService.sendSQSMessage(msg, GROUP_ID, submissionID, this.metadataQueueName);
+            } catch (e) {
+                console.error(ERROR.FAILED_INVALIDATE_METADATA, submissionID);
+                return false;
+            }
         }
         const isFile = types.some(t => t === VALIDATION.TYPES.FILE);
         if (isFile) {
-            const isNewScope = scope.every(s => s?.toLowerCase() === VALIDATION.SCOPE.NEW.toLowerCase());
+            const isNewScope = scope?.toLowerCase() === VALIDATION.SCOPE.NEW.toLowerCase();
             const fileNodes = await this.dataRecordsCollection.aggregate([{
                 $match: {
                     nodeType: NODES.FILE,
                     s3FileInfo: { $exists: true, $ne: null },
-                    ...(isNewScope ? { status: VALIDATION.SCOPE.NEW } : {})}}
+                    // case-insensitive search
+                    ...(isNewScope ? { status: { $regex: new RegExp("^" + VALIDATION.SCOPE.NEW + "$", "i") } } : {})}}
             ]);
-            await Promise.all(fileNodes.map(async (aFile) => {
+            const fileQueueResults = await Promise.all(fileNodes.map(async (aFile) => {
                 const msg = Message.createFileNodeMessage("Validate File", aFile?.nodeID);
-                await this.awsService.sendSQSMessage(msg, GROUP_ID, aFile?.nodeID, this.fileQueueName);
+                try {
+                    await this.awsService.sendSQSMessage(msg, GROUP_ID, aFile?.nodeID, this.fileQueueName);
+                    return true;
+                } catch (e) {
+                    console.error(ERROR.FAILED_INVALIDATE_METADATA, submissionID);
+                    return false;
+                }
             }));
-            return true;
+            return fileQueueResults.every(result => result);
         }
         return false;
     }
 }
 
-const isValidSubmission = (types, scope) => {
+const isValidMetadata = (types, scope) => {
     const isValidTypes = types.every(t => t === VALIDATION.TYPES.FILE || t === VALIDATION.TYPES.METADATA);
-    if (isValidTypes) {
+    if (!isValidTypes) {
         throw new Error(ERROR.INVALID_SUBMISSION_TYPE);
     }
     // case-insensitive
-    const isValidScope = types?.length === 1 && scope.some(s => s?.toLowerCase() === VALIDATION.SCOPE.NEW.toLowerCase() || s?.toLowerCase() === VALIDATION.SCOPE.ALL.toLowerCase());
+    const isValidScope = scope?.toLowerCase() === VALIDATION.SCOPE.NEW.toLowerCase() || scope?.toLowerCase() === VALIDATION.SCOPE.ALL.toLowerCase();
     if (!isValidScope) {
         throw new Error(ERROR.INVALID_SUBMISSION_SCOPE);
     }
