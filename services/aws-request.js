@@ -34,17 +34,28 @@ class AWSService {
         //1. verify token and decode token to get user info
         const userInfo = verifyApiToken(context, config.session_secret);
         //verify submitter
-        await verifySubmitter(userInfo, params?.submissionID, this.submissions, this.userService);
+        const submission = await verifySubmitter(userInfo, params?.submissionID, this.submissions, this.userService);
         //2. create temp credential
         // Initialize an STS object
         const sts = new AWS.STS();
         const timestamp = (new Date()).getTime();
+        //add s3 object access policy
+        const policy = {
+            Version: '2012-10-17',
+            Statement: [
+              {
+                Effect: 'Allow',
+                Action: ['s3:GetObject','s3:PutObject'],
+                Resource: [`arn:aws:s3:::${config.submission_bucket}/${submission.rootPath}/*`]
+              }
+            ]
+          };
         const s3Params = {
             RoleArn: config.role_arn,
-            RoleSessionName: `Temp_Session_${timestamp}`
+            RoleSessionName: `Temp_Session_${timestamp}`,
+            Policy: JSON.stringify(policy)
         };
         return new Promise((resolve, reject) => {
-            
             sts.assumeRole(s3Params, (err, data) => {
                 if (err) reject(err);
                 else {
@@ -64,7 +75,6 @@ class AWSService {
      * @returns file
      */
     async  getLastFileFromS3(bucket, prefix, uploadType, filter){
-
         const data = await this.s3.listObjects(getS3Params(bucket, prefix)).promise();
         const files = data[S3_CONTENTS].filter(k=>k[S3_KEY].indexOf(filter)> 0)
         if(files.length > 0)
