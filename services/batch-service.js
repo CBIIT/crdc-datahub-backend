@@ -6,11 +6,15 @@ const {USER} = require("../crdc-datahub-database-drivers/constants/user-constant
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {SUBMISSIONS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
+const LOAD_METADATA = "Load Metadata";
+// SQS FIFO Parameters
+const GROUP_ID = "crdcdh-batch";
 class BatchService {
-    constructor(s3Service, batchCollection, bucketName) {
+    constructor(s3Service, batchCollection, bucketName, awsService) {
         this.s3Service = s3Service;
         this.batchCollection = batchCollection;
         this.bucketName = bucketName;
+        this.awsService = awsService;
     }
 
     async createBatch(params, rootPath, orgID) {
@@ -61,7 +65,7 @@ class BatchService {
         const isAllUploaded = files?.length > 0 && succeededFiles.length === files?.length;
         aBatch.status = isAllUploaded ? BATCH.STATUSES.UPLOADED : BATCH.STATUSES.FAILED;
         aBatch.updatedAt = getCurrentTime();
-        await asyncUpdateBatch(this.batchCollection, aBatch);
+        await asyncUpdateBatch(this.awsService, this.batchCollection, aBatch, isAllUploaded);
         return await this.findByID(aBatch._id);
     }
 
@@ -124,12 +128,17 @@ const listBatchConditions = (userID, userRole, aUserOrganization, submissionID, 
     throw new Error(ERROR.INVALID_SUBMISSION_PERMISSION);
 }
 
-const asyncUpdateBatch = async (batchCollection, aBatch) => {
+const asyncUpdateBatch = async (awsService, batchCollection, aBatch, isAllUploaded) => {
     const updated = await batchCollection.update(aBatch);
     if (!updated?.acknowledged){
         const error = ERROR.FAILED_BATCH_UPDATE;
         console.error(error);
         throw new Error(error);
+    }
+
+    if (aBatch?.type === BATCH.TYPE.METADATA && isAllUploaded) {
+        const message = { type: LOAD_METADATA, batchID: aBatch?._id };
+        await awsService.sendSQSMessage(message, GROUP_ID, aBatch?._id);
     }
 }
 
