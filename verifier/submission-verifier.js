@@ -51,7 +51,7 @@ class SubmissionActionVerifier {
 
 //actions: NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, RESUME
 const submissionActionMap = [
-    {action:ACTIONS.SUBMIT, fromStatus: [IN_PROGRESS], 
+    {action:ACTIONS.SUBMIT, fromStatus: [IN_PROGRESS, WITHDRAWN],
         roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:SUBMITTED},
     {action:ACTIONS.RELEASE, fromStatus: [SUBMITTED], 
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:RELEASED},
