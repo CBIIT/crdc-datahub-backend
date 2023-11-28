@@ -285,6 +285,9 @@ class Submission {
 
 
     async validateSubmission(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyRole([ROLES.ADMIN, ROLES.ORG_OWNER, ROLES.CURATOR, ROLES.SUBMITTER]);
         const aSubmission = await findByID(this.submissionCollection, params._id);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)

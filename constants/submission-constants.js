@@ -31,8 +31,5 @@ module.exports = Object.freeze({
             NEW: "new",
             ALL: "all"
         }
-    },
-    NODES: {
-        FILE: "file"
     }
 });

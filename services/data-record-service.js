@@ -1,4 +1,4 @@
-const {VALIDATION, NODES} = require("../constants/submission-constants");
+const {VALIDATION} = require("../constants/submission-constants");
 const ERROR = require("../constants/error-constants");
 const GROUP_ID = "crdcdh-metadata-validation";
 class DataRecordService {
@@ -26,7 +26,6 @@ class DataRecordService {
             const isNewScope = scope?.toLowerCase() === VALIDATION.SCOPE.NEW.toLowerCase();
             const fileNodes = await this.dataRecordsCollection.aggregate([{
                 $match: {
-                    nodeType: NODES.FILE,
                     s3FileInfo: { $exists: true, $ne: null },
                     // case-insensitive search
                     ...(isNewScope ? { status: { $regex: new RegExp("^" + VALIDATION.SCOPE.NEW + "$", "i") } } : {})}}
@@ -41,9 +40,9 @@ class DataRecordService {
                     return false;
                 }
             }));
-            return fileQueueResults.every(result => result);
+            return fileQueueResults.length > 0 && fileQueueResults.every(result => result);
         }
-        return false;
+        return isMetadata;
     }
 }
 
