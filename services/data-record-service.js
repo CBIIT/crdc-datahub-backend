@@ -1,6 +1,7 @@
 const {VALIDATION} = require("../constants/submission-constants");
 const ERROR = require("../constants/error-constants");
-const GROUP_ID = "crdcdh-metadata-validation";
+const METADATA_GROUP_ID = "crdcdh-metadata-validation";
+const FILE_GROUP_ID = "crdcdh-file-validation";
 class DataRecordService {
     constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService) {
         this.dataRecordsCollection = dataRecordsCollection;
@@ -14,7 +15,7 @@ class DataRecordService {
         const isMetadata = types.some(t => t === VALIDATION.TYPES.METADATA);
         if (isMetadata) {
             const msg = Message.createMetadataMessage("Validate Metadata", submissionID);
-            const success = await sendSQSMessageWrapper(this.awsService, msg, GROUP_ID, submissionID, this.metadataQueueName);
+            const success = await sendSQSMessageWrapper(this.awsService, msg, METADATA_GROUP_ID, submissionID, this.metadataQueueName, submissionID);
             if (!success) {
                 return false;
             }
@@ -22,21 +23,15 @@ class DataRecordService {
         const isFile = types.some(t => t === VALIDATION.TYPES.FILE);
         if (isFile) {
             const msg = Message.createFileSubmissionMessage("Validate Submission Files", submissionID);
-            const success = await sendSQSMessageWrapper(this.awsService, msg, GROUP_ID, submissionID, this.fileQueueName);
+            const success = await sendSQSMessageWrapper(this.awsService, msg, FILE_GROUP_ID, submissionID, this.fileQueueName, submissionID);
             if (!success) {
                 return false;
             }
 
-            const isNewScope = scope?.toLowerCase() === VALIDATION.SCOPE.NEW.toLowerCase();
-            const fileNodes = await this.dataRecordsCollection.aggregate([{
-                $match: {
-                    s3FileInfo: { $exists: true, $ne: null },
-                    // case-insensitive search
-                    ...(isNewScope ? { status: { $regex: new RegExp("^" + VALIDATION.SCOPE.NEW + "$", "i") } } : {})}}
-            ]);
+            const fileNodes = await getFileNodes(this.dataRecordsCollection, scope);
             const fileQueueResults = await Promise.all(fileNodes.map(async (aFile) => {
                 const msg = Message.createFileNodeMessage("Validate File", aFile?.nodeID);
-                return await sendSQSMessageWrapper(this.awsService, msg, GROUP_ID, aFile?.nodeID, this.fileQueueName);
+                return await sendSQSMessageWrapper(this.awsService, msg, FILE_GROUP_ID, aFile?.nodeID, this.fileQueueName, submissionID);
             }));
             return fileQueueResults.length > 0 && fileQueueResults.every(result => result);
         }
@@ -44,12 +39,23 @@ class DataRecordService {
     }
 }
 
-const sendSQSMessageWrapper = async (awsService, message, groupId, msgID, queueName) => {
+const getFileNodes = async (dataRecordsCollection, scope) => {
+    const isNewScope = scope?.toLowerCase() === VALIDATION.SCOPE.NEW.toLowerCase();
+    const fileNodes = await dataRecordsCollection.aggregate([{
+        $match: {
+            s3FileInfo: { $exists: true, $ne: null },
+            // case-insensitive search
+            ...(isNewScope ? { status: { $regex: new RegExp("^" + VALIDATION.SCOPE.NEW + "$", "i") } } : {})}}
+    ]);
+    return fileNodes || [];
+}
+
+const sendSQSMessageWrapper = async (awsService, message, groupId, deDuplicationId, queueName, submissionID) => {
     try {
-        await awsService.sendSQSMessage(message, groupId, msgID, queueName);
+        await awsService.sendSQSMessage(message, groupId, deDuplicationId, queueName);
         return true;
     } catch (e) {
-        console.error(ERROR.FAILED_INVALIDATE_METADATA, msgID);
+        console.error(ERROR.FAILED_INVALIDATE_METADATA, submissionID);
         return false;
     }
 }
