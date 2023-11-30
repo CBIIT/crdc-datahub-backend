@@ -14,15 +14,19 @@ class DataRecordService {
         const isMetadata = types.some(t => t === VALIDATION.TYPES.METADATA);
         if (isMetadata) {
             const msg = Message.createMetadataMessage("Validate Metadata", submissionID);
-            try {
-                await this.awsService.sendSQSMessage(msg, GROUP_ID, submissionID, this.metadataQueueName);
-            } catch (e) {
-                console.error(ERROR.FAILED_INVALIDATE_METADATA, submissionID);
+            const success = await sendSQSMessageWrapper(this.awsService, msg, GROUP_ID, submissionID, this.metadataQueueName);
+            if (!success) {
                 return false;
             }
         }
         const isFile = types.some(t => t === VALIDATION.TYPES.FILE);
         if (isFile) {
+            const msg = Message.createFileSubmissionMessage("Validate Submission Files", submissionID);
+            const success = await sendSQSMessageWrapper(this.awsService, msg, GROUP_ID, submissionID, this.fileQueueName);
+            if (!success) {
+                return false;
+            }
+
             const isNewScope = scope?.toLowerCase() === VALIDATION.SCOPE.NEW.toLowerCase();
             const fileNodes = await this.dataRecordsCollection.aggregate([{
                 $match: {
@@ -32,17 +36,21 @@ class DataRecordService {
             ]);
             const fileQueueResults = await Promise.all(fileNodes.map(async (aFile) => {
                 const msg = Message.createFileNodeMessage("Validate File", aFile?.nodeID);
-                try {
-                    await this.awsService.sendSQSMessage(msg, GROUP_ID, aFile?.nodeID, this.fileQueueName);
-                    return true;
-                } catch (e) {
-                    console.error(ERROR.FAILED_INVALIDATE_METADATA, submissionID);
-                    return false;
-                }
+                return await sendSQSMessageWrapper(this.awsService, msg, GROUP_ID, aFile?.nodeID, this.fileQueueName);
             }));
             return fileQueueResults.length > 0 && fileQueueResults.every(result => result);
         }
         return isMetadata;
+    }
+}
+
+const sendSQSMessageWrapper = async (awsService, message, groupId, msgID, queueName) => {
+    try {
+        await awsService.sendSQSMessage(message, groupId, msgID, queueName);
+        return true;
+    } catch (e) {
+        console.error(ERROR.FAILED_INVALIDATE_METADATA, msgID);
+        return false;
     }
 }
 
@@ -66,6 +74,12 @@ class Message {
         const msg = new Message(type);
         msg.submissionID = submissionID;
         msg.scope= VALIDATION.SCOPE.NEW;
+        return msg;
+    }
+
+    static createFileSubmissionMessage(type, submissionID) {
+        const msg = new Message(type);
+        msg.submissionID = submissionID;
         return msg;
     }
 
