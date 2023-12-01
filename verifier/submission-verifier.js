@@ -2,6 +2,7 @@ const ERROR = require("../constants/error-constants");
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
     REJECTED, WITHDRAWN, ACTIONS } = require("../constants/submission-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
+const {USER} = require("../crdc-datahub-authz/crdc-datahub-database-drivers/constants/user-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 
 function verifySubmissionAction(submissionId, action){ 
@@ -39,6 +40,24 @@ class SubmissionActionVerifier {
         if(this.actionMap.fromStatus.indexOf(fromStatus) < 0)
             throw new Error(`${ERROR.VERIFY.INVALID_SUBMISSION_ACTION_STATUS} ${this.action}!`);
         this.newStatus = this.actionMap.toStatus;
+    }
+
+    isValidSubmitAction(role) {
+        if(this.action === ACTIONS.SUBMIT) {
+            if (role === USER.ROLES.ADMIN) {
+                return;
+            }
+            const isValidRole = [USER.ROLES.CURATOR, USER.ROLES.ORG_OWNER, USER.ROLES.SUBMITTER].includes(role);
+            // TODO
+
+            // if there are any nodes have not been validated or have validation error.
+
+            const isValidatedNode = true;
+            if (isValidRole && isValidatedNode) {
+                return;
+            }
+            throw new Error(ERROR.VERIFY.INVALID_SUBMIT_ACTION);
+        }
     }
 
     inRoles(userInfo){

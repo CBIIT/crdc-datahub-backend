@@ -21,6 +21,7 @@ const ERROR = {
         // submission action
         INVALID_SUBMISSION_ACTION: "Invalid submission action:",
         INVALID_SUBMISSION_ACTION_STATUS: "Invalid submission status for the action:",
+        INVALID_SUBMIT_ACTION: "The submit action for a data submission should only be allowed if it meets both the user's role and the status of the data submission",
         INVALID_SUBMISSION_ACTION_ROLE: "Invalid user role for the action:",
         INVALID_SUBMISSION_ID: "submissionID can't be empty!",
         EMPTY_ROOT_PATH: "RootPath is missing in the submission",

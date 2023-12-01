@@ -33,13 +33,14 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, devTier) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, devTier) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
         this.userService = userService;
         this.organizationService = organizationService;
         this.notificationService = notificationService;
+        this.dataRecordService = dataRecordService;
         this.devTier = devTier;
     }
 
@@ -214,6 +215,10 @@ class Submission {
         verifier.isValidAction();
         //verify if user's role is valid for the action
         const newStatus = verifier.inRoles(userInfo);
+
+        // TODO valid submission action
+        verifier.isValidSubmitAction(userInfo?.role);
+
 
         //update submission
         let events = submission.history || [];
