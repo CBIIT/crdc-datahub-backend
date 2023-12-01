@@ -154,6 +154,69 @@ type LogFile {
     fileSize: Int #size in byte
 }
 
+type User {
+  _id: ID # MongoDB native ID or UUID
+  firstName: String
+  lastName: String
+  userStatus: String # [Active, Inactive]
+  role: String # [User, Submitter, Organization Owner, Federal Lead, Data Curator, Data Commons POC, Admin]
+  IDP: String # [NIH, Login.gov]
+  email: String
+  organization: OrgInfo # Organization
+  dataCommons: [String] # Applies to Data Commons POC role only. Empty for other roles.
+  tokens: [String]
+  createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+  updateAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+}
+
+type UserInfo {
+  userID: ID # MongoDB native ID or UUID
+  firstName: String
+  lastName: String
+#  orgRole: String # [Owner, Submitter, Concierge], Concierge can only be assign to a Curator
+#  orgStatus: String # [Active, Inactive, Disabled]
+  createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+  updateAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+}
+
+type OrgInfo {
+  orgID: ID # MongoDB native ID or UUID
+  orgName: String
+#  orgRole: String # [Owner, Submitter, Concierge], Concierge can only be assign to a Curator
+#  orgStatus: String # [Active, Inactive, Disabled]
+  createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+  updateAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+}
+
+type UserOrganization {
+  _id: ID # MongoDB native ID or UUID
+  name: String
+  status: String # [Active, Inactive], default to Active
+  conciergeID: ID # The user's IDs are stored for the organization curators, aka. primary contact
+  conciergeName: String # The user's name (first + last) is stored for the organization curators, aka. primary contact
+  conciergeEmail: String
+  studies: [ApprovedStudy] # Study names and abbreviations
+  bucketName: String # Set by BE at creation time
+  rootPath: String # Set by BE at creation time, in the form of “/<organization ID>”
+  createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+  updateAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+}
+
+type Tokens {
+  tokens: [String]
+  message: String
+}
+
+input UpdateUserInput {
+    firstName: String!
+    lastName: String!
+}
+
+input ApprovedStudyInput {
+  studyName: String!
+  studyAbbreviation: String!
+}
+
 type SubmissionStats {
     submissionID: ID
     stats: [Stats]
@@ -293,6 +356,18 @@ type Query {
     listLogs (submissionID: ID!) : ListLogFiles
 
     version: String
+
+    "Limit to current user only"
+    getMyUser : User
+
+    "Admin and Org Owner only operations, Org Owner only see users within same organization"
+    listUsers: [User]
+    listActiveCurators: [UserInfo]
+    getUser(userID: ID!): User
+
+    "Admin only operations"
+    listOrganizations: [UserOrganization]
+    getOrganization(orgID: ID!): UserOrganization
 }
 
 type Mutation {
@@ -325,4 +400,30 @@ type Mutation {
         types: [String] # [file, metadata]
         scope: String # [New, All] case-insensitive
     ): String
+
+    "User initiated operations"
+    updateMyUser (userInfo: UpdateUserInput!): User
+    grantToken: Tokens
+
+    "Admin only operations"
+    invalidateToken(uuids: [String] = []): Tokens
+    createOrganization(
+        name: String!, # BE needs to check uniqueness of the new name
+        conciergeID: String, # BE needs to save ID, email and name (first + last) of the concierge
+        studies: [ApprovedStudyInput], # Will replace the list in the DB
+    ) : UserOrganization
+    editOrganization(
+        orgID: ID!,
+        name: String, # BE needs to check uniqueness of the new name
+        conciergeID: String, # BE needs to save ID, email and name (first + last) of the concierge
+        studies: [ApprovedStudyInput], # Will replace the list in the DB
+        status: String # in [Active, Inactive]
+    ): UserOrganization
+    editUser(
+      userID: ID!,
+      organization: String, # Organization ID
+      status: String, # in [Active, Inactive]
+      role: String,
+      dataCommons: [String], # Applies to Data Commons POC role only. Empty for other roles.
+    ): User
 }
