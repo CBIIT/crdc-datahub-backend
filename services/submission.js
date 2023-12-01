@@ -215,11 +215,9 @@ class Submission {
         verifier.isValidAction();
         //verify if user's role is valid for the action
         const newStatus = verifier.inRoles(userInfo);
-
-        // TODO valid submission action
-        verifier.isValidSubmitAction(userInfo?.role);
-
-
+        // Admin is allowed to submit an action or other roles with the validated submission status
+        const isValidatedSubmission = userInfo?.role === USER.ROLES.ADMIN || await this.dataRecordService.isValidatedSubmission(submissionID);
+        verifier.isValidSubmitAction(userInfo?.role, isValidatedSubmission);
         //update submission
         let events = submission.history || [];
         events.push(HistoryEventBuilder.createEvent(userInfo._id, newStatus, null));

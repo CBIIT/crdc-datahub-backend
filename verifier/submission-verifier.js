@@ -42,18 +42,13 @@ class SubmissionActionVerifier {
         this.newStatus = this.actionMap.toStatus;
     }
 
-    isValidSubmitAction(role) {
+    isValidSubmitAction(role, isSubmissionValidated = false) {
         if(this.action === ACTIONS.SUBMIT) {
             if (role === USER.ROLES.ADMIN) {
                 return;
             }
             const isValidRole = [USER.ROLES.CURATOR, USER.ROLES.ORG_OWNER, USER.ROLES.SUBMITTER].includes(role);
-            // TODO
-
-            // if there are any nodes have not been validated or have validation error.
-
-            const isValidatedNode = true;
-            if (isValidRole && isValidatedNode) {
+            if (isValidRole && isSubmissionValidated) {
                 return;
             }
             throw new Error(ERROR.VERIFY.INVALID_SUBMIT_ACTION);
