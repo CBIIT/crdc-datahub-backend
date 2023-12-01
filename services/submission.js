@@ -136,7 +136,7 @@ class Submission {
         const result = await this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
         // The submission status needs to be updated after createBatch
         if ([NEW, WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
-            await updateSubmissionStatus(this.submissionCollection, params.submissionID, context?.userInfo, IN_PROGRESS);
+            await updateSubmissionStatus(this.submissionCollection, params.submissionID, userInfo, IN_PROGRESS);
         }
         return result;
     }

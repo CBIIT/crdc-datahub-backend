@@ -3,6 +3,7 @@ require('aws-sdk/lib/maintenance_mode_message').suppress = true;
 const {verifyApiToken,verifySubmitter} = require("../verifier/user-info-verifier");
 const path = require("path");
 const config = require('../config');
+const ERROR = require("../constants/error-constants");
 
 const S3_GET = 'getObject';
 const S3_KEY = 'Key';
@@ -12,11 +13,12 @@ const S3_CONTENTS = 'Contents'
  * This class provides services for aWS requests
  */
 class AWSService {
-    constructor(submissionCollection, organizationService, userService) {
-        this.organizationService = organizationService;
+    constructor(submissionCollection, userService, sqsLoaderQueue) {
         this.userService = userService;
         this.submissions = submissionCollection;
         this.s3 = new AWS.S3();
+        this.sqs = new AWS.SQS();
+        this.sqsLoaderQueue = sqsLoaderQueue
     }
     /**
      * createTempCredentials
@@ -98,7 +100,46 @@ class AWSService {
             });
         });  
     }
-    
+
+    /**
+     * sends a message to AWS SQS queue.
+     *
+     * @param {Object} messageBody - The message body to be sent.
+     * @returns {Promise} - Resolves with the data from SQS if successful, rejects with an error otherwise.
+     */
+    async sendSQSMessage(messageBody,groupID, deDuplicationId) {
+        const queueUrl = await getQueueUrl(this.sqs, this.sqsLoaderQueue, messageBody);
+        const params = {
+            MessageBody: JSON.stringify(messageBody),
+            QueueUrl: queueUrl,
+            MessageGroupId: groupID,
+            MessageDeduplicationId: deDuplicationId
+        }
+        return new Promise((resolve, reject) => {
+            this.sqs.sendMessage(params, (err, data) => {
+                if (err) {
+                    console.error(ERROR.FAILED_SQS_SEND, messageBody);
+                    reject(err);
+                }
+                else {
+                    resolve(data);
+                }
+            });
+        });
+    }
+
+}
+const getQueueUrl = async (sqs, queueName, messageBody) => {
+    return new Promise((resolve, reject) => {
+        sqs.getQueueUrl({ QueueName: queueName }, (err, data) => {
+            if (err) {
+                console.error(ERROR.FAILED_SQS_SEND, messageBody);
+                reject(err);
+            } else {
+                resolve(data.QueueUrl);
+            }
+        });
+    });
 }
 
 function getS3Params(bucket, prefix){
