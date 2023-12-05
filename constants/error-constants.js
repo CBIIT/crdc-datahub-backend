@@ -28,6 +28,7 @@ const ERROR = {
     // Batch
     FAILED_NEW_BATCH_INSERTION: "An error occurred while creating a new batch",
     NEW_BATCH_NO_ORGANIZATION: "The user attempting to create a batch does not have any organizational record",
+    FAILED_NEW_BATCH_NO_ROOT_PATH: "The batch creation is aborted because the current submission is missing a rootpath",
     INVALID_BATCH_PERMISSION: "You do not have permission to run a batch operation",
     SUBMISSION_NOT_EXIST: "The submission you are trying to access does not exist",
     BATCH_NOT_EXIST: "The batch you are trying to access does not exist",

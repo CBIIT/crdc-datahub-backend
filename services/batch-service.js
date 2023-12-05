@@ -17,8 +17,8 @@ class BatchService {
         this.awsService = awsService;
     }
 
-    async createBatch(params, rootPath, orgID) {
-        const prefix = createPrefix(params, rootPath, orgID);
+    async createBatch(params, rootPath) {
+        const prefix = createPrefix(params, rootPath);
         const metadataIntention = params?.metadataIntention && params.type === BATCH.TYPE.METADATA ? params.metadataIntention : null;
         const newBatch = Batch.createNewBatch(params.submissionID, this.bucketName, prefix, params.type, metadataIntention);
         if (BATCH.TYPE.METADATA === params.type.toLowerCase()) {
@@ -142,15 +142,11 @@ const asyncUpdateBatch = async (awsService, batchCollection, aBatch, isAllUpload
     }
 }
 
-const createPrefix = (params, rootPath, orgID) => {
-    if (rootPath) {
-        return `${rootPath}/${params.type}`;
+const createPrefix = (params, rootPath) => {
+    if (!rootPath || rootPath?.trim()?.length === 0) {
+        throw new Error(ERROR.FAILED_NEW_BATCH_NO_ROOT_PATH);
     }
-    if (!orgID) {
-        throw new Error(ERROR.NEW_BATCH_NO_ORGANIZATION);
-    }
-    const prefixArray = [orgID, params.submissionID];
-    prefixArray.push(params.type === BATCH.TYPE.METADATA ? BATCH.TYPE.METADATA : BATCH.TYPE.FILE);
+    const prefixArray = [rootPath, params.type];
     return prefixArray.join("/");
 }
 
