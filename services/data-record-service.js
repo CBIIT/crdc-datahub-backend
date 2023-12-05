@@ -14,7 +14,7 @@ class DataRecordService {
         isValidMetadata(types, scope);
         const isMetadata = types.some(t => t === VALIDATION.TYPES.METADATA);
         if (isMetadata) {
-            const msg = Message.createMetadataMessage("Validate Metadata", submissionID);
+            const msg = Message.createMetadataMessage("Validate Metadata", submissionID, scope);
             const success = await sendSQSMessageWrapper(this.awsService, msg, METADATA_GROUP_ID, submissionID, this.metadataQueueName, submissionID);
             if (!success) {
                 return false;
@@ -76,10 +76,10 @@ class Message {
     constructor(type) {
         this.type = type;
     }
-    static createMetadataMessage(type, submissionID) {
+    static createMetadataMessage(type, submissionID, scope) {
         const msg = new Message(type);
         msg.submissionID = submissionID;
-        msg.scope= VALIDATION.SCOPE.NEW;
+        msg.scope= scope;
         return msg;
     }
 
