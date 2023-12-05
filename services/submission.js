@@ -123,7 +123,7 @@ class Submission {
         // Optional metadata intention
         if (params.type === BATCH.TYPE.METADATA) {
             verifyBatch(params)
-                .metadataIntention([BATCH.INTENTION.NEW]);
+                .metadataIntention([BATCH.INTENTION.NEW, BATCH.INTENTION.UPDATE, BATCH.INTENTION.DELETE]);
         }
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
