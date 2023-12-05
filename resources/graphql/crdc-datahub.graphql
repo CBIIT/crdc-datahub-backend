@@ -399,7 +399,7 @@ type Mutation {
         _id: ID!,
         types: [String] # [file, metadata]
         scope: String # [New, All] case-insensitive
-    ): String # TODO what to return?
+    ): String
 
     "User initiated operations"
     updateMyUser (userInfo: UpdateUserInput!): User

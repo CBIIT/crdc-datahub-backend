@@ -33,13 +33,14 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, devTier) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, devTier) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
         this.userService = userService;
         this.organizationService = organizationService;
         this.notificationService = notificationService;
+        this.dataRecordService = dataRecordService;
         this.devTier = devTier;
     }
 
@@ -280,6 +281,34 @@ class Submission {
         }
         return fileList;
     }
+
+
+    async validateSubmission(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyRole([ROLES.ADMIN, ROLES.ORG_OWNER, ROLES.CURATOR, ROLES.SUBMITTER]);
+        const aSubmission = await findByID(this.submissionCollection, params._id);
+        if(!aSubmission){
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
+        }
+        const userInfo = context?.userInfo;
+        const promises = [
+            await this.userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
+            await this.userService.getUserByID(aSubmission?.submitterID),
+            await this.organizationService.getOrganizationByID(aSubmission?.organization?._id)
+        ];
+        const results = await Promise.all(promises);
+        const isOrgOwners = (results[0] || []).some((aUser) => isPermittedUser(aUser, userInfo));
+        const isSubmitter = isPermittedUser(results[1], userInfo);
+        const aOrganization = results[2];
+        const isDataCurator = aOrganization?.conciergeID === userInfo?._id;
+        const isPermittedAccess = this.userService.isAdmin(userInfo?.role) || isOrgOwners || isSubmitter || isDataCurator;
+        if (!isPermittedAccess) {
+            throw new Error(ERROR.INVALID_VALIDATE_METADATA)
+        }
+        return await this.dataRecordService.validateMetadata(params?._id, params?.types, params?.scope);
+    }
+
 }
 
 const updateSubmissionStatus = async (submissionCollection, aSubmissionID, userInfo, newStatus) => {

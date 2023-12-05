@@ -21,5 +21,15 @@ module.exports = Object.freeze({
         RESUME: "Resume",
         REJECT_SUBMIT: "Reject_Submitted",
         REJECT_RELEASE: "Reject_Released"
+    },
+    VALIDATION: {
+        TYPES: {
+            FILE: "file",
+            METADATA: "metadata"
+        },
+        SCOPE: {
+            NEW: "new",
+            ALL: "all"
+        }
     }
 });
