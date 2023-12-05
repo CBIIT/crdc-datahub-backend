@@ -65,6 +65,10 @@ type Submission {
     bucketName: String # populated from organization
     rootPath: String # append "/<submission ID>" to organization's rootPath
     status: String # [New, In Progress, Submitted, Released, Canceled, Transferred, Completed, Archived]
+    metadataValidationResult: String # [To-be-validated, Passed, Error, Warning], new successfully uploaded batch will set it to "To-be-validated"
+    fileValidationResult: String # [To-be-validated, Passed, Error, Warning], new successfully uploaded batch will set it to "To-be-validated"
+    fileErrors: [ErrorMessage] # holds submission level file errors, e.g., extra files in S3 folder
+    fileWarnings: [ErrorMessage] # holds submission level file warnings
     history: [Event]
     conciergeName: String # Concierge name
     conciergeEmail: String # Concierge email
