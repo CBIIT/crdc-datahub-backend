@@ -27,5 +27,15 @@ module.exports = Object.freeze({
         PASSED: "Passed",
         WARNING: "Warning",
         ERROR: "Error"
+    },
+    VALIDATION: {
+        TYPES: {
+            FILE: "file",
+            METADATA: "metadata"
+        },
+        SCOPE: {
+            NEW: "new",
+            ALL: "all"
+        }
     }
 });

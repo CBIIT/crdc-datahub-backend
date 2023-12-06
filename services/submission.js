@@ -1,5 +1,5 @@
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
-    REJECTED, WITHDRAWN, ACTIONS} = require("../constants/submission-constants");
+    REJECTED, WITHDRAWN, ACTIONS } = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
@@ -33,14 +33,14 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordsService, devTier) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, devTier) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
         this.userService = userService;
         this.organizationService = organizationService;
         this.notificationService = notificationService;
-        this.dataRecordsService = dataRecordsService;
+        this.dataRecordService = dataRecordService;
         this.devTier = devTier;
     }
 
@@ -124,7 +124,7 @@ class Submission {
         // Optional metadata intention
         if (params.type === BATCH.TYPE.METADATA) {
             verifyBatch(params)
-                .metadataIntention([BATCH.INTENTION.NEW]);
+                .metadataIntention([BATCH.INTENTION.NEW, BATCH.INTENTION.UPDATE, BATCH.INTENTION.DELETE]);
         }
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
@@ -132,8 +132,7 @@ class Submission {
         if (![NEW, IN_PROGRESS ,WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
             throw new Error(ERROR.INVALID_SUBMISSION_STATUS);
         }
-        const aOrganization = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
-        const result = await this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
+        const result = await this.batchService.createBatch(params, aSubmission?.rootPath);
         // The submission status needs to be updated after createBatch
         if ([NEW, WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
             await updateSubmissionStatus(this.submissionCollection, params.submissionID, userInfo, IN_PROGRESS);
@@ -294,6 +293,34 @@ class Submission {
         }
         return fileList;
     }
+
+
+    async validateSubmission(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyRole([ROLES.ADMIN, ROLES.ORG_OWNER, ROLES.CURATOR, ROLES.SUBMITTER]);
+        const aSubmission = await findByID(this.submissionCollection, params._id);
+        if(!aSubmission){
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
+        }
+        const userInfo = context?.userInfo;
+        const promises = [
+            await this.userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
+            await this.userService.getUserByID(aSubmission?.submitterID),
+            await this.organizationService.getOrganizationByID(aSubmission?.organization?._id)
+        ];
+        const results = await Promise.all(promises);
+        const isOrgOwners = (results[0] || []).some((aUser) => isPermittedUser(aUser, userInfo));
+        const isSubmitter = isPermittedUser(results[1], userInfo);
+        const aOrganization = results[2];
+        const isDataCurator = aOrganization?.conciergeID === userInfo?._id;
+        const isPermittedAccess = this.userService.isAdmin(userInfo?.role) || isOrgOwners || isSubmitter || isDataCurator;
+        if (!isPermittedAccess) {
+            throw new Error(ERROR.INVALID_VALIDATE_METADATA)
+        }
+        return await this.dataRecordService.validateMetadata(params?._id, params?.types, params?.scope);
+    }
+
 }
 
 const updateSubmissionStatus = async (submissionCollection, aSubmissionID, userInfo, newStatus) => {

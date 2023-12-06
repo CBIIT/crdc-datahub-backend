@@ -41,13 +41,13 @@ dbConnector.connect().then(() => {
     const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, organizationService);
     const s3Service = new S3Service();
     const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
-    const batchService = new BatchService(s3Service, batchCollection, config.submission_bucket);
+    const awsService = new AWSService(submissionCollection, userService);
+    const batchService = new BatchService(s3Service, batchCollection, config.submission_bucket, config.sqs_loader_queue, awsService);
 
-    const dataRecordsCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_COLLECTION);
-    const dataRecordService = new DataRecordService(dataRecordsCollection);
+    const dataRecordCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_COLLECTION);
+    const dataRecordService = new DataRecordService(dataRecordCollection, config.file_queue, config.metadata_queue, awsService);
 
     const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.devTier);
-    const awsService = new AWSService(submissionCollection, organizationService, userService);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.devTier);
 
     root = {
@@ -74,6 +74,7 @@ dbConnector.connect().then(() => {
         createTempCredentials: awsService.createTempCredentials.bind(awsService),
         submissionAction: submissionService.submissionAction.bind(submissionService),
         listLogs: submissionService.listLogs.bind(submissionService),
+        validateSubmission: submissionService.validateSubmission.bind(submissionService),
         // AuthZ
         getMyUser : userService.getMyUser.bind(userService),
         getUser : userService.getUser.bind(userService),
