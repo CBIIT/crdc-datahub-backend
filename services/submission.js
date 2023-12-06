@@ -246,7 +246,7 @@ class Submission {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
         isSubmissionPermitted(aSubmission, context?.userInfo);
-        return this.dataRecordsService.submissionStats(aSubmission?._id);
+        return this.dataRecordService.submissionStats(aSubmission?._id);
     }
 
     /**
@@ -691,7 +691,6 @@ function validateListSubmissionsParams (params) {
     // Don't need to validate organization as frontend uses the same organization collection
     // as backend does as selection options. AKA, frontend will only ever send valid organizations.
 }
-
 
 const isSubmissionPermitted = (aSubmission, userInfo) => {
     const userRole = userInfo?.role;
