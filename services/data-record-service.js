@@ -14,11 +14,12 @@ class DataRecordService {
 
     async submissionStats(submissionID) {
         const groupPipeline = { "$group": { _id: "$nodeType", count: { $sum: 1 }} };
-        const groupByNodeType = await this.dataRecordsCollection.aggregate([{ "$match": {submissionID: submissionID, status: {$in: [NODE_TYPE.NEW, NODE_TYPE.PASSED, NODE_TYPE.WARNING, NODE_TYPE.ERROR]}}}, groupPipeline]);
+        const validNodeStatus = [NODE_TYPE.NEW, NODE_TYPE.PASSED, NODE_TYPE.WARNING, NODE_TYPE.ERROR];
+        const groupByNodeType = await this.dataRecordsCollection.aggregate([{ "$match": {submissionID: submissionID, status: {$in: validNodeStatus}}}, groupPipeline]);
 
         const statusPipeline = { "$group": { _id: "$status", count: { $sum: 1 }} };
         const promises = groupByNodeType.map(async node =>
-            [await this.dataRecordsCollection.aggregate([{ "$match": {submissionID: submissionID, nodeType: node?._id}}, statusPipeline]), node?._id]
+            [await this.dataRecordsCollection.aggregate([{ "$match": {submissionID: submissionID, nodeType: node?._id, status: {$in: validNodeStatus}}}, statusPipeline]), node?._id]
         );
         const submissionStatsRecords = await Promise.all(promises) || [];
         const submissionStats = SubmissionStats.createSubmissionStats(submissionID);
@@ -26,7 +27,7 @@ class DataRecordService {
             const [nodes, nodeName] = aStatSet;
             const stat = Stat.createStat(nodeName);
             nodes.forEach((node) => {
-                stat.countNodeType(node?._id);
+                stat.countNodeType(node?._id, node.count);
             });
             submissionStats.addStats(stat);
         });
@@ -133,26 +134,26 @@ class Stat {
         return new Stat(nodeName, 0,0,0,0, 0);
     }
 
-    #addTotal() {
-        this.total += 1;
+    #addTotal(total) {
+        this.total += total;
     }
 
-    countNodeType(node) {
+    countNodeType(node, count) {
         if (node === NODE_TYPE.NEW) {
-            this.new += 1;
-            this.#addTotal();
+            this.new += count;
+            this.#addTotal(count);
         }
         if (node ===NODE_TYPE.ERROR) {
-            this.error += 1;
-            this.#addTotal();
+            this.error += count;
+            this.#addTotal(count);
         }
         if (node ===NODE_TYPE.WARNING) {
-            this.warning += 1;
-            this.#addTotal();
+            this.warning += count;
+            this.#addTotal(count);
         }
         if (node ===NODE_TYPE.PASSED) {
-            this.passed += 1;
-            this.#addTotal();
+            this.passed += count;
+            this.#addTotal(count);
         }
     }
 }
