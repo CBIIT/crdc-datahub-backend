@@ -1,15 +1,21 @@
 const {VALIDATION_STATUS} = require("../constants/submission-constants");
 const {VALIDATION} = require("../constants/submission-constants");
 const ERROR = require("../constants/error-constants");
+const {verifySession} = require("../verifier/user-info-verifier");
+const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const METADATA_GROUP_ID = "crdcdh-metadata-validation";
 const FILE_GROUP_ID = "crdcdh-file-validation";
-
+const ROLES = USER_CONSTANTS.USER.ROLES;
+const DATA_RECORD_CONSTANTS = require("../constants/data-record-constants");
+const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 class DataRecordService {
-    constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService) {
+    constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService, submissionCollection, batchCollection) {
         this.dataRecordsCollection = dataRecordsCollection;
         this.fileQueueName = fileQueueName;
         this.metadataQueueName = metadataQueueName;
         this.awsService = awsService;
+        this.submissionCollection = submissionCollection;
+        this.batchCollection = batchCollection;
     }
 
     async submissionStats(submissionID) {
@@ -60,6 +66,81 @@ class DataRecordService {
             return fileQueueResults.length > 0 && fileQueueResults.every(result => result);
         }
         return isMetadata;
+    }
+
+    async submissionQCResults(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyRole([
+                ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.CURATOR, // A: can see submission details for all submissions
+                ROLES.ORG_OWNER, // B: can see submission details for submissions associated with his/her own organization
+                ROLES.SUBMITTER, // C: can see submission details for his/her own submissions
+                ROLES.DC_POC // D: can see submission details for submissions associated with his/her Data Commons
+            ]);
+        const submissionID = params?._id;
+        const userRole = context.userInfo?.role;
+        let submission = null;
+        if ([ROLES.ORG_OWNER, ROLES.SUBMITTER, ROLES.DC_POC].includes(userRole)){
+            submission = (await this.submissionCollection.find(submissionID)).pop();
+        }
+        if (!!submission && (
+            (userRole === ROLES.ORG_OWNER && context.userInfo?.organization?.orgID !== submission?.organization?._id) ||
+            (userRole === ROLES.SUBMITTER && context.userInfo._id !== submission?.submitterID) ||
+            (userRole === ROLES.DC_POC && !context.userInfo?.dataCommons.includes(submission?.dataCommons))
+        )){
+            throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS);
+        }
+        const status = DATA_RECORD_CONSTANTS.STATUS;
+        let pipeline = [];
+        pipeline.push({
+            $match: {
+                submissionID: submissionID,
+                status: {
+                    $in: [status.ERROR, status.WARNING]
+                }
+            }
+        });
+        const orderBy = params.orderBy;
+        if (!!orderBy){
+            pipeline.push({
+                $sort: {
+                    [orderBy]: getSortDirection(params.sortDirection)
+                }
+            });
+        }
+        pipeline.push({
+            $skip: params.offset
+        });
+        pipeline.push({
+            $limit: params.first
+        });
+        const dataRecords = await this.dataRecordsCollection.aggregate(pipeline);
+        const qcResults = await Promise.all(dataRecords.map(async dataRecord => {
+            const latestBatchID = dataRecord.batchIDs?.slice(-1)[0];
+            const latestBatch = (await this.batchCollection.find(latestBatchID)).pop();
+            const severity = dataRecord.status;
+            let description = [];
+            if (severity === status.ERROR) {
+                description = dataRecord.errors;
+            }
+            if (severity === status.WARNING) {
+                description = dataRecord.warnings;
+            }
+            return {
+                submissionID: dataRecord.submissionID,
+                nodeType: dataRecord.nodeType,
+                batchID: latestBatchID,
+                nodeID: dataRecord.nodeID,
+                CRDC_ID: dataRecord._id,
+                severity: severity,
+                uploadedDate: latestBatch.updatedAt,
+                description: description
+            };
+        }));
+        return {
+            total: qcResults.length,
+            results:qcResults
+        };
     }
 }
 
