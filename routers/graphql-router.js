@@ -75,6 +75,7 @@ dbConnector.connect().then(() => {
         submissionAction: submissionService.submissionAction.bind(submissionService),
         listLogs: submissionService.listLogs.bind(submissionService),
         validateSubmission: submissionService.validateSubmission.bind(submissionService),
+        submissionStats: submissionService.submissionStats.bind(submissionService),
         // AuthZ
         getMyUser : userService.getMyUser.bind(userService),
         getUser : userService.getUser.bind(userService),
