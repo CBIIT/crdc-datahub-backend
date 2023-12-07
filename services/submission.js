@@ -124,7 +124,7 @@ class Submission {
         // Optional metadata intention
         if (params.type === BATCH.TYPE.METADATA) {
             verifyBatch(params)
-                .metadataIntention([BATCH.INTENTION.NEW]);
+                .metadataIntention([BATCH.INTENTION.NEW, BATCH.INTENTION.UPDATE, BATCH.INTENTION.DELETE]);
         }
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
@@ -132,8 +132,7 @@ class Submission {
         if (![NEW, IN_PROGRESS ,WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
             throw new Error(ERROR.INVALID_SUBMISSION_STATUS);
         }
-        const aOrganization = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
-        const result = await this.batchService.createBatch(params, aSubmission?.rootPath, aOrganization?._id);
+        const result = await this.batchService.createBatch(params, aSubmission?.rootPath);
         // The submission status needs to be updated after createBatch
         if ([NEW, WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
             await updateSubmissionStatus(this.submissionCollection, params.submissionID, userInfo, IN_PROGRESS);
@@ -240,6 +239,18 @@ class Submission {
         return submission;
     }
 
+
+    async submissionStats(params, context) {
+        verifySession(context)
+            .verifyInitialized();
+        const aSubmission = await findByID(this.submissionCollection, params?._id);
+        if (!aSubmission) {
+            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+        }
+        isSubmissionPermitted(aSubmission, context?.userInfo);
+        return this.dataRecordService.submissionStats(aSubmission?._id);
+    }
+
     /**
      * API to get list of upload log files
      * @param {*} params 
@@ -284,6 +295,34 @@ class Submission {
         }
         return fileList;
     }
+
+
+    async validateSubmission(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyRole([ROLES.ADMIN, ROLES.ORG_OWNER, ROLES.CURATOR, ROLES.SUBMITTER]);
+        const aSubmission = await findByID(this.submissionCollection, params._id);
+        if(!aSubmission){
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
+        }
+        const userInfo = context?.userInfo;
+        const promises = [
+            await this.userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
+            await this.userService.getUserByID(aSubmission?.submitterID),
+            await this.organizationService.getOrganizationByID(aSubmission?.organization?._id)
+        ];
+        const results = await Promise.all(promises);
+        const isOrgOwners = (results[0] || []).some((aUser) => isPermittedUser(aUser, userInfo));
+        const isSubmitter = isPermittedUser(results[1], userInfo);
+        const aOrganization = results[2];
+        const isDataCurator = aOrganization?.conciergeID === userInfo?._id;
+        const isPermittedAccess = this.userService.isAdmin(userInfo?.role) || isOrgOwners || isSubmitter || isDataCurator;
+        if (!isPermittedAccess) {
+            throw new Error(ERROR.INVALID_VALIDATE_METADATA)
+        }
+        return await this.dataRecordService.validateMetadata(params?._id, params?.types, params?.scope);
+    }
+
 }
 
 const updateSubmissionStatus = async (submissionCollection, aSubmissionID, userInfo, newStatus) => {
@@ -653,6 +692,19 @@ function validateListSubmissionsParams (params) {
     }
     // Don't need to validate organization as frontend uses the same organization collection
     // as backend does as selection options. AKA, frontend will only ever send valid organizations.
+}
+
+const isSubmissionPermitted = (aSubmission, userInfo) => {
+    const userRole = userInfo?.role;
+    const allSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR];
+    const isOrgOwner = userRole === USER.ROLES.ORG_OWNER && userInfo?.organization?.orgID === aSubmission?.organization?._id;
+    const isSubmitter = userRole === USER.ROLES.SUBMITTER && userInfo?._id === aSubmission?.submitterID;
+    const isPOC = userRole === USER.ROLES.DC_POC && userInfo?.dataCommons.includes(aSubmission?.dataCommons);
+
+    if (allSubmissionRoles.includes(userRole) || isOrgOwner || isSubmitter || isPOC) {
+        return;
+    }
+    throw new Error(ERROR.INVALID_STATS_SUBMISSION_PERMISSION);
 }
 
 module.exports = {

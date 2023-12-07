@@ -41,11 +41,11 @@ dbConnector.connect().then(() => {
     const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, organizationService);
     const s3Service = new S3Service();
     const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
-    const awsService = new AWSService(submissionCollection, userService, config.sqs_loader_queue);
-    const batchService = new BatchService(s3Service, batchCollection, config.submission_bucket, awsService);
+    const awsService = new AWSService(submissionCollection, userService);
+    const batchService = new BatchService(s3Service, batchCollection, config.submission_bucket, config.sqs_loader_queue, awsService);
 
     const dataRecordCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_COLLECTION);
-    const dataRecordService = new DataRecordService(dataRecordCollection);
+    const dataRecordService = new DataRecordService(dataRecordCollection, config.file_queue, config.metadata_queue, awsService);
 
     const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.devTier);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.devTier);
@@ -74,6 +74,8 @@ dbConnector.connect().then(() => {
         createTempCredentials: awsService.createTempCredentials.bind(awsService),
         submissionAction: submissionService.submissionAction.bind(submissionService),
         listLogs: submissionService.listLogs.bind(submissionService),
+        validateSubmission: submissionService.validateSubmission.bind(submissionService),
+        submissionStats: submissionService.submissionStats.bind(submissionService),
         // AuthZ
         getMyUser : userService.getMyUser.bind(userService),
         getUser : userService.getUser.bind(userService),

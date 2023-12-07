@@ -34,8 +34,11 @@ let config = {
     role_arn: process.env.ROLE_ARN,
     role_timeout: parseInt(process.env.ROLE_TIMEOUT) || 12*3600,
     presign_expiration: parseInt(process.env.PRESIGN_EXPIRATION) || 3600,
+    devTier: process.env.DEV_TIER || "",
+    // aws SQS names
     sqs_loader_queue: process.env.LOADER_QUEUE || "crdcdh-queue",
-    devTier: process.env.DEV_TIER || ""
+    metadata_queue: process.env.METADATA_QUEUE,
+    file_queue: process.env.FILE_QUEUE
 };
 config.mongo_db_connection_string = `mongodb://${config.mongo_db_user}:${config.mongo_db_password}@${config.mongo_db_host}:${process.env.MONGO_DB_PORT}`;
 

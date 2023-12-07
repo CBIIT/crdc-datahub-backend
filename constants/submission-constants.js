@@ -22,10 +22,20 @@ module.exports = Object.freeze({
         REJECT_SUBMIT: "Reject_Submitted",
         REJECT_RELEASE: "Reject_Released"
     },
-    NODE_TYPE: {
+    VALIDATION_STATUS: {
         NEW: "New",
         PASSED: "Passed",
         WARNING: "Warning",
         ERROR: "Error"
+    },
+    VALIDATION: {
+        TYPES: {
+            FILE: "file",
+            METADATA: "metadata"
+        },
+        SCOPE: {
+            NEW: "new",
+            ALL: "all"
+        }
     }
 });

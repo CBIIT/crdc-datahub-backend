@@ -29,6 +29,7 @@ const ERROR = {
     // Batch
     FAILED_NEW_BATCH_INSERTION: "An error occurred while creating a new batch",
     NEW_BATCH_NO_ORGANIZATION: "The user attempting to create a batch does not have any organizational record",
+    FAILED_NEW_BATCH_NO_ROOT_PATH: "The batch creation is aborted because the current submission is missing a rootpath",
     INVALID_BATCH_PERMISSION: "You do not have permission to run a batch operation",
     SUBMISSION_NOT_EXIST: "The submission you are trying to access does not exist",
     BATCH_NOT_EXIST: "The batch you are trying to access does not exist",
@@ -50,10 +51,16 @@ const ERROR = {
     LIST_SUBMISSION_INVALID_STATUS_FILTER: "The status filter is invalid",
     DUPLICATE_STUDY_ABBREVIATION: "Study abbreviation must be a unique value as it already exists in the database.",
     INVALID_SUBMISSION_PERMISSION: "You do not have the correct permissions to list submissions",
+    INVALID_STATS_SUBMISSION_PERMISSION: "You do not have permission to see the submission stats.",
     INVALID_ROLE: "You do not have the correct role to perform this operation",
     INVALID_PERMISSION: "You do not have permission to view this application",
     // Submission Notification
     NO_SUBMISSION_RECEIVER: "Submission is unable to send an email notification",
+    // Validate Submission
+    FAILED_INVALIDATE_METADATA: "Failed to validate metadata",
+    INVALID_SUBMISSION_SCOPE: "submission scope is invalid",
+    INVALID_SUBMISSION_TYPE: "submission type is invalid",
+    INVALID_VALIDATE_METADATA: "You do not have permission to validate the metadata",
     // Token
     INVALID_TOKEN_EMPTY: "Invalid token: it is empty string!",
     INVALID_TOKEN_NO_USER: "Invalid token: no user info!",
