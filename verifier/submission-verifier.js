@@ -1,6 +1,7 @@
 const ERROR = require("../constants/error-constants");
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
-    REJECTED, WITHDRAWN, ACTIONS } = require("../constants/submission-constants");
+    REJECTED, WITHDRAWN, ACTIONS, VALIDATION_STATUS
+} = require("../constants/submission-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {USER} = require("../crdc-datahub-authz/crdc-datahub-database-drivers/constants/user-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
@@ -42,13 +43,16 @@ class SubmissionActionVerifier {
         this.newStatus = this.actionMap.toStatus;
     }
 
-    isValidSubmitAction(role, isSubmissionValidated = false) {
+    isValidSubmitAction(role, aSubmission) {
         if(this.action === ACTIONS.SUBMIT) {
-            if (role === USER.ROLES.ADMIN) {
+            if (this.#isValidAdminStatus(role, aSubmission)) {
                 return;
             }
             const isValidRole = [USER.ROLES.CURATOR, USER.ROLES.ORG_OWNER, USER.ROLES.SUBMITTER].includes(role);
-            if (isValidRole && isSubmissionValidated) {
+            const validStatus = [VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING];
+            const isValidatedStatus = validStatus.includes(aSubmission?.metadataValidationStatus)
+                && validStatus.includes(aSubmission?.fileValidationStatus);
+            if (isValidRole && isValidatedStatus) {
                 return;
             }
             throw new Error(ERROR.VERIFY.INVALID_SUBMIT_ACTION);
@@ -60,6 +64,13 @@ class SubmissionActionVerifier {
         if(this.actionMap.roles.indexOf(role) < 0)
             throw new Error(`Invalid user role for the action: ${this.action}!`);
         return this.newStatus;
+    }
+    // Private Function
+    #isValidAdminStatus(role, aSubmission) {
+        const isRoleAdmin = role === USER.ROLES.ADMIN;
+        const isMetadataInvalid = aSubmission?.metadataValidationStatus === VALIDATION_STATUS.NEW;
+        const isFileInValid = aSubmission?.fileValidationStatus === VALIDATION_STATUS.NEW;
+        return isRoleAdmin && !isMetadataInvalid && !isFileInValid;
     }
 }
 

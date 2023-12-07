@@ -13,16 +13,6 @@ class DataRecordService {
         this.awsService = awsService;
     }
 
-    async isValidatedSubmission(submissionID) {
-        const result = await this.dataRecordsCollection.aggregate([{
-            "$match": {
-                submissionID: submissionID,
-                status: {$ne: VALIDATION_STATUS.PASSED}
-            }
-        }, {"$limit": 1}]);
-        return !result || result?.length === 0;
-    }
-
     async submissionStats(submissionID) {
         const groupPipeline = { "$group": { _id: "$nodeType", count: { $sum: 1 }} };
         const validNodeStatus = [VALIDATION_STATUS.NEW, VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING, VALIDATION_STATUS.ERROR];

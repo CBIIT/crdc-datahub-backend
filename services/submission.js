@@ -1,5 +1,6 @@
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
-    REJECTED, WITHDRAWN, ACTIONS } = require("../constants/submission-constants");
+    REJECTED, WITHDRAWN, ACTIONS, VALIDATION_STATUS
+} = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
@@ -53,31 +54,12 @@ class Submission {
         if (!userInfo.organization) {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_ORGANIZATION_ASSIGNED);
         }
-        const userOrgObject = await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
-        if (!userOrgObject.studies.some((study) => study.studyAbbreviation === params.studyAbbreviation)) {
+        const aUserOrganization= await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
+        if (!aUserOrganization.studies.some((study) => study.studyAbbreviation === params.studyAbbreviation)) {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
         }
-        const submissionID = v4();
-        const newSubmission = {
-            _id: submissionID,
-            name: params.name,
-            submitterID: userInfo._id,
-            submitterName: formatName(userInfo),
-            organization: {_id: userInfo?.organization?.orgID, name: userInfo?.organization?.orgName},
-            dataCommons: params.dataCommons,
-            modelVersion: "string for future use",
-            studyAbbreviation: params.studyAbbreviation,
-            dbGaPID: params.dbGaPID,
-            bucketName: userOrgObject.bucketName,
-            rootPath: userOrgObject.rootPath.concat(`/${submissionID}`),
-            status: NEW,
-            history: [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)],
-            conciergeName: userOrgObject.conciergeName,
-            conciergeEmail: userOrgObject.conciergeEmail,
-            createdAt: getCurrentTime(),
-            updatedAt: getCurrentTime()
-        };
 
+        const newSubmission = DataSubmission.createSubmission(params.name, userInfo, params.dataCommons, params.studyAbbreviation, params.dbGaPID, aUserOrganization);
         const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
@@ -214,9 +196,7 @@ class Submission {
         verifier.isValidAction();
         //verify if user's role is valid for the action
         const newStatus = verifier.inRoles(userInfo);
-        // Admin is allowed to submit an action or other roles with the validated submission status
-        const isValidatedSubmission = userInfo?.role === USER.ROLES.ADMIN || await this.dataRecordService.isValidatedSubmission(submissionID);
-        verifier.isValidSubmitAction(userInfo?.role, isValidatedSubmission);
+        verifier.isValidSubmitAction(userInfo?.role, submission);
         //update submission
         let events = submission.history || [];
         events.push(HistoryEventBuilder.createEvent(userInfo._id, newStatus, null));
@@ -706,6 +686,39 @@ const isSubmissionPermitted = (aSubmission, userInfo) => {
     }
     throw new Error(ERROR.INVALID_STATS_SUBMISSION_PERMISSION);
 }
+
+class DataSubmission {
+    constructor(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization) {
+        this._id = v4();
+        this.name = name;
+        this.submitterID = userInfo._id;
+        this.submitterName = formatName(userInfo);
+        this.organization = {
+            _id: userInfo?.organization?.orgID,
+            name: userInfo?.organization?.orgName
+        };
+        this.dataCommons = dataCommons;
+        this.modelVersion = "string for future use";
+        this.studyAbbreviation = studyAbbreviation;
+        this.dbGaPID = dbGaPID;
+        this.status = NEW;
+        this.history = [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)];
+        this.bucketName = aUserOrganization.bucketName;
+        this.rootPath = aUserOrganization.rootPath.concat(`/${this._id}`);
+        this.conciergeName = aUserOrganization.conciergeName;
+        this.conciergeEmail = aUserOrganization.conciergeEmail;
+        this.createdAt = this.updatedAt = getCurrentTime();
+        // file validations
+        this.metadataValidationStatus = this.fileValidationStatus = VALIDATION_STATUS.NEW;
+        this.fileErrors = [];
+        this.fileWarnings = [];
+    }
+
+    static createSubmission(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization) {
+        return new Submission(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization);
+    }
+}
+
 
 module.exports = {
     Submission
