@@ -695,16 +695,11 @@ function validateListSubmissionsParams (params) {
 const isSubmissionPermitted = (aSubmission, userInfo) => {
     const userRole = userInfo?.role;
     const allSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR];
-    if (allSubmissionRoles.includes(userRole)) {
-        return;
-    }
-    if (userRole === USER.ROLES.ORG_OWNER && userInfo?.organization?.orgID === aSubmission?.organization?._id) {
-        return;
-    }
-    if (userRole === USER.ROLES.SUBMITTER && userInfo?._id === aSubmission?.submitterID) {
-        return;
-    }
-    if (userRole === USER.ROLES.DC_POC && userInfo?.dataCommons.includes(aSubmission?.dataCommons)) {
+    const isOrgOwner = userRole === USER.ROLES.ORG_OWNER && userInfo?.organization?.orgID === aSubmission?.organization?._id;
+    const isSubmitter = userRole === USER.ROLES.SUBMITTER && userInfo?._id === aSubmission?.submitterID;
+    const isPOC = userRole === USER.ROLES.DC_POC && userInfo?.dataCommons.includes(aSubmission?.dataCommons);
+
+    if (allSubmissionRoles.includes(userRole) || isOrgOwner || isSubmitter || isPOC) {
         return;
     }
     throw new Error(ERROR.INVALID_STATS_SUBMISSION_PERMISSION);

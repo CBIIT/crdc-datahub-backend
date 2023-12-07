@@ -1,4 +1,4 @@
-const {NODE_TYPE} = require("../constants/submission-constants");
+const {VALIDATION_STATUS} = require("../constants/submission-constants");
 const {VALIDATION} = require("../constants/submission-constants");
 const ERROR = require("../constants/error-constants");
 const METADATA_GROUP_ID = "crdcdh-metadata-validation";
@@ -14,7 +14,7 @@ class DataRecordService {
 
     async submissionStats(submissionID) {
         const groupPipeline = { "$group": { _id: "$nodeType", count: { $sum: 1 }} };
-        const validNodeStatus = [NODE_TYPE.NEW, NODE_TYPE.PASSED, NODE_TYPE.WARNING, NODE_TYPE.ERROR];
+        const validNodeStatus = [VALIDATION_STATUS.NEW, VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING, VALIDATION_STATUS.ERROR];
         const groupByNodeType = await this.dataRecordsCollection.aggregate([{ "$match": {submissionID: submissionID, status: {$in: validNodeStatus}}}, groupPipeline]);
 
         const statusPipeline = { "$group": { _id: "$status", count: { $sum: 1 }} };
@@ -139,22 +139,23 @@ class Stat {
     }
 
     countNodeType(node, count) {
-        if (node === NODE_TYPE.NEW) {
-            this.new += count;
-            this.#addTotal(count);
+        switch (node) {
+            case VALIDATION_STATUS.NEW:
+                this.new += count;
+                break;
+            case VALIDATION_STATUS.ERROR:
+                this.error += count;
+                break;
+            case VALIDATION_STATUS.WARNING:
+                this.warning += count;
+                break;
+            case VALIDATION_STATUS.PASSED:
+                this.passed += count;
+                break;
+            default:
+                return;
         }
-        if (node ===NODE_TYPE.ERROR) {
-            this.error += count;
-            this.#addTotal(count);
-        }
-        if (node ===NODE_TYPE.WARNING) {
-            this.warning += count;
-            this.#addTotal(count);
-        }
-        if (node ===NODE_TYPE.PASSED) {
-            this.passed += count;
-            this.#addTotal(count);
-        }
+        this.#addTotal(count);
     }
 }
 
