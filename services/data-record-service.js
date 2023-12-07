@@ -1,6 +1,7 @@
 const {VALIDATION_STATUS} = require("../constants/submission-constants");
 const {VALIDATION} = require("../constants/submission-constants");
 const ERROR = require("../constants/error-constants");
+const {ValidationHandler} = require("../utility/validation-handler");
 const METADATA_GROUP_ID = "crdcdh-metadata-validation";
 const FILE_GROUP_ID = "crdcdh-file-validation";
 
@@ -40,16 +41,16 @@ class DataRecordService {
         if (isMetadata) {
             const msg = Message.createMetadataMessage("Validate Metadata", submissionID, scope);
             const success = await sendSQSMessageWrapper(this.awsService, msg, METADATA_GROUP_ID, submissionID, this.metadataQueueName, submissionID);
-            if (!success) {
-                return false;
+            if (!success.success) {
+                return success;
             }
         }
         const isFile = types.some(t => t === VALIDATION.TYPES.FILE);
         if (isFile) {
             const msg = Message.createFileSubmissionMessage("Validate Submission Files", submissionID);
             const success = await sendSQSMessageWrapper(this.awsService, msg, FILE_GROUP_ID, submissionID, this.fileQueueName, submissionID);
-            if (!success) {
-                return false;
+            if (!success.success) {
+                return success;
             }
 
             const fileNodes = await getFileNodes(this.dataRecordsCollection, scope);
@@ -57,9 +58,13 @@ class DataRecordService {
                 const msg = Message.createFileNodeMessage("Validate File", aFile?.nodeID);
                 return await sendSQSMessageWrapper(this.awsService, msg, FILE_GROUP_ID, aFile?.nodeID, this.fileQueueName, submissionID);
             }));
-            return fileQueueResults.length > 0 && fileQueueResults.every(result => result);
+
+            const errorMessages = fileQueueResults
+                .filter(result => !result.success)
+                .map(result => result.message);
+            return errorMessages.length === 0 ? ValidationHandler.success() : ValidationHandler.handle(errorMessages);
         }
-        return isMetadata;
+        return isMetadata ? ValidationHandler.success() : ValidationHandler.handle(ERROR.FAILED_VALIDATE_METADATA);
     }
 }
 
@@ -77,10 +82,10 @@ const getFileNodes = async (dataRecordsCollection, scope) => {
 const sendSQSMessageWrapper = async (awsService, message, groupId, deDuplicationId, queueName, submissionID) => {
     try {
         await awsService.sendSQSMessage(message, groupId, deDuplicationId, queueName);
-        return true;
+        return ValidationHandler.success();
     } catch (e) {
-        console.error(ERROR.FAILED_INVALIDATE_METADATA, submissionID);
-        return false;
+        console.error(ERROR.FAILED_VALIDATE_METADATA, `'submissionID:'${submissionID}`, `'queue-name:'${queueName}`);
+        return ValidationHandler.handle(`queue-name: ${queueName}. ` + e);
     }
 }
 
