@@ -84,7 +84,7 @@ const sendSQSMessageWrapper = async (awsService, message, groupId, deDuplication
         await awsService.sendSQSMessage(message, groupId, deDuplicationId, queueName);
         return ValidationHandler.success();
     } catch (e) {
-        console.error(ERROR.FAILED_VALIDATE_METADATA, `'submissionID:'${submissionID}`, `'queue-name:'${queueName}`);
+        console.error(ERROR.FAILED_VALIDATE_METADATA, `submissionID:${submissionID}`, `queue-name:${queueName}`, `error:${e}`);
         return ValidationHandler.handle(`queue-name: ${queueName}. ` + e);
     }
 }
