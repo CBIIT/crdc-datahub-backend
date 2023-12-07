@@ -6,7 +6,6 @@ const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-
 const METADATA_GROUP_ID = "crdcdh-metadata-validation";
 const FILE_GROUP_ID = "crdcdh-file-validation";
 const ROLES = USER_CONSTANTS.USER.ROLES;
-const DATA_RECORD_CONSTANTS = require("../constants/data-record-constants");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 class DataRecordService {
     constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService, submissionCollection, batchCollection) {
@@ -90,13 +89,12 @@ class DataRecordService {
         )){
             throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS);
         }
-        const status = DATA_RECORD_CONSTANTS.STATUS;
         let pipeline = [];
         pipeline.push({
             $match: {
                 submissionID: submissionID,
                 status: {
-                    $in: [status.ERROR, status.WARNING]
+                    $in: [VALIDATION_STATUS.ERROR, VALIDATION_STATUS.WARNING]
                 }
             }
         });
@@ -120,10 +118,10 @@ class DataRecordService {
             const latestBatch = (await this.batchCollection.find(latestBatchID)).pop();
             const severity = dataRecord.status;
             let description = [];
-            if (severity === status.ERROR) {
+            if (severity === VALIDATION_STATUS.ERROR) {
                 description = dataRecord.errors;
             }
-            if (severity === status.WARNING) {
+            if (severity === VALIDATION_STATUS.WARNING) {
                 description = dataRecord.warnings;
             }
             return {
