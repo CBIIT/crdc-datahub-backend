@@ -232,6 +232,11 @@ type Stats {
 }
 
 type QCResults {
+    total: Int
+    results: [QCResult]
+}
+
+type QCResult{
     submissionID: ID
     nodeType: String
     batchID: String
@@ -265,6 +270,7 @@ type DataRecord {
 #    relationshipProps: [RelationshipProperty] # for future use
 #    rawData: RawData
     s3FileInfo: S3FileInfo # only for "file" types, should be null for other nodes
+    CRDC_ID: String
 }
 
 type S3FileInfo {
@@ -340,7 +346,14 @@ type Query {
         sortDirection: String = "DESC"): ListSubmissions
     getSubmission(_id: ID!): Submission
     submissionStats(_id: ID!): SubmissionStats
-    submissionQCResults(_id: ID!): QCResults
+    submissionQCResults(
+        _id: ID!,
+        first: Int = 10,
+        offset: Int = 0
+        # [ "uploadedDate", "nodeType", "batchID", "nodeID", "CRDC_ID", "severity"]
+        orderBy: String = "uploadedDate",
+        sortDirection: String = "DESC"
+    ): QCResults
 
     listBatches(submissionID: ID!,
         first: Int = 10,
