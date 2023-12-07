@@ -46,7 +46,7 @@ class AWSService {
               {
                 Effect: 'Allow',
                 Action: ['s3:GetObject','s3:PutObject'],
-                Resource: [`arn:aws:s3:::${config.submission_bucket}/${submission.rootPath}/*`]
+                Resource: [`arn:aws:s3:::${submission.bucketName}/${submission.rootPath}/*`]
               }
             ]
           };
