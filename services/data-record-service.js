@@ -8,12 +8,11 @@ const FILE_GROUP_ID = "crdcdh-file-validation";
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 class DataRecordService {
-    constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService, submissionCollection, batchCollection) {
+    constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService, batchCollection) {
         this.dataRecordsCollection = dataRecordsCollection;
         this.fileQueueName = fileQueueName;
         this.metadataQueueName = metadataQueueName;
         this.awsService = awsService;
-        this.submissionCollection = submissionCollection;
         this.batchCollection = batchCollection;
     }
 
@@ -67,28 +66,7 @@ class DataRecordService {
         return isMetadata;
     }
 
-    async submissionQCResults(params, context) {
-        verifySession(context)
-            .verifyInitialized()
-            .verifyRole([
-                ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.CURATOR, // A: can see submission details for all submissions
-                ROLES.ORG_OWNER, // B: can see submission details for submissions associated with his/her own organization
-                ROLES.SUBMITTER, // C: can see submission details for his/her own submissions
-                ROLES.DC_POC // D: can see submission details for submissions associated with his/her Data Commons
-            ]);
-        const submissionID = params?._id;
-        const userRole = context.userInfo?.role;
-        let submission = null;
-        if ([ROLES.ORG_OWNER, ROLES.SUBMITTER, ROLES.DC_POC].includes(userRole)){
-            submission = (await this.submissionCollection.find(submissionID)).pop();
-        }
-        if (!!submission && (
-            (userRole === ROLES.ORG_OWNER && context.userInfo?.organization?.orgID !== submission?.organization?._id) ||
-            (userRole === ROLES.SUBMITTER && context.userInfo._id !== submission?.submitterID) ||
-            (userRole === ROLES.DC_POC && !context.userInfo?.dataCommons.includes(submission?.dataCommons))
-        )){
-            throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS);
-        }
+    async submissionQCResults(submissionID, first, offset, orderBy, sortDirection) {
         let pipeline = [];
         pipeline.push({
             $match: {
@@ -98,19 +76,18 @@ class DataRecordService {
                 }
             }
         });
-        const orderBy = params.orderBy;
         if (!!orderBy){
             pipeline.push({
                 $sort: {
-                    [orderBy]: getSortDirection(params.sortDirection)
+                    [orderBy]: getSortDirection(sortDirection)
                 }
             });
         }
         pipeline.push({
-            $skip: params.offset
+            $skip: offset
         });
         pipeline.push({
-            $limit: params.first
+            $limit: first
         });
         const dataRecords = await this.dataRecordsCollection.aggregate(pipeline);
         const qcResults = await Promise.all(dataRecords.map(async dataRecord => {
