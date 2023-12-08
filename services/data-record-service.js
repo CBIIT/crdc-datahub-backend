@@ -1,12 +1,9 @@
 const {VALIDATION_STATUS} = require("../constants/submission-constants");
 const {VALIDATION} = require("../constants/submission-constants");
 const ERROR = require("../constants/error-constants");
-const {verifySession} = require("../verifier/user-info-verifier");
-const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
 const METADATA_GROUP_ID = "crdcdh-metadata-validation";
 const FILE_GROUP_ID = "crdcdh-file-validation";
-const ROLES = USER_CONSTANTS.USER.ROLES;
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 class DataRecordService {
     constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService, batchCollection) {
