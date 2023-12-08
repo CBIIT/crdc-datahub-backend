@@ -1,16 +1,20 @@
 const {VALIDATION_STATUS} = require("../constants/submission-constants");
 const {VALIDATION} = require("../constants/submission-constants");
 const ERROR = require("../constants/error-constants");
+const {verifySession} = require("../verifier/user-info-verifier");
+const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
 const METADATA_GROUP_ID = "crdcdh-metadata-validation";
 const FILE_GROUP_ID = "crdcdh-file-validation";
-
+const ROLES = USER_CONSTANTS.USER.ROLES;
+const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 class DataRecordService {
-    constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService) {
+    constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService, batchCollection) {
         this.dataRecordsCollection = dataRecordsCollection;
         this.fileQueueName = fileQueueName;
         this.metadataQueueName = metadataQueueName;
         this.awsService = awsService;
+        this.batchCollection = batchCollection;
     }
 
     async submissionStats(submissionID) {
@@ -64,6 +68,58 @@ class DataRecordService {
             return await sendSQSMessageWrapper(this.awsService, msg, FILE_GROUP_ID, submissionID, this.fileQueueName, submissionID);
         }
         return isMetadata ? ValidationHandler.success() : ValidationHandler.handle(ERROR.FAILED_VALIDATE_METADATA);
+    }
+
+    async submissionQCResults(submissionID, first, offset, orderBy, sortDirection) {
+        let pipeline = [];
+        pipeline.push({
+            $match: {
+                submissionID: submissionID,
+                status: {
+                    $in: [VALIDATION_STATUS.ERROR, VALIDATION_STATUS.WARNING]
+                }
+            }
+        });
+        if (!!orderBy){
+            pipeline.push({
+                $sort: {
+                    [orderBy]: getSortDirection(sortDirection)
+                }
+            });
+        }
+        pipeline.push({
+            $skip: offset
+        });
+        pipeline.push({
+            $limit: first
+        });
+        const dataRecords = await this.dataRecordsCollection.aggregate(pipeline);
+        const qcResults = await Promise.all(dataRecords.map(async dataRecord => {
+            const latestBatchID = dataRecord.batchIDs?.slice(-1)[0];
+            const latestBatch = (await this.batchCollection.find(latestBatchID)).pop();
+            const severity = dataRecord.status;
+            let description = [];
+            if (severity === VALIDATION_STATUS.ERROR) {
+                description = dataRecord.errors;
+            }
+            if (severity === VALIDATION_STATUS.WARNING) {
+                description = dataRecord.warnings;
+            }
+            return {
+                submissionID: dataRecord.submissionID,
+                nodeType: dataRecord.nodeType,
+                batchID: latestBatchID,
+                nodeID: dataRecord.nodeID,
+                CRDC_ID: dataRecord._id,
+                severity: severity,
+                uploadedDate: latestBatch.updatedAt,
+                description: description
+            };
+        }));
+        return {
+            total: qcResults.length,
+            results:qcResults
+        };
     }
 }
 
