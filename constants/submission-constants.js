@@ -24,6 +24,7 @@ module.exports = Object.freeze({
     },
     VALIDATION_STATUS: {
         NEW: "New",
+        VALIDATING: "Validating",
         PASSED: "Passed",
         WARNING: "Warning",
         ERROR: "Error"
