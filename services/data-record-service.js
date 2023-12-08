@@ -50,7 +50,7 @@ class DataRecordService {
         if (isFile) {
             const fileNodes = await getFileNodes(this.dataRecordsCollection, scope);
             const fileQueueResults = await Promise.all(fileNodes.map(async (aFile) => {
-                const msg = Message.createFileNodeMessage("Validate File", aFile?.nodeID);
+                const msg = Message.createFileNodeMessage("Validate File", aFile._id);
                 return await sendSQSMessageWrapper(this.awsService, msg, FILE_GROUP_ID, aFile._id, this.fileQueueName, submissionID);
             }));
             const errorMessages = fileQueueResults
@@ -170,9 +170,9 @@ class Message {
         return msg;
     }
 
-    static createFileNodeMessage(type, fileID) {
+    static createFileNodeMessage(type, dataRecordID) {
         const msg = new Message(type);
-        msg.fileID = fileID;
+        msg.dataRecordID = dataRecordID;
         return msg;
     }
 }
