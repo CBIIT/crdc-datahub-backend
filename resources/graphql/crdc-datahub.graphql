@@ -290,6 +290,11 @@ type S3FileInfo {
     updatedAt: Date
 }
 
+type DataValidation {
+    success: Boolean
+    message: String
+}
+
 # this type holds all the node properties in raw data (doesn't contain parent pointers and relationship properties)
 #type Properties {
 #    propertyName1: String # e.g, "gender": "Male"
@@ -418,7 +423,7 @@ type Mutation {
         _id: ID!,
         types: [String] # [file, metadata]
         scope: String # [New, All] case-insensitive
-    ): String
+    ): DataValidation
 
     "User initiated operations"
     updateMyUser (userInfo: UpdateUserInput!): User

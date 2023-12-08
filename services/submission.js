@@ -1,5 +1,6 @@
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
-    REJECTED, WITHDRAWN, ACTIONS } = require("../constants/submission-constants");
+    REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS
+} = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
@@ -318,7 +319,11 @@ class Submission {
         if (!isPermittedAccess) {
             throw new Error(ERROR.INVALID_VALIDATE_METADATA)
         }
-        return await this.dataRecordService.validateMetadata(params?._id, params?.types, params?.scope);
+        const result = await this.dataRecordService.validateMetadata(params._id, params?.types, params?.scope);
+        if (result.success) {
+            await this.#updateValidatingStatus(params?.types, aSubmission);
+        }
+        return result;
     }
 
     async submissionQCResults(params, context) {
@@ -344,6 +349,26 @@ class Submission {
             throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS);
         }
         return this.dataRecordService.submissionQCResults(params._id, params.first, params.offset, params.orderBy, params.sortDirection);
+    }
+
+    // private function
+    async #updateValidatingStatus(types, aSubmission) {
+        const typesToUpdate = {};
+        if (!!aSubmission?.metadataValidationStatus && aSubmission?.metadataValidationStatus !== VALIDATION_STATUS.VALIDATING && types.includes(VALIDATION.TYPES.METADATA)) {
+            types.metadataValidationStatus = VALIDATION_STATUS.VALIDATING;
+        }
+
+        if (!!aSubmission?.fileValidationStatus && aSubmission?.fileValidationStatus !== VALIDATION_STATUS.VALIDATING && types.includes(VALIDATION.TYPES.FILE)) {
+            types.fileValidationStatus = VALIDATION_STATUS.VALIDATING
+        }
+
+        if (Object.keys(typesToUpdate).length === 0) {
+            return;
+        }
+        const updated = await this.submissionCollection.update({_id: aSubmission?._id, ...types});
+        if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
+            throw new Error(ERROR.FAILED_VALIDATE_METADATA);
+        }
     }
 }
 
