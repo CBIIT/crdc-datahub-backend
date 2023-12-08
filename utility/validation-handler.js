@@ -5,7 +5,7 @@ class ValidationHandler {
     }
 
     static handle(errorMessage) {
-        const msg = Array.isArray(errorMessage) ? errorMessage.join('\n') : errorMessage;
+        const msg = Array.isArray(errorMessage) ? errorMessage.join(', ') : errorMessage;
         return new ValidationHandler(false, msg);
     }
 

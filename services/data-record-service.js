@@ -47,22 +47,21 @@ class DataRecordService {
         }
         const isFile = types.some(t => t === VALIDATION.TYPES.FILE);
         if (isFile) {
-            const msg = Message.createFileSubmissionMessage("Validate Submission Files", submissionID);
-            const success = await sendSQSMessageWrapper(this.awsService, msg, FILE_GROUP_ID, submissionID, this.fileQueueName, submissionID);
-            if (!success.success) {
-                return success;
-            }
-
             const fileNodes = await getFileNodes(this.dataRecordsCollection, scope);
             const fileQueueResults = await Promise.all(fileNodes.map(async (aFile) => {
                 const msg = Message.createFileNodeMessage("Validate File", aFile?.nodeID);
-                return await sendSQSMessageWrapper(this.awsService, msg, FILE_GROUP_ID, aFile?.nodeID, this.fileQueueName, submissionID);
+                return await sendSQSMessageWrapper(this.awsService, msg, FILE_GROUP_ID, aFile._id, this.fileQueueName, submissionID);
             }));
-
             const errorMessages = fileQueueResults
                 .filter(result => !result.success)
                 .map(result => result.message);
-            return errorMessages.length === 0 ? ValidationHandler.success() : ValidationHandler.handle(errorMessages);
+
+            if (errorMessages.length > 0) {
+                return ValidationHandler.handle(errorMessages)
+            }
+
+            const msg = Message.createFileSubmissionMessage("Validate Submission Files", submissionID);
+            return await sendSQSMessageWrapper(this.awsService, msg, FILE_GROUP_ID, submissionID, this.fileQueueName, submissionID);
         }
         return isMetadata ? ValidationHandler.success() : ValidationHandler.handle(ERROR.FAILED_VALIDATE_METADATA);
     }
