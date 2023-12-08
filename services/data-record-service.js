@@ -76,19 +76,6 @@ class DataRecordService {
                 }
             }
         });
-        if (!!orderBy){
-            pipeline.push({
-                $sort: {
-                    [orderBy]: getSortDirection(sortDirection)
-                }
-            });
-        }
-        pipeline.push({
-            $skip: offset
-        });
-        pipeline.push({
-            $limit: first
-        });
         const dataRecords = await this.dataRecordsCollection.aggregate(pipeline);
         const qcResults = await Promise.all(dataRecords.map(async dataRecord => {
             const latestBatchID = dataRecord.batchIDs?.slice(-1)[0];
@@ -112,9 +99,24 @@ class DataRecordService {
                 description: description
             };
         }));
+        if (!!orderBy){
+            const defaultSort = "uploadedDate";
+            const sort = sortDirection === "ASC" ? 1 : -1;
+            qcResults.sort((a, b) => {
+                let propA = a[orderBy] || a[defaultSort];
+                let propB = b[orderBy] || a[defaultSort];
+                if (propA > propB){
+                    return sort;
+                }
+                if (propA < propB){
+                    return sort * -1;
+                }
+                return 0;
+            });
+        }
         return {
             total: qcResults.length,
-            results:qcResults
+            results:qcResults.slice(offset, offset+first)
         };
     }
 }
