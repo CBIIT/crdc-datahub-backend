@@ -101,7 +101,7 @@ class DataRecordService {
         }));
         if (!!orderBy){
             const defaultSort = "uploadedDate";
-            const sort = sortDirection === "ASC" ? 1 : -1;
+            const sort = getSortDirection(sortDirection);
             qcResults.sort((a, b) => {
                 let propA = a[orderBy] || a[defaultSort];
                 let propB = b[orderBy] || a[defaultSort];
