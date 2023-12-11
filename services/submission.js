@@ -1,5 +1,5 @@
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
-    REJECTED, WITHDRAWN, ACTIONS, VALIDATION_STATUS
+    REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS
 } = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
@@ -196,7 +196,7 @@ class Submission {
         verifier.isValidAction();
         //verify if user's role is valid for the action
         const newStatus = verifier.inRoles(userInfo);
-        verifier.isValidSubmitAction(userInfo?.role, submission);
+
         //update submission
         let events = submission.history || [];
         events.push(HistoryEventBuilder.createEvent(userInfo._id, newStatus, null));
@@ -300,9 +300,57 @@ class Submission {
         if (!isPermittedAccess) {
             throw new Error(ERROR.INVALID_VALIDATE_METADATA)
         }
-        return await this.dataRecordService.validateMetadata(params?._id, params?.types, params?.scope);
+        const result = await this.dataRecordService.validateMetadata(params._id, params?.types, params?.scope);
+        if (result.success) {
+            await this.#updateValidatingStatus(params?.types, aSubmission);
+        }
+        return result;
     }
 
+    async submissionQCResults(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyRole([
+                ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.CURATOR, // can see submission details for all submissions
+                ROLES.ORG_OWNER, // can see submission details for submissions associated with his/her own organization
+                ROLES.SUBMITTER, // can see submission details for his/her own submissions
+                ROLES.DC_POC // can see submission details for submissions associated with his/her Data Commons
+            ]);
+        const submissionID = params?._id;
+        const userRole = context.userInfo?.role;
+        let submission = null;
+        if ([ROLES.ORG_OWNER, ROLES.SUBMITTER, ROLES.DC_POC].includes(userRole)){
+            submission = (await this.submissionCollection.find(submissionID)).pop();
+        }
+        if (!!submission && (
+            (userRole === ROLES.ORG_OWNER && context.userInfo?.organization?.orgID !== submission?.organization?._id) ||
+            (userRole === ROLES.SUBMITTER && context.userInfo._id !== submission?.submitterID) ||
+            (userRole === ROLES.DC_POC && !context.userInfo?.dataCommons.includes(submission?.dataCommons))
+        )){
+            throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS);
+        }
+        return this.dataRecordService.submissionQCResults(params._id, params.first, params.offset, params.orderBy, params.sortDirection);
+    }
+
+    // private function
+    async #updateValidatingStatus(types, aSubmission) {
+        const typesToUpdate = {};
+        if (!!aSubmission?.metadataValidationStatus && aSubmission?.metadataValidationStatus !== VALIDATION_STATUS.VALIDATING && types.includes(VALIDATION.TYPES.METADATA)) {
+            types.metadataValidationStatus = VALIDATION_STATUS.VALIDATING;
+        }
+
+        if (!!aSubmission?.fileValidationStatus && aSubmission?.fileValidationStatus !== VALIDATION_STATUS.VALIDATING && types.includes(VALIDATION.TYPES.FILE)) {
+            types.fileValidationStatus = VALIDATION_STATUS.VALIDATING
+        }
+
+        if (Object.keys(typesToUpdate).length === 0) {
+            return;
+        }
+        const updated = await this.submissionCollection.update({_id: aSubmission?._id, ...types});
+        if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
+            throw new Error(ERROR.FAILED_VALIDATE_METADATA);
+        }
+    }
 }
 
 const updateSubmissionStatus = async (submissionCollection, aSubmissionID, userInfo, newStatus) => {
@@ -352,7 +400,7 @@ async function submissionActionNotification(userInfo, action, aSubmission, userS
     }
 }
 
-const completeSubmissionEmailInfo = async (userInfo, aSubmission, userService, organizationService) => {
+const completeOrReleaseSubmissionEmailInfo = async (userInfo, aSubmission, userService, organizationService) => {
     const promises = [
         await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
         await userService.getAdmin(),
@@ -373,29 +421,6 @@ const completeSubmissionEmailInfo = async (userInfo, aSubmission, userService, o
     const aOrganization = results[4] || {};
     return [ccEmails, POCs, aOrganization];
 }
-
-const releaseSubmissionEmailInfo = async (userInfo, aSubmission, userService, organizationService) => {
-    const promises = [
-        await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
-        await userService.getAdmin(),
-        await userService.getUserByID(aSubmission?.submitterID),
-        await userService.getPOCs(),
-        await organizationService.getOrganizationByID(aSubmission?.organization?._id)
-    ];
-
-    const results = await Promise.all(promises);
-    const orgOwnerEmails = getUserEmails(results[0] || []);
-    const adminEmails = getUserEmails(results[1] || []);
-    const submitterEmails = getUserEmails([results[2] || {}]);
-
-    // CCs for Submitter, org owner, admins
-    const ccEmails = new Set([...submitterEmails, ...orgOwnerEmails, ...adminEmails]).toArray();
-    // To POC role users
-    const POCs = results[3] || [];
-    const aOrganization = results[4] || {};
-    return [ccEmails, POCs, aOrganization];
-}
-
 
 const cancelOrWithdrawSubmissionEmailInfo = async (aSubmission, userService, organizationService) => {
     const promises = [
@@ -449,7 +474,7 @@ const sendEmails = {
         );
     },
     completeSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, devTier) => {
-        const [ccEmails, POCs, aOrganization] = await completeSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
+        const [ccEmails, POCs, aOrganization] = await completeOrReleaseSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
         if (POCs.length === 0) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
             return;
@@ -505,7 +530,7 @@ const sendEmails = {
     },
 
     releaseSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, devTier) => {
-        const [ccEmails, POCs, aOrganization] = await releaseSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
+        const [ccEmails, POCs, aOrganization] = await completeOrReleaseSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
         if (POCs.length === 0) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
             return;

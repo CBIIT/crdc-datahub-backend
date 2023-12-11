@@ -65,15 +65,17 @@ type Submission {
     bucketName: String # populated from organization
     rootPath: String # append "/<submission ID>" to organization's rootPath
     status: String # [New, In Progress, Submitted, Released, Canceled, Transferred, Completed, Archived]
-    metadataValidationStatus: String # [New, Passed, Error, Warning], new successfully uploaded batch will set it to "New"
-    fileValidationStatus: String # [New, Passed, Error, Warning], new successfully uploaded batch will set it to "New"
+    metadataValidationStatus: String # [New, Validating, Passed, Error, Warning], new successfully uploaded batch will set it to "New"
+    fileValidationStatus: String # [New, Validating, Passed, Error, Warning], new successfully uploaded batch will set it to "New"
     fileErrors: [ErrorMessage] # holds submission level file errors, e.g., extra files in S3 folder
     fileWarnings: [ErrorMessage] # holds submission level file warnings
     history: [Event]
     conciergeName: String # Concierge name
     conciergeEmail: String # Concierge email
+    errors: [ErrorMessage] # store validation errors
     createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
     updatedAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    
 }
 
 type Batch {
@@ -260,7 +262,7 @@ type DataRecord {
     _id: ID
     submissionID: ID
     batchIDs: [ID] # all batch IDs, each time this record is reloaded in a new batch, append batchID here
-    status: String # [New, Passed, Error, Warning], Loaded is the initial state each time it's loaded
+    status: String # [New, Passed, Error, Warning], New is the initial state each time it's loaded
     errors: [ErrorMessage]
     warnings: [ErrorMessage]
     createdAt: Date
@@ -281,11 +283,16 @@ type S3FileInfo {
     fileName: String
     size: Int
     md5: String
-    status: String # [New, Passed, Error]
+    status: String # [New, Passed, Error, Warning]
     errors: [ErrorMessage]
     warnings: [ErrorMessage]
     createdAt: Date
     updatedAt: Date
+}
+
+type DataValidation {
+    success: Boolean
+    message: String
 }
 
 # this type holds all the node properties in raw data (doesn't contain parent pointers and relationship properties)
@@ -416,7 +423,7 @@ type Mutation {
         _id: ID!,
         types: [String] # [file, metadata]
         scope: String # [New, All] case-insensitive
-    ): String
+    ): DataValidation
 
     "User initiated operations"
     updateMyUser (userInfo: UpdateUserInput!): User
