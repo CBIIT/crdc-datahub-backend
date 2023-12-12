@@ -196,7 +196,7 @@ class Submission {
         verifier.isValidAction();
         //verify if user's role is valid for the action
         const newStatus = verifier.inRoles(userInfo);
-
+        verifier.isValidSubmitAction(userInfo?.role, submission);
         //update submission
         let events = submission.history || [];
         events.push(HistoryEventBuilder.createEvent(userInfo._id, newStatus, null));
