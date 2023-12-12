@@ -3,7 +3,7 @@ const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
     REJECTED, WITHDRAWN, ACTIONS, VALIDATION_STATUS
 } = require("../constants/submission-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
-const {USER} = require("../crdc-datahub-authz/crdc-datahub-database-drivers/constants/user-constants");
+const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 
 function verifySubmissionAction(submissionId, action){ 
