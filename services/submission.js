@@ -740,7 +740,7 @@ class DataSubmission {
     }
 
     static createSubmission(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization) {
-        return new Submission(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization);
+        return new DataSubmission(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization);
     }
 }
 
