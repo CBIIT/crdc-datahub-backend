@@ -277,6 +277,8 @@ type DataRecord {
 #    rawData: RawData
     s3FileInfo: S3FileInfo # only for "file" types, should be null for other nodes
     CRDC_ID: String
+    latestBatchID: ID
+    uploadedDate: String
 }
 
 type S3FileInfo {

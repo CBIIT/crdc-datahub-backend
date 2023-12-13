@@ -6,12 +6,11 @@ const METADATA_GROUP_ID = "crdcdh-metadata-validation";
 const FILE_GROUP_ID = "crdcdh-file-validation";
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 class DataRecordService {
-    constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService, batchCollection) {
+    constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService) {
         this.dataRecordsCollection = dataRecordsCollection;
         this.fileQueueName = fileQueueName;
         this.metadataQueueName = metadataQueueName;
         this.awsService = awsService;
-        this.batchCollection = batchCollection;
     }
 
     async submissionStats(submissionID) {
@@ -77,10 +76,25 @@ class DataRecordService {
                 }
             }
         });
+        if (!!orderBy) {
+            pipeline.push({
+                "$sort": {
+                    [orderBy]: getSortDirection(sortDirection)
+                }
+            });
+        }
+        if (!!offset) {
+            pipeline.push({
+                "$skip": offset
+            });
+        }
+        if (!!first) {
+            pipeline.push({
+                "$limit": first}
+            );
+        }
         const dataRecords = await this.dataRecordsCollection.aggregate(pipeline);
         const qcResults = await Promise.all(dataRecords.map(async dataRecord => {
-            const latestBatchID = dataRecord.batchIDs?.slice(-1)[0];
-            const latestBatch = (await this.batchCollection.find(latestBatchID)).pop();
             const severity = dataRecord.status;
             let description = [];
             if (severity === VALIDATION_STATUS.ERROR) {
@@ -92,32 +106,17 @@ class DataRecordService {
             return {
                 submissionID: dataRecord.submissionID,
                 nodeType: dataRecord.nodeType,
-                batchID: latestBatchID,
+                batchID: dataRecord.latestBatchID,
                 nodeID: dataRecord.nodeID,
                 CRDC_ID: dataRecord._id,
                 severity: severity,
-                uploadedDate: latestBatch.updatedAt,
+                uploadedDate: dataRecord.uploadedDate,
                 description: description
             };
         }));
-        if (!!orderBy){
-            const defaultSort = "uploadedDate";
-            const sort = getSortDirection(sortDirection);
-            qcResults.sort((a, b) => {
-                let propA = a[orderBy] || a[defaultSort];
-                let propB = b[orderBy] || a[defaultSort];
-                if (propA > propB){
-                    return sort;
-                }
-                if (propA < propB){
-                    return sort * -1;
-                }
-                return 0;
-            });
-        }
         return {
             total: qcResults.length,
-            results:qcResults.slice(offset, offset+first)
+            results:qcResults
         };
     }
 }
