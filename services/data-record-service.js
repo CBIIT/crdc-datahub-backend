@@ -66,7 +66,7 @@ class DataRecordService {
         return isMetadata ? ValidationHandler.success() : ValidationHandler.handle(ERROR.FAILED_VALIDATE_METADATA);
     }
 
-    async submissionQCResults(submissionID, first, offset, orderBy, sortDirection) {
+    async submissionQCResults(submissionID, first, offset, primarySort, secondarySort, sortDirection) {
         let pipeline = [];
         pipeline.push({
             $match: {
@@ -76,10 +76,12 @@ class DataRecordService {
                 }
             }
         });
-        if (!!orderBy) {
+        if (!!primarySort) {
+            const sortParam = getSortDirection(sortDirection);
             pipeline.push({
                 "$sort": {
-                    [orderBy]: getSortDirection(sortDirection)
+                    [primarySort]: sortParam,
+                    [secondarySort]: sortParam
                 }
             });
         }

@@ -329,7 +329,8 @@ class Submission {
         )){
             throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS);
         }
-        return this.dataRecordService.submissionQCResults(params._id, params.first, params.offset, params.orderBy, params.sortDirection);
+        const secondarySort = "nodeType";
+        return this.dataRecordService.submissionQCResults(params._id, params.first, params.offset, params.orderBy, secondarySort, params.sortDirection);
     }
 
     // private function
