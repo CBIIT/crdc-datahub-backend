@@ -117,7 +117,7 @@ class Submission {
         const result = await this.batchService.createBatch(params, aSubmission?.rootPath);
         // The submission status needs to be updated after createBatch
         if ([NEW, WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
-            await updateSubmissionStatus(this.submissionCollection, params.submissionID, userInfo, IN_PROGRESS);
+            await updateSubmissionStatus(this.submissionCollection, aSubmission, userInfo, IN_PROGRESS);
         }
         return result;
     }
@@ -353,11 +353,12 @@ class Submission {
     }
 }
 
-const updateSubmissionStatus = async (submissionCollection, aSubmissionID, userInfo, newStatus) => {
-    const history = HistoryEventBuilder.createEvent(userInfo?._id, newStatus, null);
-    const updated = await submissionCollection.update({_id: aSubmissionID, status: newStatus, updatedAt: getCurrentTime()}, {$push: {history}});
+const updateSubmissionStatus = async (submissionCollection, aSubmission, userInfo, newStatus) => {
+    const newHistory = HistoryEventBuilder.createEvent(userInfo?._id, newStatus, null);
+    aSubmission.history = [...(aSubmission.history || []), newHistory];
+    const updated = await submissionCollection.update({...aSubmission, status: newStatus, updatedAt: getCurrentTime()});
     if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
-        console.error(ERROR.UPDATE_SUBMISSION_ERROR, aSubmissionID);
+        console.error(ERROR.UPDATE_SUBMISSION_ERROR, aSubmission?._id);
         throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
     }
 }
@@ -422,17 +423,40 @@ const completeOrReleaseSubmissionEmailInfo = async (userInfo, aSubmission, userS
     return [ccEmails, POCs, aOrganization];
 }
 
-const cancelOrWithdrawSubmissionEmailInfo = async (aSubmission, userService, organizationService) => {
+const releaseSubmissionEmailInfo = async (userInfo, aSubmission, userService, organizationService) => {
     const promises = [
         await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
+        await userService.getAdmin(),
+        await userService.getUserByID(aSubmission?.submitterID),
+        await userService.getPOCs(),
         await organizationService.getOrganizationByID(aSubmission?.organization?._id)
+    ];
+
+    const results = await Promise.all(promises);
+    const orgOwnerEmails = getUserEmails(results[0] || []);
+    const adminEmails = getUserEmails(results[1] || []);
+    const submitterEmails = getUserEmails([results[2] || {}]);
+
+    // CCs for Submitter, org owner, admins
+    const ccEmails = new Set([...submitterEmails, ...orgOwnerEmails, ...adminEmails]).toArray();
+    // To POC role users
+    const POCs = results[3] || [];
+    const aOrganization = results[4] || {};
+    return [ccEmails, POCs, aOrganization];
+}
+
+const cancelOrRejectSubmissionEmailInfo = async (aSubmission, userService, organizationService) => {
+    const promises = [
+        await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
+        await organizationService.getOrganizationByID(aSubmission?.organization?._id),
+        await userService.getAdmin()
     ];
     const results = await Promise.all(promises);
     const orgOwnerEmails = getUserEmails(results[0] || []);
     const aOrganization = results[1] || {};
     const curatorEmails = getUserEmails([{email: aOrganization?.conciergeEmail}]);
-
-    const ccEmails = new Set([orgOwnerEmails, curatorEmails]).toArray();
+    const adminEmails = getUserEmails(results[2] || []);
+    const ccEmails = new Set([orgOwnerEmails, curatorEmails, adminEmails]).toArray();
     return [ccEmails, aOrganization];
 }
 
@@ -465,7 +489,7 @@ const sendEmails = {
         }
         const ccEmails = [...orgOwnerEmails, ...ccEmailsVar];
         await notificationService.submitDataSubmissionNotification(aSubmitter?.email, ccEmails, {
-            firstName: aSubmitter?.firstName
+            firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
             }, {
             idandname: `${aSubmission?.name} (ID: ${aSubmission?._id})`,
             dataconcierge: `${aSubmission?.conciergeName || 'NA'} at ${aSubmission?.conciergeEmail||'NA'}.`
@@ -499,7 +523,7 @@ const sendEmails = {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
             return;
         }
-        const [ccEmails, aOrganization] = await cancelOrWithdrawSubmissionEmailInfo(aSubmission, userService, organizationService);
+        const [ccEmails, aOrganization] = await cancelOrRejectSubmissionEmailInfo(aSubmission, userService, organizationService);
         await notificationService.cancelSubmissionNotification(aSubmitter?.email, ccEmails, {
             firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
         }, {
@@ -512,23 +536,31 @@ const sendEmails = {
         }, devTier);
     },
     withdrawSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, devTier) => {
-        if (!userInfo?.email) {
-            console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
+        const aOrganization = await organizationService.getOrganizationByID(aSubmission?.organization?._id);
+        const aCurator = await userService.getUserByID(aOrganization?.conciergeID);
+        if (!aCurator) {
+            console.error(ERROR.NO_SUBMISSION_RECEIVER, `id=${aSubmission?._id}`);
             return;
         }
-        const [ccEmails, aOrganization] = await cancelOrWithdrawSubmissionEmailInfo(aSubmission, userService, organizationService);
-        await notificationsService.withdrawSubmissionNotification(userInfo?.email, ccEmails, {
-            firstName: userInfo.firstName
+        const promises = [
+            await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
+            await userService.getUserByID(aSubmission?.submitterID)
+        ];
+        const results = await Promise.all(promises);
+        const orgOwnerEmails = getUserEmails(results[0] || []);
+        const submitterEmails = getUserEmails([results[1]] || []);
+        const ccEmails = new Set([...orgOwnerEmails, ...submitterEmails]).toArray();
+        await notificationsService.withdrawSubmissionNotification(aCurator?.email, ccEmails, {
+            firstName: `${aCurator.firstName} ${aCurator?.lastName || ''}`
         }, {
             submissionID: aSubmission?._id,
             submissionName: aSubmission?.name,
             // only one study
             studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
-            submitterName: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
-            submitterEmail: `${userInfo?.email}`
+            withdrawnByName: `${userInfo.firstName} ${userInfo?.lastName || ''}.`,
+            withdrawnByEmail: `${userInfo?.email}`
         }, devTier);
     },
-
     releaseSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, devTier) => {
         const [ccEmails, POCs, aOrganization] = await completeOrReleaseSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
         if (POCs.length === 0) {
@@ -551,28 +583,15 @@ const sendEmails = {
         );
         await Promise.all(notificationPromises);
     },
-
     rejectSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService, devTier) => {
-
         const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
         if (!aSubmitter) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
             return;
         }
-        const promises = [
-            await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
-            await organizationService.getOrganizationByID(aSubmission?.organization?._id),
-            await userService.getAdmin()
-        ];
-        const results = await Promise.all(promises);
-        const orgOwnerEmails = getUserEmails(results[0] || []);
-        const aOrganization = results[1] || {};
-        const curatorEmails = getUserEmails([{email: aOrganization?.conciergeEmail}]);
-        const adminEmails = getUserEmails(results[2] || []);
-        // CCs for org owner, curators
-        const ccEmails = new Set([...orgOwnerEmails, ...curatorEmails, ...adminEmails]).toArray();
+        const [ccEmails, aOrganization] = await cancelOrRejectSubmissionEmailInfo(aSubmission, userService, organizationService);
         await notificationService.rejectSubmissionNotification(aSubmitter?.email, ccEmails, {
-            firstName: aSubmitter?.firstName
+            firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
         }, {
             submissionID: aSubmission?._id,
             submissionName: aSubmission?.name,
