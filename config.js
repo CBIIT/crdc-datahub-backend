@@ -40,7 +40,7 @@ let config = {
     metadata_queue: process.env.METADATA_QUEUE,
     file_queue: process.env.FILE_QUEUE,
     //CRDC Review Committee Emails, separated by ","
-    committee_emails: process.env.REVIEW_COMMITTEE_EMAIL ? process.env.REVIEW_COMMITTEE_EMAIL.split(',') : ["peter.gu@nih.gov","austin.mueller@nih.gov","ming.ying@nih.gov"]
+    committee_emails: process.env.REVIEW_COMMITTEE_EMAIL ? process.env.REVIEW_COMMITTEE_EMAIL.split(',') : ["CRDCSubmisison@nih.gov"]
 
 };
 config.mongo_db_connection_string = `mongodb://${config.mongo_db_user}:${config.mongo_db_password}@${config.mongo_db_host}:${process.env.MONGO_DB_PORT}`;
