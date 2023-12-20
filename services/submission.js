@@ -336,17 +336,17 @@ class Submission {
     async #updateValidatingStatus(types, aSubmission) {
         const typesToUpdate = {};
         if (!!aSubmission?.metadataValidationStatus && aSubmission?.metadataValidationStatus !== VALIDATION_STATUS.VALIDATING && types.includes(VALIDATION.TYPES.METADATA)) {
-            types.metadataValidationStatus = VALIDATION_STATUS.VALIDATING;
+            typesToUpdate.metadataValidationStatus = VALIDATION_STATUS.VALIDATING;
         }
 
         if (!!aSubmission?.fileValidationStatus && aSubmission?.fileValidationStatus !== VALIDATION_STATUS.VALIDATING && types.includes(VALIDATION.TYPES.FILE)) {
-            types.fileValidationStatus = VALIDATION_STATUS.VALIDATING
+            typesToUpdate.fileValidationStatus = VALIDATION_STATUS.VALIDATING
         }
 
         if (Object.keys(typesToUpdate).length === 0) {
             return;
         }
-        const updated = await this.submissionCollection.update({_id: aSubmission?._id, ...types});
+        const updated = await this.submissionCollection.update({_id: aSubmission?._id, ...typesToUpdate});
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
             throw new Error(ERROR.FAILED_VALIDATE_METADATA);
         }
