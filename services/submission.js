@@ -34,7 +34,7 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, devTier) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -42,7 +42,7 @@ class Submission {
         this.organizationService = organizationService;
         this.notificationService = notificationService;
         this.dataRecordService = dataRecordService;
-        this.devTier = devTier;
+        this.tier = tier;
     }
 
     async createSubmission(params, context) {
@@ -214,7 +214,7 @@ class Submission {
         const logEvent = SubmissionActionEvent.create(userInfo._id, userInfo.email, userInfo.IDP, submission._id, action, fromStatus, newStatus);
         await Promise.all([
             await this.logCollection.insert(logEvent),
-            await submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService, this.devTier)
+            await submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService, this.tier)
         ]);
         return submission;
     }
@@ -372,25 +372,25 @@ const updateSubmissionStatus = async (submissionCollection, aSubmission, userInf
  * @param {*} organizationService
  * @param {*} notificationService
  */
-async function submissionActionNotification(userInfo, action, aSubmission, userService, organizationService, notificationService, devTier) {
+async function submissionActionNotification(userInfo, action, aSubmission, userService, organizationService, notificationService, tier) {
     switch(action) {
         case ACTIONS.SUBMIT:
-            await sendEmails.submitSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
+            await sendEmails.submitSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
             break;
         case ACTIONS.RELEASE:
-            await sendEmails.releaseSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
+            await sendEmails.releaseSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
             break;
         case ACTIONS.WITHDRAW:
-            await sendEmails.withdrawSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
+            await sendEmails.withdrawSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
             break;
         case ACTIONS.REJECT:
-            await sendEmails.rejectSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
+            await sendEmails.rejectSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
             break;
         case ACTIONS.COMPLETE:
-            await sendEmails.completeSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
+            await sendEmails.completeSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
             break;
         case ACTIONS.CANCEL:
-            await sendEmails.cancelSubmission(userInfo, aSubmission, userService, organizationService, notificationService, devTier);
+            await sendEmails.cancelSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
             break;
         case ACTIONS.ARCHIVE:
             //todo TBD send archived email
@@ -461,7 +461,7 @@ const cancelOrRejectSubmissionEmailInfo = async (aSubmission, userService, organ
 }
 
 const sendEmails = {
-    submitSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService, devTier) => {
+    submitSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService, tier) => {
         const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
 
         const promises = [
@@ -493,11 +493,11 @@ const sendEmails = {
             }, {
             idandname: `${aSubmission?.name} (ID: ${aSubmission?._id})`,
             dataconcierge: `${aSubmission?.conciergeName || 'NA'} at ${aSubmission?.conciergeEmail||'NA'}.`
-            },devTier
+            },tier
             
         );
     },
-    completeSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, devTier) => {
+    completeSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, tier) => {
         const [ccEmails, POCs, aOrganization] = await completeOrReleaseSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
         if (POCs.length === 0) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
@@ -513,11 +513,11 @@ const sendEmails = {
                 studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
                 conciergeName: aOrganization?.conciergeName || NA,
                 conciergeEmail: aOrganization?.conciergeEmail || NA
-            }, devTier)
+            }, tier)
         );
         await Promise.all(notificationPromises);
     },
-    cancelSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService, devTier) => {
+    cancelSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService, tier) => {
         const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
         if (!aSubmitter) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
@@ -533,9 +533,9 @@ const sendEmails = {
             canceledBy: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
             conciergeEmail: aOrganization?.conciergeEmail || NA,
             conciergeName: aOrganization?.conciergeName || NA
-        }, devTier);
+        }, tier);
     },
-    withdrawSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, devTier) => {
+    withdrawSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, tier) => {
         const aOrganization = await organizationService.getOrganizationByID(aSubmission?.organization?._id);
         const aCurator = await userService.getUserByID(aOrganization?.conciergeID);
         if (!aCurator) {
@@ -559,9 +559,9 @@ const sendEmails = {
             studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
             withdrawnByName: `${userInfo.firstName} ${userInfo?.lastName || ''}.`,
             withdrawnByEmail: `${userInfo?.email}`
-        }, devTier);
+        }, tier);
     },
-    releaseSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, devTier) => {
+    releaseSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, tier) => {
         const [ccEmails, POCs, aOrganization] = await completeOrReleaseSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
         if (POCs.length === 0) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
@@ -572,7 +572,7 @@ const sendEmails = {
             notificationsService.releaseDataSubmissionNotification(aUser?.email, ccEmails, {
                 firstName: `${aSubmission?.dataCommons} team`
             },{
-                Tier: devTier,
+                Tier: tier,
                 dataCommonName: `${aSubmission?.dataCommons}`
             }, {
                 idandname: `${aSubmission?.name} (id: ${aSubmission?._id})`,
@@ -583,7 +583,7 @@ const sendEmails = {
         );
         await Promise.all(notificationPromises);
     },
-    rejectSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService, devTier) => {
+    rejectSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService, tier) => {
         const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
         if (!aSubmitter) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
@@ -597,7 +597,7 @@ const sendEmails = {
             submissionName: aSubmission?.name,
             conciergeEmail: aOrganization?.conciergeEmail || NA,
             conciergeName: aOrganization?.conciergeName || NA
-        }, devTier);
+        }, tier);
     },
 }
 
