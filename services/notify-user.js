@@ -2,6 +2,7 @@ const yaml = require('js-yaml');
 const fs = require('fs');
 const {createEmailTemplate} = require("../lib/create-email-template");
 const {replaceMessageVariables} = require("../utility/string-util");
+const config = require("../config");
 
 class NotifyUser {
 
@@ -29,7 +30,8 @@ class NotifyUser {
                 await createEmailTemplate("notification-template.html", {
                     message, firstName: this.email_constants.APPLICATION_COMMITTEE_NAME
                 }),
-                this.email_constants.APPLICATION_COMMITTEE_EMAIL
+                //this.email_constants.APPLICATION_COMMITTEE_EMAIL
+                config.committee_emails
             );
         });
     }
