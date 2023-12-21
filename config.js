@@ -34,7 +34,7 @@ let config = {
     role_arn: process.env.ROLE_ARN,
     role_timeout: parseInt(process.env.ROLE_TIMEOUT) || 12*3600,
     presign_expiration: parseInt(process.env.PRESIGN_EXPIRATION) || 3600,
-    tier: process.env.TIER || "",
+    tier: process.env.TIER ? `[${process.env.TIER.trim().toUpperCase()}]` : "",
     // aws SQS names
     sqs_loader_queue: process.env.LOADER_QUEUE || "crdcdh-queue",
     metadata_queue: process.env.METADATA_QUEUE,
