@@ -345,10 +345,12 @@ const completeSubmissionEmailInfo = async (userInfo, aSubmission, userService, o
     const adminEmails = getUserEmails(results[1] || []);
     const POCEmails = getUserEmails(results[3] || []);
 
-    // CCs for POCs, org owner, admins
-    const ccEmails = new Set([...POCEmails, ...orgOwnerEmails, ...adminEmails]).toArray();
-    const aSubmitter = results[2];
     const aOrganization = results[4] || {};
+    const curatorEmails = getUserEmails([{email: aOrganization?.conciergeEmail}]);
+
+    // CCs for POCs, org owner, admins, curators
+    const ccEmails = new Set([...POCEmails, ...orgOwnerEmails, ...adminEmails, ...curatorEmails]).toArray();
+    const aSubmitter = results[2];
     return [ccEmails, aSubmitter, aOrganization];
 }
 
