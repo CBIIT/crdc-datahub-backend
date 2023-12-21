@@ -34,7 +34,7 @@ let config = {
     role_arn: process.env.ROLE_ARN,
     role_timeout: parseInt(process.env.ROLE_TIMEOUT) || 12*3600,
     presign_expiration: parseInt(process.env.PRESIGN_EXPIRATION) || 3600,
-    tier: process.env.TIER ? `[${process.env.TIER.trim().toUpperCase()}]` : "",
+    tier: getTier(),
     // aws SQS names
     sqs_loader_queue: process.env.LOADER_QUEUE || "crdcdh-queue",
     metadata_queue: process.env.METADATA_QUEUE,
@@ -60,6 +60,11 @@ function getTransportConfig() {
             }
         )
     };
+}
+
+function getTier() {
+    const tier = process.env.TIER?.replace(/[^a-zA-Z\d]/g, '').trim();
+    return tier?.length > 0 ? `[${tier.toUpperCase()}]` : '';
 }
 
 module.exports = config;
