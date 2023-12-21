@@ -434,7 +434,7 @@ const sendEmails = {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
             return;
         }
-        // could be multiple submitters
+
         await notificationsService.completeSubmissionNotification(aSubmitter?.email, ccEmails, {
             firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
         }, {
