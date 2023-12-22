@@ -8,7 +8,7 @@ const S3_GET = 'getObject';
 const S3_KEY = 'Key';
 const S3_SIZE= 'Size';
 const S3_CONTENTS = 'Contents';
-S3_LAST_MODIFIED_DATE = 'LastModified'
+const S3_LAST_MODIFIED_DATE = 'LastModified';
 /**
  * This class provides services for aWS requests
  */
