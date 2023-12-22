@@ -7,8 +7,9 @@ const ERROR = require("../constants/error-constants");
 
 const S3_GET = 'getObject';
 const S3_KEY = 'Key';
-const S3_SIZE= 'Size'
-const S3_CONTENTS = 'Contents'
+const S3_SIZE= 'Size';
+const S3_CONTENTS = 'Contents';
+const S3_LAST_MODIFIED_DATE = "LastModified";
 /**
  * This class provides services for aWS requests
  */
@@ -75,7 +76,7 @@ class AWSService {
      */
     async  getLastFileFromS3(bucket, prefix, uploadType, filter){
         const data = await this.s3.listObjects(getS3Params(bucket, prefix)).promise();
-        const files = data[S3_CONTENTS].filter(k=>k[S3_KEY].indexOf(filter)> 0)
+        const files = data[S3_CONTENTS].filter(k=>k[S3_KEY].indexOf(filter)> 0).sort((a,b) => a[S3_LAST_MODIFIED_DATE]- b[S3_LAST_MODIFIED_DATE]);
         if(files.length > 0)
         {
             const lastFile = files[files.length-1];
