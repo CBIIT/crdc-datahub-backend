@@ -4,7 +4,9 @@ const ERROR = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
 const METADATA_GROUP_ID = "crdcdh-metadata-validation";
 const FILE_GROUP_ID = "crdcdh-file-validation";
+const EXPORT_GROUP_ID = "crdcdh-export-metadata";
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
+const config = require("../config");
 class DataRecordService {
     constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService, batchCollection) {
         this.dataRecordsCollection = dataRecordsCollection;
@@ -65,6 +67,11 @@ class DataRecordService {
             return await sendSQSMessageWrapper(this.awsService, msg, FILE_GROUP_ID, submissionID, this.fileQueueName, submissionID);
         }
         return isMetadata ? ValidationHandler.success() : ValidationHandler.handle(ERROR.FAILED_VALIDATE_METADATA);
+    }
+
+    async exportMetadata(submissionID) {
+        const msg = Message.createFileSubmissionMessage("Export Metadata", submissionID);
+        return await sendSQSMessageWrapper(this.awsService, msg, EXPORT_GROUP_ID, submissionID, config.export_queue, submissionID);
     }
 
     async submissionQCResults(submissionID, first, offset, orderBy, sortDirection) {
