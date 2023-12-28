@@ -2,10 +2,11 @@ const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-
 const {v4} = require("uuid");
 const {BATCH, FILE} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 class Batch {
-    constructor(submissionID, bucketName, filePrefix, type, status, metadataIntention) {
+    constructor(submissionID, displayID, bucketName, filePrefix, type, status, metadataIntention) {
         this._id = v4();
         this.bucketName = bucketName;
         this.submissionID = submissionID;
+        this.displayID = displayID;
         this.type = type;
         this.status = status;
         this.fileCount = 0;
@@ -27,9 +28,9 @@ class Batch {
         this.fileCount += 1;
     }
 
-    static createNewBatch(submissionID, bucketName, filePrefix, type, metadataIntention = null) {
+    static createNewBatch(submissionID, displayID, bucketName, filePrefix, type, metadataIntention = null) {
         const status = BATCH.STATUSES.UPLOADING;
-        return new Batch(submissionID, bucketName, filePrefix, type, status, metadataIntention);
+        return new Batch(submissionID, displayID, bucketName, filePrefix, type, status, metadataIntention);
     }
 }
 

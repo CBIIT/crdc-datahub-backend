@@ -21,7 +21,9 @@ class BatchService {
     async createBatch(params, rootPath) {
         const prefix = createPrefix(params, rootPath);
         const metadataIntention = params?.metadataIntention && params.type === BATCH.TYPE.METADATA ? params.metadataIntention : null;
-        const newBatch = Batch.createNewBatch(params.submissionID, this.bucketName, prefix, params.type, metadataIntention);
+        await this.#getBatchDisplayID(params.submissionID);
+        const newDisplayID = await this.#getBatchDisplayID(params.submissionID);
+        const newBatch = Batch.createNewBatch(params.submissionID, newDisplayID, this.bucketName, prefix, params.type, metadataIntention);
         if (BATCH.TYPE.METADATA === params.type.toLowerCase()) {
             await Promise.all(params.files.map(async (file) => {
                 if (file.fileName) {
@@ -70,6 +72,18 @@ class BatchService {
         return await this.findByID(aBatch._id);
     }
 
+    // private function; adds display id
+    async #updateBatchesDisplayID(submissionID) {
+        const pipeline = [{$match: {submissionID}}, {$sort: {"createdAt": 1}}];
+        const batches = await this.batchCollection.aggregate(pipeline);
+        batches.forEach((aBatch, index) => {
+            aBatch.displayID = index + 1;
+        });
+        await Promise.all(batches.map(async (aBatch) => {
+            await this.batchCollection.update({_id: aBatch._id, displayID: aBatch.displayID});
+        }));
+    }
+
     async listBatches(params, context) {
         let pipeline = listBatchConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization, params.submissionID, context.userInfo?.dataCommons);
         const pagination = [
@@ -77,6 +91,8 @@ class BatchService {
             {"$skip": params.offset},
             {"$limit": params.first}
         ];
+        // TODO needs to be deleted after adding display ID
+        await this.#updateBatchesDisplayID(params.submissionID);
         const promises = [
             await this.batchCollection.aggregate(pipeline.concat(pagination)),
             await this.batchCollection.aggregate(pipeline.concat([{$count: "count"}]))
@@ -93,6 +109,13 @@ class BatchService {
     async findByID(id) {
         const aBatch = await this.batchCollection.find(id);
         return (aBatch?.length > 0) ? aBatch[0] : null;
+    }
+    // private function
+    async #getBatchDisplayID(submissionID) {
+        const pipeline = [{$match: {submissionID}}, {$count: "total"}];
+        const batches = await this.batchCollection.aggregate(pipeline);
+        const totalDocs = batches.pop();
+        return totalDocs?.total + 1 || 1;
     }
 }
 

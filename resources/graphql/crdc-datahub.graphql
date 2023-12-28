@@ -81,6 +81,7 @@ type Submission {
 type Batch {
     _id: ID
     submissionID: ID # parent
+    displayID: Int
     type: String # [metadata, file]
     metadataIntention: String # [New, Update, Delete], Update is meant for "Update or insert", metadata only! file batches are always treated as Update
     fileCount: Int # calculated by BE
@@ -247,6 +248,7 @@ type QCResult{
     nodeType: String
     batchID: String
     nodeID: String
+    displayID: Int
     CRDC_ID: String
     severity: String # [Error, Warning]
     uploadedDate: Date # batch.updatedAt
