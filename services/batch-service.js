@@ -72,8 +72,8 @@ class BatchService {
         return await this.findByID(aBatch._id);
     }
 
-    // private function; adds display id
-    async #updateBatchesDisplayID(submissionID) {
+    // TODO TO BE REMOVED; adds display id
+    async updateBatchesDisplayID(submissionID) {
         const pipeline = [{$match: {submissionID}}, {$sort: {"createdAt": 1}}];
         const batches = await this.batchCollection.aggregate(pipeline);
         batches.forEach((aBatch, index) => {
@@ -92,7 +92,7 @@ class BatchService {
             {"$limit": params.first}
         ];
         // TODO needs to be deleted after adding display ID
-        await this.#updateBatchesDisplayID(params.submissionID);
+        await this.updateBatchesDisplayID(params.submissionID);
         const promises = [
             await this.batchCollection.aggregate(pipeline.concat(pagination)),
             await this.batchCollection.aggregate(pipeline.concat([{$count: "count"}]))
