@@ -125,6 +125,17 @@ type FileURL {
     signedURL: String
 }
 
+type ListBatchFiles {
+    total: Int
+    batchFiles: [BatchFile]
+}
+
+type BatchFile {
+    batchID: String
+    nodeType: String
+    fileName: String
+}
+
 input FileInput {
     fileName: String
     size: Int
@@ -365,6 +376,15 @@ type Query {
         orderBy: String = "uploadedDate",
         sortDirection: String = "DESC"
     ): QCResults
+    listBatchFiles(
+        submissionID: ID!,
+        batchID: ID!,
+        first: Int = 10,
+        offset: Int = 0
+        # [ "nodeType", "fileName", "batchID"]
+        orderBy: String = "uploadedDate",
+        sortDirection: String = "DESC"
+    ): ListBatchFiles
 
     listBatches(submissionID: ID!,
         first: Int = 10,
