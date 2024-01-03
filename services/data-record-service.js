@@ -48,14 +48,16 @@ class DataRecordService {
         }
         const isFile = types.some(t => t === VALIDATION.TYPES.FILE);
         if (isFile) {
-            const fileNodes = await getFileNodes(this.dataRecordsCollection, scope);
+            const fileNodes = await getFileNodes(this.dataRecordsCollection, submissionID, scope);
             const fileQueueResults = await Promise.all(fileNodes.map(async (aFile) => {
                 const msg = Message.createFileNodeMessage("Validate File", aFile._id);
                 return await sendSQSMessageWrapper(this.awsService, msg, FILE_GROUP_ID, aFile._id, this.fileQueueName, submissionID);
             }));
             const errorMessages = fileQueueResults
                 .filter(result => !result.success)
-                .map(result => result.message);
+                .map(result => result.message)
+                // at least, a node must exists.
+                .concat(fileNodes?.length === 0 ? [ERROR.NO_VALIDATION_FILE] : []);
 
             if (errorMessages.length > 0) {
                 return ValidationHandler.handle(errorMessages)
@@ -120,6 +122,7 @@ class DataRecordService {
             results:qcResults.slice(offset, offset+first)
         };
     }
+
 }
 
 const getFileNodes = async (dataRecordsCollection, scope) => {
