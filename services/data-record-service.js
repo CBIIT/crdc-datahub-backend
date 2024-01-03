@@ -133,7 +133,7 @@ class DataRecordService {
         });
         const dataRecords = await this.dataRecordsCollection.aggregate(pipeline);
         const batchFiles = await Promise.all(latestBatch.files?.map(async file => {
-            const dataRecord = dataRecords.find((dataRecord) => dataRecord.orginalFileName === file.fileName);
+            const dataRecord = dataRecords?.find((dataRecord) => dataRecord.orginalFileName === file.fileName);
             return {
                 batchID: latestBatch._id,
                 nodeType: dataRecord?.nodeType,
@@ -141,12 +141,18 @@ class DataRecordService {
             };
         }));
 
-        if (!!orderBy){
+        if (!!orderBy) {
             const defaultSort = "nodeType";
             const sort = getSortDirection(sortDirection);
             batchFiles.sort((a, b) => {
                 let propA = a[orderBy] || a[defaultSort];
-                let propB = b[orderBy] || a[defaultSort];
+                let propB = b[orderBy] || b[defaultSort];
+                if (!propA) {
+                    return sort;
+                }
+                if (!propB) {
+                    return sort * -1;
+                }
                 if (propA > propB){
                     return sort;
                 }
