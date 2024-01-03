@@ -300,16 +300,13 @@ class Submission {
         if (!isPermittedAccess) {
             throw new Error(ERROR.INVALID_VALIDATE_METADATA)
         }
-
-        // The data record must have a 'new' status before it can be validated.
-        const aDataRecord = await this.dataRecordService.getOneValidationReadyRecord(params._id)
-        if (aDataRecord?.length === 0) {
-            throw new Error(ERROR.INVALID_VALIDATION_STATUS)
-        }
-
+        // start validation, change validating status
+        const [prevMetadataValidationStatus, prevFileValidationStatus] = [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus];
+        await this.#updateValidationStatus(params?.types, aSubmission, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING);
         const result = await this.dataRecordService.validateMetadata(params._id, params?.types, params?.scope);
-        if (result.success) {
-            await this.#updateValidatingStatus(params?.types, aSubmission);
+        // roll back validation if service failed
+        if (!result.success) {
+            await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, prevFileValidationStatus);
         }
         return result;
     }
@@ -340,14 +337,14 @@ class Submission {
     }
 
     // private function
-    async #updateValidatingStatus(types, aSubmission) {
+    async #updateValidationStatus(types, aSubmission, metaStatus, fileStatus) {
         const typesToUpdate = {};
-        if (!!aSubmission?.metadataValidationStatus && aSubmission?.metadataValidationStatus !== VALIDATION_STATUS.VALIDATING && types.includes(VALIDATION.TYPES.METADATA)) {
-            typesToUpdate.metadataValidationStatus = VALIDATION_STATUS.VALIDATING;
+        if (!!aSubmission?.metadataValidationStatus && types.includes(VALIDATION.TYPES.METADATA)) {
+            typesToUpdate.metadataValidationStatus = metaStatus;
         }
 
-        if (!!aSubmission?.fileValidationStatus && aSubmission?.fileValidationStatus !== VALIDATION_STATUS.VALIDATING && types.includes(VALIDATION.TYPES.FILE)) {
-            typesToUpdate.fileValidationStatus = VALIDATION_STATUS.VALIDATING
+        if (!!aSubmission?.fileValidationStatus && types.includes(VALIDATION.TYPES.FILE)) {
+            typesToUpdate.fileValidationStatus = fileStatus;
         }
 
         if (Object.keys(typesToUpdate).length === 0) {

@@ -48,7 +48,7 @@ class DataRecordService {
         }
         const isFile = types.some(t => t === VALIDATION.TYPES.FILE);
         if (isFile) {
-            const fileNodes = await getFileNodes(this.dataRecordsCollection, scope);
+            const fileNodes = await getFileNodes(this.dataRecordsCollection, submissionID, scope);
             const fileQueueResults = await Promise.all(fileNodes.map(async (aFile) => {
                 const msg = Message.createFileNodeMessage("Validate File", aFile._id);
                 return await sendSQSMessageWrapper(this.awsService, msg, FILE_GROUP_ID, aFile._id, this.fileQueueName, submissionID);
@@ -56,7 +56,8 @@ class DataRecordService {
             const errorMessages = fileQueueResults
                 .filter(result => !result.success)
                 .map(result => result.message)
-                .concat(!fileNodes?.length ? [ERROR.NO_VALIDATION_FILE] : []);
+                // at least, a node must exists.
+                .concat(fileNodes?.length === 0 ? [ERROR.NO_VALIDATION_FILE] : []);
 
             if (errorMessages.length > 0) {
                 return ValidationHandler.handle(errorMessages)
@@ -122,17 +123,6 @@ class DataRecordService {
         };
     }
 
-    async getOneValidationReadyRecord(submissionID) {
-        const pipeline = [{
-            $match: {
-                submissionID: submissionID,
-                status: {
-                    $in: [VALIDATION_STATUS.NEW]
-                }
-            },
-        }, {"$limit": 1}];
-        return await this.dataRecordsCollection.aggregate(pipeline) || [];
-    }
 }
 
 const getFileNodes = async (dataRecordsCollection, scope) => {
