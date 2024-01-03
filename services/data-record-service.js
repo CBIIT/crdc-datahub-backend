@@ -120,6 +120,48 @@ class DataRecordService {
             results:qcResults.slice(offset, offset+first)
         };
     }
+    
+    async listBatchFiles(submissionID, batchID, first, offset, orderBy, sortDirection) {
+        const latestBatch = (await this.batchCollection.find(batchID)).pop();
+
+        let pipeline = [];
+        pipeline.push({
+            $match: {
+                submissionID: submissionID,
+                batchIDs: {$eq: batchID},
+            }
+        });
+        const dataRecords = await this.dataRecordsCollection.aggregate(pipeline);
+        const batchFiles = await Promise.all(latestBatch.files?.map(async file => {
+            const dataRecord = dataRecords.find((dataRecord) => dataRecord.orginalFileName === file.fileName);
+            return {
+                batchID: latestBatch._id,
+                nodeType: dataRecord?.nodeType,
+                fileName: file.fileName
+            };
+        }));
+
+        if (!!orderBy){
+            const defaultSort = "nodeType";
+            const sort = getSortDirection(sortDirection);
+            batchFiles.sort((a, b) => {
+                let propA = a[orderBy] || a[defaultSort];
+                let propB = b[orderBy] || a[defaultSort];
+                if (propA > propB){
+                    return sort;
+                }
+                if (propA < propB){
+                    return sort * -1;
+                }
+                return 0;
+            });
+        }
+
+        return {
+            total: batchFiles.length,
+            batchFiles: batchFiles.slice(offset, offset+first)
+        };
+    }
 }
 
 const getFileNodes = async (dataRecordsCollection, scope) => {
