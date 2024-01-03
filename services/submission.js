@@ -300,6 +300,13 @@ class Submission {
         if (!isPermittedAccess) {
             throw new Error(ERROR.INVALID_VALIDATE_METADATA)
         }
+
+        // The data record must have a 'new' status before it can be validated.
+        const aDataRecord = await this.dataRecordService.getOneValidationReadyRecord(params._id)
+        if (aDataRecord?.length === 0) {
+            throw new Error(ERROR.INVALID_VALIDATION_STATUS)
+        }
+
         const result = await this.dataRecordService.validateMetadata(params._id, params?.types, params?.scope);
         if (result.success) {
             await this.#updateValidatingStatus(params?.types, aSubmission);

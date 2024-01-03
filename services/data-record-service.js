@@ -55,7 +55,8 @@ class DataRecordService {
             }));
             const errorMessages = fileQueueResults
                 .filter(result => !result.success)
-                .map(result => result.message);
+                .map(result => result.message)
+                .concat(!fileNodes?.length ? [ERROR.NO_VALIDATION_FILE] : []);
 
             if (errorMessages.length > 0) {
                 return ValidationHandler.handle(errorMessages)
@@ -119,6 +120,18 @@ class DataRecordService {
             total: qcResults.length,
             results:qcResults.slice(offset, offset+first)
         };
+    }
+
+    async getOneValidationReadyRecord(submissionID) {
+        const pipeline = [{
+            $match: {
+                submissionID: submissionID,
+                status: {
+                    $in: [VALIDATION_STATUS.NEW]
+                }
+            },
+        }, {"$limit": 1}];
+        return await this.dataRecordsCollection.aggregate(pipeline) || [];
     }
 }
 
