@@ -331,6 +331,30 @@ class Submission {
         }
         return this.dataRecordService.submissionQCResults(params._id, params.first, params.offset, params.orderBy, params.sortDirection);
     }
+    
+    async listBatchFiles(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyRole([
+                ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.CURATOR, // can see submission details for all submissions
+                ROLES.ORG_OWNER, // can see submission details for submissions associated with his/her own organization
+                ROLES.SUBMITTER, // can see submission details for his/her own submissions
+                ROLES.DC_POC // can see submission details for submissions associated with his/her Data Commons
+            ]);
+        const userRole = context.userInfo?.role;
+        let submission = null;
+        if ([ROLES.ORG_OWNER, ROLES.SUBMITTER, ROLES.DC_POC].includes(userRole)){
+            submission = (await this.submissionCollection.find(params.submissionID)).pop();
+        }
+        if (!!submission && (
+            (userRole === ROLES.ORG_OWNER && context.userInfo?.organization?.orgID !== submission?.organization?._id) ||
+            (userRole === ROLES.SUBMITTER && context.userInfo._id !== submission?.submitterID) ||
+            (userRole === ROLES.DC_POC && !context.userInfo?.dataCommons.includes(submission?.dataCommons))
+        )){
+            throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS);
+        }
+        return this.dataRecordService.listBatchFiles(params.submissionID, params.batchID, params.first, params.offset, params.orderBy, params.sortDirection);
+    }
 
     // private function
     async #updateValidatingStatus(types, aSubmission) {
