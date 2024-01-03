@@ -134,14 +134,14 @@ class DataRecordService {
             }
         });
         const dataRecords = await this.dataRecordsCollection.aggregate(pipeline);
-        const batchFiles = await Promise.all(latestBatch.files?.map(async file => {
+        const batchFiles = latestBatch.files?.map(file => {
             const dataRecord = dataRecords?.find((dataRecord) => dataRecord.orginalFileName === file.fileName);
             return {
                 batchID: latestBatch._id,
                 nodeType: dataRecord?.nodeType,
                 fileName: file.fileName
             };
-        }));
+        });
 
         if (!!orderBy) {
             const defaultSort = "nodeType";
