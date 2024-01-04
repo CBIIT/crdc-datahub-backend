@@ -75,6 +75,8 @@ const ERROR = {
     FAILED_LIST_LOG: "Failed to get log file(s) for submission",
     // AWS
     FAILED_SQS_SEND: "Failed to send a message to aws SQS queue",
+    //export dataRecords
+    INVALID_EXPORT_METADATA: "You do not have permission to export submission data"
 }
 
 module.exports = ERROR;
