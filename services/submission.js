@@ -341,7 +341,6 @@ class Submission {
     }
     
     async submissionQCResults(params, context) {
-        // TODO display ID should be updated for each batch
         verifySession(context)
             .verifyInitialized()
             .verifyRole([
