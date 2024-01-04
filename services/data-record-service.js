@@ -102,10 +102,11 @@ class DataRecordService {
                 submissionID: dataRecord.submissionID,
                 nodeType: dataRecord.nodeType,
                 batchID: latestBatchID,
+                displayID: latestBatch?.displayID,
                 nodeID: dataRecord.nodeID,
                 CRDC_ID: dataRecord._id,
                 severity: severity,
-                uploadedDate: latestBatch.updatedAt,
+                uploadedDate: latestBatch?.updatedAt,
                 description: description
             };
         }));
