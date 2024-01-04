@@ -78,6 +78,7 @@ dbConnector.connect().then(() => {
         submissionStats: submissionService.submissionStats.bind(submissionService),
         submissionQCResults: submissionService.submissionQCResults.bind(submissionService),
         listBatchFiles: submissionService.listBatchFiles.bind(submissionService),
+        exportSubmission: submissionService.exportSubmission.bind(submissionService),
         // AuthZ
         getMyUser : userService.getMyUser.bind(userService),
         getUser : userService.getUser.bind(userService),

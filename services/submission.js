@@ -310,7 +310,36 @@ class Submission {
         }
         return result;
     }
-
+    /**
+     * API to export dataRecords of the submission to tsv file by async process
+     * @param {*} params 
+     * @param {*} context 
+     * @returns AsyncProcessResult
+     */
+    async exportSubmission(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyRole([ROLES.ADMIN, ROLES.CURATOR]);
+        const aSubmission = await findByID(this.submissionCollection, params._id);
+        if(!aSubmission){
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
+        }
+        const userInfo = context.userInfo;
+        const isPermitted = this.userService.isAdmin(userInfo.role)
+        //if not an admin, check if the user is a curator
+        if(!isPermitted){
+            const orgId = aSubmission.organization?._id || userInfo.organization?.orgID;
+            if(!orgId) {
+                throw new Error(ERROR.INVALID_EXPORT_METADATA)
+            }
+            const aOrganization = await this.organizationService.getOrganizationByID(orgId)
+            if (aOrganization?.conciergeID !== userInfo._id) {
+                throw new Error(ERROR.INVALID_EXPORT_METADATA)
+            }
+        }
+        return await this.dataRecordService.exportMetadata(params._id);
+    }
+    
     async submissionQCResults(params, context) {
         verifySession(context)
             .verifyInitialized()
