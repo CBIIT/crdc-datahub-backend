@@ -248,7 +248,6 @@ type QCResult{
     nodeType: String
     batchID: String
     nodeID: String
-    displayID: Int
     CRDC_ID: String
     severity: String # [Error, Warning]
     uploadedDate: Date # batch.updatedAt
