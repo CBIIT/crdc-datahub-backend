@@ -125,11 +125,12 @@ class DataRecordService {
 
 }
 
-const getFileNodes = async (dataRecordsCollection, scope) => {
+const getFileNodes = async (dataRecordsCollection, submissionID, scope) => {
     const isNewScope = scope?.toLowerCase() === VALIDATION.SCOPE.NEW.toLowerCase();
     const fileNodes = await dataRecordsCollection.aggregate([{
         $match: {
             s3FileInfo: { $exists: true, $ne: null },
+            submissionID: submissionID,
             // case-insensitive search
             ...(isNewScope ? { status: { $regex: new RegExp("^" + VALIDATION.SCOPE.NEW + "$", "i") } } : {})}}
     ]);
