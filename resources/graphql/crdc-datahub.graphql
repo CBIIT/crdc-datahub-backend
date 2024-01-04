@@ -328,7 +328,10 @@ type ParentNode {
 #    # ...
 #}
 
-
+type AsyncProcessResult {
+    success: Boolean
+    message: String
+}
 
 type Query {
     "User or Fed lead initiated operations"
@@ -426,6 +429,9 @@ type Mutation {
         types: [String] # [file, metadata]
         scope: String # [New, All] case-insensitive
     ): DataValidation
+    exportSubmission(
+        _id: ID!
+    ): AsyncProcessResult
 
     "User initiated operations"
     updateMyUser (userInfo: UpdateUserInput!): User

@@ -4,7 +4,9 @@ const ERROR = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
 const METADATA_GROUP_ID = "crdcdh-metadata-validation";
 const FILE_GROUP_ID = "crdcdh-file-validation";
+const EXPORT_GROUP_ID = "crdcdh-export-metadata";
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
+const config = require("../config");
 class DataRecordService {
     constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService, batchCollection) {
         this.dataRecordsCollection = dataRecordsCollection;
@@ -48,14 +50,16 @@ class DataRecordService {
         }
         const isFile = types.some(t => t === VALIDATION.TYPES.FILE);
         if (isFile) {
-            const fileNodes = await getFileNodes(this.dataRecordsCollection, scope);
+            const fileNodes = await getFileNodes(this.dataRecordsCollection, submissionID, scope);
             const fileQueueResults = await Promise.all(fileNodes.map(async (aFile) => {
                 const msg = Message.createFileNodeMessage("Validate File", aFile._id);
                 return await sendSQSMessageWrapper(this.awsService, msg, FILE_GROUP_ID, aFile._id, this.fileQueueName, submissionID);
             }));
             const errorMessages = fileQueueResults
                 .filter(result => !result.success)
-                .map(result => result.message);
+                .map(result => result.message)
+                // at least, a node must exists.
+                .concat(fileNodes?.length === 0 ? [ERROR.NO_VALIDATION_FILE] : []);
 
             if (errorMessages.length > 0) {
                 return ValidationHandler.handle(errorMessages)
@@ -65,6 +69,11 @@ class DataRecordService {
             return await sendSQSMessageWrapper(this.awsService, msg, FILE_GROUP_ID, submissionID, this.fileQueueName, submissionID);
         }
         return isMetadata ? ValidationHandler.success() : ValidationHandler.handle(ERROR.FAILED_VALIDATE_METADATA);
+    }
+
+    async exportMetadata(submissionID) {
+        const msg = Message.createFileSubmissionMessage("Export Metadata", submissionID);
+        return await sendSQSMessageWrapper(this.awsService, msg, EXPORT_GROUP_ID, submissionID, config.export_queue, submissionID);
     }
 
     async submissionQCResults(submissionID, first, offset, orderBy, sortDirection) {
@@ -123,11 +132,12 @@ class DataRecordService {
 
 }
 
-const getFileNodes = async (dataRecordsCollection, scope) => {
+const getFileNodes = async (dataRecordsCollection, submissionID, scope) => {
     const isNewScope = scope?.toLowerCase() === VALIDATION.SCOPE.NEW.toLowerCase();
     const fileNodes = await dataRecordsCollection.aggregate([{
         $match: {
             s3FileInfo: { $exists: true, $ne: null },
+            submissionID: submissionID,
             // case-insensitive search
             ...(isNewScope ? { status: { $regex: new RegExp("^" + VALIDATION.SCOPE.NEW + "$", "i") } } : {})}}
     ]);

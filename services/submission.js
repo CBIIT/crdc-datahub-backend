@@ -300,13 +300,46 @@ class Submission {
         if (!isPermittedAccess) {
             throw new Error(ERROR.INVALID_VALIDATE_METADATA)
         }
+        // start validation, change validating status
+        const [prevMetadataValidationStatus, prevFileValidationStatus] = [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus];
+        await this.#updateValidationStatus(params?.types, aSubmission, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING);
         const result = await this.dataRecordService.validateMetadata(params._id, params?.types, params?.scope);
-        if (result.success) {
-            await this.#updateValidatingStatus(params?.types, aSubmission);
+        // roll back validation if service failed
+        if (!result.success) {
+            await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, prevFileValidationStatus);
         }
         return result;
     }
-
+    /**
+     * API to export dataRecords of the submission to tsv file by async process
+     * @param {*} params 
+     * @param {*} context 
+     * @returns AsyncProcessResult
+     */
+    async exportSubmission(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyRole([ROLES.ADMIN, ROLES.CURATOR]);
+        const aSubmission = await findByID(this.submissionCollection, params._id);
+        if(!aSubmission){
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
+        }
+        const userInfo = context.userInfo;
+        const isPermitted = this.userService.isAdmin(userInfo.role)
+        //if not an admin, check if the user is a curator
+        if(!isPermitted){
+            const orgId = aSubmission.organization?._id || userInfo.organization?.orgID;
+            if(!orgId) {
+                throw new Error(ERROR.INVALID_EXPORT_METADATA)
+            }
+            const aOrganization = await this.organizationService.getOrganizationByID(orgId)
+            if (aOrganization?.conciergeID !== userInfo._id) {
+                throw new Error(ERROR.INVALID_EXPORT_METADATA)
+            }
+        }
+        return await this.dataRecordService.exportMetadata(params._id);
+    }
+    
     async submissionQCResults(params, context) {
         // TODO display ID should be updated for each batch
         verifySession(context)
@@ -334,14 +367,14 @@ class Submission {
     }
 
     // private function
-    async #updateValidatingStatus(types, aSubmission) {
+    async #updateValidationStatus(types, aSubmission, metaStatus, fileStatus) {
         const typesToUpdate = {};
-        if (!!aSubmission?.metadataValidationStatus && aSubmission?.metadataValidationStatus !== VALIDATION_STATUS.VALIDATING && types.includes(VALIDATION.TYPES.METADATA)) {
-            typesToUpdate.metadataValidationStatus = VALIDATION_STATUS.VALIDATING;
+        if (!!aSubmission?.metadataValidationStatus && types.includes(VALIDATION.TYPES.METADATA)) {
+            typesToUpdate.metadataValidationStatus = metaStatus;
         }
 
-        if (!!aSubmission?.fileValidationStatus && aSubmission?.fileValidationStatus !== VALIDATION_STATUS.VALIDATING && types.includes(VALIDATION.TYPES.FILE)) {
-            typesToUpdate.fileValidationStatus = VALIDATION_STATUS.VALIDATING
+        if (!!aSubmission?.fileValidationStatus && types.includes(VALIDATION.TYPES.FILE)) {
+            typesToUpdate.fileValidationStatus = fileStatus;
         }
 
         if (Object.keys(typesToUpdate).length === 0) {

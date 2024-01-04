@@ -58,6 +58,8 @@ const ERROR = {
     NO_SUBMISSION_RECEIVER: "Submission is unable to send an email notification",
     // Validate Submission
     FAILED_VALIDATE_METADATA: "Failed to validate metadata",
+    NO_VALIDATION_FILE: "A data record has not created yet to verify the file.",
+    INVALID_VALIDATION_STATUS: "A data record can not be validated because of its invalid status.",
     INVALID_SUBMISSION_SCOPE: "submission scope is invalid",
     INVALID_SUBMISSION_TYPE: "submission type is invalid",
     INVALID_VALIDATE_METADATA: "You do not have permission to validate the metadata",
@@ -73,6 +75,8 @@ const ERROR = {
     FAILED_LIST_LOG: "Failed to get log file(s) for submission",
     // AWS
     FAILED_SQS_SEND: "Failed to send a message to aws SQS queue",
+    //export dataRecords
+    INVALID_EXPORT_METADATA: "You do not have permission to export submission data"
 }
 
 module.exports = ERROR;

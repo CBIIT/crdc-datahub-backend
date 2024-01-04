@@ -39,6 +39,7 @@ let config = {
     sqs_loader_queue: process.env.LOADER_QUEUE || "crdcdh-queue",
     metadata_queue: process.env.METADATA_QUEUE,
     file_queue: process.env.FILE_QUEUE,
+    export_queue: process.env.EXPORTER_QUEUE,
     //CRDC Review Committee Emails, separated by ","
     committee_emails: process.env.REVIEW_COMMITTEE_EMAIL ? process.env.REVIEW_COMMITTEE_EMAIL.split(',') : ["CRDCSubmisison@nih.gov"]
 
