@@ -88,7 +88,6 @@ type Batch {
     files: [FileInfo]
     status: String # [Uploading, Uploaded, Upload Failed, Loaded, Rejected] Loaded and Rejected are for metadata batch only
     errors: [String]
-    displayID: Int
     createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
     updatedAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
 }
