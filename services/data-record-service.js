@@ -6,12 +6,12 @@ const METADATA_GROUP_ID = "crdcdh-metadata-validation";
 const FILE_GROUP_ID = "crdcdh-file-validation";
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 class DataRecordService {
-    constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService, batchService) {
+    constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService, batchCollection) {
         this.dataRecordsCollection = dataRecordsCollection;
         this.fileQueueName = fileQueueName;
         this.metadataQueueName = metadataQueueName;
         this.awsService = awsService;
-        this.batchService = batchService;
+        this.batchCollection = batchCollection;
     }
 
     async submissionStats(submissionID) {
@@ -77,12 +77,10 @@ class DataRecordService {
                 }
             }
         });
-        // TODO to be removed
-        await this.batchService.updateBatchesDisplayID(submissionID);
         const dataRecords = await this.dataRecordsCollection.aggregate(pipeline);
         const qcResults = await Promise.all(dataRecords.map(async dataRecord => {
             const latestBatchID = dataRecord.batchIDs?.slice(-1)[0];
-            const latestBatch = await this.batchService.findByID(latestBatchID);
+            const latestBatch = (await this.batchCollection.find(latestBatchID)).pop();
             const severity = dataRecord.status;
             let description = [];
             if (severity === VALIDATION_STATUS.ERROR) {
@@ -95,11 +93,10 @@ class DataRecordService {
                 submissionID: dataRecord.submissionID,
                 nodeType: dataRecord.nodeType,
                 batchID: latestBatchID,
-                displayID: latestBatch?.displayID,
                 nodeID: dataRecord.nodeID,
                 CRDC_ID: dataRecord._id,
                 severity: severity,
-                uploadedDate: latestBatch?.updatedAt,
+                uploadedDate: latestBatch.updatedAt,
                 description: description
             };
         }));
@@ -123,6 +120,7 @@ class DataRecordService {
             results:qcResults.slice(offset, offset+first)
         };
     }
+
 }
 
 const getFileNodes = async (dataRecordsCollection, scope) => {

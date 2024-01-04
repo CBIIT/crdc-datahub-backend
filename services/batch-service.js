@@ -72,18 +72,6 @@ class BatchService {
         return await this.findByID(aBatch._id);
     }
 
-    // TODO TO BE REMOVED; adds display id
-    async updateBatchesDisplayID(submissionID) {
-        const pipeline = [{$match: {submissionID}}, {$sort: {"createdAt": 1}}];
-        const batches = await this.batchCollection.aggregate(pipeline);
-        batches.forEach((aBatch, index) => {
-            aBatch.displayID = index + 1;
-        });
-        await Promise.all(batches.map(async (aBatch) => {
-            await this.batchCollection.update({_id: aBatch._id, displayID: aBatch.displayID});
-        }));
-    }
-
     async listBatches(params, context) {
         let pipeline = listBatchConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization, params.submissionID, context.userInfo?.dataCommons);
         const pagination = [
@@ -91,8 +79,6 @@ class BatchService {
             {"$skip": params.offset},
             {"$limit": params.first}
         ];
-        // TODO needs to be deleted after adding display ID
-        await this.updateBatchesDisplayID(params.submissionID);
         const promises = [
             await this.batchCollection.aggregate(pipeline.concat(pagination)),
             await this.batchCollection.aggregate(pipeline.concat([{$count: "count"}]))
