@@ -136,9 +136,9 @@ class DataRecordService {
             return []
         };
         const filter = {
-            submissionID: submissionID?._id
+            submissionID: submissionID
         };
-        return await this.dataRecordsCollection.distinct("nodeType", filter || {});
+        return await this.dataRecordsCollection.distinct("nodeType", filter);
     }
 }
 

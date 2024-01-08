@@ -341,6 +341,21 @@ class Submission {
     }
     
     async submissionQCResults(params, context) {
+        if (!(await this.#verifyQCResultsReadPermissions(context, params?._id))){
+            throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS);
+        }
+        return this.dataRecordService.submissionQCResults(params._id, params.first, params.offset, params.orderBy, params.sortDirection);
+    }
+
+    async listSubmissionNodeTypes(params, context) {
+        const submissionID = params?._id;
+        if (!(await this.#verifyQCResultsReadPermissions(context, submissionID))){
+            throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_NODE_TYPES);
+        }
+        return this.dataRecordService.listSubmissionNodeTypes(submissionID)
+    }
+
+    async #verifyQCResultsReadPermissions(context, submissionID){
         verifySession(context)
             .verifyInitialized()
             .verifyRole([
@@ -349,20 +364,19 @@ class Submission {
                 ROLES.SUBMITTER, // can see submission details for his/her own submissions
                 ROLES.DC_POC // can see submission details for submissions associated with his/her Data Commons
             ]);
-        const submissionID = params?._id;
         const userRole = context.userInfo?.role;
         let submission = null;
+        if ([ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.DC_POC].includes(userRole)){
+            return true;
+        }
         if ([ROLES.ORG_OWNER, ROLES.SUBMITTER, ROLES.DC_POC].includes(userRole)){
             submission = (await this.submissionCollection.find(submissionID)).pop();
         }
-        if (!!submission && (
-            (userRole === ROLES.ORG_OWNER && context.userInfo?.organization?.orgID !== submission?.organization?._id) ||
-            (userRole === ROLES.SUBMITTER && context.userInfo._id !== submission?.submitterID) ||
-            (userRole === ROLES.DC_POC && !context.userInfo?.dataCommons.includes(submission?.dataCommons))
-        )){
-            throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS);
-        }
-        return this.dataRecordService.submissionQCResults(params._id, params.first, params.offset, params.orderBy, params.sortDirection);
+        return !!submission && (
+            (userRole === ROLES.ORG_OWNER && context.userInfo?.organization?.orgID === submission?.organization?._id) ||
+            (userRole === ROLES.SUBMITTER && context.userInfo._id === submission?.submitterID) ||
+            (userRole === ROLES.DC_POC && context.userInfo?.dataCommons.includes(submission?.dataCommons))
+        );
     }
 
     // private function
