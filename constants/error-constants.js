@@ -64,6 +64,7 @@ const ERROR = {
     INVALID_SUBMISSION_TYPE: "submission type is invalid",
     INVALID_VALIDATE_METADATA: "You do not have permission to validate the metadata",
     INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS: "You do not have permission to view the validation results for this submission",
+    INVALID_PERMISSION_TO_VIEW_NODE_TYPES: "You do not have permission to view the node types included in this submission",
     // Token
     INVALID_TOKEN_EMPTY: "Invalid token: it is empty string!",
     INVALID_TOKEN_NO_USER: "Invalid token: no user info!",
