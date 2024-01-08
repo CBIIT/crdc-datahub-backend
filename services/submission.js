@@ -366,14 +366,17 @@ class Submission {
             ]);
         const userRole = context.userInfo?.role;
         let submission = null;
+        if ([ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.DC_POC].includes(userRole)){
+            return true;
+        }
         if ([ROLES.ORG_OWNER, ROLES.SUBMITTER, ROLES.DC_POC].includes(userRole)){
             submission = (await this.submissionCollection.find(submissionID)).pop();
         }
-        return !(!!submission && (
-            (userRole === ROLES.ORG_OWNER && context.userInfo?.organization?.orgID !== submission?.organization?._id) ||
-            (userRole === ROLES.SUBMITTER && context.userInfo._id !== submission?.submitterID) ||
-            (userRole === ROLES.DC_POC && !context.userInfo?.dataCommons.includes(submission?.dataCommons))
-        ));
+        return !!submission && (
+            (userRole === ROLES.ORG_OWNER && context.userInfo?.organization?.orgID === submission?.organization?._id) ||
+            (userRole === ROLES.SUBMITTER && context.userInfo._id === submission?.submitterID) ||
+            (userRole === ROLES.DC_POC && context.userInfo?.dataCommons.includes(submission?.dataCommons))
+        );
     }
 
     // private function
