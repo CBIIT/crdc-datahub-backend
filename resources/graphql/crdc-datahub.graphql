@@ -371,6 +371,8 @@ type Query {
         sortDirection: String = "DESC"
     ): QCResults
 
+    listSubmissionNodeTypes(_id: ID!): [String]
+
     listBatches(submissionID: ID!,
         first: Int = 10,
         offset: Int = 0,

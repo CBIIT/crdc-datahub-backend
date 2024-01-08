@@ -131,6 +131,15 @@ class DataRecordService {
         };
     }
 
+    async listSubmissionNodeTypes(submissionID){
+        if (!submissionID){
+            return []
+        };
+        const filter = {
+            submissionID: submissionID?._id
+        };
+        return await this.dataRecordsCollection.distinct("nodeType", filter || {});
+    }
 }
 
 const getFileNodes = async (dataRecordsCollection, submissionID, scope) => {
