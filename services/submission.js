@@ -138,7 +138,18 @@ class Submission {
         const aSubmission = await findByID(this.submissionCollection, aBatch.submissionID);
         // submission owner & submitter's Org Owner
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
-        return await this.batchService.updateBatch(aBatch, params?.files, userInfo);
+        const res = await this.batchService.updateBatch(aBatch, params?.files, userInfo);
+        // new status is ready for the validation
+        if (res.status === BATCH.STATUSES.UPLOADED) {
+            const updateSubmission = {
+                _id: aSubmission._id,
+                ...(res?.type === VALIDATION.TYPES.METADATA ? {metadataValidationStatus: VALIDATION_STATUS.NEW} : {}),
+                ...(res?.type === VALIDATION.TYPES.FILE ? {fileValidationStatus: VALIDATION_STATUS.NEW} : {}),
+                updatedAt: getCurrentTime()
+            }
+            await this.submissionCollection.update(updateSubmission);
+        }
+        return res;
     }
 
     async listBatches(params, context) {
@@ -797,8 +808,8 @@ class DataSubmission {
         this.conciergeName = aUserOrganization.conciergeName;
         this.conciergeEmail = aUserOrganization.conciergeEmail;
         this.createdAt = this.updatedAt = getCurrentTime();
-        // file validations
-        this.metadataValidationStatus = this.fileValidationStatus = VALIDATION_STATUS.NEW;
+        // no metadata to be validated
+        this.metadataValidationStatus = this.fileValidationStatus = null;
         this.fileErrors = [];
         this.fileWarnings = [];
     }
