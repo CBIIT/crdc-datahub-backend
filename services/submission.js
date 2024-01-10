@@ -406,10 +406,9 @@ class Submission {
             return;
         }
         const updated = await this.submissionCollection.update({_id: aSubmission?._id, ...typesToUpdate});
-        //no need to throw exception here
-        // if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
-        //     throw new Error(ERROR.FAILED_VALIDATE_METADATA);
-        // }
+        if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
+            throw new Error(ERROR.FAILED_VALIDATE_METADATA);
+        }
     }
 }
 
