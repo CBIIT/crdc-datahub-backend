@@ -140,11 +140,9 @@ class Submission {
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
         const res = await this.batchService.updateBatch(aBatch, params?.files, userInfo);
         // new status is ready for the validation
-        // crdcdh-736 required don't update metadataValidationStatus when update batch
         if (res.status === BATCH.STATUSES.UPLOADED) {
             const updateSubmission = {
                 _id: aSubmission._id,
-                //...(res?.type === VALIDATION.TYPES.METADATA ? {metadataValidationStatus: VALIDATION_STATUS.NEW} : {}),
                 ...(res?.type === VALIDATION.TYPES.FILE ? {fileValidationStatus: VALIDATION_STATUS.NEW} : {}),
                 updatedAt: getCurrentTime()
             }
