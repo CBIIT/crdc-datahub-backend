@@ -312,12 +312,12 @@ class Submission {
             throw new Error(ERROR.INVALID_VALIDATE_METADATA)
         }
         // start validation, change validating status
-        const [prevMetadataValidationStatus, prevFileValidationStatus] = [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus];
-        await this.#updateValidationStatus(params?.types, aSubmission, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING);
+        const [prevMetadataValidationStatus, prevFileValidationStatus, prevTime] = [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus, aOrganization?.updatedAt];
+        await this.#updateValidationStatus(params?.types, aSubmission, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING, getCurrentTime());
         const result = await this.dataRecordService.validateMetadata(params._id, params?.types, params?.scope);
         // roll back validation if service failed
         if (!result.success) {
-            await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, prevFileValidationStatus);
+            await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, prevFileValidationStatus, prevTime);
         }
         return result;
     }
@@ -391,7 +391,7 @@ class Submission {
     }
 
     // private function
-    async #updateValidationStatus(types, aSubmission, metaStatus, fileStatus) {
+    async #updateValidationStatus(types, aSubmission, metaStatus, fileStatus, updatedTime) {
         const typesToUpdate = {};
         if (!!aSubmission?.metadataValidationStatus && types.includes(VALIDATION.TYPES.METADATA)) {
             typesToUpdate.metadataValidationStatus = metaStatus;
@@ -404,7 +404,7 @@ class Submission {
         if (Object.keys(typesToUpdate).length === 0) {
             return;
         }
-        const updated = await this.submissionCollection.update({_id: aSubmission?._id, ...typesToUpdate});
+        const updated = await this.submissionCollection.update({_id: aSubmission?._id, ...typesToUpdate, updatedAt: updatedTime});
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
             throw new Error(ERROR.FAILED_VALIDATE_METADATA);
         }

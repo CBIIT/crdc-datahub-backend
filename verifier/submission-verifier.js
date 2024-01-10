@@ -70,7 +70,8 @@ class SubmissionActionVerifier {
         const isRoleAdmin = role === USER.ROLES.ADMIN;
         const isMetadataInvalid = aSubmission?.metadataValidationStatus === VALIDATION_STATUS.NEW;
         const isFileInValid = aSubmission?.fileValidationStatus === VALIDATION_STATUS.NEW;
-        return isRoleAdmin && !isMetadataInvalid && !isFileInValid;
+        // null fileValidationStatus means this submission doesn't have any files uploaded
+        return isRoleAdmin && !isMetadataInvalid && (aSubmission?.fileValidationStatus === null || !isFileInValid);
     }
 }
 
