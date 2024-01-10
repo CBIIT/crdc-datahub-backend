@@ -143,7 +143,6 @@ class Submission {
         if (res.status === BATCH.STATUSES.UPLOADED) {
             const updateSubmission = {
                 _id: aSubmission._id,
-                ...(res?.type === VALIDATION.TYPES.METADATA ? {metadataValidationStatus: VALIDATION_STATUS.NEW} : {}),
                 ...(res?.type === VALIDATION.TYPES.FILE ? {fileValidationStatus: VALIDATION_STATUS.NEW} : {}),
                 updatedAt: getCurrentTime()
             }

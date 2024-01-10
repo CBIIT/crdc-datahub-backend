@@ -66,7 +66,7 @@ class BatchService {
         }
         // Count how many batch files updated from FE match the uploaded files.
         const isAllUploaded = files?.length > 0 && succeededFiles.length === files?.length;
-        aBatch.status = isAllUploaded ? BATCH.STATUSES.UPLOADED : BATCH.STATUSES.FAILED;
+        aBatch.status = isAllUploaded ? (aBatch.type=== BATCH.TYPE.METADATA ? BATCH.STATUSES.UPLOADING : BATCH.STATUSES.UPLOADED) : BATCH.STATUSES.FAILED;
         aBatch.updatedAt = getCurrentTime();
         await asyncUpdateBatch(this.awsService, this.batchCollection, aBatch, this.sqsLoaderQueue, isAllUploaded);
         return await this.findByID(aBatch._id);
