@@ -62,7 +62,7 @@ class DataRecordService {
                 .filter(result => !result.success)
                 .map(result => result.message)
                 // at least, a node must exists.
-                .concat(fileNodes?.length === 0 ? [ERROR.NO_VALIDATION_FILE] : []);
+                .concat(fileNodes?.length === 0 ? [ERRORS.NO_VALIDATION_FILE] : []);
 
             if (errorMessages.length > 0) {
                 return ValidationHandler.handle(errorMessages)
@@ -71,7 +71,7 @@ class DataRecordService {
             const msg = Message.createFileSubmissionMessage("Validate Submission Files", submissionID);
             return await sendSQSMessageWrapper(this.awsService, msg, FILE_GROUP_ID, submissionID, this.fileQueueName, submissionID);
         }
-        return isMetadata ? ValidationHandler.success() : ValidationHandler.handle(ERROR.FAILED_VALIDATE_METADATA);
+        return isMetadata ? ValidationHandler.success() : ValidationHandler.handle(ERRORS.FAILED_VALIDATE_METADATA);
     }
 
     async exportMetadata(submissionID) {
@@ -181,7 +181,7 @@ const sendSQSMessageWrapper = async (awsService, message, groupId, deDuplication
         await awsService.sendSQSMessage(message, groupId, deDuplicationId, queueName);
         return ValidationHandler.success();
     } catch (e) {
-        console.error(ERROR.FAILED_VALIDATE_METADATA, `submissionID:${submissionID}`, `queue-name:${queueName}`, `error:${e}`);
+        console.error(ERRORS.FAILED_VALIDATE_METADATA, `submissionID:${submissionID}`, `queue-name:${queueName}`, `error:${e}`);
         return ValidationHandler.handle(`queue-name: ${queueName}. ` + e);
     }
 }
@@ -189,12 +189,12 @@ const sendSQSMessageWrapper = async (awsService, message, groupId, deDuplication
 const isValidMetadata = (types, scope) => {
     const isValidTypes = types.every(t => t === VALIDATION.TYPES.FILE || t === VALIDATION.TYPES.METADATA);
     if (!isValidTypes) {
-        throw new Error(ERROR.INVALID_SUBMISSION_TYPE);
+        throw new Error(ERRORS.INVALID_SUBMISSION_TYPE);
     }
     // case-insensitive
     const isValidScope = scope?.toLowerCase() === VALIDATION.SCOPE.NEW.toLowerCase() || scope?.toLowerCase() === VALIDATION.SCOPE.ALL.toLowerCase();
     if (!isValidScope) {
-        throw new Error(ERROR.INVALID_SUBMISSION_SCOPE);
+        throw new Error(ERRORS.INVALID_SUBMISSION_SCOPE);
     }
 }
 
