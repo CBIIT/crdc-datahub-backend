@@ -50,25 +50,44 @@ class BatchService {
             .filter(aFile => (aFile?.fileName) && aFile?.fileName.trim().length > 0)
             .map(file => [file?.fileName, file]));
         const succeededFiles = [];
-        for (const aFile of aBatch.files) {
-            if (!uploadFiles.has(aFile.fileName)) {
-                continue;
+        const skippedFiles = files.filter(f=>f.skipped === true);
+        const skippedCount = skippedFiles.length
+        const isAllSkipped = skippedCount === files.length;
+        
+        if (!isAllSkipped) {
+            let updatedFiles = [];
+            for (const aFile of aBatch.files) {
+                if (!uploadFiles.has(aFile.fileName)) {
+                    continue;
+                }
+                const aUploadFile = uploadFiles.get(aFile.fileName);
+                if( aUploadFile.skipped === true){
+                    continue;
+                }
+                aFile.updatedAt = getCurrentTime();
+                if (aUploadFile?.succeeded) {
+                    aFile.status = FILE.UPLOAD_STATUSES.UPLOADED;
+                    succeededFiles.push(aFile);
+                }
+                else {
+                    aFile.status = FILE.UPLOAD_STATUSES.FAILED;
+                    aFile.errors = aUploadFile?.errors || [];
+                }
+                updatedFiles.push(aFile) 
             }
-            const aUploadFile = uploadFiles.get(aFile.fileName);
-            aFile.updatedAt = getCurrentTime();
-            if (aUploadFile?.succeeded) {
-                aFile.status = FILE.UPLOAD_STATUSES.UPLOADED;
-                succeededFiles.push(aFile);
-                continue;
-            }
-            aFile.status = FILE.UPLOAD_STATUSES.FAILED;
-            aFile.errors = aUploadFile?.errors || [];
+            aBatch.files = updatedFiles;
+            aBatch.fileCount = updatedFiles.length;
         }
+        else {
+            aBatch.files = [];
+            aBatch.fileCount = 0;
+        }
+        
         // Count how many batch files updated from FE match the uploaded files.
-        const isAllUploaded = files?.length > 0 && succeededFiles.length === files?.length;
-        aBatch.status = isAllUploaded ? (aBatch.type=== BATCH.TYPE.METADATA ? BATCH.STATUSES.UPLOADING : BATCH.STATUSES.UPLOADED) : BATCH.STATUSES.FAILED;
+        const isAllUploaded = files?.length > 0 && (succeededFiles.length + skippedCount  === files?.length);
+        aBatch.status = isAllUploaded ? (aBatch.type=== BATCH.TYPE.METADATA && !isAllSkipped? BATCH.STATUSES.UPLOADING : BATCH.STATUSES.UPLOADED) : BATCH.STATUSES.FAILED;
         aBatch.updatedAt = getCurrentTime();
-        await asyncUpdateBatch(this.awsService, this.batchCollection, aBatch, this.sqsLoaderQueue, isAllUploaded);
+        await asyncUpdateBatch(this.awsService, this.batchCollection, aBatch, this.sqsLoaderQueue, isAllUploaded, isAllSkipped);
         return await this.findByID(aBatch._id);
     }
 
@@ -138,7 +157,7 @@ const listBatchConditions = (userID, userRole, aUserOrganization, submissionID, 
     throw new Error(ERROR.INVALID_SUBMISSION_PERMISSION);
 }
 
-const asyncUpdateBatch = async (awsService, batchCollection, aBatch, sqsLoaderQueue, isAllUploaded) => {
+const asyncUpdateBatch = async (awsService, batchCollection, aBatch, sqsLoaderQueue, isAllUploaded, isAllSkipped) => {
     const updated = await batchCollection.update(aBatch);
     if (!updated?.acknowledged){
         const error = ERROR.FAILED_BATCH_UPDATE;
@@ -146,7 +165,7 @@ const asyncUpdateBatch = async (awsService, batchCollection, aBatch, sqsLoaderQu
         throw new Error(error);
     }
 
-    if (aBatch?.type === BATCH.TYPE.METADATA && isAllUploaded) {
+    if (aBatch?.type === BATCH.TYPE.METADATA && isAllUploaded && !isAllSkipped) {
         const message = { type: LOAD_METADATA, batchID: aBatch?._id };
         await awsService.sendSQSMessage(message, GROUP_ID, aBatch?._id, sqsLoaderQueue);
     }
