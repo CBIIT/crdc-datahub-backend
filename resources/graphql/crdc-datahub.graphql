@@ -365,6 +365,9 @@ type Query {
     submissionStats(_id: ID!): SubmissionStats
     submissionQCResults(
         _id: ID!,
+        nodeTypes: [String],
+        batchIDs: [ID],
+        severities: String, # All, Error, Warning
         first: Int = 10,
         offset: Int = 0
         # [ "uploadedDate", "nodeType", "batchID", "nodeID", "CRDC_ID", "severity"]

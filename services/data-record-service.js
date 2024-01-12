@@ -1,12 +1,15 @@
 const {VALIDATION_STATUS} = require("../constants/submission-constants");
 const {VALIDATION} = require("../constants/submission-constants");
-const ERROR = require("../constants/error-constants");
+const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
 const METADATA_GROUP_ID = "crdcdh-metadata-validation";
 const FILE_GROUP_ID = "crdcdh-file-validation";
 const EXPORT_GROUP_ID = "crdcdh-export-metadata";
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const config = require("../config");
+
+const ERROR = "Error";
+const WARNING = "Warning";
 class DataRecordService {
     constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService, batchCollection) {
         this.dataRecordsCollection = dataRecordsCollection;
@@ -76,58 +79,77 @@ class DataRecordService {
         return await sendSQSMessageWrapper(this.awsService, msg, EXPORT_GROUP_ID, submissionID, config.export_queue, submissionID);
     }
 
-    async submissionQCResults(submissionID, first, offset, orderBy, sortDirection) {
+    async submissionQCResults(submissionID, nodeTypes, batchIDs, severities, first, offset, orderBy, sortDirection) {
         let pipeline = [];
         pipeline.push({
+            $project: {
+                submissionID: "$submissionID",
+                nodeType: "$nodeType",
+                batchID: {
+                    $last: "$batchIDs"
+                },
+                displayID: "$displayID",
+                nodeID: "$nodeID",
+                CRDC_ID: "$_id",
+                severity: "$status",
+                uploadedDate: "$updatedAt",
+                description: "$description"
+            }
+        })
+        pipeline.push({
             $match: {
-                submissionID: submissionID,
-                status: {
-                    $in: [VALIDATION_STATUS.ERROR, VALIDATION_STATUS.WARNING]
-                }
+                submissionID: submissionID
             }
         });
-        const dataRecords = await this.dataRecordsCollection.aggregate(pipeline);
-        const qcResults = await Promise.all(dataRecords.map(async dataRecord => {
-            const latestBatchID = dataRecord.batchIDs?.slice(-1)[0];
-            const latestBatch = (await this.batchCollection.find(latestBatchID)).pop();
-            const severity = dataRecord.status;
-            let description = [];
-            if (severity === VALIDATION_STATUS.ERROR) {
-                description = dataRecord.errors;
-            }
-            if (severity === VALIDATION_STATUS.WARNING) {
-                description = dataRecord.warnings;
-            }
-            return {
-                submissionID: dataRecord.submissionID,
-                nodeType: dataRecord.nodeType,
-                batchID: latestBatchID,
-                displayID: latestBatch?.displayID,
-                nodeID: dataRecord.nodeID,
-                CRDC_ID: dataRecord._id,
-                severity: severity,
-                uploadedDate: latestBatch?.updatedAt,
-                description: description
-            };
-        }));
-        if (!!orderBy){
-            const defaultSort = "uploadedDate";
-            const sort = getSortDirection(sortDirection);
-            qcResults.sort((a, b) => {
-                let propA = a[orderBy] || a[defaultSort];
-                let propB = b[orderBy] || a[defaultSort];
-                if (propA > propB){
-                    return sort;
+        if (severities === ERROR){
+            severities = [ERROR];
+        }
+        else if (severities === WARNING){
+            severities = [WARNING];
+        }
+        else {
+            severities = [ERROR, WARNING];
+        }
+        pipeline.push({
+            $match: {
+                severity: {
+                    $in: severities
                 }
-                if (propA < propB){
-                    return sort * -1;
-                }
-                return 0;
+            }
+        })
+        if (!!nodeTypes && nodeTypes.length > 0) {
+            pipeline.push({
+               $match: {
+                   nodeType: {
+                       $in: nodeTypes
+                   }
+               }
             });
         }
+        if (!!batchIDs && batchIDs.length > 0) {
+            pipeline.push({
+                $match: {
+                    batchID: {
+                        $in: batchIDs
+                    }
+                }
+            });
+        }
+        pipeline.push({
+            $sort: {
+                [orderBy]: getSortDirection(sortDirection)
+            }
+        });
+        pipeline.push({
+            $skip: offset
+        });
+        pipeline.push({
+            $limit: first
+        });
+        const dataRecords = await this.dataRecordsCollection.aggregate(pipeline);
         return {
-            total: qcResults.length,
-            results:qcResults.slice(offset, offset+first)
+            total: dataRecords.length,
+            results: dataRecords
         };
     }
 
