@@ -77,7 +77,8 @@ class BatchService {
         const pagination = [
             {"$sort": { [params.orderBy]: getSortDirection(params.sortDirection)}}, // default by displayID & Desc
             {"$skip": params.offset},
-            {"$limit": params.first}
+            // disable pagination if fist === -1
+            ...(params.first === -1 ? [] : [{"$limit": params.first}])
         ];
         const promises = [
             await this.batchCollection.aggregate(pipeline.concat(pagination)),
