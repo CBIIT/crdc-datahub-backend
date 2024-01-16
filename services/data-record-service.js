@@ -7,6 +7,7 @@ const FILE_GROUP_ID = "crdcdh-file-validation";
 const EXPORT_GROUP_ID = "crdcdh-export-metadata";
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const config = require("../config");
+const {data} = require("express-session/session/cookie");
 
 const ERROR = "Error";
 const WARNING = "Warning";
@@ -135,22 +136,32 @@ class DataRecordService {
                 }
             });
         }
-        pipeline.push({
+        let page_pipeline = [];
+        page_pipeline.push({
             $sort: {
                 [orderBy]: getSortDirection(sortDirection)
             }
         });
-        pipeline.push({
+        page_pipeline.push({
             $skip: offset
         });
-        pipeline.push({
+        page_pipeline.push({
             $limit: first
         });
-        const dataRecords = await this.dataRecordsCollection.aggregate(pipeline);
+        pipeline.push({
+            $facet: {
+                results: page_pipeline,
+                total: [{
+                    $count: "total"
+                }]
+            }
+        });
+        let dataRecords = await this.dataRecordsCollection.aggregate(pipeline);
+        dataRecords = dataRecords.length > 0 ? dataRecords[0] : {}
         return {
-            total: dataRecords.length,
-            results: dataRecords
-        };
+            results: dataRecords.results || [],
+            total: (dataRecords?.total?.length > 0) ? dataRecords.total[0]?.total : 0
+        }
     }
 
     async listSubmissionNodeTypes(submissionID){
