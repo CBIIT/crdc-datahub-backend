@@ -1,12 +1,16 @@
 const {VALIDATION_STATUS} = require("../constants/submission-constants");
 const {VALIDATION} = require("../constants/submission-constants");
-const ERROR = require("../constants/error-constants");
+const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
 const METADATA_GROUP_ID = "crdcdh-metadata-validation";
 const FILE_GROUP_ID = "crdcdh-file-validation";
 const EXPORT_GROUP_ID = "crdcdh-export-metadata";
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const config = require("../config");
+const {data} = require("express-session/session/cookie");
+
+const ERROR = "Error";
+const WARNING = "Warning";
 class DataRecordService {
     constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService, batchCollection) {
         this.dataRecordsCollection = dataRecordsCollection;
@@ -59,7 +63,7 @@ class DataRecordService {
                 .filter(result => !result.success)
                 .map(result => result.message)
                 // at least, a node must exists.
-                .concat(fileNodes?.length === 0 ? [ERROR.NO_VALIDATION_FILE] : []);
+                .concat(fileNodes?.length === 0 ? [ERRORS.NO_VALIDATION_FILE] : []);
 
             if (errorMessages.length > 0) {
                 return ValidationHandler.handle(errorMessages)
@@ -68,7 +72,7 @@ class DataRecordService {
             const msg = Message.createFileSubmissionMessage("Validate Submission Files", submissionID);
             return await sendSQSMessageWrapper(this.awsService, msg, FILE_GROUP_ID, submissionID, this.fileQueueName, submissionID);
         }
-        return isMetadata ? ValidationHandler.success() : ValidationHandler.handle(ERROR.FAILED_VALIDATE_METADATA);
+        return isMetadata ? ValidationHandler.success() : ValidationHandler.handle(ERRORS.FAILED_VALIDATE_METADATA);
     }
 
     async exportMetadata(submissionID) {
@@ -76,59 +80,88 @@ class DataRecordService {
         return await sendSQSMessageWrapper(this.awsService, msg, EXPORT_GROUP_ID, submissionID, config.export_queue, submissionID);
     }
 
-    async submissionQCResults(submissionID, first, offset, orderBy, sortDirection) {
+    async submissionQCResults(submissionID, nodeTypes, batchIDs, severities, first, offset, orderBy, sortDirection) {
         let pipeline = [];
         pipeline.push({
+            $project: {
+                submissionID: "$submissionID",
+                nodeType: "$nodeType",
+                batchID: {
+                    $last: "$batchIDs"
+                },
+                displayID: "$displayID",
+                nodeID: "$nodeID",
+                CRDC_ID: "$_id",
+                severity: "$status",
+                uploadedDate: "$updatedAt",
+                description: "$description"
+            }
+        })
+        pipeline.push({
             $match: {
-                submissionID: submissionID,
-                status: {
-                    $in: [VALIDATION_STATUS.ERROR, VALIDATION_STATUS.WARNING]
-                }
+                submissionID: submissionID
             }
         });
-        const dataRecords = await this.dataRecordsCollection.aggregate(pipeline);
-        const qcResults = await Promise.all(dataRecords.map(async dataRecord => {
-            const latestBatchID = dataRecord.batchIDs?.slice(-1)[0];
-            const latestBatch = (await this.batchCollection.find(latestBatchID)).pop();
-            const severity = dataRecord.status;
-            let description = [];
-            if (severity === VALIDATION_STATUS.ERROR) {
-                description = dataRecord.errors;
-            }
-            if (severity === VALIDATION_STATUS.WARNING) {
-                description = dataRecord.warnings;
-            }
-            return {
-                submissionID: dataRecord.submissionID,
-                nodeType: dataRecord.nodeType,
-                batchID: latestBatchID,
-                displayID: latestBatch?.displayID,
-                nodeID: dataRecord.nodeID,
-                CRDC_ID: dataRecord._id,
-                severity: severity,
-                uploadedDate: latestBatch?.updatedAt,
-                description: description
-            };
-        }));
-        if (!!orderBy){
-            const defaultSort = "uploadedDate";
-            const sort = getSortDirection(sortDirection);
-            qcResults.sort((a, b) => {
-                let propA = a[orderBy] || a[defaultSort];
-                let propB = b[orderBy] || a[defaultSort];
-                if (propA > propB){
-                    return sort;
+        if (severities === ERROR){
+            severities = [ERROR];
+        }
+        else if (severities === WARNING){
+            severities = [WARNING];
+        }
+        else {
+            severities = [ERROR, WARNING];
+        }
+        pipeline.push({
+            $match: {
+                severity: {
+                    $in: severities
                 }
-                if (propA < propB){
-                    return sort * -1;
-                }
-                return 0;
+            }
+        })
+        if (!!nodeTypes && nodeTypes.length > 0) {
+            pipeline.push({
+               $match: {
+                   nodeType: {
+                       $in: nodeTypes
+                   }
+               }
             });
         }
+        if (!!batchIDs && batchIDs.length > 0) {
+            pipeline.push({
+                $match: {
+                    batchID: {
+                        $in: batchIDs
+                    }
+                }
+            });
+        }
+        let page_pipeline = [];
+        page_pipeline.push({
+            $sort: {
+                [orderBy]: getSortDirection(sortDirection)
+            }
+        });
+        page_pipeline.push({
+            $skip: offset
+        });
+        page_pipeline.push({
+            $limit: first
+        });
+        pipeline.push({
+            $facet: {
+                results: page_pipeline,
+                total: [{
+                    $count: "total"
+                }]
+            }
+        });
+        let dataRecords = await this.dataRecordsCollection.aggregate(pipeline);
+        dataRecords = dataRecords.length > 0 ? dataRecords[0] : {}
         return {
-            total: qcResults.length,
-            results:qcResults.slice(offset, offset+first)
-        };
+            results: dataRecords.results || [],
+            total: (dataRecords?.total?.length > 0) ? dataRecords.total[0]?.total : 0
+        }
     }
 
     async listSubmissionNodeTypes(submissionID){
@@ -159,7 +192,7 @@ const sendSQSMessageWrapper = async (awsService, message, groupId, deDuplication
         await awsService.sendSQSMessage(message, groupId, deDuplicationId, queueName);
         return ValidationHandler.success();
     } catch (e) {
-        console.error(ERROR.FAILED_VALIDATE_METADATA, `submissionID:${submissionID}`, `queue-name:${queueName}`, `error:${e}`);
+        console.error(ERRORS.FAILED_VALIDATE_METADATA, `submissionID:${submissionID}`, `queue-name:${queueName}`, `error:${e}`);
         return ValidationHandler.handle(`queue-name: ${queueName}. ` + e);
     }
 }
@@ -167,12 +200,12 @@ const sendSQSMessageWrapper = async (awsService, message, groupId, deDuplication
 const isValidMetadata = (types, scope) => {
     const isValidTypes = types.every(t => t === VALIDATION.TYPES.FILE || t === VALIDATION.TYPES.METADATA);
     if (!isValidTypes) {
-        throw new Error(ERROR.INVALID_SUBMISSION_TYPE);
+        throw new Error(ERRORS.INVALID_SUBMISSION_TYPE);
     }
     // case-insensitive
     const isValidScope = scope?.toLowerCase() === VALIDATION.SCOPE.NEW.toLowerCase() || scope?.toLowerCase() === VALIDATION.SCOPE.ALL.toLowerCase();
     if (!isValidScope) {
-        throw new Error(ERROR.INVALID_SUBMISSION_SCOPE);
+        throw new Error(ERRORS.INVALID_SUBMISSION_SCOPE);
     }
 }
 

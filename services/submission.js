@@ -354,7 +354,7 @@ class Submission {
         if (!(await this.#verifyQCResultsReadPermissions(context, params?._id))){
             throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS);
         }
-        return this.dataRecordService.submissionQCResults(params._id, params.first, params.offset, params.orderBy, params.sortDirection);
+        return this.dataRecordService.submissionQCResults(params._id, params.nodeTypes, params.batchIDs, params.severities, params.first, params.offset, params.orderBy, params.sortDirection);
     }
 
     async listSubmissionNodeTypes(params, context) {
