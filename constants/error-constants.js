@@ -58,7 +58,7 @@ const ERROR = {
     NO_SUBMISSION_RECEIVER: "Submission is unable to send an email notification",
     // Validate Submission
     FAILED_VALIDATE_METADATA: "Failed to validate metadata",
-    NO_VALIDATION_FILE: "A data record has not created yet to verify the file.",
+    NO_VALIDATION_FILE: "No file manifest(s) are uploaded for file validation",
     INVALID_VALIDATION_STATUS: "A data record can not be validated because of its invalid status.",
     INVALID_SUBMISSION_SCOPE: "submission scope is invalid",
     INVALID_SUBMISSION_TYPE: "submission type is invalid",
