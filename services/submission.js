@@ -316,7 +316,13 @@ class Submission {
         const result = await this.dataRecordService.validateMetadata(params._id, params?.types, params?.scope);
         // roll back validation if service failed
         if (!result.success) {
-            await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, prevFileValidationStatus, prevTime);
+            if(result.message && result.message.includes(ERROR.NO_VALIDATION_FILE)) {
+                await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, VALIDATION_STATUS.ERROR, getCurrentTime(), [ERROR.NO_VALIDATION_FILE]);
+            } 
+            else {
+                await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, prevFileValidationStatus, prevTime);
+            }
+                
         }
         return result;
     }
@@ -390,7 +396,7 @@ class Submission {
     }
 
     // private function
-    async #updateValidationStatus(types, aSubmission, metaStatus, fileStatus, updatedTime) {
+    async #updateValidationStatus(types, aSubmission, metaStatus, fileStatus, updatedTime, fileErrors = null) {
         const typesToUpdate = {};
         if (!!aSubmission?.metadataValidationStatus && types.includes(VALIDATION.TYPES.METADATA)) {
             typesToUpdate.metadataValidationStatus = metaStatus;
@@ -403,7 +409,7 @@ class Submission {
         if (Object.keys(typesToUpdate).length === 0) {
             return;
         }
-        const updated = await this.submissionCollection.update({_id: aSubmission?._id, ...typesToUpdate, updatedAt: updatedTime});
+        const updated = await this.submissionCollection.update({_id: aSubmission?._id, ...typesToUpdate, fileErrors: fileErrors, updatedAt: updatedTime});
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
             throw new Error(ERROR.FAILED_VALIDATE_METADATA);
         }
