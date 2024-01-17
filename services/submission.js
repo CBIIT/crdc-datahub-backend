@@ -318,6 +318,7 @@ class Submission {
         if (!result.success) {
             if(result.message && result.message.includes(ERROR.NO_VALIDATION_FILE)) {
                 await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, VALIDATION_STATUS.ERROR, getCurrentTime(), [ERROR.NO_VALIDATION_FILE]);
+                result.success = true;
             } 
             else {
                 await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, prevFileValidationStatus, prevTime);
