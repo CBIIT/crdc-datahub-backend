@@ -396,7 +396,7 @@ class Submission {
     }
 
     // private function
-    async #updateValidationStatus(types, aSubmission, metaStatus, fileStatus, updatedTime, fileErrors = null) {
+    async #updateValidationStatus(types, aSubmission, metaStatus, fileStatus, updatedTime, fileErrors = []) {
         const typesToUpdate = {};
         if (!!aSubmission?.metadataValidationStatus && types.includes(VALIDATION.TYPES.METADATA)) {
             typesToUpdate.metadataValidationStatus = metaStatus;
