@@ -332,10 +332,10 @@ class Submission {
             .verifyRole([ROLES.ADMIN, ROLES.CURATOR]);
         const aSubmission = await findByID(this.submissionCollection, params._id);
         if(!aSubmission){
-            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
         const userInfo = context.userInfo;
-        const isPermitted = this.userService.isAdmin(userInfo.role) || this.userService.isDataCurator(userInfo.role);
+        const isPermitted = this.userService.isAdmin(userInfo.role) || userInfo.role == ROLES.CURATOR;
         if (!isPermitted) {
             throw new Error(ERROR.INVALID_EXPORT_METADATA);
         }
