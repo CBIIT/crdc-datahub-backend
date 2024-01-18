@@ -136,6 +136,7 @@ input UploadResult {
     fileName: String
     succeeded: Boolean
     errors: [String]
+    skipped: Boolean
 }
 
 type TempCredentials {

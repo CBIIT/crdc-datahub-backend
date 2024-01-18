@@ -342,17 +342,9 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
         const userInfo = context.userInfo;
-        const isPermitted = this.userService.isAdmin(userInfo.role)
-        //if not an admin, check if the user is a curator
-        if(!isPermitted){
-            const orgId = aSubmission.organization?._id || userInfo.organization?.orgID;
-            if(!orgId) {
-                throw new Error(ERROR.INVALID_EXPORT_METADATA)
-            }
-            const aOrganization = await this.organizationService.getOrganizationByID(orgId)
-            if (aOrganization?.conciergeID !== userInfo._id) {
-                throw new Error(ERROR.INVALID_EXPORT_METADATA)
-            }
+        const isPermitted = this.userService.isAdmin(userInfo.role) || this.userService.isDataCurator(userInfo.role)
+        if (!isPermitted) {
+            throw new Error(ERROR.INVALID_EXPORT_METADATA)
         }
         return await this.dataRecordService.exportMetadata(params._id);
     }

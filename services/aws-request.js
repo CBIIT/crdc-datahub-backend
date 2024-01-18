@@ -1,5 +1,6 @@
 const AWS = require('aws-sdk');
 require('aws-sdk/lib/maintenance_mode_message').suppress = true;
+const {v4} = require('uuid')
 const {verifyApiToken,verifySubmitter} = require("../verifier/user-info-verifier");
 const path = require("path");
 const config = require('../config');
@@ -119,6 +120,7 @@ class AWSService {
      */
     async sendSQSMessage(messageBody,groupID, deDuplicationId, queueName) {
         const queueUrl = await getQueueUrl(this.sqs, queueName, messageBody);
+        deDuplicationId = v4();
         const params = {
             MessageBody: JSON.stringify(messageBody),
             QueueUrl: queueUrl,
