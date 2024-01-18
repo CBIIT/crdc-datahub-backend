@@ -1,5 +1,5 @@
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
-    REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS
+    REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, EXPORT
 } = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
@@ -342,9 +342,12 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
         const userInfo = context.userInfo;
-        const isPermitted = this.userService.isAdmin(userInfo.role) || userInfo.role === ROLES.CURATOR;
+        const isPermitted = (this.userService.isAdmin(userInfo.role) || userInfo.role === ROLES.CURATOR) 
         if (!isPermitted) {
             throw new Error(ERROR.INVALID_EXPORT_METADATA);
+        }
+        if (aSubmission.status !== SUBMITTED) {
+            throw new Error(`${ERROR.VERIFY.INVALID_SUBMISSION_ACTION_STATUS} ${EXPORT}!`);
         }
         return await this.dataRecordService.exportMetadata(params._id);
     }
