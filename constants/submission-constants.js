@@ -9,6 +9,7 @@ module.exports = Object.freeze({
     CANCELED:'Canceled',
     REJECTED:'Rejected',
     WITHDRAWN: 'Withdrawn',
+    EXPORT: "Export metadata",
     //data submission actions
     ACTIONS: {
         SUBMIT: "Submit",
