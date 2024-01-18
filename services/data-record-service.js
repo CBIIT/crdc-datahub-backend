@@ -83,20 +83,38 @@ class DataRecordService {
     async submissionQCResults(submissionID, nodeTypes, batchIDs, severities, first, offset, orderBy, sortDirection) {
         let pipeline = [];
         pipeline.push({
+            $set: {
+                batchID: {
+                    $last: "$batchIDs"
+                }
+            }
+        });
+        pipeline.push({
+            $lookup: {
+                from: "batch",
+                localField: "batchID",
+                foreignField: "_id",
+                as: "batch"
+            }
+        });
+        pipeline.push({
             $project: {
                 submissionID: "$submissionID",
                 nodeType: "$nodeType",
-                batchID: {
-                    $last: "$batchIDs"
+                validationType: "$validationType",
+                batchID: "$batchID",
+                displayID: {
+                    $first: "$batch.displayID",
                 },
-                displayID: "$displayID",
                 nodeID: "$nodeID",
                 CRDC_ID: "$_id",
                 severity: "$status",
                 uploadedDate: "$updatedAt",
-                description: "$description"
+                validatedDate: "$validatedAt",
+                errors: "$errors",
+                warnings: "$warnings"
             }
-        })
+        });
         pipeline.push({
             $match: {
                 submissionID: submissionID
@@ -139,7 +157,8 @@ class DataRecordService {
         let page_pipeline = [];
         page_pipeline.push({
             $sort: {
-                [orderBy]: getSortDirection(sortDirection)
+                [orderBy]: getSortDirection(sortDirection),
+                "nodeType": 1
             }
         });
         page_pipeline.push({
