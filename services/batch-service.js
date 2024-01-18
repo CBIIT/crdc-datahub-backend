@@ -86,7 +86,6 @@ class BatchService {
         // Count how many batch files updated from FE match the uploaded files.
         const isAllUploaded = files?.length > 0 && (succeededFiles.length + skippedCount  === files?.length);
         aBatch.status = isAllUploaded ? (aBatch.type=== BATCH.TYPE.METADATA && !isAllSkipped? BATCH.STATUSES.UPLOADING : BATCH.STATUSES.UPLOADED) : BATCH.STATUSES.FAILED;
-        aBatch.updatedAt = getCurrentTime();
         await asyncUpdateBatch(this.awsService, this.batchCollection, aBatch, this.sqsLoaderQueue, isAllUploaded, isAllSkipped);
         return await this.findByID(aBatch._id);
     }
@@ -123,7 +122,6 @@ class BatchService {
         return totalDocs?.total + 1 || 1;
     }
 }
-
 const listBatchConditions = (userID, userRole, aUserOrganization, submissionID, userDataCommonsNames) => {
     const submissionJoin = [
         {"$lookup": {
@@ -158,6 +156,7 @@ const listBatchConditions = (userID, userRole, aUserOrganization, submissionID, 
 }
 
 const asyncUpdateBatch = async (awsService, batchCollection, aBatch, sqsLoaderQueue, isAllUploaded, isAllSkipped) => {
+    aBatch.updatedAt = getCurrentTime();
     const updated = await batchCollection.update(aBatch);
     if (!updated?.acknowledged){
         const error = ERROR.FAILED_BATCH_UPDATE;
