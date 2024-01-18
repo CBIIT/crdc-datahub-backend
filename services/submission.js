@@ -335,9 +335,9 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
         const userInfo = context.userInfo;
-        const isPermitted = this.userService.isAdmin(userInfo.role) || this.userService.isDataCurator(userInfo.role)
+        const isPermitted = this.userService.isAdmin(userInfo.role) || this.userService.isDataCurator(userInfo.role);
         if (!isPermitted) {
-            throw new Error(ERROR.INVALID_EXPORT_METADATA)
+            throw new Error(ERROR.INVALID_EXPORT_METADATA);
         }
         return await this.dataRecordService.exportMetadata(params._id);
     }
