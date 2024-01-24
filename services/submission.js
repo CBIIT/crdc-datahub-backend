@@ -203,18 +203,23 @@ class Submission {
         let submission = await verifier.exists(this.submissionCollection);
         let fromStatus = submission.status;
         //verify if the action is valid based on current submission status
-        verifier.isValidAction();
+        verifier.isValidAction(params?.comment);
         //verify if user's role is valid for the action
         const newStatus = verifier.inRoles(userInfo);
-        verifier.isValidSubmitAction(userInfo?.role, submission);
+        verifier.isValidSubmitAction(userInfo?.role, submission, params?.comment);
         //update submission
         let events = submission.history || [];
+        if ([ACTIONS.REJECT, ACTIONS.SUBMIT].includes(action)) {
+            submission.reviewComment = submission?.reviewComment || [];
+            submission.reviewComment.push(params?.comment);
+        }
         events.push(HistoryEventBuilder.createEvent(userInfo._id, newStatus, null));
         submission = {
             ...submission,
             status: newStatus,
             history: events,
-            updatedAt: getCurrentTime()
+            updatedAt: getCurrentTime(),
+            reviewComment: submission?.reviewComment || []
         }
         const updated = await this.submissionCollection.update(submission);
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) {

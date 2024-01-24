@@ -43,13 +43,19 @@ class SubmissionActionVerifier {
         this.newStatus = this.actionMap.toStatus;
     }
 
-    isValidSubmitAction(role, aSubmission) {
+    isValidSubmitAction(role, aSubmission, comment) {
         if(this.action === ACTIONS.SUBMIT) {
             const isInvalidAdminStatus = !this.#isValidAdminStatus(role, aSubmission);
             const isValidRole = [USER.ROLES.CURATOR, USER.ROLES.ORG_OWNER, USER.ROLES.SUBMITTER].includes(role);
             const validStatus = [VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING];
             const isValidatedStatus = validStatus.includes(aSubmission?.metadataValidationStatus)
                 && validStatus.includes(aSubmission?.fileValidationStatus);
+
+            const isValidError = [VALIDATION_STATUS.ERROR].includes(aSubmission?.metadataValidationStatus)
+                || [VALIDATION_STATUS.ERROR].includes(aSubmission?.fileValidationStatus);
+            if ([ROLES.ADMIN].includes(role) && isValidError) {
+                throw new Error(ERROR.VERIFY.SUBMIT_ACTION_COMMENT_REQUIRED);
+            }
 
             if (isInvalidAdminStatus) {
                 if (ROLES.ADMIN === role ||(![ROLES.ADMIN].includes(role) && (!isValidRole || !isValidatedStatus))) {
