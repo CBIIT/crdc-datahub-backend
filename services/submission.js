@@ -799,7 +799,7 @@ class DataSubmission {
             name: userInfo?.organization?.orgName
         };
         this.dataCommons = dataCommons;
-        this.modelVersion = "string for future use";
+        this.modelVersion = null;
         this.studyAbbreviation = studyAbbreviation;
         this.dbGaPID = dbGaPID;
         this.status = NEW;
