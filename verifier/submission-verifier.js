@@ -28,9 +28,13 @@ class SubmissionActionVerifier {
         return this.submission;
     }
 
-    isValidAction(){
-        if(this.action === ACTIONS.REJECT)
+    isValidAction(comment){
+        if(this.action === ACTIONS.REJECT) {
             this.action = `${this.action}_${this.submission.status}`;
+            if(!comment || comment?.trim()?.length === 0) {
+                throw new Error(ERROR.VERIFY.REJECT_ACTION_COMMENT_REQUIRED);
+            }
+        }
 
         let actionMap = submissionActionMap?.filter((a)=>a.action === this.action);
         if(!actionMap || actionMap.length === 0)

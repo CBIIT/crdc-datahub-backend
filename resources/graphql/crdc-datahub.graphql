@@ -430,6 +430,7 @@ type Mutation {
         submissionID: ID!,
         # in [Submit, Release, Withdraw, Reject, Complete, Cancel, Archive]
         action: String!
+        comment: String
     ): Submission
     createBatch (submissionID: ID!, type: String, metadataIntention: String, files: [FileInput]): NewBatch
     updateBatch (batchID: ID!, files: [UploadResult]): Batch

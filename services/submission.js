@@ -199,24 +199,27 @@ class Submission {
         const action = params?.action;
         //verify submission action
         const verifier = verifySubmissionAction(submissionID, action);
-        verifier.isValidRejectAction();
         //verify if a submission can be find by submissionID.
         let submission = await verifier.exists(this.submissionCollection);
         let fromStatus = submission.status;
         //verify if the action is valid based on current submission status
-        verifier.isValidAction();
+        verifier.isValidAction(params?.comment);
         //verify if user's role is valid for the action
         const newStatus = verifier.inRoles(userInfo);
         verifier.isValidSubmitAction(userInfo?.role, submission);
         //update submission
         let events = submission.history || [];
+        if ([ACTIONS.REJECT].includes(action)) {
+            submission.reviewComment = submission?.reviewComment || [];
+            submission.reviewComment.push(params?.comment);
+        }
         events.push(HistoryEventBuilder.createEvent(userInfo._id, newStatus, null));
         submission = {
             ...submission,
             status: newStatus,
             history: events,
             updatedAt: getCurrentTime(),
-            // reviewComment
+            reviewComment: submission?.reviewComment || []
         }
         const updated = await this.submissionCollection.update(submission);
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
@@ -320,7 +323,7 @@ class Submission {
         if (!result.success) {
             if(result.message && result.message.includes(ERROR.NO_VALIDATION_FILE)) {
                 await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, VALIDATION_STATUS.ERROR, getCurrentTime(), [ERROR.NO_VALIDATION_FILE]);
-                // result.success = true;
+                result.success = true;
             } 
             else {
                 await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, prevFileValidationStatus, prevTime);
