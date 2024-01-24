@@ -101,7 +101,9 @@ class DataRecordService {
             $project: {
                 submissionID: "$submissionID",
                 nodeType: "$nodeType",
-                validationType: "$validationType",
+                validationType: {
+                    $first: "$batch.type"
+                },
                 batchID: "$batchID",
                 displayID: {
                     $first: "$batch.displayID",
@@ -155,10 +157,11 @@ class DataRecordService {
             });
         }
         let page_pipeline = [];
+        let direction = getSortDirection(sortDirection);
         page_pipeline.push({
             $sort: {
-                [orderBy]: getSortDirection(sortDirection),
-                "nodeType": 1
+                [orderBy]: direction,
+                "nodeType": direction
             }
         });
         page_pipeline.push({

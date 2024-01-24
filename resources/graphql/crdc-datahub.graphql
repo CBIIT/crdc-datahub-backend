@@ -273,6 +273,7 @@ type DataRecord {
     warnings: [ErrorMessage]
     createdAt: Date
     updatedAt: Date
+    validatedAt: Date
     orginalFileName: String # holds original file name the data is read from
     lineNumber: Int # line number in the original file
     nodeType: String # type of the node, in "type" column of the file
