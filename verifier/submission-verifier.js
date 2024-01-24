@@ -28,9 +28,13 @@ class SubmissionActionVerifier {
         return this.submission;
     }
 
-    isValidAction(){
-        if(this.action === ACTIONS.REJECT)
+    isValidAction(comment){
+        if(this.action === ACTIONS.REJECT) {
             this.action = `${this.action}_${this.submission.status}`;
+            if(!comment || comment?.trim()?.length === 0) {
+                throw new Error(ERROR.VERIFY.REJECT_ACTION_COMMENT_REQUIRED);
+            }
+        }
 
         let actionMap = submissionActionMap?.filter((a)=>a.action === this.action);
         if(!actionMap || actionMap.length === 0)
@@ -43,7 +47,13 @@ class SubmissionActionVerifier {
         this.newStatus = this.actionMap.toStatus;
     }
 
-    isValidSubmitAction(role, aSubmission, comment) {
+    isValidRejectAction(comment) {
+        if(this.action === ACTIONS.REJECT && comment?.trim()?.length === 0) {
+            throw new Error(ERROR.VERIFY.INVALID_SUBMIT_ACTION);
+        }
+    }
+
+    isValidSubmitAction(role, aSubmission) {
         if(this.action === ACTIONS.SUBMIT) {
             const isInvalidAdminStatus = !this.#isValidAdminStatus(role, aSubmission);
             const isValidRole = [USER.ROLES.CURATOR, USER.ROLES.ORG_OWNER, USER.ROLES.SUBMITTER].includes(role);

@@ -25,8 +25,8 @@ const ERROR = {
         INVALID_SUBMISSION_ACTION_ROLE: "Invalid user role for the action:",
         INVALID_SUBMISSION_ID: "submissionID can't be empty!",
         EMPTY_ROOT_PATH: "RootPath is missing in the submission",
-        SUBMIT_ACTION: "Invalid submission action, user role and submission status requirements are not met.",
-        SUBMIT_ACTION_COMMENT_REQUIRED: "Submit action must include a comment.",
+        REJECT_ACTION_COMMENT_REQUIRED: "Reject submission action must include a comment.",
+        SUBMIT_ACTION_COMMENT_REQUIRED: "Submit action must include a comment."
     },
     // Batch
     FAILED_NEW_BATCH_INSERTION: "An error occurred while creating a new batch",

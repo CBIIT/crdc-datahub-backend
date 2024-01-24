@@ -213,6 +213,10 @@ class Submission {
             submission.reviewComment = submission?.reviewComment || [];
             submission.reviewComment.push(params?.comment);
         }
+        if (ACTIONS.REJECT === action) {
+            submission.reviewComment = submission?.reviewComment || [];
+            submission.reviewComment.push(params?.comment);
+        }
         events.push(HistoryEventBuilder.createEvent(userInfo._id, newStatus, null));
         submission = {
             ...submission,
