@@ -43,6 +43,12 @@ class SubmissionActionVerifier {
         this.newStatus = this.actionMap.toStatus;
     }
 
+    isValidRejectAction(comment) {
+        if(this.action === ACTIONS.REJECT && comment?.trim()?.length === 0) {
+            throw new Error(ERROR.VERIFY.INVALID_SUBMIT_ACTION);
+        }
+    }
+
     isValidSubmitAction(role, aSubmission) {
         if(this.action === ACTIONS.SUBMIT) {
             const isInvalidAdminStatus = !this.#isValidAdminStatus(role, aSubmission);

@@ -199,6 +199,7 @@ class Submission {
         const action = params?.action;
         //verify submission action
         const verifier = verifySubmissionAction(submissionID, action);
+        verifier.isValidRejectAction();
         //verify if a submission can be find by submissionID.
         let submission = await verifier.exists(this.submissionCollection);
         let fromStatus = submission.status;
@@ -214,7 +215,8 @@ class Submission {
             ...submission,
             status: newStatus,
             history: events,
-            updatedAt: getCurrentTime()
+            updatedAt: getCurrentTime(),
+            // reviewComment
         }
         const updated = await this.submissionCollection.update(submission);
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
@@ -318,7 +320,7 @@ class Submission {
         if (!result.success) {
             if(result.message && result.message.includes(ERROR.NO_VALIDATION_FILE)) {
                 await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, VALIDATION_STATUS.ERROR, getCurrentTime(), [ERROR.NO_VALIDATION_FILE]);
-                result.success = true;
+                // result.success = true;
             } 
             else {
                 await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, prevFileValidationStatus, prevTime);
