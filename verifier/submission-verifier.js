@@ -28,9 +28,13 @@ class SubmissionActionVerifier {
         return this.submission;
     }
 
-    isValidAction(){
-        if(this.action === ACTIONS.REJECT)
+    isValidAction(comment){
+        if(this.action === ACTIONS.REJECT) {
             this.action = `${this.action}_${this.submission.status}`;
+            if(!comment || comment?.trim()?.length === 0) {
+                throw new Error(ERROR.VERIFY.REJECT_ACTION_COMMENT_REQUIRED);
+            }
+        }
 
         let actionMap = submissionActionMap?.filter((a)=>a.action === this.action);
         if(!actionMap || actionMap.length === 0)
@@ -41,6 +45,12 @@ class SubmissionActionVerifier {
         if(this.actionMap.fromStatus.indexOf(fromStatus) < 0)
             throw new Error(`${ERROR.VERIFY.INVALID_SUBMISSION_ACTION_STATUS} ${this.action}!`);
         this.newStatus = this.actionMap.toStatus;
+    }
+
+    isValidRejectAction(comment) {
+        if(this.action === ACTIONS.REJECT && comment?.trim()?.length === 0) {
+            throw new Error(ERROR.VERIFY.INVALID_SUBMIT_ACTION);
+        }
     }
 
     isValidSubmitAction(role, aSubmission) {
