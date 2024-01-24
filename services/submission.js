@@ -209,7 +209,7 @@ class Submission {
         verifier.isValidSubmitAction(userInfo?.role, submission);
         //update submission
         let events = submission.history || [];
-        if ([ACTIONS.REJECT].includes(action)) {
+        if (ACTIONS.REJECT === action) {
             submission.reviewComment = submission?.reviewComment || [];
             submission.reviewComment.push(params?.comment);
         }
