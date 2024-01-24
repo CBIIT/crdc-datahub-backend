@@ -47,13 +47,7 @@ class SubmissionActionVerifier {
         this.newStatus = this.actionMap.toStatus;
     }
 
-    isValidRejectAction(comment) {
-        if(this.action === ACTIONS.REJECT && comment?.trim()?.length === 0) {
-            throw new Error(ERROR.VERIFY.INVALID_SUBMIT_ACTION);
-        }
-    }
-
-    isValidSubmitAction(role, aSubmission) {
+    isValidSubmitAction(role, aSubmission, comment) {
         if(this.action === ACTIONS.SUBMIT) {
             const isInvalidAdminStatus = !this.#isValidAdminStatus(role, aSubmission);
             const isValidRole = [USER.ROLES.CURATOR, USER.ROLES.ORG_OWNER, USER.ROLES.SUBMITTER].includes(role);
@@ -61,16 +55,15 @@ class SubmissionActionVerifier {
             const isValidatedStatus = validStatus.includes(aSubmission?.metadataValidationStatus)
                 && validStatus.includes(aSubmission?.fileValidationStatus);
 
-            const isValidError = [VALIDATION_STATUS.ERROR].includes(aSubmission?.metadataValidationStatus)
-                || [VALIDATION_STATUS.ERROR].includes(aSubmission?.fileValidationStatus);
-            if ([ROLES.ADMIN].includes(role) && isValidError) {
-                throw new Error(ERROR.VERIFY.SUBMIT_ACTION_COMMENT_REQUIRED);
-            }
-
             if (isInvalidAdminStatus) {
                 if (ROLES.ADMIN === role ||(![ROLES.ADMIN].includes(role) && (!isValidRole || !isValidatedStatus))) {
                     throw new Error(ERROR.VERIFY.INVALID_SUBMIT_ACTION);
                 }
+            }
+
+            const isError = [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus].includes(VALIDATION_STATUS.ERROR);
+            if ([ROLES.ADMIN].includes(role) && isError && (!comment || comment?.trim()?.length === 0)) {
+                throw new Error(ERROR.VERIFY.SUBMIT_ACTION_COMMENT_REQUIRED);
             }
         }
     }
