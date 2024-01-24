@@ -100,7 +100,7 @@ type ListBatches {
 type FileInfo {
     filePrefix: String # prefix/path within S3 bucket
     fileName: String
-    size: Int
+    size: Float
     nodeType: String
     status: String # [New, Uploaded, Failed]
     errors: [String]
@@ -129,7 +129,7 @@ type FileURL {
 
 input FileInput {
     fileName: String
-    size: Int
+    size: Float
 }
 
 input UploadResult {
@@ -288,7 +288,7 @@ type DataRecord {
 
 type S3FileInfo {
     fileName: String
-    size: Int
+    size: Float
     md5: String
     status: String # [New, Passed, Error, Warning]
     errors: [ErrorMessage]
