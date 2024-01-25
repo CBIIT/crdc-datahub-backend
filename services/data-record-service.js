@@ -157,12 +157,15 @@ class DataRecordService {
             });
         }
         let page_pipeline = [];
-        let direction = getSortDirection(sortDirection);
+        const nodeType = "nodeType";
+        let sortFields = {
+            [orderBy]: getSortDirection(sortDirection),
+        };
+        if (orderBy !== nodeType){
+            sortFields[nodeType] = 1
+        }
         page_pipeline.push({
-            $sort: {
-                [orderBy]: direction,
-                "nodeType": direction
-            }
+            $sort: sortFields
         });
         page_pipeline.push({
             $skip: offset
