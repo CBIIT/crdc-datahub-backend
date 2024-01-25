@@ -41,7 +41,8 @@ let config = {
     file_queue: process.env.FILE_QUEUE,
     export_queue: process.env.EXPORTER_QUEUE,
     //CRDC Review Committee Emails, separated by ","
-    committee_emails: process.env.REVIEW_COMMITTEE_EMAIL ? process.env.REVIEW_COMMITTEE_EMAIL.split(',') : ["CRDCSubmisison@nih.gov"]
+     committee_emails: process.env.REVIEW_COMMITTEE_EMAIL ? process.env.REVIEW_COMMITTEE_EMAIL.split(',') : ["CRDCSubmisison@nih.gov"],
+    model_url: getModelUrl()
 
 };
 config.mongo_db_connection_string = `mongodb://${config.mongo_db_user}:${config.mongo_db_password}@${config.mongo_db_host}:${process.env.MONGO_DB_PORT}`;
@@ -62,9 +63,26 @@ function getTransportConfig() {
         )
     };
 }
+function getModelUrl() {
+    // if MODEL_URL exists, it overrides
+    if (process.env.MODEL_URL) {
+        return process.env.MODEL_URL;
+    }
+    const tier = extractTierName();
+    // By default url
+    const modelUrl = ['https://raw.githubusercontent.com/CBIIT/crdc-datahub-models/', 'master', '/content.json']
+    if (tier?.length > 0) {
+        modelUrl[1] = tier.toLowerCase();
+    }
+    return modelUrl.join("");
+}
+
+function extractTierName() {
+    return process.env.TIER?.replace(/[^a-zA-Z\d]/g, '').trim();
+}
 
 function getTier() {
-    const tier = process.env.TIER?.replace(/[^a-zA-Z\d]/g, '').trim();
+    const tier = extractTierName();
     return tier?.length > 0 ? `[${tier.toUpperCase()}]` : '';
 }
 
