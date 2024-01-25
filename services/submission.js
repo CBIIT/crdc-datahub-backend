@@ -34,7 +34,7 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, dataModelInfo) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -43,6 +43,7 @@ class Submission {
         this.notificationService = notificationService;
         this.dataRecordService = dataRecordService;
         this.tier = tier;
+        this.modelVersion = this.#getModelVersion(dataModelInfo);
     }
 
     async createSubmission(params, context) {
@@ -59,7 +60,7 @@ class Submission {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
         }
 
-        const newSubmission = DataSubmission.createSubmission(params.name, userInfo, params.dataCommons, params.studyAbbreviation, params.dbGaPID, aUserOrganization);
+        const newSubmission = DataSubmission.createSubmission(params.name, userInfo, params.dataCommons, params.studyAbbreviation, params.dbGaPID, aUserOrganization, this.modelVersion);
         const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
@@ -412,6 +413,14 @@ class Submission {
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
             throw new Error(ERROR.FAILED_VALIDATE_METADATA);
         }
+    }
+
+    #getModelVersion(dataModelInfo) {
+        const modelVersion = dataModelInfo?.["CDS"]?.["current-version"];
+        if (modelVersion) {
+            return modelVersion;
+        }
+        throw new Error(ERROR.INVALID_DATA_MODEL_VERSION);
     }
 }
 
@@ -792,7 +801,7 @@ const isSubmissionPermitted = (aSubmission, userInfo) => {
 }
 
 class DataSubmission {
-    constructor(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization) {
+    constructor(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization, modelVersion) {
         this._id = v4();
         this.name = name;
         this.submitterID = userInfo._id;
@@ -802,7 +811,7 @@ class DataSubmission {
             name: userInfo?.organization?.orgName
         };
         this.dataCommons = dataCommons;
-        this.modelVersion = null;
+        this.modelVersion = modelVersion;
         this.studyAbbreviation = studyAbbreviation;
         this.dbGaPID = dbGaPID;
         this.status = NEW;
@@ -818,8 +827,8 @@ class DataSubmission {
         this.fileWarnings = [];
     }
 
-    static createSubmission(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization) {
-        return new DataSubmission(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization);
+    static createSubmission(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization, modelVersion) {
+        return new DataSubmission(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization, modelVersion);
     }
 }
 

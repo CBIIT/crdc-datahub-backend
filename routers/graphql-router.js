@@ -20,12 +20,13 @@ const {S3Service} = require("../crdc-datahub-database-drivers/services/s3-servic
 const {Organization} = require("../crdc-datahub-database-drivers/services/organization");
 const ERROR = require("../constants/error-constants");
 const {DataRecordService} = require("../services/data-record-service");
+const {UtilityService} = require("../services/utility");
 const schema = buildSchema(require("fs").readFileSync("resources/graphql/crdc-datahub.graphql", "utf8"));
 const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
 const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
 
 let root;
-dbConnector.connect().then(() => {
+dbConnector.connect().then(async () => {
     const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
     const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
     const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
@@ -47,7 +48,9 @@ dbConnector.connect().then(() => {
     const dataRecordCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_COLLECTION);
     const dataRecordService = new DataRecordService(dataRecordCollection, config.file_queue, config.metadata_queue, awsService, batchCollection);
 
-    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier);
+    const utilityService = new UtilityService();
+    const dataModelInfo = await utilityService.fetchJsonFromUrl(config.model_url);
+    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, dataModelInfo);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.tier);
 
     root = {
