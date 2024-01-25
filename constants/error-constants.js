@@ -26,6 +26,7 @@ const ERROR = {
         INVALID_SUBMISSION_ID: "submissionID can't be empty!",
         EMPTY_ROOT_PATH: "RootPath is missing in the submission",
         REJECT_ACTION_COMMENT_REQUIRED: "Reject submission action must include a comment.",
+        SUBMIT_ACTION_COMMENT_REQUIRED: "Submit action must include a comment."
     },
     // Batch
     FAILED_NEW_BATCH_INSERTION: "An error occurred while creating a new batch",

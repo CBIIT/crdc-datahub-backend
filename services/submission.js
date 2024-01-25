@@ -206,12 +206,12 @@ class Submission {
         verifier.isValidAction(params?.comment);
         //verify if user's role is valid for the action
         const newStatus = verifier.inRoles(userInfo);
-        verifier.isValidSubmitAction(userInfo?.role, submission);
+        verifier.isValidSubmitAction(userInfo?.role, submission, params?.comment);
         //update submission
         let events = submission.history || [];
-        if (ACTIONS.REJECT === action) {
+        if (ACTIONS.REJECT === action || ACTIONS.SUBMIT === action) {
             submission.reviewComment = submission?.reviewComment || [];
-            submission.reviewComment.push(params?.comment);
+            submission.reviewComment.push(`${action}: ${params?.comment}`);
         }
         events.push(HistoryEventBuilder.createEvent(userInfo._id, newStatus, null));
         submission = {
