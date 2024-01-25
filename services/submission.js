@@ -209,7 +209,8 @@ class Submission {
         verifier.isValidSubmitAction(userInfo?.role, submission, params?.comment);
         //update submission
         let events = submission.history || [];
-        if (ACTIONS.REJECT === action || ACTIONS.SUBMIT === action) {
+        // admin role and submit action only can leave a comment
+        if (ACTIONS.REJECT === action || (ROLES.ADMIN === userInfo?.role && ACTIONS.SUBMIT === action)) {
             submission.reviewComment = submission?.reviewComment || [];
             submission.reviewComment.push(`${action}: ${params?.comment}`);
         }
