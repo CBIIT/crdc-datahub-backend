@@ -62,7 +62,7 @@ class SubmissionActionVerifier {
             }
 
             const isError = [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus].includes(VALIDATION_STATUS.ERROR);
-            if ([ROLES.ADMIN].includes(role) && isError && (!comment || comment?.trim()?.length === 0)) {
+            if (ROLES.ADMIN === role && isError && (!comment || comment?.trim()?.length === 0)) {
                 throw new Error(ERROR.VERIFY.SUBMIT_ACTION_COMMENT_REQUIRED);
             }
         }
