@@ -210,11 +210,8 @@ class Submission {
         //update submission
         let events = submission.history || [];
         // admin role and submit action only can leave a comment
-        if (ACTIONS.REJECT === action || (!verifier.isSubmitActionCommentRequired(submission, userInfo?.role, params?.comment))) {
-            submission.reviewComment = submission?.reviewComment || [];
-            submission.reviewComment.push(`${action}: ${params?.comment}`);
-        }
-        events.push(HistoryEventBuilder.createEvent(userInfo._id, newStatus, null));
+        const isCommentRequired = ACTIONS.REJECT === action || (!verifier.isSubmitActionCommentRequired(submission, userInfo?.role, params?.comment));
+        events.push(HistoryEventBuilder.createEvent(userInfo._id, newStatus, isCommentRequired ? params?.comment : null));
         submission = {
             ...submission,
             status: newStatus,
