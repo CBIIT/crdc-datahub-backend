@@ -61,11 +61,15 @@ class SubmissionActionVerifier {
                 }
             }
 
-            const isError = [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus].includes(VALIDATION_STATUS.ERROR);
-            if (ROLES.ADMIN === role && isError && (!comment || comment?.trim()?.length === 0)) {
+            if (this.isSubmitActionCommentRequired(aSubmission, role, comment)) {
                 throw new Error(ERROR.VERIFY.SUBMIT_ACTION_COMMENT_REQUIRED);
             }
         }
+    }
+
+    isSubmitActionCommentRequired(aSubmission, role, comment) {
+            const isError = [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus].includes(VALIDATION_STATUS.ERROR);
+            return this.action === ACTIONS.SUBMIT && ROLES.ADMIN === role && isError && (!comment || comment?.trim()?.length === 0);
     }
 
     inRoles(userInfo){
