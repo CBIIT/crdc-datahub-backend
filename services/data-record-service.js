@@ -2,22 +2,17 @@ const {VALIDATION_STATUS} = require("../constants/submission-constants");
 const {VALIDATION} = require("../constants/submission-constants");
 const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
-const METADATA_GROUP_ID = "crdcdh-metadata-validation";
-const FILE_GROUP_ID = "crdcdh-file-validation";
-const EXPORT_GROUP_ID = "crdcdh-export-metadata";
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const config = require("../config");
-const {data} = require("express-session/session/cookie");
 
 const ERROR = "Error";
 const WARNING = "Warning";
 class DataRecordService {
-    constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService, batchCollection) {
+    constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService) {
         this.dataRecordsCollection = dataRecordsCollection;
         this.fileQueueName = fileQueueName;
         this.metadataQueueName = metadataQueueName;
         this.awsService = awsService;
-        this.batchCollection = batchCollection;
     }
 
     async submissionStats(submissionID) {
@@ -47,7 +42,7 @@ class DataRecordService {
         const isMetadata = types.some(t => t === VALIDATION.TYPES.METADATA);
         if (isMetadata) {
             const msg = Message.createMetadataMessage("Validate Metadata", submissionID, scope);
-            const success = await sendSQSMessageWrapper(this.awsService, msg, METADATA_GROUP_ID, submissionID, this.metadataQueueName, submissionID);
+            const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.metadataQueueName, submissionID);
             if (!success.success) {
                 return success;
             }
@@ -57,7 +52,7 @@ class DataRecordService {
             const fileNodes = await getFileNodes(this.dataRecordsCollection, submissionID, scope);
             const fileQueueResults = await Promise.all(fileNodes.map(async (aFile) => {
                 const msg = Message.createFileNodeMessage("Validate File", aFile._id);
-                return await sendSQSMessageWrapper(this.awsService, msg, FILE_GROUP_ID, aFile._id, this.fileQueueName, submissionID);
+                return await sendSQSMessageWrapper(this.awsService, msg, aFile._id, this.fileQueueName, submissionID);
             }));
             const errorMessages = fileQueueResults
                 .filter(result => !result.success)
@@ -70,14 +65,14 @@ class DataRecordService {
             }
 
             const msg = Message.createFileSubmissionMessage("Validate Submission Files", submissionID);
-            return await sendSQSMessageWrapper(this.awsService, msg, FILE_GROUP_ID, submissionID, this.fileQueueName, submissionID);
+            return await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.fileQueueName, submissionID);
         }
         return isMetadata ? ValidationHandler.success() : ValidationHandler.handle(ERRORS.FAILED_VALIDATE_METADATA);
     }
 
     async exportMetadata(submissionID) {
         const msg = Message.createFileSubmissionMessage("Export Metadata", submissionID);
-        return await sendSQSMessageWrapper(this.awsService, msg, EXPORT_GROUP_ID, submissionID, config.export_queue, submissionID);
+        return await sendSQSMessageWrapper(this.awsService, msg, submissionID, config.export_queue, submissionID);
     }
 
     async submissionQCResults(submissionID, nodeTypes, batchIDs, severities, first, offset, orderBy, sortDirection) {
@@ -212,9 +207,11 @@ const getFileNodes = async (dataRecordsCollection, submissionID, scope) => {
     return fileNodes || [];
 }
 
-const sendSQSMessageWrapper = async (awsService, message, groupId, deDuplicationId, queueName, submissionID) => {
+let groupIDCount = 0;
+const sendSQSMessageWrapper = async (awsService, message, deDuplicationId, queueName, submissionID) => {
     try {
-        await awsService.sendSQSMessage(message, groupId, deDuplicationId, queueName);
+        await awsService.sendSQSMessage(message, groupIDCount.toString(), deDuplicationId, queueName);
+        groupIDCount += 1;
         return ValidationHandler.success();
     } catch (e) {
         console.error(ERRORS.FAILED_VALIDATE_METADATA, `submissionID:${submissionID}`, `queue-name:${queueName}`, `error:${e}`);
