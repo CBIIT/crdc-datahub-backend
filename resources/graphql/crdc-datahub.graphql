@@ -93,7 +93,7 @@ type ListBatches {
 type FileInfo {
     filePrefix: String # prefix/path within S3 bucket
     fileName: String
-    size: Int
+    size: Float
     status: String # [New, Uploaded, Failed]
     errors: [String]
     createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
@@ -121,7 +121,7 @@ type FileURL {
 
 input FileInput {
     fileName: String
-    size: Int
+    size: Float
 }
 
 input UploadResult {
