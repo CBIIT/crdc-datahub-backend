@@ -103,7 +103,7 @@ class Submission {
         verifyBatch(params)
             .isUndefined()
             .notEmpty()
-            .type([BATCH.TYPE.METADATA, BATCH.TYPE.FILE]);
+            .type([BATCH.TYPE.METADATA, BATCH.TYPE.DATA_FILE]);
         // Optional metadata intention
         if (params.type === BATCH.TYPE.METADATA) {
             verifyBatch(params)
