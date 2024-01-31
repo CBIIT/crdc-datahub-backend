@@ -23,7 +23,7 @@ class BatchService {
         const metadataIntention = params?.metadataIntention && params.type === BATCH.TYPE.METADATA ? params.metadataIntention : null;
         await this.#getBatchDisplayID(params.submissionID);
         const newDisplayID = await this.#getBatchDisplayID(params.submissionID);
-        const newBatch = Batch.createNewBatch(params.submissionID, newDisplayID, this.bucketName, prefix, params.type, metadataIntention);
+        const newBatch = Batch.createNewBatch(params.submissionID, newDisplayID, this.bucketName, prefix, params.type.toLowerCase(), metadataIntention);
         if (BATCH.TYPE.METADATA === params.type.toLowerCase()) {
             await Promise.all(params.files.map(async (file) => {
                 if (file.fileName) {
