@@ -4,6 +4,7 @@ const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const config = require("../config");
+const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants.js");
 
 const ERROR = "Error";
 const WARNING = "Warning";
@@ -93,12 +94,17 @@ class DataRecordService {
             }
         });
         pipeline.push({
+           $set: {
+               validationType: {
+                   $first: "$batch.type"
+               }
+           }
+        });
+        pipeline.push({
             $project: {
                 submissionID: "$submissionID",
                 nodeType: "$nodeType",
-                validationType: {
-                    $first: "$batch.type"
-                },
+                validationType: "$validationType",
                 batchID: "$batchID",
                 displayID: {
                     $first: "$batch.displayID",
@@ -108,8 +114,16 @@ class DataRecordService {
                 severity: "$status",
                 uploadedDate: "$updatedAt",
                 validatedDate: "$validatedAt",
-                errors: "$errors",
-                warnings: "$warnings"
+                errors: {
+                    $cond: [{
+                        $eq: ["$validationType", BATCH.TYPE.METADATA]
+                    }, "$errors", "$s3FileInfo.errors"]
+                },
+                warnings: {
+                    $cond: [{
+                        $eq: ["$validationType", BATCH.TYPE.METADATA]
+                    }, "$warnings", "$s3FileInfo.warnings"]
+                }
             }
         });
         pipeline.push({
