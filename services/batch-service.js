@@ -28,7 +28,7 @@ class BatchService {
             await Promise.all(params.files.map(async (file) => {
                 if (file.fileName) {
                     const signedURL = await this.s3Service.createPreSignedURL(this.bucketName, newBatch.filePrefix, file.fileName);
-                    newBatch.addFile(file.fileName, file.size , signedURL, null, false);
+                    newBatch.addMetadataFile(file.fileName, file.size, signedURL);
                 }
             }));
         } else {

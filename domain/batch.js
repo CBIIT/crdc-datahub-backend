@@ -23,10 +23,14 @@ class Batch {
     }
 
     addDataFile(name, size){
-        this.addFile(name, size, null, true)
+        this.#addFile(name, size, null, true)
     }
 
-    addFile(name, size, signedURL, isDataFile) {
+    addMetadataFile(name, size, signedURL){
+        this.#addFile(name, size, signedURL, false)
+    }
+
+    #addFile(name, size, signedURL, isDataFile) {
         const file = new BatchFile(name, size, signedURL, this.filePrefix, isDataFile);
         this.files.push(file);
         this.fileCount += 1;
