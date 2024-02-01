@@ -22,8 +22,12 @@ class Batch {
         this.filePrefix = filePrefix;
     }
 
-    addFile(name, size, signedURL) {
-        const file = new BatchFile(name, size, signedURL, this.filePrefix);
+    addDataFile(name, size){
+        this.addFile(name, size, null, true)
+    }
+
+    addFile(name, size, signedURL, isDataFile) {
+        const file = new BatchFile(name, size, signedURL, this.filePrefix, isDataFile);
         this.files.push(file);
         this.fileCount += 1;
     }
@@ -35,7 +39,7 @@ class Batch {
 }
 
 class BatchFile {
-    constructor(fileName, size, signedURL, filePrefix) {
+    constructor(fileName, size, signedURL, filePrefix, isDataFile) {
         this.fileName = fileName;
         this.size = size;
         this.status = FILE.UPLOAD_STATUSES.NEW;
@@ -45,6 +49,9 @@ class BatchFile {
         this.filePrefix = filePrefix;
         this.createdAt = this.updatedAt = getCurrentTime();
         this.errors = [];
+        if (isDataFile){
+            this.nodeType = BATCH.TYPE.DATA_FILE
+        }
     }
 }
 
