@@ -127,6 +127,7 @@ class AWSService {
             MessageGroupId: groupID,
             MessageDeduplicationId: deDuplicationId
         }
+        console.log(`sendSQSMessage: ${params}`);
         return new Promise((resolve, reject) => {
             this.sqs.sendMessage(params, (err, data) => {
                 if (err) {
