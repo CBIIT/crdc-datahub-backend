@@ -207,12 +207,9 @@ const getFileNodes = async (dataRecordsCollection, submissionID, scope) => {
     return fileNodes || [];
 }
 
-let groupIDCount = 0;
 const sendSQSMessageWrapper = async (awsService, message, deDuplicationId, queueName, submissionID) => {
     try {
-        await awsService.sendSQSMessage(message, groupIDCount.toString(), deDuplicationId, queueName);
-        console.log("groupIDCount:" + groupIDCount.toString())
-        groupIDCount += 1;
+        await awsService.sendSQSMessage(message, deDuplicationId, deDuplicationId, queueName);
         return ValidationHandler.success();
     } catch (e) {
         console.error(ERRORS.FAILED_VALIDATE_METADATA, `submissionID:${submissionID}`, `queue-name:${queueName}`, `error:${e}`);
