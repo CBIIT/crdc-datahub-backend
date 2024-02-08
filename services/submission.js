@@ -402,7 +402,7 @@ class Submission {
             typesToUpdate.metadataValidationStatus = metaStatus;
         }
 
-        if (!!aSubmission?.fileValidationStatus && types.some(type => type.toLowerCase() === VALIDATION.TYPES.DATA_FILE)) {
+        if (!!aSubmission?.fileValidationStatus && types.some(type => type?.toLowerCase() === VALIDATION.TYPES.DATA_FILE)) {
             typesToUpdate.fileValidationStatus = fileStatus;
         }
 
