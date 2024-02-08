@@ -144,7 +144,7 @@ class Submission {
         if (res.status === BATCH.STATUSES.UPLOADED) {
             const updateSubmission = {
                 _id: aSubmission._id,
-                ...(res?.type === VALIDATION.TYPES.FILE ? {fileValidationStatus: VALIDATION_STATUS.NEW} : {}),
+                ...(res?.type === VALIDATION.TYPES.DATA_FILE ? {fileValidationStatus: VALIDATION_STATUS.NEW} : {}),
                 updatedAt: getCurrentTime()
             }
             await this.submissionCollection.update(updateSubmission);
@@ -402,7 +402,7 @@ class Submission {
             typesToUpdate.metadataValidationStatus = metaStatus;
         }
 
-        if (!!aSubmission?.fileValidationStatus && types.includes(VALIDATION.TYPES.FILE)) {
+        if (!!aSubmission?.fileValidationStatus && types.includes(VALIDATION.TYPES.DATA_FILE)) {
             typesToUpdate.fileValidationStatus = fileStatus;
         }
 

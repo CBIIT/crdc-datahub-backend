@@ -47,7 +47,7 @@ class DataRecordService {
                 return success;
             }
         }
-        const isFile = types.some(t => t === VALIDATION.TYPES.FILE);
+        const isFile = types.some(t => t?.toLowerCase() === VALIDATION.TYPES.DATA_FILE);
         if (isFile) {
             const fileNodes = await getFileNodes(this.dataRecordsCollection, submissionID, scope);
             const fileQueueResults = await Promise.all(fileNodes.map(async (aFile) => {
@@ -218,7 +218,7 @@ const sendSQSMessageWrapper = async (awsService, message, deDuplicationId, queue
 }
 
 const isValidMetadata = (types, scope) => {
-    const isValidTypes = types.every(t => t === VALIDATION.TYPES.FILE || t === VALIDATION.TYPES.METADATA);
+    const isValidTypes = types.every(t => t?.toLowerCase() === VALIDATION.TYPES.DATA_FILE || t?.toLowerCase() === VALIDATION.TYPES.METADATA);
     if (!isValidTypes) {
         throw new Error(ERRORS.INVALID_SUBMISSION_TYPE);
     }
