@@ -79,56 +79,61 @@ class DataRecordService {
     async submissionQCResults(submissionID, nodeTypes, batchIDs, severities, first, offset, orderBy, sortDirection) {
         let pipeline = [];
         pipeline.push({
+            $match: {
+                submissionID: submissionID
+            }
+        });
+        pipeline.push({
             $set: {
                 batchID: {
                     $last: "$batchIDs"
                 }
             }
         });
+        //
         pipeline.push({
             $lookup: {
                 from: "batch",
                 localField: "batchID",
                 foreignField: "_id",
-                as: "batch"
+                as: "batch",
             }
         });
         pipeline.push({
-           $set: {
-               validationType: {
-                   $first: "$batch.type"
-               }
-           }
+            $facet: {
+                metadata_results: this.#generateResultsPipeline("errors", "warnings", "status", BATCH.TYPE.METADATA),
+                datafile_results: this.#generateResultsPipeline("s3FileInfo.errors", "s3FileInfo.warnings", "s3FileInfo.status", BATCH.TYPE.DATA_FILE)
+            }
         });
         pipeline.push({
             $project: {
-                submissionID: "$submissionID",
-                nodeType: "$nodeType",
-                validationType: "$validationType",
-                batchID: "$batchID",
-                displayID: {
-                    $first: "$batch.displayID",
+                results: {
+                    $concatArrays: [
+                        "$metadata_results",
+                        "$datafile_results",
+                    ],
                 },
-                nodeID: "$nodeID",
-                CRDC_ID: "$_id",
-                severity: "$status",
-                uploadedDate: "$updatedAt",
-                validatedDate: "$validatedAt",
-                errors: {
-                    $cond: [{
-                        $eq: ["$validationType", BATCH.TYPE.METADATA]
-                    }, "$errors", "$s3FileInfo.errors"]
-                },
-                warnings: {
-                    $cond: [{
-                        $eq: ["$validationType", BATCH.TYPE.METADATA]
-                    }, "$warnings", "$s3FileInfo.warnings"]
-                }
             }
         });
         pipeline.push({
-            $match: {
-                submissionID: submissionID
+            $unwind: "$results"
+        });
+        pipeline.push({
+            $project: {
+                submissionID: "$results.submissionID",
+                nodeType: "$results.nodeType",
+                validationType: "$results.validationType",
+                batchID: "$results.batchID",
+                displayID: {
+                    $first: "$results.batch.displayID",
+                },
+                nodeID: "$results.nodeID",
+                CRDC_ID: "$results._id",
+                severity: "$results.status",
+                uploadedDate: "$results.updatedAt",
+                validatedDate: "$results.validatedAt",
+                errors: "$results.errors",
+                warning: "$results.warnings"
             }
         });
         if (severities === ERROR){
@@ -190,11 +195,18 @@ class DataRecordService {
                 }]
             }
         });
+        pipeline.push({
+            $set: {
+                total: {
+                    $first: "$total.total",
+                }
+            }
+        });
         let dataRecords = await this.dataRecordsCollection.aggregate(pipeline);
         dataRecords = dataRecords.length > 0 ? dataRecords[0] : {}
         return {
             results: dataRecords.results || [],
-            total: (dataRecords?.total?.length > 0) ? dataRecords.total[0]?.total : 0
+            total: dataRecords.total || 0
         }
     }
 
@@ -206,6 +218,41 @@ class DataRecordService {
             submissionID: submissionID
         };
         return await this.dataRecordsCollection.distinct("nodeType", filter);
+    }
+
+    #generateResultsPipeline(errorsField, warningsField, statusField, validationType){
+        let pipeline = []
+        pipeline.push({
+            $match: {
+                $or: [
+                    {
+                        [errorsField]: {
+                            $exists: true,
+                            $not: {
+                                $size: 0,
+                            },
+                        },
+                    },
+                    {
+                        [warningsField]: {
+                            $exists: true,
+                            $not: {
+                                $size: 0,
+                            },
+                        },
+                    },
+                ],
+            }
+        });
+        pipeline.push({
+            $set: {
+                validationType: validationType,
+                severity: "$"+statusField,
+                errors: "$"+errorsField,
+                warnings: "$"+warningsField
+            }
+        });
+        return pipeline;
     }
 }
 
