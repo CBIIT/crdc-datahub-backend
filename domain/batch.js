@@ -8,6 +8,9 @@ class Batch {
         this.submissionID = submissionID;
         this.displayID = displayID;
         this.type = type;
+        if (type === BATCH.TYPE.DATA_FILE || type === BATCH.TYPE.FILE) {
+            this.type = BATCH.TYPE.DATA_FILE;
+        }
         this.status = status;
         this.fileCount = 0;
         // Optional
