@@ -32,7 +32,7 @@ module.exports = Object.freeze({
     },
     VALIDATION: {
         TYPES: {
-            FILE: "file",
+            DATA_FILE: "data file",
             METADATA: "metadata"
         },
         SCOPE: {
