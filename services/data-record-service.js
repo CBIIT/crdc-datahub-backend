@@ -129,7 +129,7 @@ class DataRecordService {
                 },
                 nodeID: "$results.nodeID",
                 CRDC_ID: "$results._id",
-                severity: "$results.status",
+                severity: "$results.severity",
                 uploadedDate: "$results.updatedAt",
                 validatedDate: "$results.validatedAt",
                 errors: "$results.errors",
