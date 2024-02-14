@@ -103,7 +103,7 @@ class Submission {
         verifyBatch(params)
             .isUndefined()
             .notEmpty()
-            .type([BATCH.TYPE.METADATA, BATCH.TYPE.DATA_FILE]);
+            .type([BATCH.TYPE.METADATA, BATCH.TYPE.DATA_FILE, BATCH.TYPE.FILE]);
         // Optional metadata intention
         if (params.type === BATCH.TYPE.METADATA) {
             verifyBatch(params)
@@ -402,7 +402,7 @@ class Submission {
             typesToUpdate.metadataValidationStatus = metaStatus;
         }
 
-        if (!!aSubmission?.fileValidationStatus && types.some(type => type?.toLowerCase() === VALIDATION.TYPES.DATA_FILE)) {
+        if (!!aSubmission?.fileValidationStatus && types.some(type => (type?.toLowerCase() === VALIDATION.TYPES.DATA_FILE || type?.toLowerCase() === VALIDATION.TYPES.FILE))) {
             typesToUpdate.fileValidationStatus = fileStatus;
         }
 
