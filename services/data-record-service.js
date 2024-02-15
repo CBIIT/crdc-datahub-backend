@@ -133,7 +133,7 @@ class DataRecordService {
                 uploadedDate: "$results.updatedAt",
                 validatedDate: "$results.validatedAt",
                 errors: "$results.errors",
-                warning: "$results.warnings"
+                warnings: "$results.warnings"
             }
         });
         if (severities === ERROR){
