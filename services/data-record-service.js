@@ -51,10 +51,12 @@ class DataRecordService {
         const isFile = types.some(t => (t?.toLowerCase() === VALIDATION.TYPES.DATA_FILE || t?.toLowerCase() === VALIDATION.TYPES.FILE));
         if (isFile) {
             const fileNodes = await getFileNodes(this.dataRecordsCollection, submissionID, scope);
-            const fileQueueResults = await Promise.all(fileNodes.map(async (aFile) => {
+            const fileQueueResults = [];
+            for (const aFile of fileNodes) {
                 const msg = Message.createFileNodeMessage("Validate File", aFile._id);
-                return await sendSQSMessageWrapper(this.awsService, msg, aFile._id, this.fileQueueName, submissionID);
-            }));
+                const result = await sendSQSMessageWrapper(this.awsService, msg, aFile._id, this.fileQueueName, submissionID);
+                fileQueueResults.push(result);
+            }
             const errorMessages = fileQueueResults
                 .filter(result => !result.success)
                 .map(result => result.message)
@@ -263,7 +265,8 @@ const getFileNodes = async (dataRecordsCollection, submissionID, scope) => {
             s3FileInfo: { $exists: true, $ne: null },
             submissionID: submissionID,
             // case-insensitive search
-            ...(isNewScope ? { status: { $regex: new RegExp("^" + VALIDATION.SCOPE.NEW + "$", "i") } } : {})}}
+            ...(isNewScope ? { status: { $regex: new RegExp("^" + VALIDATION.SCOPE.NEW + "$", "i") } } : {})}},
+        {$sort: {"s3FileInfo.size": 1}}
     ]);
     return fileNodes || [];
 }
