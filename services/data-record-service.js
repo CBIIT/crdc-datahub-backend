@@ -206,6 +206,7 @@ class DataRecordService {
         });
         let dataRecords = await this.dataRecordsCollection.aggregate(pipeline);
         dataRecords = dataRecords.length > 0 ? dataRecords[0] : {}
+        dataRecords.results = this.#replaceNaN(dataRecords?.results, null);
         return {
             results: dataRecords.results || [],
             total: dataRecords.total || 0
@@ -255,6 +256,17 @@ class DataRecordService {
             }
         });
         return pipeline;
+    }
+
+    #replaceNaN(results, replacement){
+        results.map((result) => {
+            Object.keys(result).forEach((key) => {
+                if (Object.is(result[key], Number.NaN)){
+                    result[key] = replacement;
+                }
+            })
+        });
+        return results;
     }
 }
 
