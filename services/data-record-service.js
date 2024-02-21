@@ -259,7 +259,7 @@ class DataRecordService {
     }
 
     #replaceNaN(results, replacement){
-        results.map((result) => {
+        results?.map((result) => {
             Object.keys(result).forEach((key) => {
                 if (Object.is(result[key], Number.NaN)){
                     result[key] = replacement;
