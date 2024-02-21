@@ -382,7 +382,7 @@ class Submission {
             ]);
         const userRole = context.userInfo?.role;
         let submission = null;
-        if ([ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.DC_POC].includes(userRole)){
+        if ([ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.CURATOR].includes(userRole)){
             return true;
         }
         if ([ROLES.ORG_OWNER, ROLES.SUBMITTER, ROLES.DC_POC].includes(userRole)){
