@@ -1,7 +1,7 @@
 const {Batch} = require("../domain/batch");
 const {BATCH, FILE} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const ERROR = require("../constants/error-constants");
-const {NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED, REJECTED, WITHDRAWN} = require("../constants/submission-constants");
+const {NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED, REJECTED, WITHDRAWN, VALIDATION} = require("../constants/submission-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {SUBMISSIONS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
@@ -175,7 +175,11 @@ const createPrefix = (params, rootPath) => {
     if (!rootPath || rootPath?.trim()?.length === 0) {
         throw new Error(ERROR.FAILED_NEW_BATCH_NO_ROOT_PATH);
     }
-    const prefixArray = [rootPath, params.type];
+    type = params.type;
+    if (VALIDATION.TYPES.DATA_FILE === params.type) {
+        type = VALIDATION.TYPES.FILE
+    }
+    const prefixArray = [rootPath, type];
     return prefixArray.join("/");
 }
 
