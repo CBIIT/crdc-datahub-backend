@@ -54,33 +54,32 @@ type ListSubmissions {
 
 type Submission {
     _id: ID # aka. submissionID
-    displayID: ID # minimum 6 digit integer with leading zeros, can have more digits
     name: String
     submitterID: ID
     submitterName: String # <first name> <last name>
-    organization: String
+    organization: Organization
     dataCommons: String
     modelVersion: String # for future use
     studyAbbreviation: String
-    dbGapID: String # aka. phs number
+    dbGaPID: String # aka. phs number
     bucketName: String # populated from organization
     rootPath: String # append "/<submission ID>" to organization's rootPath
     status: String # [New, In Progress, Submitted, Released, Canceled, Transferred, Completed, Archived]
     history: [Event]
-    concierge: String # Concierge name
+    conciergeName: String # Concierge name
+    conciergeEmail: String # Concierge email
     createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
     updatedAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
 }
 
 type Batch {
     _id: ID
-    displayID: ID # minimum 6 digit integer with leading zeros, can have more digits
     submissionID: ID # parent
     type: String # [metadata, file]
     metadataIntention: String # [New, Update, Delete], Update is meant for "Update or insert", metadata only! file batches are always treated as Update
     fileCount: Int # calculated by BE
     files: [FileInfo]
-    status: String # [New, Uploaded, Upload Failed, Loaded, Rejected] Loaded and Rejected are for metadata batch only
+    status: String # [Uploading, Uploaded, Upload Failed, Loaded, Rejected] Loaded and Rejected are for metadata batch only
     errors: [String]
     createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
     updatedAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
@@ -94,7 +93,7 @@ type ListBatches {
 type FileInfo {
     filePrefix: String # prefix/path within S3 bucket
     fileName: String
-    size: Int
+    size: Float
     status: String # [New, Uploaded, Failed]
     errors: [String]
     createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
@@ -103,7 +102,6 @@ type FileInfo {
 
 type NewBatch {
     _id: ID
-    displayID: ID
     submissionID: ID
     bucketName: String # S3 bucket of the submission, for file batch / CLI use
     filePrefix: String # prefix/path within S3 bucket, for file batch / CLI use
@@ -111,7 +109,7 @@ type NewBatch {
     metadataIntention: String # [New, Update, Delete], Update is meant for "Update or insert", metadata only! file batches are always treated as Update
     fileCount: Int
     files: [FileURL] # only available for metadata batch
-    status: String # [New, Uploaded, Upload Failed, Loaded, Rejected]
+    status: String # [Uploading, Uploaded, Upload Failed, Loaded, Rejected]
     createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
     updatedAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
 }
@@ -123,7 +121,7 @@ type FileURL {
 
 input FileInput {
     fileName: String
-    size: Int
+    size: Float
 }
 
 input UploadResult {
@@ -132,12 +130,28 @@ input UploadResult {
     errors: [String]
 }
 
+type TempCredentials {
+    accessKeyId: String
+    secretAccessKey: String
+    sessionToken: String
+}
+
 type ApprovedStudy {
     _id: ID
     originalOrg: String # organization at the time of approval, can be absent if a submission request doesn't have an organization associated
     studyName: String
     studyAbbreviation: String # must be unique
-    dbGapID: String # aka. phs number
+    dbGaPID: String # aka. phs number
+}
+
+type ListLogFiles {
+    logFiles: [LogFile]
+}
+type LogFile {
+    fileName: String
+    uploadType: String # [metadata, file]
+    downloadUrl: String #s3 presigned download url of the file
+    fileSize: Int #size in byte
 }
 
 type Query {
@@ -151,7 +165,10 @@ type Query {
     # sortDirection in ["ASC", "DESC"]
     # orderBy in ["Submitter Name", "Organization", "Study", "Program", "Status", "Submitted Date"]
 
-    # Submitter and Org Owner can only list studies for their own organization, other role can see all
+    # return approved studied for a user's organization
+    listApprovedStudiesOfMyOrganization: [ApprovedStudy]
+
+    # Admin only
     listApprovedStudies: [ApprovedStudy]
 
     "Result depends on user's permission"
@@ -160,7 +177,7 @@ type Query {
         status: String,
         first: Int = 10,
         offset: Int = 0,
-        # ["updatedAt", "createdAt", "displayID", "name", "dataCommons", "organization", "studyAbbreviation",
+        # ["updatedAt", "createdAt", "name", "dataCommons", "organization", "studyAbbreviation",
         #              "dbGapID", "status", "concierge"]
         orderBy: String = "updatedAt",
         sortDirection: String = "DESC"): ListSubmissions
@@ -169,14 +186,19 @@ type Query {
     listBatches(submissionID: ID!,
         first: Int = 10,
         offset: Int = 0,
-        # in ["updatedAt", "createdAt", "displayID", "fileCount", "status", "errors"]
-        orderBy: String = "displayID",
+        # in ["updatedAt", "createdAt", "fileCount", "status", "errors"]
+        orderBy: String = "updatedAt",
         sortDirection: String = "DESC" # ["DESC", "ASC"]
     ): ListBatches
+
     getBatch(batchID: ID!): Batch
+    
+    #upload log queries
+    listLogs (submissionID: ID!) : ListLogFiles
 
     version: String
 }
+
 type Mutation {
     "User initiated operations"
     saveApplication(application: AppInput!): Application
@@ -187,13 +209,19 @@ type Mutation {
     reviewApplication (_id: ID!): Application # same as getApplication but will set Application to "In Review" state
     approveApplication (_id: ID!, wholeProgram: Boolean, comment: String): Application
     rejectApplication (_id: ID!, comment: String!): Application
+    inquireApplication (_id: ID!, comment: String!): Application
 
     "Admin only operations"
     deleteApplication (_id: ID!): Application
 
     "Submitter or Org Owner"
-    createSubmission (studyAbbreviation: String!, dbGapID: String!, dataCommons: String!, name: String!): Submission
+    createSubmission (studyAbbreviation: String!, dbGaPID: String, dataCommons: String!, name: String!): Submission
+    submissionAction (
+        submissionID: ID!,
+        # in [Submit, Release, Withdraw, Reject, Complete, Cancel, Archive]
+        action: String!
+    ): Submission
     createBatch (submissionID: ID!, type: String, metadataIntention: String, files: [FileInput]): NewBatch
     updateBatch (batchID: ID!, files: [UploadResult]): Batch
+    createTempCredentials (submissionID: ID!): TempCredentials
 }
-

@@ -53,6 +53,23 @@ const extractAndJoinFields = (data, fieldsToExtract, splitter = ",") => {
     );
 }
 
+/**
+ * Convert string to pascal case
+ * @param {*} string 
+ * @returns 
+ */
+const toPascalCase = (string) => {
+    return `${string}`
+      .toLowerCase()
+      .replace(new RegExp(/[-_]+/, 'g'), ' ')
+      .replace(new RegExp(/[^\w\s]/, 'g'), '')
+      .replace(
+        new RegExp(/\s+(.)(\w*)/, 'g'),
+        ($1, $2, $3) => `${$2.toUpperCase() + $3}`
+      )
+      .replace(new RegExp(/\w/), s => s.toUpperCase());
+}
+
 module.exports = {
     isCaseInsensitiveEqual,
     isElementInArray,
@@ -61,5 +78,6 @@ module.exports = {
     getUniqueArr,
     parseArrToStr,
     replaceMessageVariables,
-    extractAndJoinFields
+    extractAndJoinFields,
+    toPascalCase
 }
