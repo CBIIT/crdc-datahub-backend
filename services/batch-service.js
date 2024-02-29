@@ -7,8 +7,6 @@ const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mon
 const {SUBMISSIONS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const LOAD_METADATA = "Load Metadata";
-// SQS FIFO Parameters
-const GROUP_ID = "crdcdh-batch";
 class BatchService {
     constructor(s3Service, batchCollection, bucketName, sqsLoaderQueue, awsService) {
         this.s3Service = s3Service;
