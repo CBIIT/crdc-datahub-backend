@@ -175,10 +175,7 @@ const createPrefix = (params, rootPath) => {
     if (!rootPath || rootPath?.trim()?.length === 0) {
         throw new Error(ERROR.FAILED_NEW_BATCH_NO_ROOT_PATH);
     }
-    type = params.type;
-    if (VALIDATION.TYPES.DATA_FILE === params.type) {
-        type = VALIDATION.TYPES.FILE
-    }
+    const type = (VALIDATION.TYPES.DATA_FILE === params.type)? VALIDATION.TYPES.FILE : params.type ;
     const prefixArray = [rootPath, type];
     return prefixArray.join("/");
 }

@@ -41,12 +41,23 @@ class DataRecordService {
     async validateMetadata(submissionID, types, scope) {
         isValidMetadata(types, scope);
         const isMetadata = types.some(t => t === VALIDATION.TYPES.METADATA);
-        if (isMetadata) {
+        if (isMetadata ) {
+            const docCount = await getCount(this.dataRecordsCollection, submissionID);
+            if (docCount === 0)  return ValidationHandler.handle([ERRORS.NO_VALIDATION_METADATA]);
+            else {
+                if (scope.toLowerCase() === VALIDATION.SCOPE.NEW ){
+                    const newDocCount = await getCount(this.dataRecordsCollection, submissionID, scope);
+                    if (newDocCount == 0)
+                        return ValidationHandler.success();
+                }
+            }
+
             const msg = Message.createMetadataMessage("Validate Metadata", submissionID, scope);
             const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.metadataQueueName, submissionID);
             if (!success.success) {
                 return success;
             }
+
         }
         const isFile = types.some(t => (t?.toLowerCase() === VALIDATION.TYPES.DATA_FILE || t?.toLowerCase() === VALIDATION.TYPES.FILE));
         if (isFile) {
@@ -281,6 +292,11 @@ const getFileNodes = async (dataRecordsCollection, submissionID, scope) => {
         {$sort: {"s3FileInfo.size": 1}}
     ]);
     return fileNodes || [];
+}
+
+const getCount = async (dataRecordsCollection, submissionID, status = null) => {
+    const query = (!status)? {submissionID: submissionID} : {submissionID: submissionID, status: status} ;
+    return await dataRecordsCollection.countDoc(query);
 }
 
 const sendSQSMessageWrapper = async (awsService, message, deDuplicationId, queueName, submissionID) => {
