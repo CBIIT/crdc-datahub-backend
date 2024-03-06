@@ -1,4 +1,4 @@
-FROM node:18.18.2-alpine3.18
+FROM node:20.11.1-alpine3.19
 ENV PORT 8080
 ENV NODE_ENV production
 WORKDIR /usr/src/app
