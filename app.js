@@ -11,7 +11,7 @@ const statusRouter = require("./routers/status-endpoints-router");
 const graphqlRouter = require("./routers/graphql-router");
 const {MongoDBCollection} = require("./crdc-datahub-database-drivers/mongodb-collection");
 const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, LOG_COLLECTION, APPROVED_STUDIES_COLLECTION,
-    ORGANIZATION_COLLECTION
+    ORGANIZATION_COLLECTION, SUBMISSIONS_COLLECTION
 } = require("./crdc-datahub-database-drivers/database-constants");
 const {Application} = require("./services/application");
 const {MongoQueries} = require("./crdc-datahub-database-drivers/mongo-queries");
@@ -62,15 +62,15 @@ cronJob.schedule(config.schedule_job, async () => {
         const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days,
             submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk};
         const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
-        const userService = new User(userCollection, logCollection);
-
         const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
         const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection);
 
         const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
         const organizationService = new Organization(organizationCollection);
+        const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
+        const userService = new User(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.tier);
 
-        const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.devTier);
+        const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.tier);
         console.log("Running a scheduled background task to delete inactive application at " + getCurrentTime());
         await dataInterface.deleteInactiveApplications();
         console.log("Running a scheduled job to disable user(s) because of no activities at " + getCurrentTime());
@@ -95,7 +95,7 @@ const runDeactivateInactiveUsers = async (userService, notificationsService) => 
             await notificationsService.inactiveUserNotification(user.email,
                 {firstName: user.firstName},
                 {inactiveDays: config.inactive_user_days, officialEmail: config.official_email},
-                config.devTier);
+                config.tier);
         }));
         // Email admin(s)
         const adminUsers = await userService.getAdminUserEmails();
@@ -112,7 +112,7 @@ const runDeactivateInactiveUsers = async (userService, notificationsService) => 
                 await notificationsService.inactiveUserAdminNotification(admin.email,
                     {firstName: admin.firstName,users: commaJoinedUsers},
                     {inactiveDays: config.inactive_user_days},
-                    config.devTier);
+                    config.tier);
             }
         }));
     }

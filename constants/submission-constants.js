@@ -9,6 +9,7 @@ module.exports = Object.freeze({
     CANCELED:'Canceled',
     REJECTED:'Rejected',
     WITHDRAWN: 'Withdrawn',
+    EXPORT: "Export metadata",
     //data submission actions
     ACTIONS: {
         SUBMIT: "Submit",
@@ -21,5 +22,23 @@ module.exports = Object.freeze({
         RESUME: "Resume",
         REJECT_SUBMIT: "Reject_Submitted",
         REJECT_RELEASE: "Reject_Released"
+    },
+    VALIDATION_STATUS: {
+        NEW: "New",
+        VALIDATING: "Validating",
+        PASSED: "Passed",
+        WARNING: "Warning",
+        ERROR: "Error"
+    },
+    VALIDATION: {
+        TYPES: {
+            FILE: "file",
+            DATA_FILE: "data file",
+            METADATA: "metadata"
+        },
+        SCOPE: {
+            NEW: "new",
+            ALL: "all"
+        }
     }
 });
