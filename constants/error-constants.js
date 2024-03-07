@@ -61,6 +61,8 @@ const ERROR = {
     // Validate Submission
     FAILED_VALIDATE_METADATA: "Failed to validate metadata",
     NO_VALIDATION_FILE: "No file manifest(s) are uploaded for file validation",
+    NO_VALIDATION_METADATA: "No metadata for validation",
+    NO_NEW_VALIDATION_METADATA: "No new metadata for validation",
     INVALID_VALIDATION_STATUS: "A data record can not be validated because of its invalid status.",
     INVALID_SUBMISSION_SCOPE: "submission scope is invalid",
     INVALID_SUBMISSION_TYPE: "submission type is invalid",
