@@ -523,10 +523,12 @@ const saveApprovedStudies = async (approvedStudiesService, organizationService, 
         console.error(ERROR.FAILED_STORE_APPROVED_STUDIES + ` id=${aApplication?._id}`);
         return;
     }
+    // use study name when study abbreviation is not available
+    const studyAbbreviation = !!aApplication?.studyAbbreviation?.trim() ? aApplication?.studyAbbreviation : questionnaire?.study?.name;
     await approvedStudiesService.storeApprovedStudies(
-        questionnaire?.study?.name, aApplication?.studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name
+        questionnaire?.study?.name, studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name
     );
-    await organizationService.storeApprovedStudies(aApplication?.organization?._id, questionnaire?.study?.name, aApplication?.studyAbbreviation);
+    await organizationService.storeApprovedStudies(aApplication?.organization?._id, questionnaire?.study?.name, studyAbbreviation);
 }
 
 module.exports = {
