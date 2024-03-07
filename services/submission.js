@@ -328,6 +328,10 @@ class Submission {
                 await this.#updateValidationStatus(params?.types, aSubmission, null, prevFileValidationStatus, getCurrentTime(), []);
                 result.success = true;
             } 
+            else if (result.message && result.message.includes(ERROR.NO_NEW_VALIDATION_METADATA)){
+                await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, prevFileValidationStatus, prevTime);
+                result.success = true;
+            }
             else {
                 await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, prevFileValidationStatus, prevTime);
             }

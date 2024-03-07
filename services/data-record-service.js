@@ -48,7 +48,7 @@ class DataRecordService {
                 if (scope.toLowerCase() === VALIDATION.SCOPE.NEW ){
                     const newDocCount = await getCount(this.dataRecordsCollection, submissionID, scope);
                     if (newDocCount == 0)
-                        return ValidationHandler.success();
+                        return ValidationHandler.handle([ERRORS.NO_NEW_VALIDATION_METADATA]);
                 }
             }
 
