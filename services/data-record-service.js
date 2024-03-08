@@ -5,6 +5,7 @@ const {ValidationHandler} = require("../utility/validation-handler");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const config = require("../config");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants.js");
+const {BatchType} = require("mongodb");
 
 const ERROR = "Error";
 const WARNING = "Warning";
@@ -91,19 +92,34 @@ class DataRecordService {
 
     async submissionQCResults(submissionID, nodeTypes, batchIDs, severities, first, offset, orderBy, sortDirection) {
         let pipeline = [];
+        // Filter by submission ID
         pipeline.push({
             $match: {
                 submissionID: submissionID
             }
         });
+        // Lookup submission data
+        pipeline.push({
+            $lookup:{
+                from: "submissions",
+                localField: "submissionID",
+                foreignField: "_id",
+                as: "submission",
+            },
+        })
+        // Set batch ID to latest batch ID
+        // Extracts submission data from array
         pipeline.push({
             $set: {
                 batchID: {
                     $last: "$batchIDs"
+                },
+                submission: {
+                    $last: "$submission"
                 }
             }
         });
-        //
+        // Lookup Batch data
         pipeline.push({
             $lookup: {
                 from: "batch",
@@ -112,43 +128,100 @@ class DataRecordService {
                 as: "batch",
             }
         });
+        // Collect all validation results
         pipeline.push({
-            $facet: {
-                metadata_results: this.#generateResultsPipeline("errors", "warnings", "status", BATCH.TYPE.METADATA),
-                datafile_results: this.#generateResultsPipeline("s3FileInfo.errors", "s3FileInfo.warnings", "s3FileInfo.status", BATCH.TYPE.DATA_FILE)
-            }
-        });
-        pipeline.push({
-            $project: {
-                results: {
-                    $concatArrays: [
-                        "$metadata_results",
-                        "$datafile_results",
-                    ],
+            $set: {
+                submission_results: {
+                    validation_type: BATCH.TYPE.DATA_FILE,
+                    errors: "$submission.fileErrors",
+                    warnings: "$submission.fileWarnings"
                 },
+                metadata_results: {
+                    validation_type: BATCH.TYPE.METADATA,
+                    errors: "$errors",
+                    warnings: "$warnings"
+                },
+                datafile_results: {
+                    validation_type: BATCH.TYPE.DATA_FILE,
+                    errors: "$s3FileInfo.errors",
+                    warnings: "$s3FileInfo.warnings",
+                }
             }
-        });
+        })
+        // Add all validation results to a single array
+        pipeline.push({
+            $set: {
+                results: [
+                    "$submission_results",
+                    "$metadata_results",
+                    "$datafile_results",
+                ]
+            }
+        })
+        // Unwind validation results into individual documents
         pipeline.push({
             $unwind: "$results"
-        });
+        })
+        // Filter out empty validation results
+        pipeline.push({
+            $match: {
+                $or: [
+                    {
+                        "results.errors": {
+                            $exists: true,
+                            $not: {
+                                $size: 0,
+                            },
+                        },
+                    },
+                    {
+                        "results.warnings": {
+                            $exists: true,
+                            $not: {
+                                $size: 0,
+                            },
+                        },
+                    },
+                ],
+            },
+        })
+        // Reformat documents
         pipeline.push({
             $project: {
-                submissionID: "$results.submissionID",
-                nodeType: "$results.nodeType",
-                validationType: "$results.validationType",
-                batchID: "$results.batchID",
+                submissionID: "$submissionID",
+                nodeType: "$nodeType",
+                validationType: "$results.validation_type",
+                batchID: "$batchID",
                 displayID: {
-                    $first: "$results.batch.displayID",
+                    $first: "$batch.displayID",
                 },
-                nodeID: "$results.nodeID",
-                CRDC_ID: "$results._id",
-                severity: "$results.severity",
-                uploadedDate: "$results.updatedAt",
-                validatedDate: "$results.validatedAt",
-                errors: "$results.errors",
-                warnings: "$results.warnings"
+                nodeID: "$nodeID",
+                CRDC_ID: "$_id",
+                uploadedDate: "$updatedAt",
+                validatedDate: "$validatedAt",
+                errors: {
+                    $ifNull: ["$results.errors", []],
+                },
+                warnings: {
+                    $ifNull: ["$results.warnings", []],
+                },
             }
-        });
+        })
+        // Set severity based on the errors array
+        pipeline.push({
+            $set: {
+                severity: {
+                    $cond: {
+                        if: {
+                            $gt: [{$size: "$errors"}, 0],
+                        },
+                        then: VALIDATION_STATUS.ERROR,
+                        else: VALIDATION_STATUS.WARNING,
+                    }
+                }
+            }
+        })
+        // Filter by severity
         if (severities === ERROR){
             severities = [ERROR];
         }
@@ -165,6 +238,7 @@ class DataRecordService {
                 }
             }
         })
+        // Filter by node types
         if (!!nodeTypes && nodeTypes.length > 0) {
             pipeline.push({
                $match: {
@@ -174,6 +248,7 @@ class DataRecordService {
                }
             });
         }
+        // Filter by Batch IDs
         if (!!batchIDs && batchIDs.length > 0) {
             pipeline.push({
                 $match: {
@@ -183,6 +258,7 @@ class DataRecordService {
                 }
             });
         }
+        // Create page and sort steps
         let page_pipeline = [];
         const nodeType = "nodeType";
         let sortFields = {
@@ -200,6 +276,7 @@ class DataRecordService {
         page_pipeline.push({
             $limit: first
         });
+        // Get paged results and total count
         pipeline.push({
             $facet: {
                 results: page_pipeline,
@@ -208,6 +285,7 @@ class DataRecordService {
                 }]
             }
         });
+        // Extract total count from total object
         pipeline.push({
             $set: {
                 total: {
@@ -215,6 +293,7 @@ class DataRecordService {
                 }
             }
         });
+        // Execute pipeline
         let dataRecords = await this.dataRecordsCollection.aggregate(pipeline);
         dataRecords = dataRecords.length > 0 ? dataRecords[0] : {}
         dataRecords.results = this.#replaceNaN(dataRecords?.results, null);
@@ -233,42 +312,7 @@ class DataRecordService {
         };
         return await this.dataRecordsCollection.distinct("nodeType", filter);
     }
-
-    #generateResultsPipeline(errorsField, warningsField, statusField, validationType){
-        let pipeline = []
-        pipeline.push({
-            $match: {
-                $or: [
-                    {
-                        [errorsField]: {
-                            $exists: true,
-                            $not: {
-                                $size: 0,
-                            },
-                        },
-                    },
-                    {
-                        [warningsField]: {
-                            $exists: true,
-                            $not: {
-                                $size: 0,
-                            },
-                        },
-                    },
-                ],
-            }
-        });
-        pipeline.push({
-            $set: {
-                validationType: validationType,
-                severity: "$"+statusField,
-                errors: "$"+errorsField,
-                warnings: "$"+warningsField
-            }
-        });
-        return pipeline;
-    }
-
+    
     #replaceNaN(results, replacement){
         results?.map((result) => {
             Object.keys(result).forEach((key) => {
