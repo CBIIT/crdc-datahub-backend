@@ -133,16 +133,22 @@ class DataRecordService {
             $set: {
                 submission_results: {
                     validation_type: BATCH.TYPE.DATA_FILE,
+                    type: BATCH.TYPE.DATA_FILE,
+                    submittedID: "$nodeID",
                     errors: "$submission.fileErrors",
                     warnings: "$submission.fileWarnings"
                 },
                 metadata_results: {
                     validation_type: BATCH.TYPE.METADATA,
+                    type: "$nodeType",
+                    submittedID: "$nodeID",
                     errors: "$errors",
                     warnings: "$warnings"
                 },
                 datafile_results: {
                     validation_type: BATCH.TYPE.DATA_FILE,
+                    type: BATCH.TYPE.DATA_FILE,
+                    submittedID: "$s3FileInfo.fileName",
                     errors: "$s3FileInfo.errors",
                     warnings: "$s3FileInfo.warnings",
                 }
@@ -189,14 +195,13 @@ class DataRecordService {
         pipeline.push({
             $project: {
                 submissionID: "$submissionID",
-                nodeType: "$nodeType",
+                type: "$results.type",
                 validationType: "$results.validation_type",
                 batchID: "$batchID",
                 displayID: {
                     $first: "$batch.displayID",
                 },
-                nodeID: "$nodeID",
-                CRDC_ID: "$_id",
+                submittedID: "$results.submittedID",
                 uploadedDate: "$updatedAt",
                 validatedDate: "$validatedAt",
                 errors: {
@@ -242,7 +247,7 @@ class DataRecordService {
         if (!!nodeTypes && nodeTypes.length > 0) {
             pipeline.push({
                $match: {
-                   nodeType: {
+                   type: {
                        $in: nodeTypes
                    }
                }
@@ -260,7 +265,7 @@ class DataRecordService {
         }
         // Create page and sort steps
         let page_pipeline = [];
-        const nodeType = "nodeType";
+        const nodeType = "type";
         let sortFields = {
             [orderBy]: getSortDirection(sortDirection),
         };

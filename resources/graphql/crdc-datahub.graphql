@@ -247,12 +247,11 @@ type QCResults {
 
 type QCResult{
     submissionID: ID
-    nodeType: String
+    type: String
     validationType: String #[metadata, file]
     batchID: String
     displayID: Int
-    nodeID: String
-    CRDC_ID: String
+    submittedID: String
     severity: String # [Error, Warning]
     uploadedDate: Date # batch.updatedAt
     validatedDate: Date
