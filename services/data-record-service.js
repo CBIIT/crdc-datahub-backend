@@ -91,36 +91,23 @@ class DataRecordService {
     }
 
     async submissionQCResults(submissionID, nodeTypes, batchIDs, severities, first, offset, orderBy, sortDirection) {
-        let pipeline = [];
+        let dataRecordQCResultsPipeline = [];
         // Filter by submission ID
-        pipeline.push({
+        dataRecordQCResultsPipeline.push({
             $match: {
                 submissionID: submissionID
             }
         });
-        // Lookup submission data
-        pipeline.push({
-            $lookup:{
-                from: "submissions",
-                localField: "submissionID",
-                foreignField: "_id",
-                as: "submission",
-            },
-        })
         // Set batch ID to latest batch ID
-        // Extracts submission data from array
-        pipeline.push({
+        dataRecordQCResultsPipeline.push({
             $set: {
                 batchID: {
                     $last: "$batchIDs"
-                },
-                submission: {
-                    $last: "$submission"
                 }
             }
         });
         // Lookup Batch data
-        pipeline.push({
+        dataRecordQCResultsPipeline.push({
             $lookup: {
                 from: "batch",
                 localField: "batchID",
@@ -129,15 +116,8 @@ class DataRecordService {
             }
         });
         // Collect all validation results
-        pipeline.push({
+        dataRecordQCResultsPipeline.push({
             $set: {
-                submission_results: {
-                    validation_type: BATCH.TYPE.DATA_FILE,
-                    type: BATCH.TYPE.DATA_FILE,
-                    submittedID: "$nodeID",
-                    errors: "$submission.fileErrors",
-                    warnings: "$submission.fileWarnings"
-                },
                 metadata_results: {
                     validation_type: BATCH.TYPE.METADATA,
                     type: "$nodeType",
@@ -155,7 +135,7 @@ class DataRecordService {
             }
         })
         // Add all validation results to a single array
-        pipeline.push({
+        dataRecordQCResultsPipeline.push({
             $set: {
                 results: [
                     "$submission_results",
@@ -165,11 +145,11 @@ class DataRecordService {
             }
         })
         // Unwind validation results into individual documents
-        pipeline.push({
+        dataRecordQCResultsPipeline.push({
             $unwind: "$results"
         })
         // Filter out empty validation results
-        pipeline.push({
+        dataRecordQCResultsPipeline.push({
             $match: {
                 $or: [
                     {
@@ -192,7 +172,7 @@ class DataRecordService {
             },
         })
         // Reformat documents
-        pipeline.push({
+        dataRecordQCResultsPipeline.push({
             $project: {
                 submissionID: "$submissionID",
                 type: "$results.type",
@@ -212,8 +192,58 @@ class DataRecordService {
                 },
             }
         })
+        // new pipeline to get extra file validation results
+        let extraFileQCResultsPipeline = [];
+        // match submission by ID
+        extraFileQCResultsPipeline.push({
+            $match: {
+                _id: submissionID
+            }
+        });
+        // combine qc_results objects into a single arrays
+        extraFileQCResultsPipeline.push({
+            $project: {
+                qc_results: {
+                    $concatArrays: ["$fileErrors", "$fileWarnings"]
+                }
+            }
+        });
+        // unwind the $qc_results array
+        extraFileQCResultsPipeline.push({
+            $unwind: "$qc_results"
+        });
+        // set the qc_results object as the root of the documents
+        extraFileQCResultsPipeline.push({
+            $replaceRoot: {
+                newRoot: "$qc_results"
+            }
+        });
+        // add the submission ID
+        extraFileQCResultsPipeline.push({
+            $set: {
+                submissionID: submissionID
+            }
+        });
+        // run the extra file QC results pipeline and combine the output with the data record QC results pipeline results
+        dataRecordQCResultsPipeline.push({
+            $unionWith: {
+                coll: "submissions",
+                pipeline: extraFileQCResultsPipeline
+            }
+        });
+        // replace null errors and warnings properties to empty arrays
+        dataRecordQCResultsPipeline.push({
+            $set: {
+                errors: {
+                    $ifNull: ["$errors", []],
+                },
+                warnings: {
+                    $ifNull: ["$warnings", []],
+                },
+            }
+        })
         // Set severity based on the errors array
-        pipeline.push({
+        dataRecordQCResultsPipeline.push({
             $set: {
                 severity: {
                     $cond: {
@@ -236,7 +266,7 @@ class DataRecordService {
         else {
             severities = [ERROR, WARNING];
         }
-        pipeline.push({
+        dataRecordQCResultsPipeline.push({
             $match: {
                 severity: {
                     $in: severities
@@ -245,7 +275,7 @@ class DataRecordService {
         })
         // Filter by node types
         if (!!nodeTypes && nodeTypes.length > 0) {
-            pipeline.push({
+            dataRecordQCResultsPipeline.push({
                $match: {
                    type: {
                        $in: nodeTypes
@@ -255,7 +285,7 @@ class DataRecordService {
         }
         // Filter by Batch IDs
         if (!!batchIDs && batchIDs.length > 0) {
-            pipeline.push({
+            dataRecordQCResultsPipeline.push({
                 $match: {
                     batchID: {
                         $in: batchIDs
@@ -282,7 +312,7 @@ class DataRecordService {
             $limit: first
         });
         // Get paged results and total count
-        pipeline.push({
+        dataRecordQCResultsPipeline.push({
             $facet: {
                 results: page_pipeline,
                 total: [{
@@ -291,7 +321,7 @@ class DataRecordService {
             }
         });
         // Extract total count from total object
-        pipeline.push({
+        dataRecordQCResultsPipeline.push({
             $set: {
                 total: {
                     $first: "$total.total",
@@ -299,7 +329,7 @@ class DataRecordService {
             }
         });
         // Execute pipeline
-        let dataRecords = await this.dataRecordsCollection.aggregate(pipeline);
+        let dataRecords = await this.dataRecordsCollection.aggregate(dataRecordQCResultsPipeline);
         dataRecords = dataRecords.length > 0 ? dataRecords[0] : {}
         dataRecords.results = this.#replaceNaN(dataRecords?.results, null);
         return {
