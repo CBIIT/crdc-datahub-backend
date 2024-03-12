@@ -137,7 +137,6 @@ class DataRecordService {
         dataRecordQCResultsPipeline.push({
             $set: {
                 results: [
-                    "$submission_results",
                     "$metadata_results",
                     "$datafile_results",
                 ]
