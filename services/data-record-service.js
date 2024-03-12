@@ -5,7 +5,6 @@ const {ValidationHandler} = require("../utility/validation-handler");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const config = require("../config");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants.js");
-const {BatchType} = require("mongodb");
 
 const ERROR = "Error";
 const WARNING = "Warning";
@@ -48,7 +47,7 @@ class DataRecordService {
             else {
                 if (scope.toLowerCase() === VALIDATION.SCOPE.NEW ){
                     const newDocCount = await getCount(this.dataRecordsCollection, submissionID, scope);
-                    if (newDocCount == 0)
+                    if (newDocCount === 0)
                         return ValidationHandler.handle([ERRORS.NO_NEW_VALIDATION_METADATA]);
                 }
             }
