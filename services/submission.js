@@ -315,7 +315,7 @@ class Submission {
             throw new Error(ERROR.INVALID_VALIDATE_METADATA)
         }
         // start validation, change validating status
-        const [prevMetadataValidationStatus, prevFileValidationStatus, prevTime] = [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus, aOrganization?.updatedAt];
+        const [prevMetadataValidationStatus, prevFileValidationStatus, prevTime] = [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus, aSubmission?.updatedAt];
         await this.#updateValidationStatus(params?.types, aSubmission, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING, getCurrentTime());
         const result = await this.dataRecordService.validateMetadata(params._id, params?.types, params?.scope);
         // roll back validation if service failed
