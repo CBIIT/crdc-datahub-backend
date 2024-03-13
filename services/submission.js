@@ -315,7 +315,7 @@ class Submission {
             throw new Error(ERROR.INVALID_VALIDATE_METADATA)
         }
         // start validation, change validating status
-        const [prevMetadataValidationStatus, prevFileValidationStatus, prevTime] = [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus, aOrganization?.updatedAt];
+        const [prevMetadataValidationStatus, prevFileValidationStatus, prevTime] = [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus, aSubmission?.updatedAt];
         await this.#updateValidationStatus(params?.types, aSubmission, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING, getCurrentTime());
         const result = await this.dataRecordService.validateMetadata(params._id, params?.types, params?.scope);
         // roll back validation if service failed
@@ -379,6 +379,37 @@ class Submission {
         return this.dataRecordService.listSubmissionNodeTypes(submissionID)
     }
 
+    async listSubmissionNodes(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+        const result = await this.dataRecordService.submissionNodes(params.submissionID, params.nodeType, 
+            params.first, params.offset, params.orderBy, params.sortDirection);
+
+        let returnVal = {
+            total: result.total,
+            properties: [],
+            nodes: []
+        };
+        if (result.results && result.results.length > 0){
+            let propsSet = new Set();
+            for (let node of result.results) {
+                if (node.parents && node.parents.length > 0) {
+                    for (let parent of node.parents) {
+                        node.props[`${parent.parentType}.${parent.parentIDPropName}`] = parent.parentIDValue;
+                    }
+                }
+                if (node.props && Object.keys(node.props).length > 0){
+                    Object.keys(node.props).forEach(propsSet.add, propsSet);
+                }
+                node.props = JSON.stringify(node.props);
+                delete node.parents;
+                returnVal.nodes.push(node);
+            }
+            returnVal.properties = Array.from(propsSet);
+        }
+        return returnVal
+    }
+
     async #verifyQCResultsReadPermissions(context, submissionID){
         verifySession(context)
             .verifyInitialized()
@@ -430,6 +461,7 @@ class Submission {
         }
         throw new Error(ERROR.INVALID_DATA_MODEL_VERSION);
     }
+
 }
 
 const updateSubmissionStatus = async (submissionCollection, aSubmission, userInfo, newStatus) => {

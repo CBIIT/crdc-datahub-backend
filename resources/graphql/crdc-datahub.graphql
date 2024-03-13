@@ -339,6 +339,25 @@ type AsyncProcessResult {
     message: String
 }
 
+type SubmissionNodes {
+    total: Int, #total nodes of a given nodeType and data submission
+    properties: [String], #all properties of a node including parents 
+    nodes: [Node]
+}
+
+type Node {
+    submissionID: String,
+    nodeType: String,
+    nodeID: String,
+    status: String,
+    createdAt: Date,
+    updatedAt: Date,
+    validatedAt: Date,
+    orginalFileName: String,
+    lineNumber: Int,
+    props: String #a stringified JSON string contains all properties of the node, including parent mapping properties like program.prorgam_acronym
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -408,8 +427,17 @@ type Query {
     "Admin only operations"
     listOrganizations: [UserOrganization]
     getOrganization(orgID: ID!): UserOrganization
-}
 
+    getSubmissionNodes(
+        submissionID: String!, 
+        nodeType: String!,
+        first: Int = 10,
+        offset: Int = 0,
+        default: Int = 0,
+        orderBy: String = "nodeID",
+        sortDirection: String = "ASC"
+    ): SubmissionNodes
+}
 type Mutation {
     "User initiated operations"
     saveApplication(application: AppInput!): Application
