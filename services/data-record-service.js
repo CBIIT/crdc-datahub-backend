@@ -210,6 +210,14 @@ class DataRecordService {
         extraFileQCResultsPipeline.push({
             $unwind: "$qc_results"
         });
+        // remove non-object type errors (non-validation errors)
+        extraFileQCResultsPipeline.push({
+            $match:{
+                qc_results: {
+                    $type: "object",
+                },
+            },
+        })
         // set the qc_results object as the root of the documents
         extraFileQCResultsPipeline.push({
             $replaceRoot: {
