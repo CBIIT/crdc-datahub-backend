@@ -21,7 +21,8 @@ const NODE_VIEW = {
     orginalFileName:  "$orginalFileName",
     lineNumber: "$lineNumber",
     props: "$props",
-    parents: "$parents"
+    parents: "$parents",
+    rawData: "$rawData"
 }
 class DataRecordService {
     constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService) {
@@ -244,7 +245,7 @@ class DataRecordService {
         let sort = orderBy;
         if ( !Object.keys(NODE_VIEW).includes(orderBy)) {
             if ( orderBy.indexOf(".") > 0) 
-                sort = `rawData.${orderBy}`;
+                sort = `rawData.${orderBy.replace(".", "|")}`;
             else
                 sort = `props.${orderBy}`;
         }
