@@ -62,22 +62,22 @@ class DataRecordService {
         const isFile = types.some(t => (t?.toLowerCase() === VALIDATION.TYPES.DATA_FILE || t?.toLowerCase() === VALIDATION.TYPES.FILE));
         if (isFile) {
             const fileNodes = await getFileNodes(this.dataRecordsCollection, submissionID, scope);
-            const fileQueueResults = [];
-            for (const aFile of fileNodes) {
-                const msg = Message.createFileNodeMessage("Validate File", aFile._id);
-                const result = await sendSQSMessageWrapper(this.awsService, msg, aFile._id, this.fileQueueName, submissionID);
-                fileQueueResults.push(result);
+            if (fileNodes && fileNodes.length > 0) {
+                const fileQueueResults = [];
+                for (const aFile of fileNodes) {
+                    const msg = Message.createFileNodeMessage("Validate File", aFile._id);
+                    const result = await sendSQSMessageWrapper(this.awsService, msg, aFile._id, this.fileQueueName, submissionID);
+                    fileQueueResults.push(result);
+                }
+                const errorMessages = fileQueueResults
+                    .filter(result => !result.success)
+                    .map(result => result.message)
+                    // at least, a node must exists.
+                    //.concat(fileNodes?.length === 0 ? [ERRORS.NO_VALIDATION_FILE] : []);
+                if (errorMessages.length > 0) {
+                    return ValidationHandler.handle(errorMessages)
+                }
             }
-            const errorMessages = fileQueueResults
-                .filter(result => !result.success)
-                .map(result => result.message)
-                // at least, a node must exists.
-                .concat(fileNodes?.length === 0 ? [ERRORS.NO_VALIDATION_FILE] : []);
-
-            if (errorMessages.length > 0) {
-                return ValidationHandler.handle(errorMessages)
-            }
-
             const msg = Message.createFileSubmissionMessage("Validate Submission Files", submissionID);
             return await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.fileQueueName, submissionID);
         }
