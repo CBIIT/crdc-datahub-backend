@@ -433,7 +433,6 @@ type Query {
         nodeType: String!,
         first: Int = 10,
         offset: Int = 0,
-        default: Int = 0,
         orderBy: String = "nodeID",
         sortDirection: String = "ASC"
     ): SubmissionNodes
