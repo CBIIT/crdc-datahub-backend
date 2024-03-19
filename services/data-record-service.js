@@ -41,13 +41,12 @@ class DataRecordService {
     async validateMetadata(submissionID, types, scope) {
         isValidMetadata(types, scope);
         const isMetadata = types.some(t => t === VALIDATION.TYPES.METADATA);
-        let newDocCount = 0;
         let errorMessages = [];
         if (isMetadata ) {
             const docCount = await getCount(this.dataRecordsCollection, submissionID);
             if (docCount === 0)  errorMessages.push(ERRORS.FAILED_VALIDATE_METADATA, ERRORS.NO_VALIDATION_METADATA);
             else {
-                newDocCount = await getCount(this.dataRecordsCollection, submissionID, scope);
+                const newDocCount = await getCount(this.dataRecordsCollection, submissionID, scope);
                 if (!(scope.toLowerCase() === VALIDATION.SCOPE.NEW && newDocCount === 0)) {
                     const msg = Message.createMetadataMessage("Validate Metadata", submissionID, scope);
                     const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.metadataQueueName, submissionID);
@@ -69,13 +68,13 @@ class DataRecordService {
                     const msg = Message.createFileNodeMessage("Validate File", aFile._id);
                     const result = await sendSQSMessageWrapper(this.awsService, msg, aFile._id, this.fileQueueName, submissionID);
                     if (!result.success)
-                        fileValidationErrors.append(result);
+                        fileValidationErrors.append(result.result);
                 }
             }
             const msg1 = Message.createFileSubmissionMessage("Validate Submission Files", submissionID);
             const result1= await sendSQSMessageWrapper(this.awsService, msg1, submissionID, this.fileQueueName, submissionID);
             if (!result1.success)
-                fileValidationErrors.append(result);
+                fileValidationErrors.append(result1.result);
 
             if (fileValidationErrors.length > 0)
                 errorMessages.push(ERRORS.FAILED_VALIDATE_FILE, ...fileValidationErrors)
