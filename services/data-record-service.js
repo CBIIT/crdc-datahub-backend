@@ -63,7 +63,6 @@ class DataRecordService {
             let fileValidationErrors = [];
             const fileNodes = await getFileNodes(this.dataRecordsCollection, submissionID, scope);
             if (fileNodes && fileNodes.length > 0) {
-                
                 for (const aFile of fileNodes) {
                     const msg = Message.createFileNodeMessage("Validate File", aFile._id);
                     const result = await sendSQSMessageWrapper(this.awsService, msg, aFile._id, this.fileQueueName, submissionID);
