@@ -41,47 +41,44 @@ class DataRecordService {
     async validateMetadata(submissionID, types, scope) {
         isValidMetadata(types, scope);
         const isMetadata = types.some(t => t === VALIDATION.TYPES.METADATA);
+        let errorMessages = [];
         if (isMetadata ) {
             const docCount = await getCount(this.dataRecordsCollection, submissionID);
-            if (docCount === 0)  return ValidationHandler.handle([ERRORS.NO_VALIDATION_METADATA]);
+            if (docCount === 0)  errorMessages.push(ERRORS.FAILED_VALIDATE_METADATA, ERRORS.NO_VALIDATION_METADATA);
             else {
-                if (scope.toLowerCase() === VALIDATION.SCOPE.NEW ){
-                    const newDocCount = await getCount(this.dataRecordsCollection, submissionID, scope);
-                    if (newDocCount === 0)
-                        return ValidationHandler.handle([ERRORS.NO_NEW_VALIDATION_METADATA]);
+                const newDocCount = await getCount(this.dataRecordsCollection, submissionID, scope);
+                if (!(scope.toLowerCase() === VALIDATION.SCOPE.NEW && newDocCount === 0)) {
+                    const msg = Message.createMetadataMessage("Validate Metadata", submissionID, scope);
+                    const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.metadataQueueName, submissionID);
+                    if (!success.success)
+                        errorMessages.push(ERRORS.FAILED_VALIDATE_METADATA, success.message)
+                }
+                else {
+                    errorMessages.push(ERRORS.FAILED_VALIDATE_METADATA, ERRORS.NO_NEW_VALIDATION_METADATA);
                 }
             }
-
-            const msg = Message.createMetadataMessage("Validate Metadata", submissionID, scope);
-            const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.metadataQueueName, submissionID);
-            if (!success.success) {
-                return success;
-            }
-
         }
         const isFile = types.some(t => (t?.toLowerCase() === VALIDATION.TYPES.DATA_FILE || t?.toLowerCase() === VALIDATION.TYPES.FILE));
         if (isFile) {
+            let fileValidationErrors = [];
             const fileNodes = await getFileNodes(this.dataRecordsCollection, submissionID, scope);
             if (fileNodes && fileNodes.length > 0) {
-                const fileQueueResults = [];
                 for (const aFile of fileNodes) {
                     const msg = Message.createFileNodeMessage("Validate File", aFile._id);
                     const result = await sendSQSMessageWrapper(this.awsService, msg, aFile._id, this.fileQueueName, submissionID);
-                    fileQueueResults.push(result);
-                }
-                const errorMessages = fileQueueResults
-                    .filter(result => !result.success)
-                    .map(result => result.message)
-                    // at least, a node must exists.
-                    //.concat(fileNodes?.length === 0 ? [ERRORS.NO_VALIDATION_FILE] : []);
-                if (errorMessages.length > 0) {
-                    return ValidationHandler.handle(errorMessages)
+                    if (!result.success)
+                        fileValidationErrors.append(result.message);
                 }
             }
-            const msg = Message.createFileSubmissionMessage("Validate Submission Files", submissionID);
-            return await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.fileQueueName, submissionID);
+            const msg1 = Message.createFileSubmissionMessage("Validate Submission Files", submissionID);
+            const result1= await sendSQSMessageWrapper(this.awsService, msg1, submissionID, this.fileQueueName, submissionID);
+            if (!result1.success)
+                fileValidationErrors.append(result1.message);
+
+            if (fileValidationErrors.length > 0)
+                errorMessages.push(ERRORS.FAILED_VALIDATE_FILE, ...fileValidationErrors)
         }
-        return isMetadata ? ValidationHandler.success() : ValidationHandler.handle(ERRORS.FAILED_VALIDATE_METADATA);
+        return (errorMessages.length > 0) ? ValidationHandler.handle(errorMessages) : ValidationHandler.success();
     }
 
     async exportMetadata(submissionID) {

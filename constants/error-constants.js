@@ -60,6 +60,7 @@ const ERROR = {
     NO_SUBMISSION_RECEIVER: "Submission is unable to send an email notification",
     // Validate Submission
     FAILED_VALIDATE_METADATA: "Failed to validate metadata",
+    FAILED_VALIDATE_FILE: "Failed to validate data file",
     NO_VALIDATION_FILE: "No file manifest(s) are uploaded for file validation",
     NO_VALIDATION_METADATA: "No metadata for validation",
     NO_NEW_VALIDATION_METADATA: "No new metadata for validation",

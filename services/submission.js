@@ -290,7 +290,6 @@ class Submission {
         return fileList;
     }
 
-
     async validateSubmission(params, context) {
         verifySession(context)
             .verifyInitialized()
@@ -320,20 +319,26 @@ class Submission {
         const result = await this.dataRecordService.validateMetadata(params._id, params?.types, params?.scope);
         // roll back validation if service failed
         if (!result.success) {
-            if(result.message && result.message.includes(ERROR.NO_VALIDATION_FILE)) {
-                await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, VALIDATION_STATUS.ERROR, getCurrentTime(), [ERROR.NO_VALIDATION_FILE]);
-                result.success = true;
-            } 
-            else if (result.message && result.message.includes(ERROR.NO_VALIDATION_METADATA)) {
-                await this.#updateValidationStatus(params?.types, aSubmission, null, prevFileValidationStatus, getCurrentTime(), []);
-                result.success = true;
+            if (result.message && result.message.includes(ERROR.NO_VALIDATION_METADATA)) {
+                if (result.message.includes(ERROR.FAILED_VALIDATE_FILE)) 
+                    await this.#updateValidationStatus(params?.types, aSubmission, null, prevFileValidationStatus, getCurrentTime()); 
+                else {
+                    await this.#updateValidationStatus(params?.types, aSubmission, null, "NA", getCurrentTime());
+                    result.success = true;
+                }
             } 
             else if (result.message && result.message.includes(ERROR.NO_NEW_VALIDATION_METADATA)){
-                await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, prevFileValidationStatus, prevTime);
-                result.success = true;
+                if (result.message.includes(ERROR.FAILED_VALIDATE_FILE))
+                    await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, prevFileValidationStatus, prevTime);
+                else {
+                    await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, "NA", prevTime);
+                    result.success = true;
+                }
             }
             else {
-                await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, prevFileValidationStatus, prevTime);
+                const metadataValidationStatus = result.message.includes(ERROR.FAILED_VALIDATE_METADATA) ? prevMetadataValidationStatus : "NA";
+                const fileValidationStatus = (result.message.includes(ERROR.FAILED_VALIDATE_FILE)) ? prevFileValidationStatus : "NA"
+                await this.#updateValidationStatus(params?.types, aSubmission, metadataValidationStatus, fileValidationStatus, prevTime);
             }
                 
         }
@@ -404,20 +409,22 @@ class Submission {
     }
 
     // private function
-    async #updateValidationStatus(types, aSubmission, metaStatus, fileStatus, updatedTime, fileErrors = []) {
+    async #updateValidationStatus(types, aSubmission, metaStatus, fileStatus, updatedTime) {
         const typesToUpdate = {};
         if (!!aSubmission?.metadataValidationStatus && types.includes(VALIDATION.TYPES.METADATA)) {
-            typesToUpdate.metadataValidationStatus = metaStatus;
+            if ( metaStatus !== "NA")
+                typesToUpdate.metadataValidationStatus = metaStatus;
         }
 
         if (!!aSubmission?.fileValidationStatus && types.some(type => (type?.toLowerCase() === VALIDATION.TYPES.DATA_FILE || type?.toLowerCase() === VALIDATION.TYPES.FILE))) {
-            typesToUpdate.fileValidationStatus = fileStatus;
+            if ( fileStatus !== "NA")
+                typesToUpdate.fileValidationStatus = fileStatus;
         }
 
         if (Object.keys(typesToUpdate).length === 0) {
             return;
         }
-        const updated = await this.submissionCollection.update({_id: aSubmission?._id, ...typesToUpdate, fileErrors: fileErrors, updatedAt: updatedTime});
+        const updated = await this.submissionCollection.update({_id: aSubmission?._id, ...typesToUpdate, updatedAt: updatedTime});
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
             throw new Error(ERROR.FAILED_VALIDATE_METADATA);
         }
