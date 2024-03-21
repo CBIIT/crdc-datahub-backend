@@ -67,8 +67,8 @@ type Submission {
     status: String # [New, In Progress, Submitted, Released, Canceled, Transferred, Completed, Archived]
     metadataValidationStatus: String # [New, Validating, Passed, Error, Warning], new successfully uploaded batch will set it to "New"
     fileValidationStatus: String # [New, Validating, Passed, Error, Warning], new successfully uploaded batch will set it to "New"
-    fileErrors: [ErrorMessage] # holds submission level file errors, e.g., extra files in S3 folder
-    fileWarnings: [ErrorMessage] # holds submission level file warnings
+    fileErrors: [QCResult] # holds submission level file errors, e.g., extra files in S3 folder
+    fileWarnings: [QCResult] # holds submission level file warnings
     history: [Event]
     conciergeName: String # Concierge name
     conciergeEmail: String # Concierge email
