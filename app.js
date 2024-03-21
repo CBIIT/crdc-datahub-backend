@@ -88,7 +88,10 @@ const runDeactivateInactiveUsers = async (userService, notificationsService) => 
     const inactiveUsers = await userService.getInactiveUsers(config.inactive_user_days);
     // merge and remove duplicate users
     const inactiveUserConditions = [...new Map([...nonLogUsers, ...inactiveUsers].map((user) => [user.email + user.IDP, user])).values()];
-    const disabledUsers = await userService.disableInactiveUsers(inactiveUserConditions);
+    const inactiveList = inactiveUserConditions
+        .filter((u)=> u && u?.userStatus === USER.STATUSES.ACTIVE)
+        .map(u => ({ email: u?.email, IDP: u?.IDP }));
+    const disabledUsers = await userService.disableInactiveUsers(inactiveList);
     if (disabledUsers.length > 0) {
         // Email disabled user(s)
         await Promise.all(disabledUsers.map(async (user) => {
