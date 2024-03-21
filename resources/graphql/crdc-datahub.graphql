@@ -425,7 +425,7 @@ type Mutation {
     deleteApplication (_id: ID!): Application
 
     "Submitter or Org Owner"
-    createSubmission (studyAbbreviation: String!, dbGaPID: String, dataCommons: String!, name: String!): Submission
+    createSubmission (studyAbbreviation: String!, dbGaPID: String, dataCommons: String!, name: String!, intention: String!): Submission
     submissionAction (
         submissionID: ID!,
         # in [Submit, Release, Withdraw, Reject, Complete, Cancel, Archive]

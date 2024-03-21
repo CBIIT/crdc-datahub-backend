@@ -40,5 +40,10 @@ module.exports = Object.freeze({
             NEW: "new",
             ALL: "all"
         }
+    },
+    INTENTION: {
+        UPDATE: "Update",
+        NEW: "New",
+        DELETE: "Delete"
     }
 });
