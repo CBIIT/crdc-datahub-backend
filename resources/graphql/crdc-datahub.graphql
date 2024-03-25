@@ -75,7 +75,7 @@ type Submission {
     errors: [ErrorMessage] # store validation errors
     createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
     updatedAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
-    
+    intention: String # [Update, New, Delete]
 }
 
 type Batch {
