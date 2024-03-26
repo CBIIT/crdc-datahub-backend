@@ -311,9 +311,11 @@ class DataRecordService {
         page_pipeline.push({
             $skip: offset
         });
-        page_pipeline.push({
-            $limit: first
-        });
+        if (first > 0){
+            page_pipeline.push({
+                $limit: first
+            });
+        }
         // Get paged results and total count
         dataRecordQCResultsPipeline.push({
             $facet: {
