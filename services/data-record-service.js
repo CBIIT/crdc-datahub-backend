@@ -117,19 +117,11 @@ class DataRecordService {
                 submissionID: submissionID
             }
         });
-        // Set batch ID to latest batch ID
-        dataRecordQCResultsPipeline.push({
-            $set: {
-                batchID: {
-                    $last: "$batchIDs"
-                }
-            }
-        });
         // Lookup Batch data
         dataRecordQCResultsPipeline.push({
             $lookup: {
                 from: "batch",
-                localField: "batchID",
+                localField: "latestBatchID",
                 foreignField: "_id",
                 as: "batch",
             }
@@ -195,7 +187,7 @@ class DataRecordService {
                 submissionID: "$submissionID",
                 type: "$results.type",
                 validationType: "$results.validation_type",
-                batchID: "$batchID",
+                batchID: "$latestBatchID",
                 displayID: {
                     $first: "$batch.displayID",
                 },
@@ -319,8 +311,17 @@ class DataRecordService {
                 }
             });
         }
+
+        // Create count pipeline
+        let countPipeline = [...dataRecordQCResultsPipeline];
+        countPipeline.push({
+            $count: "total"
+        });
+        const countPipelineResult = await this.dataRecordsCollection.aggregate(countPipeline);
+        const totalRecords = countPipelineResult[0]?.total;
+
         // Create page and sort steps
-        let page_pipeline = [];
+        let pagedPipeline = [...dataRecordQCResultsPipeline];
         const nodeType = "type";
         let sortFields = {
             [orderBy]: getSortDirection(sortDirection),
@@ -328,41 +329,23 @@ class DataRecordService {
         if (orderBy !== nodeType){
             sortFields[nodeType] = 1
         }
-        page_pipeline.push({
+        pagedPipeline.push({
             $sort: sortFields
         });
-        page_pipeline.push({
+        pagedPipeline.push({
             $skip: offset
         });
         if (first > 0){
-            page_pipeline.push({
+            pagedPipeline.push({
                 $limit: first
             });
         }
-        // Get paged results and total count
-        dataRecordQCResultsPipeline.push({
-            $facet: {
-                results: page_pipeline,
-                total: [{
-                    $count: "total"
-                }]
-            }
-        });
-        // Extract total count from total object
-        dataRecordQCResultsPipeline.push({
-            $set: {
-                total: {
-                    $first: "$total.total",
-                }
-            }
-        });
-        // Execute pipeline
-        let dataRecords = await this.dataRecordsCollection.aggregate(dataRecordQCResultsPipeline);
-        dataRecords = dataRecords.length > 0 ? dataRecords[0] : {}
-        dataRecords.results = this.#replaceNaN(dataRecords?.results, null);
+        // Query page of results
+        const pagedPipelineResult = await this.dataRecordsCollection.aggregate(pagedPipeline);
+        const dataRecords = this.#replaceNaN(pagedPipelineResult, null);
         return {
-            results: dataRecords.results || [],
-            total: dataRecords.total || 0
+            results: dataRecords || [],
+            total: totalRecords || 0
         }
     }
 
