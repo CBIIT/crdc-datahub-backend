@@ -1,5 +1,5 @@
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
-    REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, EXPORT
+    REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, EXPORT, INTENTION
 } = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
@@ -60,7 +60,13 @@ class Submission {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
         }
 
-        const newSubmission = DataSubmission.createSubmission(params.name, userInfo, params.dataCommons, params.studyAbbreviation, params.dbGaPID, aUserOrganization, this.modelVersion);
+        const intention = [INTENTION.NEW, INTENTION.UPDATE, INTENTION.DELETE].find((i) => i.toLowerCase() === params?.intention.toLowerCase());
+        if (!intention) {
+            throw new Error(ERROR.CREATE_SUBMISSION_INVALID_INTENTION);
+        }
+
+        const newSubmission = DataSubmission.createSubmission(
+            params.name, userInfo, params.dataCommons, params.studyAbbreviation, params.dbGaPID, aUserOrganization, this.modelVersion, intention);
         const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
@@ -290,7 +296,6 @@ class Submission {
         return fileList;
     }
 
-
     async validateSubmission(params, context) {
         verifySession(context)
             .verifyInitialized()
@@ -320,20 +325,26 @@ class Submission {
         const result = await this.dataRecordService.validateMetadata(params._id, params?.types, params?.scope);
         // roll back validation if service failed
         if (!result.success) {
-            if(result.message && result.message.includes(ERROR.NO_VALIDATION_FILE)) {
-                await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, VALIDATION_STATUS.ERROR, getCurrentTime(), [ERROR.NO_VALIDATION_FILE]);
-                result.success = true;
-            } 
-            else if (result.message && result.message.includes(ERROR.NO_VALIDATION_METADATA)) {
-                await this.#updateValidationStatus(params?.types, aSubmission, null, prevFileValidationStatus, getCurrentTime(), []);
-                result.success = true;
+            if (result.message && result.message.includes(ERROR.NO_VALIDATION_METADATA)) {
+                if (result.message.includes(ERROR.FAILED_VALIDATE_FILE)) 
+                    await this.#updateValidationStatus(params?.types, aSubmission, null, prevFileValidationStatus, getCurrentTime()); 
+                else {
+                    await this.#updateValidationStatus(params?.types, aSubmission, null, "NA", getCurrentTime());
+                    result.success = true;
+                }
             } 
             else if (result.message && result.message.includes(ERROR.NO_NEW_VALIDATION_METADATA)){
-                await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, prevFileValidationStatus, prevTime);
-                result.success = true;
+                if (result.message.includes(ERROR.FAILED_VALIDATE_FILE))
+                    await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, prevFileValidationStatus, prevTime);
+                else {
+                    await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, "NA", prevTime);
+                    result.success = true;
+                }
             }
             else {
-                await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, prevFileValidationStatus, prevTime);
+                const metadataValidationStatus = result.message.includes(ERROR.FAILED_VALIDATE_METADATA) ? prevMetadataValidationStatus : "NA";
+                const fileValidationStatus = (result.message.includes(ERROR.FAILED_VALIDATE_FILE)) ? prevFileValidationStatus : "NA"
+                await this.#updateValidationStatus(params?.types, aSubmission, metadataValidationStatus, fileValidationStatus, prevTime);
             }
                 
         }
@@ -435,20 +446,22 @@ class Submission {
     }
 
     // private function
-    async #updateValidationStatus(types, aSubmission, metaStatus, fileStatus, updatedTime, fileErrors = []) {
+    async #updateValidationStatus(types, aSubmission, metaStatus, fileStatus, updatedTime) {
         const typesToUpdate = {};
         if (!!aSubmission?.metadataValidationStatus && types.includes(VALIDATION.TYPES.METADATA)) {
-            typesToUpdate.metadataValidationStatus = metaStatus;
+            if ( metaStatus !== "NA")
+                typesToUpdate.metadataValidationStatus = metaStatus;
         }
 
         if (!!aSubmission?.fileValidationStatus && types.some(type => (type?.toLowerCase() === VALIDATION.TYPES.DATA_FILE || type?.toLowerCase() === VALIDATION.TYPES.FILE))) {
-            typesToUpdate.fileValidationStatus = fileStatus;
+            if ( fileStatus !== "NA")
+                typesToUpdate.fileValidationStatus = fileStatus;
         }
 
         if (Object.keys(typesToUpdate).length === 0) {
             return;
         }
-        const updated = await this.submissionCollection.update({_id: aSubmission?._id, ...typesToUpdate, fileErrors: fileErrors, updatedAt: updatedTime});
+        const updated = await this.submissionCollection.update({_id: aSubmission?._id, ...typesToUpdate, updatedAt: updatedTime});
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
             throw new Error(ERROR.FAILED_VALIDATE_METADATA);
         }
@@ -841,7 +854,7 @@ const isSubmissionPermitted = (aSubmission, userInfo) => {
 }
 
 class DataSubmission {
-    constructor(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization, modelVersion) {
+    constructor(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization, modelVersion, intention) {
         this._id = v4();
         this.name = name;
         this.submitterID = userInfo._id;
@@ -865,10 +878,11 @@ class DataSubmission {
         this.metadataValidationStatus = this.fileValidationStatus = null;
         this.fileErrors = [];
         this.fileWarnings = [];
+        this.intention = intention;
     }
 
-    static createSubmission(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization, modelVersion) {
-        return new DataSubmission(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization, modelVersion);
+    static createSubmission(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization, modelVersion, intention) {
+        return new DataSubmission(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization, modelVersion, intention);
     }
 }
 

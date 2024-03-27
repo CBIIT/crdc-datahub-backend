@@ -101,10 +101,6 @@ class Application {
         verifySession(context)
             .verifyInitialized();
         let inputApplication = params.application;
-        const studyAbbreviation = inputApplication?.studyAbbreviation;
-        if (studyAbbreviation && studyAbbreviation.trim() !== "") {
-            await isStudyAbbreviationUniqueOrThrow(this.applicationCollection, inputApplication?._id, inputApplication?.studyAbbreviation);
-        }
         inputApplication.updatedAt = getCurrentTime();
         const id = inputApplication?._id;
         if (!id) {
@@ -506,27 +502,18 @@ const sendEmails = {
     }
 }
 
-const isStudyAbbreviationUniqueOrThrow = async (applicationCollection, applicationID, studyAbbreviation) => {
-    const uniqueCondition = {
-        studyAbbreviation,
-        ...(applicationID ? { _id: { $ne: applicationID } } : {})
-    };
-    const applications = await applicationCollection.aggregate([{"$match": uniqueCondition}, {"$limit": 1}]);
-    if (applications?.length > 0) {
-        throw new Error(ERROR.DUPLICATE_STUDY_ABBREVIATION);
-    }
-}
-
 const saveApprovedStudies = async (approvedStudiesService, organizationService, aApplication) => {
     const questionnaire = parseJsonString(aApplication?.questionnaireData);
     if (!questionnaire) {
         console.error(ERROR.FAILED_STORE_APPROVED_STUDIES + ` id=${aApplication?._id}`);
         return;
     }
+    // use study name when study abbreviation is not available
+    const studyAbbreviation = !!aApplication?.studyAbbreviation?.trim() ? aApplication?.studyAbbreviation : questionnaire?.study?.name;
     await approvedStudiesService.storeApprovedStudies(
-        questionnaire?.study?.name, aApplication?.studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name
+        questionnaire?.study?.name, studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name
     );
-    await organizationService.storeApprovedStudies(aApplication?.organization?._id, questionnaire?.study?.name, aApplication?.studyAbbreviation);
+    await organizationService.storeApprovedStudies(aApplication?.organization?._id, questionnaire?.study?.name, studyAbbreviation);
 }
 
 module.exports = {

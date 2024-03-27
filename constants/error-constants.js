@@ -39,6 +39,7 @@ const ERROR = {
     FAILED_BATCH_UPDATE: "An error occurred while updating a batch",
     // Approved Studies
     APPROVED_STUDIES_INSERTION: "An error occurred while attempting to insert the approved studies into the database.",
+    ORGANIZATION_APPROVED_STUDIES_INSERTION: "An error occurred while attempting to insert the approved studies for the organization into the database.",
     FAILED_STORE_APPROVED_STUDIES: "The approved studies are not being stored because the questionnaire data string is not correctly parsed",
     // Submission Permission
     INVALID_SUBMISSION_STATUS: "The batch creation is aborted because the current submission is not in the valid state to be created.",
@@ -46,12 +47,12 @@ const ERROR = {
     CREATE_SUBMISSION_NO_ORGANIZATION_ASSIGNED: "The submitter/organization owner does not have an organization assigned. Thus, the data submission was not created",
     CREATE_SUBMISSION_INSERTION_ERROR: "An error occurred while attempting to insert the created data submission into the database",
     CREATE_SUBMISSION_INVALID_PARAMS: "One or more of the parameters for creating a submission is invalid",
+    CREATE_SUBMISSION_INVALID_INTENTION: "submission intention is invalid",
     UPDATE_SUBMISSION_ERROR:"An error occurred while attempting to update the submission in the database",
     CREATE_SUBMISSION_INVALID_DATA_COMMONS: "Invalid Data Commons for creating a submission",
     CREATE_SUBMISSION_NO_MATCHING_STUDY: "The study provided does not match an approved study within the user's organization",
     // List Submissions
     LIST_SUBMISSION_INVALID_STATUS_FILTER: "The status filter is invalid",
-    DUPLICATE_STUDY_ABBREVIATION: "Study abbreviation must be a unique value as it already exists in the database.",
     INVALID_SUBMISSION_PERMISSION: "You do not have the correct permissions to list submissions",
     INVALID_STATS_SUBMISSION_PERMISSION: "You do not have permission to see the submission stats.",
     INVALID_ROLE: "You do not have the correct role to perform this operation",
@@ -60,6 +61,7 @@ const ERROR = {
     NO_SUBMISSION_RECEIVER: "Submission is unable to send an email notification",
     // Validate Submission
     FAILED_VALIDATE_METADATA: "Failed to validate metadata",
+    FAILED_VALIDATE_FILE: "Failed to validate data file",
     NO_VALIDATION_FILE: "No file manifest(s) are uploaded for file validation",
     NO_VALIDATION_METADATA: "No metadata for validation",
     NO_NEW_VALIDATION_METADATA: "No new metadata for validation",

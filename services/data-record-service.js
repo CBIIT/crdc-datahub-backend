@@ -57,47 +57,44 @@ class DataRecordService {
     async validateMetadata(submissionID, types, scope) {
         isValidMetadata(types, scope);
         const isMetadata = types.some(t => t === VALIDATION.TYPES.METADATA);
+        let errorMessages = [];
         if (isMetadata ) {
             const docCount = await getCount(this.dataRecordsCollection, submissionID);
-            if (docCount === 0)  return ValidationHandler.handle([ERRORS.NO_VALIDATION_METADATA]);
+            if (docCount === 0)  errorMessages.push(ERRORS.FAILED_VALIDATE_METADATA, ERRORS.NO_VALIDATION_METADATA);
             else {
-                if (scope.toLowerCase() === VALIDATION.SCOPE.NEW ){
-                    const newDocCount = await getCount(this.dataRecordsCollection, submissionID, scope);
-                    if (newDocCount == 0)
-                        return ValidationHandler.handle([ERRORS.NO_NEW_VALIDATION_METADATA]);
+                const newDocCount = await getCount(this.dataRecordsCollection, submissionID, scope);
+                if (!(scope.toLowerCase() === VALIDATION.SCOPE.NEW && newDocCount === 0)) {
+                    const msg = Message.createMetadataMessage("Validate Metadata", submissionID, scope);
+                    const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.metadataQueueName, submissionID);
+                    if (!success.success)
+                        errorMessages.push(ERRORS.FAILED_VALIDATE_METADATA, success.message)
+                }
+                else {
+                    errorMessages.push(ERRORS.FAILED_VALIDATE_METADATA, ERRORS.NO_NEW_VALIDATION_METADATA);
                 }
             }
-
-            const msg = Message.createMetadataMessage("Validate Metadata", submissionID, scope);
-            const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.metadataQueueName, submissionID);
-            if (!success.success) {
-                return success;
-            }
-
         }
         const isFile = types.some(t => (t?.toLowerCase() === VALIDATION.TYPES.DATA_FILE || t?.toLowerCase() === VALIDATION.TYPES.FILE));
         if (isFile) {
+            let fileValidationErrors = [];
             const fileNodes = await getFileNodes(this.dataRecordsCollection, submissionID, scope);
-            const fileQueueResults = [];
-            for (const aFile of fileNodes) {
-                const msg = Message.createFileNodeMessage("Validate File", aFile._id);
-                const result = await sendSQSMessageWrapper(this.awsService, msg, aFile._id, this.fileQueueName, submissionID);
-                fileQueueResults.push(result);
+            if (fileNodes && fileNodes.length > 0) {
+                for (const aFile of fileNodes) {
+                    const msg = Message.createFileNodeMessage("Validate File", aFile._id);
+                    const result = await sendSQSMessageWrapper(this.awsService, msg, aFile._id, this.fileQueueName, submissionID);
+                    if (!result.success)
+                        fileValidationErrors.append(result.message);
+                }
             }
-            const errorMessages = fileQueueResults
-                .filter(result => !result.success)
-                .map(result => result.message)
-                // at least, a node must exists.
-                .concat(fileNodes?.length === 0 ? [ERRORS.NO_VALIDATION_FILE] : []);
+            const msg1 = Message.createFileSubmissionMessage("Validate Submission Files", submissionID);
+            const result1= await sendSQSMessageWrapper(this.awsService, msg1, submissionID, this.fileQueueName, submissionID);
+            if (!result1.success)
+                fileValidationErrors.append(result1.message);
 
-            if (errorMessages.length > 0) {
-                return ValidationHandler.handle(errorMessages)
-            }
-
-            const msg = Message.createFileSubmissionMessage("Validate Submission Files", submissionID);
-            return await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.fileQueueName, submissionID);
+            if (fileValidationErrors.length > 0)
+                errorMessages.push(ERRORS.FAILED_VALIDATE_FILE, ...fileValidationErrors)
         }
-        return isMetadata ? ValidationHandler.success() : ValidationHandler.handle(ERRORS.FAILED_VALIDATE_METADATA);
+        return (errorMessages.length > 0) ? ValidationHandler.handle(errorMessages) : ValidationHandler.success();
     }
 
     async exportMetadata(submissionID) {
@@ -106,21 +103,23 @@ class DataRecordService {
     }
 
     async submissionQCResults(submissionID, nodeTypes, batchIDs, severities, first, offset, orderBy, sortDirection) {
-        let pipeline = [];
-        pipeline.push({
+        let dataRecordQCResultsPipeline = [];
+        // Filter by submission ID
+        dataRecordQCResultsPipeline.push({
             $match: {
                 submissionID: submissionID
             }
         });
-        pipeline.push({
+        // Set batch ID to latest batch ID
+        dataRecordQCResultsPipeline.push({
             $set: {
                 batchID: {
                     $last: "$batchIDs"
                 }
             }
         });
-        //
-        pipeline.push({
+        // Lookup Batch data
+        dataRecordQCResultsPipeline.push({
             $lookup: {
                 from: "batch",
                 localField: "batchID",
@@ -128,43 +127,155 @@ class DataRecordService {
                 as: "batch",
             }
         });
-        pipeline.push({
-            $facet: {
-                metadata_results: this.#generateResultsPipeline("errors", "warnings", "status", BATCH.TYPE.METADATA),
-                datafile_results: this.#generateResultsPipeline("s3FileInfo.errors", "s3FileInfo.warnings", "s3FileInfo.status", BATCH.TYPE.DATA_FILE)
-            }
-        });
-        pipeline.push({
-            $project: {
-                results: {
-                    $concatArrays: [
-                        "$metadata_results",
-                        "$datafile_results",
-                    ],
+        // Collect all validation results
+        dataRecordQCResultsPipeline.push({
+            $set: {
+                metadata_results: {
+                    validation_type: BATCH.TYPE.METADATA,
+                    type: "$nodeType",
+                    submittedID: "$nodeID",
+                    errors: "$errors",
+                    warnings: "$warnings"
                 },
+                datafile_results: {
+                    validation_type: BATCH.TYPE.DATA_FILE,
+                    type: BATCH.TYPE.DATA_FILE,
+                    submittedID: "$s3FileInfo.fileName",
+                    errors: "$s3FileInfo.errors",
+                    warnings: "$s3FileInfo.warnings",
+                }
             }
-        });
-        pipeline.push({
+        })
+        // Add all validation results to a single array
+        dataRecordQCResultsPipeline.push({
+            $set: {
+                results: [
+                    "$metadata_results",
+                    "$datafile_results",
+                ]
+            }
+        })
+        // Unwind validation results into individual documents
+        dataRecordQCResultsPipeline.push({
             $unwind: "$results"
-        });
-        pipeline.push({
+        })
+        // Filter out empty validation results
+        dataRecordQCResultsPipeline.push({
+            $match: {
+                $or: [
+                    {
+                        "results.errors": {
+                            $exists: true,
+                            $not: {
+                                $size: 0,
+                            },
+                        },
+                    },
+                    {
+                        "results.warnings": {
+                            $exists: true,
+                            $not: {
+                                $size: 0,
+                            },
+                        },
+                    },
+                ],
+            },
+        })
+        // Reformat documents
+        dataRecordQCResultsPipeline.push({
             $project: {
-                submissionID: "$results.submissionID",
-                nodeType: "$results.nodeType",
-                validationType: "$results.validationType",
-                batchID: "$results.batchID",
+                submissionID: "$submissionID",
+                type: "$results.type",
+                validationType: "$results.validation_type",
+                batchID: "$batchID",
                 displayID: {
-                    $first: "$results.batch.displayID",
+                    $first: "$batch.displayID",
                 },
-                nodeID: "$results.nodeID",
-                CRDC_ID: "$results._id",
-                severity: "$results.severity",
-                uploadedDate: "$results.updatedAt",
-                validatedDate: "$results.validatedAt",
-                errors: "$results.errors",
-                warnings: "$results.warnings"
+                submittedID: "$results.submittedID",
+                uploadedDate: "$updatedAt",
+                validatedDate: "$validatedAt",
+                errors: {
+                    $ifNull: ["$results.errors", []],
+                },
+                warnings: {
+                    $ifNull: ["$results.warnings", []],
+                },
+            }
+        })
+        // new pipeline to get extra file validation results
+        let extraFileQCResultsPipeline = [];
+        // match submission by ID
+        extraFileQCResultsPipeline.push({
+            $match: {
+                _id: submissionID
             }
         });
+        // combine qc_results objects into a single arrays
+        extraFileQCResultsPipeline.push({
+            $project: {
+                qc_results: {
+                    $concatArrays: ["$fileErrors", "$fileWarnings"]
+                }
+            }
+        });
+        // unwind the $qc_results array
+        extraFileQCResultsPipeline.push({
+            $unwind: "$qc_results"
+        });
+        // remove non-object type errors (non-validation errors)
+        extraFileQCResultsPipeline.push({
+            $match:{
+                qc_results: {
+                    $type: "object",
+                },
+            },
+        })
+        // set the qc_results object as the root of the documents
+        extraFileQCResultsPipeline.push({
+            $replaceRoot: {
+                newRoot: "$qc_results"
+            }
+        });
+        // add the submission ID
+        extraFileQCResultsPipeline.push({
+            $set: {
+                submissionID: submissionID
+            }
+        });
+        // run the extra file QC results pipeline and combine the output with the data record QC results pipeline results
+        dataRecordQCResultsPipeline.push({
+            $unionWith: {
+                coll: "submissions",
+                pipeline: extraFileQCResultsPipeline
+            }
+        });
+        // replace null errors and warnings properties to empty arrays
+        dataRecordQCResultsPipeline.push({
+            $set: {
+                errors: {
+                    $ifNull: ["$errors", []],
+                },
+                warnings: {
+                    $ifNull: ["$warnings", []],
+                },
+            }
+        })
+        // Set severity based on the errors array
+        dataRecordQCResultsPipeline.push({
+            $set: {
+                severity: {
+                    $cond: {
+                        if: {
+                            $gt: [{$size: "$errors"}, 0],
+                        },
+                        then: VALIDATION_STATUS.ERROR,
+                        else: VALIDATION_STATUS.WARNING,
+                    }
+                }
+            }
+        })
+        // Filter by severity
         if (severities === ERROR){
             severities = [ERROR];
         }
@@ -174,24 +285,26 @@ class DataRecordService {
         else {
             severities = [ERROR, WARNING];
         }
-        pipeline.push({
+        dataRecordQCResultsPipeline.push({
             $match: {
                 severity: {
                     $in: severities
                 }
             }
         })
+        // Filter by node types
         if (!!nodeTypes && nodeTypes.length > 0) {
-            pipeline.push({
+            dataRecordQCResultsPipeline.push({
                $match: {
-                   nodeType: {
+                   type: {
                        $in: nodeTypes
                    }
                }
             });
         }
+        // Filter by Batch IDs
         if (!!batchIDs && batchIDs.length > 0) {
-            pipeline.push({
+            dataRecordQCResultsPipeline.push({
                 $match: {
                     batchID: {
                         $in: batchIDs
@@ -199,8 +312,9 @@ class DataRecordService {
                 }
             });
         }
+        // Create page and sort steps
         let page_pipeline = [];
-        const nodeType = "nodeType";
+        const nodeType = "type";
         let sortFields = {
             [orderBy]: getSortDirection(sortDirection),
         };
@@ -213,10 +327,13 @@ class DataRecordService {
         page_pipeline.push({
             $skip: offset
         });
-        page_pipeline.push({
-            $limit: first
-        });
-        pipeline.push({
+        if (first > 0){
+            page_pipeline.push({
+                $limit: first
+            });
+        }
+        // Get paged results and total count
+        dataRecordQCResultsPipeline.push({
             $facet: {
                 results: page_pipeline,
                 total: [{
@@ -224,14 +341,16 @@ class DataRecordService {
                 }]
             }
         });
-        pipeline.push({
+        // Extract total count from total object
+        dataRecordQCResultsPipeline.push({
             $set: {
                 total: {
                     $first: "$total.total",
                 }
             }
         });
-        let dataRecords = await this.dataRecordsCollection.aggregate(pipeline);
+        // Execute pipeline
+        let dataRecords = await this.dataRecordsCollection.aggregate(dataRecordQCResultsPipeline);
         dataRecords = dataRecords.length > 0 ? dataRecords[0] : {}
         dataRecords.results = this.#replaceNaN(dataRecords?.results, null);
         return {
@@ -306,42 +425,7 @@ class DataRecordService {
         };
         return await this.dataRecordsCollection.distinct("nodeType", filter);
     }
-
-    #generateResultsPipeline(errorsField, warningsField, statusField, validationType){
-        let pipeline = []
-        pipeline.push({
-            $match: {
-                $or: [
-                    {
-                        [errorsField]: {
-                            $exists: true,
-                            $not: {
-                                $size: 0,
-                            },
-                        },
-                    },
-                    {
-                        [warningsField]: {
-                            $exists: true,
-                            $not: {
-                                $size: 0,
-                            },
-                        },
-                    },
-                ],
-            }
-        });
-        pipeline.push({
-            $set: {
-                validationType: validationType,
-                severity: "$"+statusField,
-                errors: "$"+errorsField,
-                warnings: "$"+warningsField
-            }
-        });
-        return pipeline;
-    }
-
+    
     #replaceNaN(results, replacement){
         results?.map((result) => {
             Object.keys(result).forEach((key) => {
