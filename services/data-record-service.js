@@ -8,6 +8,22 @@ const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-consta
 
 const ERROR = "Error";
 const WARNING = "Warning";
+const NODE_VIEW = {
+    submissionID: "$submissionID",
+    nodeType: "$nodeType",
+    nodeID: "$nodeID",
+    status:  "$status",
+    createdAt: "$createdAt",
+    updatedAt: "$updatedAt",
+    validatedAt: "$validatedAt",
+    uploadedDate: "$updatedAt",
+    validatedDate: "$validatedAt",
+    orginalFileName:  "$orginalFileName",
+    lineNumber: "$lineNumber",
+    props: "$props",
+    parents: "$parents",
+    rawData: "$rawData"
+}
 class DataRecordService {
     constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService) {
         this.dataRecordsCollection = dataRecordsCollection;
@@ -341,6 +357,63 @@ class DataRecordService {
             results: dataRecords.results || [],
             total: dataRecords.total || 0
         }
+    }
+
+    async submissionNodes(submissionID, nodeType, first, offset, orderBy, sortDirection) {
+        // set orderBy
+        let sort = orderBy;
+        if ( !Object.keys(NODE_VIEW).includes(orderBy)) {
+            if ( orderBy.indexOf(".") > 0) 
+                sort = `rawData.${orderBy.replace(".", "|")}`;
+            else
+                sort = `props.${orderBy}`;
+        }
+        let pipeline = [];
+        pipeline.push({
+            $match: {
+                submissionID: submissionID, 
+                nodeType: nodeType
+            }
+        });
+        pipeline.push({
+            $project: NODE_VIEW
+        });
+        let page_pipeline = [];
+        const nodeID= "nodeID";
+        let sortFields = {
+            [sort]: getSortDirection(sortDirection),
+        };
+        if (sort !== nodeID){
+            sortFields[nodeID] = 1
+        }
+        page_pipeline.push({
+            $sort: sortFields
+        });
+        page_pipeline.push({
+            $skip: offset
+        });
+        page_pipeline.push({
+            $limit: first
+        });
+        pipeline.push({
+            $facet: {
+                total: [{
+                    $count: "total"
+                }],
+                results: page_pipeline
+            }
+        });
+        pipeline.push({
+            $set: {
+                total: {
+                    $first: "$total.total",
+                }
+            }
+        });
+        let dataRecords = await this.dataRecordsCollection.aggregate(pipeline);
+        dataRecords = dataRecords.length > 0 ? dataRecords[0] : {}
+        return {total: dataRecords.total || 0,
+            results: dataRecords.results || []}
     }
 
     async listSubmissionNodeTypes(submissionID){
