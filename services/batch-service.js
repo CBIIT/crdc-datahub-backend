@@ -1,7 +1,7 @@
 const {Batch} = require("../domain/batch");
 const {BATCH, FILE} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const ERROR = require("../constants/error-constants");
-const {NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED, REJECTED, WITHDRAWN, VALIDATION} = require("../constants/submission-constants");
+const {NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED, REJECTED, WITHDRAWN, VALIDATION, INTENTION} = require("../constants/submission-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {SUBMISSIONS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
@@ -19,7 +19,6 @@ class BatchService {
     async createBatch(params, rootPath) {
         const prefix = createPrefix(params, rootPath);
         const metadataIntention = params?.metadataIntention && params.type === BATCH.TYPE.METADATA ? params.metadataIntention : null;
-        await this.#getBatchDisplayID(params.submissionID);
         const newDisplayID = await this.#getBatchDisplayID(params.submissionID);
         const newBatch = Batch.createNewBatch(params.submissionID, newDisplayID, this.bucketName, prefix, params.type.toLowerCase(), metadataIntention);
         if (BATCH.TYPE.METADATA === params.type.toLowerCase()) {
@@ -30,6 +29,9 @@ class BatchService {
                 }
             }));
         } else {
+            if (INTENTION.DELETE === params?.metadataIntention) {
+                throw new Error(ERROR.INVALID_BATCH_INTENTION);
+            }
             params.files.forEach((file) => {
                 if (file.fileName) {
                     newBatch.addDataFile(file.fileName, file.size);

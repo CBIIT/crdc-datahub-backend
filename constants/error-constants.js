@@ -37,6 +37,7 @@ const ERROR = {
     BATCH_NOT_EXIST: "The batch you are trying to access does not exist",
     INVALID_UPDATE_BATCH_STATUS: "The batch update is aborted because the current batch status is not suitable for modification",
     FAILED_BATCH_UPDATE: "An error occurred while updating a batch",
+    INVALID_BATCH_INTENTION: "Uploading data files is not allowed for a Delete submission",
     // Approved Studies
     APPROVED_STUDIES_INSERTION: "An error occurred while attempting to insert the approved studies into the database.",
     ORGANIZATION_APPROVED_STUDIES_INSERTION: "An error occurred while attempting to insert the approved studies for the organization into the database.",
