@@ -56,21 +56,28 @@ class DataRecordService {
 
     async validateMetadata(submissionID, types, scope) {
         isValidMetadata(types, scope);
-        const isMetadata = types.some(t => t === VALIDATION.TYPES.METADATA);
+        const isMetadata = types.some(t => t === VALIDATION.TYPES.METADATA || t === VALIDATION.TYPES.CROSS_SUBMISSION);
         let errorMessages = [];
-        if (isMetadata ) {
+        if (isMetadata) {
             const docCount = await getCount(this.dataRecordsCollection, submissionID);
             if (docCount === 0)  errorMessages.push(ERRORS.FAILED_VALIDATE_METADATA, ERRORS.NO_VALIDATION_METADATA);
             else {
-                const newDocCount = await getCount(this.dataRecordsCollection, submissionID, scope);
-                if (!(scope.toLowerCase() === VALIDATION.SCOPE.NEW && newDocCount === 0)) {
-                    const msg = Message.createMetadataMessage("Validate Metadata", submissionID, scope);
+                if (types.includes(VALIDATION.TYPES.CROSS_SUBMISSION)) {
+                    const msg = Message.createMetadataMessage("Validate Cross-submission", submissionID);
                     const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.metadataQueueName, submissionID);
                     if (!success.success)
-                        errorMessages.push(ERRORS.FAILED_VALIDATE_METADATA, success.message)
-                }
-                else {
-                    errorMessages.push(ERRORS.FAILED_VALIDATE_METADATA, ERRORS.NO_NEW_VALIDATION_METADATA);
+                        errorMessages.push(ERRORS.FAILED_VALIDATE_CROSS_SUBMISSION, success.message);
+                } else {
+                    const newDocCount = await getCount(this.dataRecordsCollection, submissionID, scope);
+                    if (!(scope.toLowerCase() === VALIDATION.SCOPE.NEW && newDocCount === 0)) {
+                        const msg = Message.createMetadataMessage("Validate Metadata", submissionID, scope);
+                        const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.metadataQueueName, submissionID);
+                        if (!success.success)
+                            errorMessages.push(ERRORS.FAILED_VALIDATE_METADATA, success.message)
+                    }
+                    else {
+                        errorMessages.push(ERRORS.FAILED_VALIDATE_METADATA, ERRORS.NO_NEW_VALIDATION_METADATA);
+                    }
                 }
             }
         }
@@ -83,13 +90,13 @@ class DataRecordService {
                     const msg = Message.createFileNodeMessage("Validate File", aFile._id);
                     const result = await sendSQSMessageWrapper(this.awsService, msg, aFile._id, this.fileQueueName, submissionID);
                     if (!result.success)
-                        fileValidationErrors.append(result.message);
+                        fileValidationErrors.push(result.message);
                 }
             }
             const msg1 = Message.createFileSubmissionMessage("Validate Submission Files", submissionID);
             const result1= await sendSQSMessageWrapper(this.awsService, msg1, submissionID, this.fileQueueName, submissionID);
             if (!result1.success)
-                fileValidationErrors.append(result1.message);
+                fileValidationErrors.push(result1.message);
 
             if (fileValidationErrors.length > 0)
                 errorMessages.push(ERRORS.FAILED_VALIDATE_FILE, ...fileValidationErrors)
@@ -467,13 +474,19 @@ const sendSQSMessageWrapper = async (awsService, message, deDuplicationId, queue
 }
 
 const isValidMetadata = (types, scope) => {
-    const isValidTypes = types.every(t => (t?.toLowerCase() === VALIDATION.TYPES.DATA_FILE || t?.toLowerCase() === VALIDATION.TYPES.FILE ||t?.toLowerCase() === VALIDATION.TYPES.METADATA));
+    const isValidTypes = types.every(t => (t?.toLowerCase() === VALIDATION.TYPES.DATA_FILE
+        || t?.toLowerCase() === VALIDATION.TYPES.FILE
+        || t?.toLowerCase() === VALIDATION.TYPES.METADATA)
+        || t?.toLowerCase() === VALIDATION.TYPES.CROSS_SUBMISSION);
+
     if (!isValidTypes) {
         throw new Error(ERRORS.INVALID_SUBMISSION_TYPE);
     }
+    // cross-submission does not require a scope
+    const isNonCrossSubmission = types.some(t => (t?.toLowerCase() !== VALIDATION.TYPES.CROSS_SUBMISSION));
     // case-insensitive
     const isValidScope = scope?.toLowerCase() === VALIDATION.SCOPE.NEW.toLowerCase() || scope?.toLowerCase() === VALIDATION.SCOPE.ALL.toLowerCase();
-    if (!isValidScope) {
+    if (isNonCrossSubmission && !isValidScope) {
         throw new Error(ERRORS.INVALID_SUBMISSION_SCOPE);
     }
 }
@@ -485,7 +498,9 @@ class Message {
     static createMetadataMessage(type, submissionID, scope) {
         const msg = new Message(type);
         msg.submissionID = submissionID;
-        msg.scope= scope;
+        if (scope) {
+            msg.scope= scope;
+        }
         return msg;
     }
 
