@@ -34,7 +34,8 @@ module.exports = Object.freeze({
         TYPES: {
             FILE: "file",
             DATA_FILE: "data file",
-            METADATA: "metadata"
+            METADATA: "metadata",
+            CROSS_SUBMISSION: "cross-submission"
         },
         SCOPE: {
             NEW: "new",
