@@ -93,10 +93,10 @@ class DataRecordService {
                         fileValidationErrors.push(result.message);
                 }
             }
-            const msg1 = Message.createFileSubmissionMessage("Validate Submission Files", submissionID);
-            const result1= await sendSQSMessageWrapper(this.awsService, msg1, submissionID, this.fileQueueName, submissionID);
-            if (!result1.success)
-                fileValidationErrors.push(result1.message);
+            const msg = Message.createFileSubmissionMessage("Validate Submission Files", submissionID);
+            const result= await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.fileQueueName, submissionID);
+            if (!result.success)
+                fileValidationErrors.push(result.message);
 
             if (fileValidationErrors.length > 0)
                 errorMessages.push(ERRORS.FAILED_VALIDATE_FILE, ...fileValidationErrors)

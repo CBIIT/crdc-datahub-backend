@@ -342,7 +342,7 @@ class Submission {
                 }
             }
             else {
-                const metadataValidationStatus = result.message.includes(ERROR.FAILED_VALIDATE_METADATA) ? prevMetadataValidationStatus : "NA";
+                const metadataValidationStatus = result.message.includes(ERROR.FAILED_VALIDATE_METADATA) || result.message.includes(ERROR.FAILED_VALIDATE_CROSS_SUBMISSION) ? prevMetadataValidationStatus : "NA";
                 const fileValidationStatus = (result.message.includes(ERROR.FAILED_VALIDATE_FILE)) ? prevFileValidationStatus : "NA"
                 await this.#updateValidationStatus(params?.types, aSubmission, metadataValidationStatus, fileValidationStatus, prevTime);
             }
@@ -448,13 +448,13 @@ class Submission {
     // private function
     async #updateValidationStatus(types, aSubmission, metaStatus, fileStatus, updatedTime) {
         const typesToUpdate = {};
-        if (!!aSubmission?.metadataValidationStatus && types.includes(VALIDATION.TYPES.METADATA)) {
-            if ( metaStatus !== "NA")
+        if (!!aSubmission?.metadataValidationStatus && (types.includes(VALIDATION.TYPES.METADATA) || types.includes(VALIDATION.TYPES.CROSS_SUBMISSION))) {
+            if (metaStatus !== "NA")
                 typesToUpdate.metadataValidationStatus = metaStatus;
         }
 
         if (!!aSubmission?.fileValidationStatus && types.some(type => (type?.toLowerCase() === VALIDATION.TYPES.DATA_FILE || type?.toLowerCase() === VALIDATION.TYPES.FILE))) {
-            if ( fileStatus !== "NA")
+            if (fileStatus !== "NA")
                 typesToUpdate.fileValidationStatus = fileStatus;
         }
 
