@@ -50,7 +50,7 @@ dbConnector.connect().then(async () => {
 
     const utilityService = new UtilityService();
     const dataModelInfo = await utilityService.fetchJsonFromUrl(config.model_url);
-    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, dataModelInfo);
+    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, dataModelInfo, awsService, config.metadata_queue);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.tier);
 
     root = {
