@@ -64,6 +64,7 @@ const ERROR = {
     FAILED_VALIDATE_CROSS_SUBMISSION: "Failed to validate cross-submission",
     FAILED_VALIDATE_METADATA: "Failed to validate metadata",
     FAILED_VALIDATE_FILE: "Failed to validate data file",
+    FAILED_COMPLETE_SUBMISSION: "Failed to send a complete submission message",
     NO_VALIDATION_FILE: "No file manifest(s) are uploaded for file validation",
     NO_VALIDATION_METADATA: "No metadata for validation",
     NO_NEW_VALIDATION_METADATA: "No new metadata for validation",

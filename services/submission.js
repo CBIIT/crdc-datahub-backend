@@ -20,6 +20,7 @@ const ROLES = USER_CONSTANTS.USER.ROLES;
 const ALL_FILTER = "All";
 const NA = "NA"
 const config = require("../config");
+const ERRORS = require("../constants/error-constants");
 
 // TODO: Data commons needs to be in a predefined list, currently only "CDS" and "ICDC" are allowed
 // eventually frontend and backend will use same source for this list.
@@ -34,7 +35,7 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, dataModelInfo) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, dataModelInfo, awsService, metadataQueueName) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -44,6 +45,8 @@ class Submission {
         this.dataRecordService = dataRecordService;
         this.tier = tier;
         this.modelVersion = this.#getModelVersion(dataModelInfo);
+        this.awsService = awsService;
+        this.metadataQueueName = metadataQueueName;
     }
 
     async createSubmission(params, context) {
@@ -230,15 +233,29 @@ class Submission {
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
             throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
         }
+
+        // Send complete action
+        const completePromise = [];
+        if (action === ACTIONS.COMPLETE) {
+            completePromise.push(this.#sendCompleteMessage({type: "Complete Submission", submissionID}, submissionID));
+        }
+
         //log event and send notification
         const logEvent = SubmissionActionEvent.create(userInfo._id, userInfo.email, userInfo.IDP, submission._id, action, fromStatus, newStatus);
         await Promise.all([
-            await this.logCollection.insert(logEvent),
-            await submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService, this.tier)
-        ]);
+            this.logCollection.insert(logEvent),
+            submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService, this.tier)
+        ].concat(completePromise));
         return submission;
     }
 
+    async #sendCompleteMessage(msg, submissionID) {
+        try {
+            await this.awsService.sendSQSMessage(msg, submissionID, submissionID, this.metadataQueueName);
+        } catch (e) {
+            console.error(ERRORS.FAILED_COMPLETE_SUBMISSION, `submissionID:${submissionID}`, `queue-name:${this.metadataQueueName}`, `error:${e}`);
+        }
+    }
 
     async submissionStats(params, context) {
         verifySession(context)
