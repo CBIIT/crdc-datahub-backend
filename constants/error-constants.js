@@ -88,7 +88,7 @@ const ERROR = {
     //export dataRecords
     INVALID_EXPORT_METADATA: "You do not have permission to export submission data",
     INVALID_DATA_MODEL_VERSION: "An error occurred while trying to retrieve the data model version from the given URL",
-    NO_UPLOAD_CONFIG_TEMPLATE: "Data file upload config template is not found.",
+    NO_UPLOADER_CLI_CONFIG_TEMPLATE: "Data file uploader CLI config template is not found.",
     INVALID_DATA_MODEL: "No file node properties in the data model."
 }
 

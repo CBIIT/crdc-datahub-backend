@@ -442,12 +442,12 @@ class Submission {
         return returnVal;
     }
     /**
-     * API: getUploadConfigs for submitter to download a config file
+     * API: getUploaderCLIConfigs for submitter to download a config file
      * @param {*} params 
      * @param {*} context 
      * @returns yaml string
      */
-    async getUploadConfigs(params, context){
+    async getUploaderCLIConfigs(params, context){
         verifySession(context)
             .verifyInitialized();
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
@@ -459,7 +459,7 @@ class Submission {
         //read the config template to string
         var configString = await UtilityService.parseYamlFile(config.uploadConfigTemp);
         if (!configString){
-            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
+            throw new Error(ERROR.NO_UPLOADER_CLI_CONFIG_TEMPLATE);
         }
         //insert params values into the string
         configString = configString.format(params);
