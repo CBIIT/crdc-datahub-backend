@@ -183,6 +183,18 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }else{
+            if (aSubmission?.studyAbbreviation) {
+                const submissions = await this.submissionCollection.aggregate([
+                    {"$match": {$and: [
+                        {studyAbbreviation: aSubmission.studyAbbreviation},
+                        {status: {$in: [IN_PROGRESS, SUBMITTED]}},
+                        {_id: { $not: { $eq: params._id}}}]}}]);
+                const otherSubmissions = {[IN_PROGRESS]: [], [SUBMITTED]: []};
+                submissions.forEach((submission) => {
+                    otherSubmissions[submission.status].push(submission._id);
+                });
+                aSubmission.otherSubmissions = JSON.stringify(otherSubmissions);
+            }
             // view condition
             const conditionDCPOC = (context?.userInfo?.role === ROLES.DC_POC )&& (context?.userInfo?.dataCommons.includes(aSubmission?.dataCommons));
             const conditionORGOwner = (context?.userInfo?.role === ROLES.ORG_OWNER )&& (context?.userInfo?.organization?.orgID === aSubmission?.organization?._id);
