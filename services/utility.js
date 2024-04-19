@@ -29,7 +29,7 @@ class UtilityService {
             });
         });
     }
-    static async parseYamlFile(filePath){
+    static readFile2Text(filePath){
         return (fs.existsSync(filePath))? fs.readFileSync(filePath, "utf-8"): null;
     }
     static async write2file(text, filePath){

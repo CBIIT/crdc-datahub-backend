@@ -1,4 +1,5 @@
 require('dotenv').config();
+const {UtilityService} = require("./services/utility")
 
 let config = {
     //info variables
@@ -43,9 +44,8 @@ let config = {
     //CRDC Review Committee Emails, separated by ","
     committee_emails: process.env.REVIEW_COMMITTEE_EMAIL ? process.env.REVIEW_COMMITTEE_EMAIL.split(',') : ["CRDCSubmisison@nih.gov"],
     model_url: getModelUrl(),
-    //upload configuration file template
-    uploadConfigTemp: 'resources/yaml/data_file_upload_config.yaml'
-
+    //uploader configuration file template
+    uploaderCLIConfigs: readUploaderYamlFile()
 };
 config.mongo_db_connection_string = `mongodb://${config.mongo_db_user}:${config.mongo_db_password}@${config.mongo_db_host}:${process.env.MONGO_DB_PORT}`;
 
@@ -64,6 +64,15 @@ function getTransportConfig() {
             }
         )
     };
+}
+
+function readUploaderYamlFile(){
+    uploaderConfigTemplate = 'resources/yaml/data_file_upload_config.yaml';
+    configString = UtilityService.readFile2Text(uploaderConfigTemplate);
+    if (!configString){
+        throw "Can't find uploader CLI config template at " + uploaderConfigTemplate + "!";
+    }
+    return configString;
 }
 function getModelUrl() {
     // if MODEL_URL exists, it overrides

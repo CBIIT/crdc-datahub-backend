@@ -16,7 +16,6 @@ const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-consta
 const { API_TOKEN } = require("../constants/application-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {AWSService} = require("../services/aws-request");
-const {UtilityService} = require("../services/utility")
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const ALL_FILTER = "All";
 const NA = "NA"
@@ -454,13 +453,10 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        //only the submitter can get the configuration file for data file uploading
+        //only the submitter can download the configuration file for data file uploading
         await verifyBatchPermission(this.userService, aSubmission, context.userInfo);
-        //read the config template to string
-        var configString = await UtilityService.parseYamlFile(config.uploadConfigTemp);
-        if (!configString){
-            throw new Error(ERROR.NO_UPLOADER_CLI_CONFIG_TEMPLATE);
-        }
+        //get the uploader CLI config template as string
+        var configString = config.uploaderCLIConfigs;
         //insert params values into the string
         configString = configString.format(params);
         //insert data model file node properties into the string
