@@ -32,6 +32,9 @@ class UtilityService {
     static async parseYamlFile(filePath){
         return (fs.existsSync(filePath))? fs.readFileSync(filePath, "utf-8"): null;
     }
+    static async write2file(text, filePath){
+        fs.writeFileSync(filePath, text);
+    }
 }
 
 module.exports = {UtilityService}

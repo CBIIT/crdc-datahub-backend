@@ -455,14 +455,13 @@ class Submission {
         if (!configString){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
-        const tokenDict = await this.userService.grantToken(null, context);
-        if (!tokenDict || !tokenDict.tokens || tokenDict.tokens.length === 0){
-            throw new Error(ERROR.INVALID_TOKEN_EMPTY);
-        }
-        const token = tokenDict.tokens[0];
         configString = configString.format(params);
         configString = this.#replaceFileNodeProps(aSubmission, configString);
-        return await this.#replaceToken(context, configString);
+        configString = await this.#replaceToken(context, configString);
+        //test codes: write yaml string to file
+        //await UtilityService.write2file(configString, "logs/test.yaml")
+        //end test code
+        return configString;
     }
 
     #replaceFileNodeProps(aSubmission, configString){
