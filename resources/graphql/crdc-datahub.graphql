@@ -435,6 +435,13 @@ type Query {
         orderBy: String = "nodeID",
         sortDirection: String = "ASC"
     ): SubmissionNodes
+
+    retrieveCLIConfig(
+        submissionID: String!,
+        apiURL: String!,
+        dataFolder: String = "/Users/my_name/my_files",
+        manifest: String = "/Users/my_name/my_manifest.tsv"
+    ): String
 }
 type Mutation {
     "User initiated operations"

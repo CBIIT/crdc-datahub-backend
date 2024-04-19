@@ -15,7 +15,8 @@ const {verifyBatch} = require("../verifier/batch-verifier");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const { API_TOKEN } = require("../constants/application-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
-const {AWSService} = require("../services/aws-request")
+const {AWSService} = require("../services/aws-request");
+const {UtilityService} = require("../services/utility")
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const ALL_FILTER = "All";
 const NA = "NA"
@@ -44,6 +45,7 @@ class Submission {
         this.notificationService = notificationService;
         this.dataRecordService = dataRecordService;
         this.tier = tier;
+        this.dataModelInfo = dataModelInfo;
         this.modelVersion = this.#getModelVersion(dataModelInfo);
         this.awsService = awsService;
         this.metadataQueueName = metadataQueueName;
@@ -435,7 +437,47 @@ class Submission {
             }
             returnVal.properties = Array.from(propsSet);
         }
-        return returnVal
+        return returnVal;
+    }
+
+    async getUploadConfigs(params, context){
+        verifySession(context)
+            .verifyInitialized();
+        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        if(!aSubmission){
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
+        }
+        await verifyBatchPermission(this.userService, aSubmission, context.userInfo);
+        
+        //1.  parse config yaml file. 2. get model info for filename, file size and md5sum. 
+        // 3. get token, 4.  fill data in the object 4. return yaml string
+        var configString = await UtilityService.parseYamlFile(config.uploadConfigTemp);
+        if (!configString){
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
+        }
+        const tokenDict = await this.userService.grantToken(null, context);
+        if (!tokenDict || !tokenDict.tokens || tokenDict.tokens.length === 0){
+            throw new Error(ERROR.INVALID_TOKEN_EMPTY);
+        }
+        const token = tokenDict.tokens[0];
+        configString = configString.format(params);
+        configString = this.#replaceFileNodeProps(aSubmission, configString);
+        return await this.#replaceToken(context, configString);
+    }
+
+    #replaceFileNodeProps(aSubmission, configString){
+        const modelFileNodeInfos = Object.values(this.dataModelInfo?.[aSubmission.dataCommons]?.["semantics"]?.["file-nodes"]);
+        if (modelFileNodeInfos.length > 0){
+            return configString.format(modelFileNodeInfos[0]);
+        }
+    }
+
+    async #replaceToken(context, configString){
+        const tokenDict = await this.userService.grantToken(null, context);
+        if (!tokenDict || !tokenDict.tokens || tokenDict.tokens.length === 0){
+            throw new Error(ERROR.INVALID_TOKEN_EMPTY);
+        }
+        return configString.format({token: tokenDict.tokens[0]})
     }
 
     async #verifyQCResultsReadPermissions(context, submissionID){
@@ -503,6 +545,14 @@ const updateSubmissionStatus = async (submissionCollection, aSubmission, userInf
         throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
     }
 }
+String.prototype.format = function(placeholders) {
+    var s = this;
+    for(var propertyName in placeholders) {
+        var re = new RegExp('{' + propertyName + '}', 'gm');
+        s = s.replace(re, placeholders[propertyName]);
+    }    
+    return s;
+};
 
 /**
  * submissionActionNotification
