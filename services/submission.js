@@ -439,7 +439,12 @@ class Submission {
         }
         return returnVal;
     }
-
+    /**
+     * API: getUploadConfigs for submitter to download a config file
+     * @param {*} params 
+     * @param {*} context 
+     * @returns yaml string
+     */
     async getUploadConfigs(params, context){
         verifySession(context)
             .verifyInitialized();
@@ -447,18 +452,20 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
+        //only the submitter can get the configuration file for data file uploading
         await verifyBatchPermission(this.userService, aSubmission, context.userInfo);
-        
-        //1.  parse config yaml file. 2. get model info for filename, file size and md5sum. 
-        // 3. get token, 4.  fill data in the object 4. return yaml string
+        //read the config template to string
         var configString = await UtilityService.parseYamlFile(config.uploadConfigTemp);
         if (!configString){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
+        //insert params values into the string
         configString = configString.format(params);
+        //insert data model file node properties into the string
         configString = this.#replaceFileNodeProps(aSubmission, configString);
+        //insert token into the string
         configString = await this.#replaceToken(context, configString);
-        //test codes: write yaml string to file
+        //test code: write yaml string to file for verification of output
         //await UtilityService.write2file(configString, "logs/test.yaml")
         //end test code
         return configString;
