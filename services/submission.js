@@ -30,6 +30,8 @@ const UPLOAD_TYPES = ['file','metadata'];
 const LOG_DIR = 'logs';
 const LOG_FILE_EXT_ZIP ='.zip';
 const LOG_FILE_EXT_LOG ='.log';
+const DATA_MODEL_SEMANTICS = 'semantics';
+const DATA_MODEL_FILE_NODES = 'file-nodes';
 // Set to array
 Set.prototype.toArray = function() {
     return Array.from(this);
@@ -472,9 +474,12 @@ class Submission {
     }
 
     #replaceFileNodeProps(aSubmission, configString){
-        const modelFileNodeInfos = Object.values(this.dataModelInfo?.[aSubmission.dataCommons]?.["semantics"]?.["file-nodes"]);
+        const modelFileNodeInfos = Object.values(this.dataModelInfo?.[aSubmission.dataCommons]?.[DATA_MODEL_SEMANTICS]?.[DATA_MODEL_FILE_NODES]);
         if (modelFileNodeInfos.length > 0){
             return configString.format(modelFileNodeInfos[0]);
+        }
+        else{
+            throw new Error(ERROR.INVALID_DATA_MODEL);
         }
     }
 
