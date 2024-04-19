@@ -67,7 +67,7 @@ function getTransportConfig() {
 }
 
 function readUploaderCLIConfigTemplate(){
-    uploaderConfigTemplate = 'resources/yaml/data_file_upload_config.yaml';
+    const uploaderConfigTemplate = 'resources/yaml/data_file_upload_config.yaml';
     configString = UtilityService.readFile2Text(uploaderConfigTemplate);
     if (!configString){
         throw "Can't find uploader CLI config template at " + uploaderConfigTemplate + "!";
