@@ -16,6 +16,8 @@ const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-consta
 const { API_TOKEN } = require("../constants/application-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {AWSService} = require("../services/aws-request");
+const {write2file} = require("../utility/io-util");
+
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const ALL_FILTER = "All";
 const NA = "NA"
@@ -453,19 +455,24 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        //only the submitter can download the configuration file for data file uploading
+        //only the submitter of current submission can download the configuration file for data file uploading
         await verifyBatchPermission(this.userService, aSubmission, context.userInfo);
+        //set parameters
+        const parameters = {submissionID: params.submissionID, apiURL: params.apiURL, 
+            dataFolder: (params.dataFolder)?  params.dataFolder : "/Users/my_name/my_files",
+            manifest: (params.manifest)? params.manifest: "/Users/my_name/my_manifest.tsv"
+        }
         //get the uploader CLI config template as string
         var configString = config.uploaderCLIConfigs;
         //insert params values into the string
-        configString = configString.format(params);
+        configString = configString.format(parameters);
         //insert data model file node properties into the string
         configString = this.#replaceFileNodeProps(aSubmission, configString);
         //insert token into the string
         configString = await this.#replaceToken(context, configString);
-        //test code: write yaml string to file for verification of output
-        //await UtilityService.write2file(configString, "logs/test.yaml")
-        //end test code
+        /** test code: write yaml string to file for verification of output
+        write2file(configString, "logs/userUploaderConfig.yaml")
+        end test code **/
         return configString;
     }
 

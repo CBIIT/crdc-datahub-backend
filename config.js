@@ -1,5 +1,5 @@
 require('dotenv').config();
-const {UtilityService} = require("./services/utility")
+const {readFile2Text} = require("./utility/io-util")
 
 let config = {
     //info variables
@@ -68,7 +68,7 @@ function getTransportConfig() {
 
 function readUploaderCLIConfigTemplate(){
     const uploaderConfigTemplate = 'resources/yaml/data_file_upload_config.yaml';
-    configString = UtilityService.readFile2Text(uploaderConfigTemplate);
+    configString = readFile2Text(uploaderConfigTemplate);
     if (!configString){
         throw "Can't find uploader CLI config template at " + uploaderConfigTemplate + "!";
     }
