@@ -21,6 +21,7 @@ const ALL_FILTER = "All";
 const NA = "NA"
 const config = require("../config");
 const ERRORS = require("../constants/error-constants");
+const {ValidationHandler} = require("../utility/validation-handler");
 
 // TODO: Data commons needs to be in a predefined list, currently only "CDS" and "ICDC" are allowed
 // eventually frontend and backend will use same source for this list.
@@ -35,7 +36,7 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, dataModelInfo, awsService, metadataQueueName) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, dataModelInfo, awsService, metadataQueueName, s3Service) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -47,6 +48,7 @@ class Submission {
         this.modelVersion = this.#getModelVersion(dataModelInfo);
         this.awsService = awsService;
         this.metadataQueueName = metadataQueueName;
+        this.s3Service = s3Service;
     }
 
     async createSubmission(params, context) {
@@ -448,6 +450,43 @@ class Submission {
             returnVal.properties = Array.from(propsSet);
         }
         return returnVal
+    }
+
+    async deleteExtraFile(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyRole([ROLES.ADMIN, ROLES.ORG_OWNER, ROLES.CURATOR, ROLES.SUBMITTER]);
+
+        const fileName = params?.fileName;
+        const submissions = await this.submissionCollection.aggregate([
+            {"$match": {_id: params?._id, fileErrors: {$in: [params?.fileName]}}},
+            { $limit: 1 }
+        ]);
+
+        // perform s3 deletion
+        if (submissions.length === 0) {
+            return ValidationHandler.handle(`${fileName} is not found in extra files' list`);
+        }
+
+        try {
+            this.s3Service.deleteFile("");
+            return ValidationHandler.success();
+        } catch(err) {
+            console.error('File deletion failed:', err);
+            return ValidationHandler.handle(err);
+        }
+    }
+
+
+    async deleteAllExtraFiles(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyRole([ROLES.ADMIN, ROLES.ORG_OWNER, ROLES.CURATOR, ROLES.SUBMITTER]);
+
+
+
+
+
     }
 
     async #verifyQCResultsReadPermissions(context, submissionID){
