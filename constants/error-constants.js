@@ -87,7 +87,9 @@ const ERROR = {
     FAILED_SQS_SEND: "Failed to send a message to aws SQS queue",
     //export dataRecords
     INVALID_EXPORT_METADATA: "You do not have permission to export submission data",
-    INVALID_DATA_MODEL_VERSION: "An error occurred while trying to retrieve the data model version from the given URL"
+    INVALID_DATA_MODEL_VERSION: "An error occurred while trying to retrieve the data model version from the given URL",
+    // delete submission error list
+    DELETE_NO_FILE_SUBMISSION: "No extra file found"
 }
 
 module.exports = ERROR;

@@ -462,31 +462,38 @@ class Submission {
             {"$match": {_id: params?._id, fileErrors: {$in: [params?.fileName]}}},
             { $limit: 1 }
         ]);
-
-        // perform s3 deletion
         if (submissions.length === 0) {
             return ValidationHandler.handle(`${fileName} is not found in extra files' list`);
         }
-
+        const aSubmission = submissions.pop();
         try {
-            this.s3Service.deleteFile("");
+            await this.s3Service.deleteFile(aSubmission?.bucketName, `${aSubmission?.rootPath}/${fileName}`);
             return ValidationHandler.success();
         } catch(err) {
-            console.error('File deletion failed:', err);
+            console.error(`File deletion failed; submission ID: ${aSubmission?._id} file name: ${fileName}`, err);
             return ValidationHandler.handle(err);
         }
     }
-
 
     async deleteAllExtraFiles(params, context) {
         verifySession(context)
             .verifyInitialized()
             .verifyRole([ROLES.ADMIN, ROLES.ORG_OWNER, ROLES.CURATOR, ROLES.SUBMITTER]);
-
-
-
-
-
+        const submissions = await this.submissionCollection.aggregate([{"$match": {_id: params?._id}}]);
+        if (submissions.length === 0 || submissions?.pop()?.fileErrors?.length === 0) {
+            return ValidationHandler.handle(ERROR.DELETE_NO_FILE_SUBMISSION);
+        }
+        const aSubmission = submissions?.pop();
+        const promises = aSubmission?.fileErrors.map(aFile => this.s3Service.deleteFile(aSubmission?.bucketName, `${aSubmission?.rootPath}/${aFile?.fileName}`));
+        const res = await Promise.allSettled(promises);
+        const countSuccess = res.filter(result => result.status === 'fulfilled').length;
+        res.forEach((result, index) => {
+            if (result.status === 'rejected') {
+                console.error(`Failed to delete; submission ID: ${aSubmission?._id} file name: ${aSubmission?.fileErrors[index]?.fileName} error: ${result.reason}`);
+            }
+        });
+        // TODO
+        return countSuccess > 0 ? ValidationHandler.success(`${countSuccess} extra files deleted`) : ValidationHandler.handle("");
     }
 
     async #verifyQCResultsReadPermissions(context, submissionID){
