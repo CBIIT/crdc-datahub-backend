@@ -4,7 +4,7 @@ const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
 const {v4} = require('uuid')
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
-const {verifySession, verifyApiToken, verifySubmitter} = require("../verifier/user-info-verifier");
+const {verifySession, verifyApiToken, verifySubmitter, validateToken} = require("../verifier/user-info-verifier");
 const {verifySubmissionAction} = require("../verifier/submission-verifier");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {formatName} = require("../utility/format-name");
@@ -487,6 +487,11 @@ class Submission {
     }
 
     async #replaceToken(context, configString){
+        //check user's token
+        const tokens = context.userInfo?.tokens;
+        if (tokens && tokens.length > 0 && validateToken(tokens[tokens.length-1], config.token_secret)) {
+            return configString.format({token: tokens[tokens.length-1]})
+        }
         const tokenDict = await this.userService.grantToken(null, context);
         if (!tokenDict || !tokenDict.tokens || tokenDict.tokens.length === 0){
             throw new Error(ERROR.INVALID_TOKEN_EMPTY);

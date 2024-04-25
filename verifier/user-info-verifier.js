@@ -1,6 +1,6 @@
 const ERROR = require("../constants/error-constants");
 const {API_TOKEN} = require("../constants/application-constants");
-const {decodeToken} = require("./token-verifier");
+const {decodeToken, verifyToken} = require("./token-verifier");
 
 function verifySession(context){
     return new UserInfoVerifier(context);
@@ -43,6 +43,10 @@ function verifyApiToken(context, token_secret){
     return userInfo;
 }
 
+function validateToken(token, token_secret){
+    return verifyToken(token, token_secret);
+}
+
 async function verifySubmitter(userInfo, submissionID, submissions, userService){
     if (!submissionID) {
         throw new Error(ERROR.INVALID_SUBMISSION_EMPTY);
@@ -75,5 +79,6 @@ async function verifySubmitter(userInfo, submissionID, submissions, userService)
 module.exports = {
     verifySession,
     verifyApiToken,
-    verifySubmitter
+    verifySubmitter,
+    validateToken
 };
