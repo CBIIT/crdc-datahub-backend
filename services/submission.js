@@ -469,7 +469,13 @@ class Submission {
             return ValidationHandler.handle(`${fileName} is not found in extra files' list`);
         }
         const aSubmission = submissions.pop();
+        this.#extraFileRoleValidator(context, aSubmission);
         try {
+            const fileResult = await this.s3Service.listFile(aSubmission.bucketName, `${aSubmission.rootPath}/${fileName}`)
+            // check file existence in the bucket
+            if (!fileResult?.Contents.some(obj => obj.Key === `${aSubmission.rootPath}/${fileName}`)) {
+                return ValidationHandler.handle(ERROR.DELETE_NO_EXISTS_SUBMISSION);
+            }
             await this.s3Service.deleteFile(aSubmission?.bucketName, `${aSubmission?.rootPath}/${fileName}`);
             return ValidationHandler.success();
         } catch(err) {
@@ -483,11 +489,25 @@ class Submission {
             .verifyInitialized()
             .verifyRole([ROLES.ADMIN, ROLES.ORG_OWNER, ROLES.CURATOR, ROLES.SUBMITTER]);
         const submissions = await this.submissionCollection.aggregate([{"$match": {_id: params?._id}}]);
-        if (submissions.length === 0 || submissions?.pop()?.fileErrors?.length === 0) {
+        const aSubmission = submissions?.pop();
+        if (!aSubmission || aSubmission?.fileErrors?.length === 0) {
             return ValidationHandler.handle(ERROR.DELETE_NO_FILE_SUBMISSION);
         }
-        const aSubmission = submissions?.pop();
-        const promises = aSubmission?.fileErrors.map(aFile => this.s3Service.deleteFile(aSubmission?.bucketName, `${aSubmission?.rootPath}/${aFile?.fileName}`));
+        this.#extraFileRoleValidator(context, aSubmission);
+        const filePromises = aSubmission.fileErrors.map(fileName =>
+            this.s3Service.listFile(aSubmission.bucketName, `${aSubmission.rootPath}/${fileName}`)
+        );
+        const fileResults = await Promise.all(filePromises);
+        const existingFiles = fileResults.filter((filePath, index) => {
+            const fileContents = fileResults[index]?.Contents;
+            return fileContents.some(obj => obj.Key === filePath);
+        });
+        // check file existence in the bucket
+        if (existingFiles.length === 0) {
+            return ValidationHandler.handle(ERROR.DELETE_NO_EXISTS_SUBMISSION);
+        }
+
+        const promises = existingFiles.map(fileName => this.s3Service.deleteFile(aSubmission?.bucketName, fileName));
         const res = await Promise.allSettled(promises);
         const countSuccess = res.filter(result => result.status === 'fulfilled').length;
         res.forEach((result, index) => {
@@ -495,8 +515,7 @@ class Submission {
                 console.error(`Failed to delete; submission ID: ${aSubmission?._id} file name: ${aSubmission?.fileErrors[index]?.fileName} error: ${result.reason}`);
             }
         });
-        // TODO
-        return countSuccess > 0 ? ValidationHandler.success(`${countSuccess} extra files deleted`) : ValidationHandler.handle("");
+        return ValidationHandler.success(`${countSuccess} extra files deleted`);
     }
 
     async #verifyQCResultsReadPermissions(context, submissionID){
@@ -555,6 +574,14 @@ class Submission {
             return modelVersion;
         }
         throw new Error(ERROR.INVALID_DATA_MODEL_VERSION);
+    }
+
+    #extraFileRoleValidator(context, aSubmission) {
+        const conditionORGOwner = (context?.userInfo?.role === ROLES.ORG_OWNER) && !(context?.userInfo?.organization?.orgID === aSubmission?.organization?._id);
+        const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && !(context?.userInfo?._id === aSubmission?.submitterID);
+        if (conditionORGOwner || conditionSubmitter) {
+            throw new Error(ERROR.INVALID_ROLE);
+        }
     }
 
 }
