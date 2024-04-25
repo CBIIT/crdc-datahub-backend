@@ -351,33 +351,36 @@ class Submission {
             throw new Error(ERROR.INVALID_VALIDATE_METADATA)
         }
         // start validation, change validating status
-        const [prevMetadataValidationStatus, prevFileValidationStatus, prevTime] = [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus, aSubmission?.updatedAt];
-        await this.#updateValidationStatus(params?.types, aSubmission, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING, getCurrentTime());
+        const [prevMetadataValidationStatus, prevFileValidationStatus, prevCrossSubmissionStatus, prevTime] =
+            [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus, aSubmission?.crossSubmissionStatus, aSubmission?.updatedAt];
+
+        await this.#updateValidationStatus(params?.types, aSubmission, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING, getCurrentTime());
         const result = await this.dataRecordService.validateMetadata(params._id, params?.types, params?.scope);
         // roll back validation if service failed
         if (!result.success) {
             if (result.message && result.message.includes(ERROR.NO_VALIDATION_METADATA)) {
                 if (result.message.includes(ERROR.FAILED_VALIDATE_FILE)) 
-                    await this.#updateValidationStatus(params?.types, aSubmission, null, prevFileValidationStatus, getCurrentTime()); 
+                    await this.#updateValidationStatus(params?.types, aSubmission, null, prevFileValidationStatus, null, getCurrentTime());
                 else {
-                    await this.#updateValidationStatus(params?.types, aSubmission, null, "NA", getCurrentTime());
+                    await this.#updateValidationStatus(params?.types, aSubmission, null, "NA", null, getCurrentTime());
                     result.success = true;
                 }
             } 
             else if (result.message && result.message.includes(ERROR.NO_NEW_VALIDATION_METADATA)){
                 if (result.message.includes(ERROR.FAILED_VALIDATE_FILE))
-                    await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, prevFileValidationStatus, prevTime);
+                    await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, prevFileValidationStatus, null, prevTime);
                 else {
-                    await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, "NA", prevTime);
+                    await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, "NA", null, prevTime);
                     result.success = true;
                 }
+            } else if (result.message && result.message.includes(ERROR.FAILED_VALIDATE_CROSS_SUBMISSION)) {
+                await this.#updateValidationStatus(params?.types, aSubmission, null, null, prevCrossSubmissionStatus, prevTime);
+            } else {
+                const metadataValidationStatus = result.message.includes(ERROR.FAILED_VALIDATE_METADATA) ? prevMetadataValidationStatus : "NA";
+                const fileValidationStatus = (result.message.includes(ERROR.FAILED_VALIDATE_FILE)) ? prevFileValidationStatus : "NA";
+                const crossSubmissionStatus = result.message.includes(ERROR.FAILED_VALIDATE_CROSS_SUBMISSION) ? prevCrossSubmissionStatus : "NA";
+                await this.#updateValidationStatus(params?.types, aSubmission, metadataValidationStatus, fileValidationStatus, crossSubmissionStatus, prevTime);
             }
-            else {
-                const metadataValidationStatus = result.message.includes(ERROR.FAILED_VALIDATE_METADATA) || result.message.includes(ERROR.FAILED_VALIDATE_CROSS_SUBMISSION) ? prevMetadataValidationStatus : "NA";
-                const fileValidationStatus = (result.message.includes(ERROR.FAILED_VALIDATE_FILE)) ? prevFileValidationStatus : "NA"
-                await this.#updateValidationStatus(params?.types, aSubmission, metadataValidationStatus, fileValidationStatus, prevTime);
-            }
-                
         }
         return result;
     }
@@ -521,9 +524,13 @@ class Submission {
     }
 
     // private function
-    async #updateValidationStatus(types, aSubmission, metaStatus, fileStatus, updatedTime) {
+    async #updateValidationStatus(types, aSubmission, metaStatus, fileStatus, crossSubmissionStatus, updatedTime) {
         const typesToUpdate = {};
-        if (!!aSubmission?.metadataValidationStatus && (types.includes(VALIDATION.TYPES.METADATA) || types.includes(VALIDATION.TYPES.CROSS_SUBMISSION))) {
+        if (crossSubmissionStatus && crossSubmissionStatus !== "NA") {
+            typesToUpdate.crossSubmissionStatus = crossSubmissionStatus;
+        }
+
+        if (!!aSubmission?.metadataValidationStatus && types.includes(VALIDATION.TYPES.METADATA)) {
             if (metaStatus !== "NA")
                 typesToUpdate.metadataValidationStatus = metaStatus;
         }
@@ -950,7 +957,7 @@ class DataSubmission {
         this.conciergeEmail = aUserOrganization.conciergeEmail;
         this.createdAt = this.updatedAt = getCurrentTime();
         // no metadata to be validated
-        this.metadataValidationStatus = this.fileValidationStatus = null;
+        this.metadataValidationStatus = this.fileValidationStatus = this.crossSubmissionStatus = null;
         this.fileErrors = [];
         this.fileWarnings = [];
         this.intention = intention;
