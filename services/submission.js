@@ -4,7 +4,7 @@ const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
 const {v4} = require('uuid')
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
-const {verifySession, verifyApiToken, verifySubmitter} = require("../verifier/user-info-verifier");
+const {verifySession, verifyApiToken, verifySubmitter, validateToken} = require("../verifier/user-info-verifier");
 const {verifySubmissionAction} = require("../verifier/submission-verifier");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {formatName} = require("../utility/format-name");
@@ -15,7 +15,9 @@ const {verifyBatch} = require("../verifier/batch-verifier");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const { API_TOKEN } = require("../constants/application-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
-const {AWSService} = require("../services/aws-request")
+const {AWSService} = require("../services/aws-request");
+const {write2file} = require("../utility/io-util");
+
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const ALL_FILTER = "All";
 const NA = "NA"
@@ -29,6 +31,8 @@ const UPLOAD_TYPES = ['file','metadata'];
 const LOG_DIR = 'logs';
 const LOG_FILE_EXT_ZIP ='.zip';
 const LOG_FILE_EXT_LOG ='.log';
+const DATA_MODEL_SEMANTICS = 'semantics';
+const DATA_MODEL_FILE_NODES = 'file-nodes';
 // Set to array
 Set.prototype.toArray = function() {
     return Array.from(this);
@@ -44,6 +48,7 @@ class Submission {
         this.notificationService = notificationService;
         this.dataRecordService = dataRecordService;
         this.tier = tier;
+        this.dataModelInfo = dataModelInfo;
         this.modelVersion = this.#getModelVersion(dataModelInfo);
         this.awsService = awsService;
         this.metadataQueueName = metadataQueueName;
@@ -450,7 +455,63 @@ class Submission {
             }
             returnVal.properties = Array.from(propsSet);
         }
-        return returnVal
+        return returnVal;
+    }
+    /**
+     * API: getUploaderCLIConfigs for submitter to download a config file
+     * @param {*} params 
+     * @param {*} context 
+     * @returns yaml string
+     */
+    async getUploaderCLIConfigs(params, context){
+        verifySession(context)
+            .verifyInitialized();
+        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        if(!aSubmission){
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
+        }
+        //only the submitter of current submission can download the configuration file for data file uploading
+        await verifyBatchPermission(this.userService, aSubmission, context.userInfo);
+        //set parameters
+        const parameters = {submissionID: params.submissionID, apiURL: params.apiURL, 
+            dataFolder: (params.dataFolder)?  params.dataFolder : "/Users/my_name/my_files",
+            manifest: (params.manifest)? params.manifest: "/Users/my_name/my_manifest.tsv"
+        }
+        //get the uploader CLI config template as string
+        var configString = config.uploaderCLIConfigs;
+        //insert params values into the string
+        configString = configString.format(parameters);
+        //insert data model file node properties into the string
+        configString = this.#replaceFileNodeProps(aSubmission, configString);
+        //insert token into the string
+        configString = await this.#replaceToken(context, configString);
+        /** test code: write yaml string to file for verification of output
+        write2file(configString, "logs/userUploaderConfig.yaml")
+        end test code **/
+        return configString;
+    }
+
+    #replaceFileNodeProps(aSubmission, configString){
+        const modelFileNodeInfos = Object.values(this.dataModelInfo?.[aSubmission.dataCommons]?.[DATA_MODEL_SEMANTICS]?.[DATA_MODEL_FILE_NODES]);
+        if (modelFileNodeInfos.length > 0){
+            return configString.format(modelFileNodeInfos[0]);
+        }
+        else{
+            throw new Error(ERROR.INVALID_DATA_MODEL);
+        }
+    }
+
+    async #replaceToken(context, configString){
+        //check user's token
+        const tokens = context.userInfo?.tokens;
+        if (tokens && tokens.length > 0 && validateToken(tokens[tokens.length-1], config.token_secret)) {
+            return configString.format({token: tokens[tokens.length-1]})
+        }
+        const tokenDict = await this.userService.grantToken(null, context);
+        if (!tokenDict || !tokenDict.tokens || tokenDict.tokens.length === 0){
+            throw new Error(ERROR.INVALID_TOKEN_EMPTY);
+        }
+        return configString.format({token: tokenDict.tokens[0]})
     }
 
     async #verifyQCResultsReadPermissions(context, submissionID){
@@ -522,6 +583,14 @@ const updateSubmissionStatus = async (submissionCollection, aSubmission, userInf
         throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
     }
 }
+String.prototype.format = function(placeholders) {
+    var s = this;
+    for(var propertyName in placeholders) {
+        var re = new RegExp('{' + propertyName + '}', 'gm');
+        s = s.replace(re, placeholders[propertyName]);
+    }    
+    return s;
+};
 
 /**
  * submissionActionNotification

@@ -87,7 +87,9 @@ const ERROR = {
     FAILED_SQS_SEND: "Failed to send a message to aws SQS queue",
     //export dataRecords
     INVALID_EXPORT_METADATA: "You do not have permission to export submission data",
-    INVALID_DATA_MODEL_VERSION: "An error occurred while trying to retrieve the data model version from the given URL"
+    INVALID_DATA_MODEL_VERSION: "An error occurred while trying to retrieve the data model version from the given URL",
+    NO_UPLOADER_CLI_CONFIG_TEMPLATE: "Data file uploader CLI config template is not found.",
+    INVALID_DATA_MODEL: "No file node properties in the data model."
 }
 
 module.exports = ERROR;
