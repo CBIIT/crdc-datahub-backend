@@ -129,7 +129,12 @@ class Submission {
         if (![NEW, IN_PROGRESS ,WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
             throw new Error(ERROR.INVALID_SUBMISSION_STATUS);
         }
-        const result = await this.batchService.createBatch(params, aSubmission?.rootPath);
+
+        if(!aSubmission?.bucketName || aSubmission?.bucketName?.trim()?.length === 0) {
+            throw new Error(ERROR.NO_SUBMISSION_BUCKET);
+        }
+
+        const result = await this.batchService.createBatch(params, aSubmission.bucketName, aSubmission?.rootPath);
         // The submission status needs to be updated after createBatch
         if ([NEW, WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
             await updateSubmissionStatus(this.submissionCollection, aSubmission, userInfo, IN_PROGRESS);
