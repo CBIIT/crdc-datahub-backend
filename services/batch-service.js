@@ -8,23 +8,22 @@ const {SUBMISSIONS_COLLECTION} = require("../crdc-datahub-database-drivers/datab
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const LOAD_METADATA = "Load Metadata";
 class BatchService {
-    constructor(s3Service, batchCollection, bucketName, sqsLoaderQueue, awsService) {
+    constructor(s3Service, batchCollection, sqsLoaderQueue, awsService) {
         this.s3Service = s3Service;
         this.batchCollection = batchCollection;
-        this.bucketName = bucketName;
         this.sqsLoaderQueue = sqsLoaderQueue;
         this.awsService = awsService;
     }
 
-    async createBatch(params, rootPath) {
+    async createBatch(params, bucketName, rootPath) {
         const prefix = createPrefix(params, rootPath);
         const metadataIntention = params?.metadataIntention && params.type === BATCH.TYPE.METADATA ? params.metadataIntention : null;
         const newDisplayID = await this.#getBatchDisplayID(params.submissionID);
-        const newBatch = Batch.createNewBatch(params.submissionID, newDisplayID, this.bucketName, prefix, params.type.toLowerCase(), metadataIntention);
+        const newBatch = Batch.createNewBatch(params.submissionID, newDisplayID, bucketName, prefix, params.type.toLowerCase(), metadataIntention);
         if (BATCH.TYPE.METADATA === params.type.toLowerCase()) {
             await Promise.all(params.files.map(async (file) => {
                 if (file.fileName) {
-                    const signedURL = await this.s3Service.createPreSignedURL(this.bucketName, newBatch.filePrefix, file.fileName);
+                    const signedURL = await this.s3Service.createPreSignedURL(bucketName, newBatch.filePrefix, file.fileName);
                     newBatch.addMetadataFile(file.fileName, file.size, signedURL);
                 }
             }));
