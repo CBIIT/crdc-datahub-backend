@@ -24,6 +24,7 @@ const {extractAndJoinFields} = require("./utility/string-util");
 const {ApprovedStudiesService} = require("./services/approved-studies");
 const {USER} = require("./crdc-datahub-database-drivers/constants/user-constants");
 const {Organization} = require("./crdc-datahub-database-drivers/services/organization");
+const {LOGIN, REACTIVATE_USER} = require("./crdc-datahub-database-drivers/constants/event-constants");
 // print environment variables to log
 console.info(config);
 
@@ -82,16 +83,8 @@ cronJob.schedule(config.schedule_job, async () => {
 });
 
 const runDeactivateInactiveUsers = async (userService, notificationsService) => {
-    // if there is no user login detected in the log collection, we will deactivate these users.
-    const allUsersByEmailAndIDP = await userService.getAllUsersByEmailAndIDP();
-    const nonLogUsers = await userService.findUsersExcludingEmailAndIDP(allUsersByEmailAndIDP);
-    const inactiveUsers = await userService.getInactiveUsers(config.inactive_user_days);
-    // merge and remove duplicate users
-    const inactiveUserConditions = [...new Map([...nonLogUsers, ...inactiveUsers].map((user) => [user.email + user.IDP, user])).values()];
-    const inactiveList = inactiveUserConditions
-        .filter((u)=> u && u?.userStatus === USER.STATUSES.ACTIVE)
-        .map(u => ({ email: u?.email, IDP: u?.IDP }));
-    const disabledUsers = await userService.disableInactiveUsers(inactiveList);
+    const usersToBeInactivated = await userService.checkForInactiveUsers([LOGIN, REACTIVATE_USER]);
+    const disabledUsers = await userService.disableInactiveUsers(usersToBeInactivated);
     if (disabledUsers.length > 0) {
         // Email disabled user(s)
         await Promise.all(disabledUsers.map(async (user) => {
