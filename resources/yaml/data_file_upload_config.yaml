@@ -1,0 +1,25 @@
+Config:
+    #API endpoint URL, required
+    api-url: {apiURL}
+    #API token string, required
+    token: {token}
+    #submission ID, required
+    submission: {submissionID}
+    #upload type,  valid value in [data file, metadata], required
+    type: data file
+    #folder that contains either data files (type = file) or metadata (TSV/TXT) files (type = metadata), required
+    data: {dataFolder}
+    #path to manifest file, conditional required when type = file
+    manifest: {manifest}
+    #file name header name in the manifest file, default is file_name
+    name-field: {name-field}
+    #file size header name in the manifest file, default is file_size
+    size-field: {size-field}
+    #file md5 header name in the manifest file, default is md5sum
+    md5-field: {md5-field}
+    #file uploading retries
+    retries: 3
+    # if overwrite existed file
+    overwrite: true
+    # if only run file validation without uploading
+    dryrun: false

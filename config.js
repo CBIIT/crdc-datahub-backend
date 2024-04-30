@@ -1,4 +1,5 @@
 require('dotenv').config();
+const {readFile2Text} = require("./utility/io-util")
 
 let config = {
     //info variables
@@ -41,9 +42,10 @@ let config = {
     file_queue: process.env.FILE_QUEUE,
     export_queue: process.env.EXPORTER_QUEUE,
     //CRDC Review Committee Emails, separated by ","
-     committee_emails: process.env.REVIEW_COMMITTEE_EMAIL ? process.env.REVIEW_COMMITTEE_EMAIL.split(',') : ["CRDCSubmisison@nih.gov"],
-    model_url: getModelUrl()
-
+    committee_emails: process.env.REVIEW_COMMITTEE_EMAIL ? process.env.REVIEW_COMMITTEE_EMAIL.split(',') : ["CRDCSubmisison@nih.gov"],
+    model_url: getModelUrl(),
+    //uploader configuration file template
+    uploaderCLIConfigs: readUploaderCLIConfigTemplate()
 };
 config.mongo_db_connection_string = `mongodb://${config.mongo_db_user}:${config.mongo_db_password}@${config.mongo_db_host}:${process.env.MONGO_DB_PORT}`;
 
@@ -62,6 +64,15 @@ function getTransportConfig() {
             }
         )
     };
+}
+
+function readUploaderCLIConfigTemplate(){
+    const uploaderConfigTemplate = 'resources/yaml/data_file_upload_config.yaml';
+    configString = readFile2Text(uploaderConfigTemplate);
+    if (!configString){
+        throw "Can't find uploader CLI config template at " + uploaderConfigTemplate + "!";
+    }
+    return configString;
 }
 function getModelUrl() {
     // if MODEL_URL exists, it overrides
