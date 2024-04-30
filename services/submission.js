@@ -129,6 +129,9 @@ class Submission {
         if (![NEW, IN_PROGRESS ,WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
             throw new Error(ERROR.INVALID_SUBMISSION_STATUS);
         }
+        if (INTENTION.DELETE === aSubmission?.intention) {
+            throw new Error(ERROR.INVALID_BATCH_INTENTION);
+        }
         const result = await this.batchService.createBatch(params, aSubmission?.rootPath);
         // The submission status needs to be updated after createBatch
         if ([NEW, WITHDRAWN, REJECTED].includes(aSubmission?.status)) {

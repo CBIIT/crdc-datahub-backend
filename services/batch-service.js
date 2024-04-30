@@ -29,9 +29,6 @@ class BatchService {
                 }
             }));
         } else {
-            if (INTENTION.DELETE === params?.metadataIntention) {
-                throw new Error(ERROR.INVALID_BATCH_INTENTION);
-            }
             params.files.forEach((file) => {
                 if (file.fileName) {
                     newBatch.addDataFile(file.fileName, file.size);
