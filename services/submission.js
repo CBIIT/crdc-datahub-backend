@@ -16,7 +16,6 @@ const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-consta
 const { API_TOKEN } = require("../constants/application-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {AWSService} = require("../services/aws-request");
-const {write2file} = require("../utility/io-util");
 
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const ALL_FILTER = "All";
@@ -121,7 +120,7 @@ class Submission {
         // Optional metadata intention
         if (params.type === BATCH.TYPE.METADATA) {
             verifyBatch(params)
-                .metadataIntention([BATCH.INTENTION.NEW, BATCH.INTENTION.UPDATE, BATCH.INTENTION.DELETE]);
+                .metadataIntention([INTENTION.NEW, INTENTION.UPDATE, INTENTION.DELETE]);
         }
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
