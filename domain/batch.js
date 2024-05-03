@@ -1,7 +1,6 @@
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {v4} = require("uuid");
 const {BATCH, FILE} = require("../crdc-datahub-database-drivers/constants/batch-constants");
-const {INTENTION} = require("../constants/submission-constants");
 class Batch {
     constructor(submissionID, displayID, bucketName, filePrefix, type, status, metadataIntention) {
         this._id = v4();
@@ -15,7 +14,7 @@ class Batch {
         this.status = status;
         this.fileCount = 0;
         // Optional
-        metadataIntention = [INTENTION.NEW, INTENTION.UPDATE, INTENTION.DELETE].find(i => i.toLowerCase() === metadataIntention?.toLowerCase());
+        metadataIntention = [BATCH.INTENTION.NEW, BATCH.INTENTION.UPDATE, BATCH.INTENTION.DELETE].find(i => i.toLowerCase() === metadataIntention?.toLowerCase());
         if (metadataIntention) {
             this.metadataIntention = metadataIntention;
         }
