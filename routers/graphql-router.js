@@ -50,7 +50,7 @@ dbConnector.connect().then(async () => {
 
     const utilityService = new UtilityService();
     const dataModelInfo = await utilityService.fetchJsonFromUrl(config.model_url);
-    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, dataModelInfo, awsService, config.export_queue);
+    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, dataModelInfo, awsService, config.export_queue, s3Service);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.tier);
 
     root = {
@@ -95,7 +95,9 @@ dbConnector.connect().then(async () => {
         listOrganizations : organizationService.listOrganizationsAPI.bind(organizationService),
         getOrganization : organizationService.getOrganizationAPI.bind(organizationService),
         editOrganization : organizationService.editOrganizationAPI.bind(organizationService),
-        createOrganization : organizationService.createOrganizationAPI.bind(organizationService)
+        createOrganization : organizationService.createOrganizationAPI.bind(organizationService),
+        deleteExtraFile: submissionService.deleteExtraFile.bind(submissionService),
+        deleteAllExtraFiles: submissionService.deleteAllExtraFiles.bind(submissionService)
     };
 });
 

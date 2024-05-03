@@ -88,6 +88,9 @@ const ERROR = {
     //export dataRecords
     INVALID_EXPORT_METADATA: "You do not have permission to export submission data",
     INVALID_DATA_MODEL_VERSION: "An error occurred while trying to retrieve the data model version from the given URL",
+    // delete submission error file list
+    DELETE_NO_FILE_SUBMISSION: "No extra file found",
+    DELETE_NO_EXISTS_SUBMISSION: "No extra files found for deletion in the bucket",
     NO_UPLOADER_CLI_CONFIG_TEMPLATE: "Data file uploader CLI config template is not found.",
     INVALID_DATA_MODEL: "No file node properties in the data model.",
     NO_SUBMISSION_BUCKET: "Unable to create a batch, no submission bucket is stored",
