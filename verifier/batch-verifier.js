@@ -55,6 +55,7 @@ class BatchVerifier {
         if (!Array.isArray(intention)){
             intention = [intention];
         }
+        intention = intention.map(i => i?.toLowerCase());
         const isValidIntentionType = this.intention && intention.includes(this.intention.toLowerCase());
         if (!isValidIntentionType || this.intention === "") {
             throw Error(ERROR.VERIFY.INVALID_METADATA_INTENTION_TYPE);
