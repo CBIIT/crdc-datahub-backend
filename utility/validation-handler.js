@@ -9,8 +9,8 @@ class ValidationHandler {
         return new ValidationHandler(false, msg);
     }
 
-    static success() {
-        return new ValidationHandler();
+    static success(msg) {
+        return msg ? new ValidationHandler(true, msg) : new ValidationHandler();
     }
 }
 
