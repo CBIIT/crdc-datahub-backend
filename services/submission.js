@@ -774,7 +774,7 @@ function listConditions(userID, userRole, userDataCommons, userOrganization, par
 }
 
 function validateCreateSubmissionParams (params) {
-    if (!params.name || params?.name?.trim().length === 0|| !params.studyAbbreviation || !params.dataCommons) {
+    if (!params.name || params?.name?.trim().length === 0 || !params.studyAbbreviation || !params.dataCommons) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
     }
     if (!dataCommonsTempList.some((value) => value === params.dataCommons)) {
