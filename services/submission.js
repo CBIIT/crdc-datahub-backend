@@ -240,6 +240,7 @@ class Submission {
         //verify if user's role is valid for the action
         const newStatus = verifier.inRoles(userInfo);
         verifier.isValidSubmitAction(userInfo?.role, submission, params?.comment);
+        await this.#isValidReleaseAction(action, submission?._id, submission?.studyAbbreviation, submission?.crossSubmissionStatus);
         //update submission
         let events = submission.history || [];
         // admin role and submit action only can leave a comment
@@ -270,6 +271,17 @@ class Submission {
             submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService, this.tier)
         ].concat(completePromise));
         return submission;
+    }
+
+    async #isValidReleaseAction(action, submissionID, studyAbbreviation, crossSubmissionStatus) {
+        if (action?.toLowerCase() === ACTIONS.RELEASE.toLowerCase()) {
+            const submissions = await this.submissionCollection.aggregate([{"$match": {_id: {"$ne": submissionID}, studyAbbreviation: studyAbbreviation}}]);
+            // Throw error if other submissions associated with the same study
+            // are some of them are in "Submitted" status if cross submission validation is not Passed.
+            if (submissions?.some(i => i?.status === SUBMITTED) && crossSubmissionStatus !== VALIDATION_STATUS.PASSED) {
+                throw new Error(ERROR.VERIFY.INVALID_RELEASE_ACTION);
+            }
+        }
     }
 
     async #sendCompleteMessage(msg, submissionID) {
