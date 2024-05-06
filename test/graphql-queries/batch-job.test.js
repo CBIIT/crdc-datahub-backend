@@ -26,7 +26,8 @@ const notificationsService = new NotifyUser(emailService);
 const userService = new User(userCollection);
 
 const submissionCollection = new MongoDBCollection();
-const submissionService = new Submission(submissionCollection);
+const mockModelVersion = {"CDS": {"current-version": "test-1.0.0"}};
+const submissionService = new Submission(submissionCollection,null,null,null,null,null,null,null,mockModelVersion);
 const s3Service = new S3Service();
 const batchCollection = new MongoDBCollection();
 const batchService = new BatchService(s3Service, batchCollection, config.submission_bucket);
