@@ -131,7 +131,11 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_STATUS);
         }
 
-        if(!aSubmission?.bucketName || aSubmission?.bucketName?.trim()?.length === 0) {
+        if (INTENTION.DELETE === aSubmission?.intention) {
+            throw new Error(ERROR.INVALID_BATCH_INTENTION);
+        }
+
+        if (!aSubmission?.bucketName || aSubmission?.bucketName?.trim()?.length === 0) {
             throw new Error(ERROR.NO_SUBMISSION_BUCKET);
         }
 
