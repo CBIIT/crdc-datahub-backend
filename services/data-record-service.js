@@ -443,7 +443,9 @@ class DataRecordService {
             }
             stat.countNodeType(node?._id, node.count);
         });
-        submissionStats.addStats(stat);
+        if (stat.total > 0) {
+            submissionStats.addStats(stat);
+        }
     }
 }
 
