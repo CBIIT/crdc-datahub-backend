@@ -25,8 +25,9 @@ const NODE_VIEW = {
     rawData: "$rawData"
 }
 class DataRecordService {
-    constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService) {
+    constructor(dataRecordsCollection, submissionCollection, fileQueueName, metadataQueueName, awsService) {
         this.dataRecordsCollection = dataRecordsCollection;
+        this.submissionCollection = submissionCollection;
         this.fileQueueName = fileQueueName;
         this.metadataQueueName = metadataQueueName;
         this.awsService = awsService;
@@ -36,7 +37,7 @@ class DataRecordService {
         const groupPipeline = { "$group": { _id: "$nodeType", count: { $sum: 1 }} };
         const validNodeStatus = [VALIDATION_STATUS.NEW, VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING, VALIDATION_STATUS.ERROR];
         const groupByNodeType = await this.dataRecordsCollection.aggregate([{ "$match": {submissionID: submissionID, status: {$in: validNodeStatus}}}, groupPipeline]);
-
+        const aSubmission = (await this.submissionCollection.find(submissionID))?.pop();
         const statusPipeline = { "$group": { _id: "$status", count: { $sum: 1 }} };
         const promises = groupByNodeType.map(async node =>
             [await this.dataRecordsCollection.aggregate([{ "$match": {submissionID: submissionID, nodeType: node?._id, status: {$in: validNodeStatus}}}, statusPipeline]), node?._id]
@@ -47,7 +48,14 @@ class DataRecordService {
             const [nodes, nodeName] = aStatSet;
             const stat = Stat.createStat(nodeName);
             nodes.forEach((node) => {
-                stat.countNodeType(node?._id, node.count);
+                if (nodeName === VALIDATION.TYPES.DATA_FILE) {
+                    if (node?._id === VALIDATION_STATUS.WARNING) {
+                        node.count += aSubmission?.fileWarnings?.length || 0;
+                    } else if (node?._id === VALIDATION_STATUS.ERROR) {
+                        node.count += aSubmission?.fileErrors?.length || 0;
+                    }
+                }
+                stat.countNodeType(node?._id, node?.count);
             });
             submissionStats.addStats(stat);
         });

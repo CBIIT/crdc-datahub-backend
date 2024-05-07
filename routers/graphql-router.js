@@ -46,7 +46,7 @@ dbConnector.connect().then(async () => {
     const batchService = new BatchService(s3Service, batchCollection, config.sqs_loader_queue, awsService);
 
     const dataRecordCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_COLLECTION);
-    const dataRecordService = new DataRecordService(dataRecordCollection, config.file_queue, config.metadata_queue, awsService);
+    const dataRecordService = new DataRecordService(dataRecordCollection, submissionCollection, config.file_queue, config.metadata_queue, awsService);
 
     const utilityService = new UtilityService();
     const dataModelInfo = await utilityService.fetchJsonFromUrl(config.model_url);
