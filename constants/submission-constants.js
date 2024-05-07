@@ -46,5 +46,6 @@ module.exports = Object.freeze({
         UPDATE: "Update",
         NEW: "New",
         DELETE: "Delete"
-    }
+    },
+    DATA_FILE: "Data File"
 });
