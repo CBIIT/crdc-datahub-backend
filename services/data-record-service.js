@@ -1,4 +1,4 @@
-const {VALIDATION_STATUS} = require("../constants/submission-constants");
+const {VALIDATION_STATUS, DATA_FILE} = require("../constants/submission-constants");
 const {VALIDATION} = require("../constants/submission-constants");
 const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
@@ -36,9 +36,15 @@ class DataRecordService {
     async submissionStats(submissionID) {
         const groupPipeline = { "$group": { _id: "$nodeType", count: { $sum: 1 }} };
         const validNodeStatus = [VALIDATION_STATUS.NEW, VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING, VALIDATION_STATUS.ERROR];
-        const groupByNodeType = await this.dataRecordsCollection.aggregate([{ "$match": {submissionID: submissionID, status: {$in: validNodeStatus}}}, groupPipeline]);
-        const aSubmission = (await this.submissionCollection.find(submissionID))?.pop();
-        const statusPipeline = { "$group": { _id: "$status", count: { $sum: 1 }} };
+        const res = await Promise.all([
+            this.dataRecordsCollection.aggregate([{ "$match": {submissionID: submissionID, status: {$in: validNodeStatus}}}, groupPipeline]),
+            this.dataRecordsCollection.aggregate([
+                { "$match": {submissionID: submissionID, "s3FileInfo.status": {$in: validNodeStatus}}},
+                { "$group": { _id: "$s3FileInfo.status", count: { $sum: 1 }} }]),
+            this.submissionCollection.find(submissionID)
+        ]);
+        const [groupByNodeType, groupByDataFile, submissions] = res;
+        const statusPipeline = { "$group": { _id: "$status", count: { $sum: 1 }}};
         const promises = groupByNodeType.map(async node =>
             [await this.dataRecordsCollection.aggregate([{ "$match": {submissionID: submissionID, nodeType: node?._id, status: {$in: validNodeStatus}}}, statusPipeline]), node?._id]
         );
@@ -46,19 +52,9 @@ class DataRecordService {
         const submissionStats = SubmissionStats.createSubmissionStats(submissionID);
         submissionStatsRecords.forEach(aStatSet => {
             const [nodes, nodeName] = aStatSet;
-            const stat = Stat.createStat(nodeName);
-            nodes.forEach((node) => {
-                if (nodeName === VALIDATION.TYPES.DATA_FILE) {
-                    if (node?._id === VALIDATION_STATUS.WARNING) {
-                        node.count += aSubmission?.fileWarnings?.length || 0;
-                    } else if (node?._id === VALIDATION_STATUS.ERROR) {
-                        node.count += aSubmission?.fileErrors?.length || 0;
-                    }
-                }
-                stat.countNodeType(node?._id, node?.count);
-            });
-            submissionStats.addStats(stat);
+            this.#addNodeToStats(submissionStats, nodes, nodeName);
         });
+        this.#addNodeToStats(submissionStats, groupByDataFile, DATA_FILE, submissions?.pop());
         return submissionStats;
     }
 
@@ -433,6 +429,21 @@ class DataRecordService {
             })
         });
         return results;
+    }
+
+    #addNodeToStats(submissionStats, nodeStats, statName, aSubmission = null) {
+        const stat = Stat.createStat(statName);
+        nodeStats.forEach(node => {
+            if (statName === DATA_FILE) {
+                if (node?._id === VALIDATION_STATUS.WARNING) {
+                    node.count += aSubmission?.fileWarnings?.length || 0;
+                } else if (node?._id === VALIDATION_STATUS.ERROR) {
+                    node.count += aSubmission?.fileErrors?.length || 0;
+                }
+            }
+            stat.countNodeType(node?._id, node.count);
+        });
+        submissionStats.addStats(stat);
     }
 }
 
