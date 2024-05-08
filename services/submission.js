@@ -131,7 +131,7 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_STATUS);
         }
 
-        if (INTENTION.DELETE === aSubmission?.intention) {
+        if (INTENTION.DELETE === aSubmission?.intention && params?.type === BATCH.TYPE.DATA_FILE) {
             throw new Error(ERROR.INVALID_BATCH_INTENTION);
         }
 
