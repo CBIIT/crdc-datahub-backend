@@ -23,6 +23,7 @@ const NA = "NA"
 const config = require("../config");
 const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
+const FILE = "file";
 
 // TODO: Data commons needs to be in a predefined list, currently only "CDS" and "ICDC" are allowed
 // eventually frontend and backend will use same source for this list.
@@ -552,12 +553,12 @@ class Submission {
         const aSubmission = submissions.pop();
         this.#extraFileRoleValidator(context, aSubmission);
         try {
-            const fileResult = await this.s3Service.listFile(aSubmission.bucketName, `${aSubmission.rootPath}/${fileName}`)
+            const fileResult = await this.s3Service.listFile(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}/${fileName}`)
             // check file existence in the bucket
-            if (!fileResult?.Contents.some(obj => obj.Key === `${aSubmission.rootPath}/${fileName}`)) {
+            if (!fileResult?.Contents.some(obj => obj.Key === `${aSubmission.rootPath}/${FILE}/${fileName}`)) {
                 return ValidationHandler.handle(ERROR.DELETE_NO_EXISTS_SUBMISSION);
             }
-            await this.s3Service.deleteFile(aSubmission?.bucketName, `${aSubmission?.rootPath}/${fileName}`);
+            await this.s3Service.deleteFile(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/${fileName}`);
             return ValidationHandler.success();
         } catch(err) {
             console.error(`File deletion failed; submission ID: ${aSubmission?._id} file name: ${fileName}`, err);
@@ -576,19 +577,22 @@ class Submission {
         }
         this.#extraFileRoleValidator(context, aSubmission);
         const filePromises = aSubmission.fileErrors.map(fileName =>
-            this.s3Service.listFile(aSubmission.bucketName, `${aSubmission.rootPath}/${fileName}`)
+            this.s3Service.listFile(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}/${fileName}`)
         );
         const fileResults = await Promise.all(filePromises);
-        const existingFiles = fileResults.filter((filePath, index) => {
-            const fileContents = fileResults[index]?.Contents;
-            return fileContents.some(obj => obj.Key === filePath);
+        const existingFiles = new Set();
+        fileResults.forEach((file, index) => {
+            const aFileContent = (file?.Contents)?.pop();
+            if (aSubmission.fileErrors.some(errorFile => `${aSubmission.rootPath}/${FILE}/${errorFile}` === aFileContent?.Key)) {
+                existingFiles.add(aFileContent?.Key);
+            }
         });
         // check file existence in the bucket
         if (existingFiles.length === 0) {
             return ValidationHandler.handle(ERROR.DELETE_NO_EXISTS_SUBMISSION);
         }
 
-        const promises = existingFiles.map(fileName => this.s3Service.deleteFile(aSubmission?.bucketName, fileName));
+        const promises = Array.from(existingFiles).map(fileName => this.s3Service.deleteFile(aSubmission?.bucketName, fileName));
         const res = await Promise.allSettled(promises);
         const countSuccess = res.filter(result => result.status === 'fulfilled').length;
         res.forEach((result, index) => {
