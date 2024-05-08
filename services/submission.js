@@ -39,7 +39,7 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, dataModelInfo, awsService, metadataQueueName, s3Service) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, dataModelInfo, fetchDataModelInfo, awsService, metadataQueueName, s3Service) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -49,7 +49,7 @@ class Submission {
         this.dataRecordService = dataRecordService;
         this.tier = tier;
         this.dataModelInfo = dataModelInfo;
-        this.modelVersion = this.#getModelVersion(dataModelInfo);
+        this.fetchDataModelInfo = fetchDataModelInfo;
         this.awsService = awsService;
         this.metadataQueueName = metadataQueueName;
         this.s3Service = s3Service;
@@ -74,8 +74,10 @@ class Submission {
             throw new Error(ERROR.CREATE_SUBMISSION_INVALID_INTENTION);
         }
 
+        const latestDataModel = await this.fetchDataModelInfo();
+        const modelVersion = this.#getModelVersion(latestDataModel);
         const newSubmission = DataSubmission.createSubmission(
-            params.name, userInfo, params.dataCommons, params.studyAbbreviation, params.dbGaPID, aUserOrganization, this.modelVersion, intention);
+            params.name, userInfo, params.dataCommons, params.studyAbbreviation, params.dbGaPID, aUserOrganization, modelVersion, intention);
         const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
