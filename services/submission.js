@@ -576,14 +576,14 @@ class Submission {
             return ValidationHandler.handle(ERROR.DELETE_NO_FILE_SUBMISSION);
         }
         this.#extraFileRoleValidator(context, aSubmission);
-        const filePromises = aSubmission.fileErrors.map(fileName =>
-            this.s3Service.listFile(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}/${fileName}`)
+        const filePromises = aSubmission.fileErrors.map(errorObject =>
+            this.s3Service.listFile(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}/${errorObject?.submittedID}`)
         );
         const fileResults = await Promise.all(filePromises);
         const existingFiles = new Set();
         fileResults.forEach((file, index) => {
             const aFileContent = (file?.Contents)?.pop();
-            if (aSubmission.fileErrors.some(errorFile => `${aSubmission.rootPath}/${FILE}/${errorFile}` === aFileContent?.Key)) {
+            if (aSubmission.fileErrors.some(errorFile => `${aSubmission.rootPath}/${FILE}/${errorFile?.submittedID}` === aFileContent?.Key)) {
                 existingFiles.add(aFileContent?.Key);
             }
         });
