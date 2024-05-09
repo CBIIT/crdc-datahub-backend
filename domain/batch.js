@@ -14,6 +14,7 @@ class Batch {
         this.status = status;
         this.fileCount = 0;
         // Optional
+        metadataIntention = [BATCH.INTENTION.NEW, BATCH.INTENTION.UPDATE, BATCH.INTENTION.DELETE].find(i => i.toLowerCase() === metadataIntention?.toLowerCase());
         if (metadataIntention) {
             this.metadataIntention = metadataIntention;
         }
