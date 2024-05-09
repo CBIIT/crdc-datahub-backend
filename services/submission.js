@@ -544,7 +544,7 @@ class Submission {
 
         const fileName = params?.fileName;
         const submissions = await this.submissionCollection.aggregate([
-            {"$match": {_id: params?._id, fileErrors: {$in: [params?.fileName]}}},
+            {"$match": {_id: params?._id, "fileErrors.submittedID": {$in: [params?.fileName]}}},
             { $limit: 1 }
         ]);
         if (submissions.length === 0) {
