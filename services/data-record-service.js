@@ -146,6 +146,13 @@ class DataRecordService {
                     submittedID: "$s3FileInfo.fileName",
                     errors: "$s3FileInfo.errors",
                     warnings: "$s3FileInfo.warnings",
+                },
+                additional_errors: {
+                    validation_type: BATCH.TYPE.METADATA,
+                    type: "$nodeType",
+                    submittedID: "$nodeID",
+                    errors: "$additionalErrors",
+                    warnings: [],
                 }
             }
         })
@@ -155,6 +162,7 @@ class DataRecordService {
                 results: [
                     "$metadata_results",
                     "$datafile_results",
+                    "$additional_errors",
                 ]
             }
         })
