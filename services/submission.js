@@ -305,7 +305,7 @@ class Submission {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
         isSubmissionPermitted(aSubmission, context?.userInfo);
-        return this.dataRecordService.submissionStats(aSubmission?._id);
+        return this.dataRecordService.submissionStats(aSubmission);
     }
 
     /**

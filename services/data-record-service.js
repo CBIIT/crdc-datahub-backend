@@ -25,37 +25,60 @@ const NODE_VIEW = {
     rawData: "$rawData"
 }
 class DataRecordService {
-    constructor(dataRecordsCollection, submissionCollection, fileQueueName, metadataQueueName, awsService) {
+    constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService) {
         this.dataRecordsCollection = dataRecordsCollection;
-        this.submissionCollection = submissionCollection;
         this.fileQueueName = fileQueueName;
         this.metadataQueueName = metadataQueueName;
         this.awsService = awsService;
     }
 
-    async submissionStats(submissionID) {
+    async submissionStats(aSubmission) {
         const groupPipeline = { "$group": { _id: "$nodeType", count: { $sum: 1 }} };
         const validNodeStatus = [VALIDATION_STATUS.NEW, VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING, VALIDATION_STATUS.ERROR];
         const res = await Promise.all([
-            this.dataRecordsCollection.aggregate([{ "$match": {submissionID: submissionID, status: {$in: validNodeStatus}}}, groupPipeline]),
+            this.dataRecordsCollection.aggregate([{ "$match": {submissionID: aSubmission?._id, status: {$in: validNodeStatus}}}, groupPipeline]),
             this.dataRecordsCollection.aggregate([
-                { "$match": {submissionID: submissionID, "s3FileInfo.status": {$in: validNodeStatus}}},
+                { "$match": {submissionID: aSubmission?._id, "s3FileInfo.status": {$in: validNodeStatus}}},
                 { "$group": { _id: "$s3FileInfo.status", count: { $sum: 1 }} }]),
-            this.submissionCollection.find(submissionID)
         ]);
-        const [groupByNodeType, groupByDataFile, submissions] = res;
+        const [groupByNodeType, groupByDataFile] = res;
         const statusPipeline = { "$group": { _id: "$status", count: { $sum: 1 }}};
         const promises = groupByNodeType.map(async node =>
-            [await this.dataRecordsCollection.aggregate([{ "$match": {submissionID: submissionID, nodeType: node?._id, status: {$in: validNodeStatus}}}, statusPipeline]), node?._id]
+            [await this.dataRecordsCollection.aggregate([{ "$match": {submissionID: aSubmission?._id, nodeType: node?._id, status: {$in: validNodeStatus}}}, statusPipeline]), node?._id]
         );
         const submissionStatsRecords = await Promise.all(promises) || [];
-        const submissionStats = SubmissionStats.createSubmissionStats(submissionID);
+        const submissionStats = SubmissionStats.createSubmissionStats(aSubmission?._id);
         submissionStatsRecords.forEach(aStatSet => {
             const [nodes, nodeName] = aStatSet;
-            this.#addNodeToStats(submissionStats, nodes, nodeName);
+            const stat = Stat.createStat(nodeName);
+            nodes.forEach(node => {
+                stat.countNodeType(node?._id, node.count);
+            });
         });
-        this.#addNodeToStats(submissionStats, groupByDataFile, DATA_FILE, submissions?.pop());
+        this.#saveDataFileStats(submissionStats, groupByDataFile, aSubmission);
         return submissionStats;
+    }
+
+    #saveDataFileStats(submissionStats, dataFiles, aSubmission) {
+        const stat = Stat.createStat(DATA_FILE);
+        aSubmission?.fileErrors?.forEach(file => {
+            if (file?.type === DATA_FILE) {
+                stat.countNodeType(VALIDATION_STATUS.ERROR, 1);
+            }
+        });
+        aSubmission?.fileWarnings?.forEach(file => {
+            if (file?.type === DATA_FILE) {
+                stat.countNodeType(VALIDATION_STATUS.WARNING, 1);
+            }
+        });
+
+        dataFiles.forEach(node => {
+            stat.countNodeType(node?._id, node.count);
+        });
+
+        if (stat.total > 0) {
+            submissionStats.addStats(stat);
+        }
     }
 
     async validateMetadata(submissionID, types, scope) {
@@ -429,23 +452,6 @@ class DataRecordService {
             })
         });
         return results;
-    }
-
-    #addNodeToStats(submissionStats, nodeStats, statName, aSubmission = null) {
-        const stat = Stat.createStat(statName);
-        nodeStats.forEach(node => {
-            if (statName === DATA_FILE) {
-                if (node?._id === VALIDATION_STATUS.WARNING) {
-                    node.count += aSubmission?.fileWarnings?.length || 0;
-                } else if (node?._id === VALIDATION_STATUS.ERROR) {
-                    node.count += aSubmission?.fileErrors?.length || 0;
-                }
-            }
-            stat.countNodeType(node?._id, node.count);
-        });
-        if (stat.total > 0) {
-            submissionStats.addStats(stat);
-        }
     }
 }
 
