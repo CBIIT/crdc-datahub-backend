@@ -630,7 +630,7 @@ class Submission {
     // private function
     async #updateValidationStatus(types, aSubmission, metaStatus, fileStatus, crossSubmissionStatus, updatedTime) {
         const typesToUpdate = {};
-        if (crossSubmissionStatus && crossSubmissionStatus !== "NA") {
+        if (crossSubmissionStatus && crossSubmissionStatus !== "NA" && types.includes(VALIDATION.TYPES.CROSS_SUBMISSION)) {
             typesToUpdate.crossSubmissionStatus = crossSubmissionStatus;
         }
 
