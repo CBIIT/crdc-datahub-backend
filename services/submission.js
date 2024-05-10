@@ -537,7 +537,7 @@ class Submission {
         return configString.format({token: tokenDict.tokens[0]})
     }
 
-    async deleteExtraFile(params, context) {
+    async deleteOrphanedFile(params, context) {
         verifySession(context)
             .verifyInitialized()
             .verifyRole([ROLES.ADMIN, ROLES.ORG_OWNER, ROLES.CURATOR, ROLES.SUBMITTER]);
@@ -559,6 +559,8 @@ class Submission {
                 return ValidationHandler.handle(ERROR.DELETE_NO_EXISTS_SUBMISSION);
             }
             await this.s3Service.deleteFile(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/${fileName}`);
+            const fileErrors = aSubmission?.fileErrors.filter(item => item.submittedID !== fileName);
+            await this.submissionCollection.update({_id: aSubmission?._id, fileErrors, updatedAt: getCurrentTime()});
             return ValidationHandler.success();
         } catch(err) {
             console.error(`File deletion failed; submission ID: ${aSubmission?._id} file name: ${fileName}`, err);
@@ -566,7 +568,7 @@ class Submission {
         }
     }
 
-    async deleteAllExtraFiles(params, context) {
+    async deleteAllOrphanedFiles(params, context) {
         verifySession(context)
             .verifyInitialized()
             .verifyRole([ROLES.ADMIN, ROLES.ORG_OWNER, ROLES.CURATOR, ROLES.SUBMITTER]);

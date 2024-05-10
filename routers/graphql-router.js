@@ -96,8 +96,8 @@ dbConnector.connect().then(async () => {
         getOrganization : organizationService.getOrganizationAPI.bind(organizationService),
         editOrganization : organizationService.editOrganizationAPI.bind(organizationService),
         createOrganization : organizationService.createOrganizationAPI.bind(organizationService),
-        deleteExtraFile: submissionService.deleteExtraFile.bind(submissionService),
-        deleteAllExtraFiles: submissionService.deleteAllExtraFiles.bind(submissionService)
+        deleteOrphanedFile: submissionService.deleteOrphanedFile.bind(submissionService),
+        deleteAllOrphanedFiles: submissionService.deleteAllOrphanedFiles.bind(submissionService)
     };
 });
 
