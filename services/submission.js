@@ -23,6 +23,7 @@ const NA = "NA"
 const config = require("../config");
 const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
+const FILE = "file";
 
 // TODO: Data commons needs to be in a predefined list, currently only "CDS" and "ICDC" are allowed
 // eventually frontend and backend will use same source for this list.
@@ -306,7 +307,7 @@ class Submission {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
         isSubmissionPermitted(aSubmission, context?.userInfo);
-        return this.dataRecordService.submissionStats(aSubmission?._id);
+        return this.dataRecordService.submissionStats(aSubmission);
     }
 
     /**
@@ -545,7 +546,7 @@ class Submission {
 
         const fileName = params?.fileName;
         const submissions = await this.submissionCollection.aggregate([
-            {"$match": {_id: params?._id, fileErrors: {$in: [params?.fileName]}}},
+            {"$match": {_id: params?._id, "fileErrors.submittedID": {$in: [params?.fileName]}}},
             { $limit: 1 }
         ]);
         if (submissions.length === 0) {
@@ -554,12 +555,12 @@ class Submission {
         const aSubmission = submissions.pop();
         this.#extraFileRoleValidator(context, aSubmission);
         try {
-            const fileResult = await this.s3Service.listFile(aSubmission.bucketName, `${aSubmission.rootPath}/${fileName}`)
+            const fileResult = await this.s3Service.listFile(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}/${fileName}`)
             // check file existence in the bucket
-            if (!fileResult?.Contents.some(obj => obj.Key === `${aSubmission.rootPath}/${fileName}`)) {
+            if (!fileResult?.Contents.some(obj => obj.Key === `${aSubmission.rootPath}/${FILE}/${fileName}`)) {
                 return ValidationHandler.handle(ERROR.DELETE_NO_EXISTS_SUBMISSION);
             }
-            await this.s3Service.deleteFile(aSubmission?.bucketName, `${aSubmission?.rootPath}/${fileName}`);
+            await this.s3Service.deleteFile(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/${fileName}`);
             return ValidationHandler.success();
         } catch(err) {
             console.error(`File deletion failed; submission ID: ${aSubmission?._id} file name: ${fileName}`, err);
@@ -577,20 +578,23 @@ class Submission {
             return ValidationHandler.handle(ERROR.DELETE_NO_FILE_SUBMISSION);
         }
         this.#extraFileRoleValidator(context, aSubmission);
-        const filePromises = aSubmission.fileErrors.map(fileName =>
-            this.s3Service.listFile(aSubmission.bucketName, `${aSubmission.rootPath}/${fileName}`)
+        const filePromises = aSubmission.fileErrors.map(errorObject =>
+            this.s3Service.listFile(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}/${errorObject?.submittedID}`)
         );
         const fileResults = await Promise.all(filePromises);
-        const existingFiles = fileResults.filter((filePath, index) => {
-            const fileContents = fileResults[index]?.Contents;
-            return fileContents.some(obj => obj.Key === filePath);
+        const existingFiles = new Set();
+        fileResults.forEach((file, index) => {
+            const aFileContent = (file?.Contents)?.pop();
+            if (aSubmission.fileErrors.some(errorFile => `${aSubmission.rootPath}/${FILE}/${errorFile?.submittedID}` === aFileContent?.Key)) {
+                existingFiles.add(aFileContent?.Key);
+            }
         });
         // check file existence in the bucket
         if (existingFiles.length === 0) {
             return ValidationHandler.handle(ERROR.DELETE_NO_EXISTS_SUBMISSION);
         }
 
-        const promises = existingFiles.map(fileName => this.s3Service.deleteFile(aSubmission?.bucketName, fileName));
+        const promises = Array.from(existingFiles).map(fileName => this.s3Service.deleteFile(aSubmission?.bucketName, fileName));
         const res = await Promise.allSettled(promises);
         const countSuccess = res.filter(result => result.status === 'fulfilled').length;
         res.forEach((result, index) => {
@@ -628,7 +632,7 @@ class Submission {
     // private function
     async #updateValidationStatus(types, aSubmission, metaStatus, fileStatus, crossSubmissionStatus, updatedTime) {
         const typesToUpdate = {};
-        if (crossSubmissionStatus && crossSubmissionStatus !== "NA") {
+        if (crossSubmissionStatus && crossSubmissionStatus !== "NA" && types.includes(VALIDATION.TYPES.CROSS_SUBMISSION)) {
             typesToUpdate.crossSubmissionStatus = crossSubmissionStatus;
         }
 
