@@ -597,11 +597,22 @@ class Submission {
         const promises = Array.from(existingFiles).map(fileName => this.s3Service.deleteFile(aSubmission?.bucketName, fileName));
         const res = await Promise.allSettled(promises);
         const countSuccess = res.filter(result => result.status === 'fulfilled').length;
+        const notDeletedErrorFiles = [];
         res.forEach((result, index) => {
-            if (result.status === 'rejected') {
-                console.error(`Failed to delete; submission ID: ${aSubmission?._id} file name: ${aSubmission?.fileErrors[index]?.fileName} error: ${result.reason}`);
-            }
+            aSubmission.fileErrors.forEach((aFile)=>{
+                if (result.status === 'rejected') {
+                    console.error(`Failed to delete; submission ID: ${aSubmission?._id} file name: ${existingFiles[index]} error: ${result.reason}`);
+                } else if (result.fileName !== aFile?.submittedID) {
+                    notDeletedErrorFiles.push(aFile);
+                }
+            });
         });
+        await this.submissionCollection.update({_id: aSubmission?._id, fileErrors: notDeletedErrorFiles, updatedAt: getCurrentTime()});
+
+        // deleteAllOrphanedFiles
+        // TODO
+
+
         return ValidationHandler.success(`${countSuccess} extra files deleted`);
     }
 
