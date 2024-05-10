@@ -40,7 +40,7 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, dataModelInfo, fetchDataModelInfo, awsService, metadataQueueName, s3Service) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, fetchDataModelInfo, awsService, metadataQueueName, s3Service) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -49,7 +49,6 @@ class Submission {
         this.notificationService = notificationService;
         this.dataRecordService = dataRecordService;
         this.tier = tier;
-        this.dataModelInfo = dataModelInfo;
         this.fetchDataModelInfo = fetchDataModelInfo;
         this.awsService = awsService;
         this.metadataQueueName = metadataQueueName;
@@ -517,7 +516,8 @@ class Submission {
     }
 
     #replaceFileNodeProps(aSubmission, configString){
-        const modelFileNodeInfos = Object.values(this.dataModelInfo?.[aSubmission.dataCommons]?.[DATA_MODEL_SEMANTICS]?.[DATA_MODEL_FILE_NODES]);
+        const latestDataModel = this.fetchDataModelInfo();
+        const modelFileNodeInfos = Object.values(latestDataModel?.[aSubmission.dataCommons]?.[DATA_MODEL_SEMANTICS]?.[DATA_MODEL_FILE_NODES]);
         if (modelFileNodeInfos.length > 0){
             return configString.format(modelFileNodeInfos[0]);
         }
