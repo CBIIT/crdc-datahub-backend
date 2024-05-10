@@ -54,6 +54,9 @@ class DataRecordService {
             nodes.forEach(node => {
                 stat.countNodeType(node?._id, node.count);
             });
+            if (stat.total > 0) {
+                submissionStats.addStats(stat);
+            }
         });
         this.#saveDataFileStats(submissionStats, groupByDataFile, aSubmission);
         return submissionStats;
