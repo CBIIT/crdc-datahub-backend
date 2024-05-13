@@ -583,10 +583,12 @@ class Submission {
         );
         const fileResults = await Promise.all(filePromises);
         const existingFiles = new Set();
-        fileResults.forEach((file, index) => {
+        fileResults.forEach((file) => {
             const aFileContent = (file?.Contents)?.pop();
-            if (aSubmission.fileErrors.some(errorFile => `${aSubmission.rootPath}/${FILE}/${errorFile?.submittedID}` === aFileContent?.Key)) {
-                existingFiles.add(aFileContent?.Key);
+            const aFileError = aSubmission.fileErrors.find(errorFile => `${aSubmission.rootPath}/${FILE}/${errorFile?.submittedID}` === aFileContent?.Key);
+            if (aFileError) {
+                // [store original error file object, aws storage path]
+                existingFiles.add([aFileError, aFileContent?.Key]);
             }
         });
         // check file existence in the bucket
@@ -594,26 +596,18 @@ class Submission {
             return ValidationHandler.handle(ERROR.DELETE_NO_EXISTS_SUBMISSION);
         }
 
-        const promises = Array.from(existingFiles).map(fileName => this.s3Service.deleteFile(aSubmission?.bucketName, fileName));
+        const promises = Array.from(existingFiles).map(aFile => this.s3Service.deleteFile(aSubmission?.bucketName, aFile[1]));
         const res = await Promise.allSettled(promises);
-        const countSuccess = res.filter(result => result.status === 'fulfilled').length;
         const notDeletedErrorFiles = [];
         res.forEach((result, index) => {
-            aSubmission.fileErrors.forEach((aFile)=>{
-                if (result.status === 'rejected') {
-                    console.error(`Failed to delete; submission ID: ${aSubmission?._id} file name: ${existingFiles[index]} error: ${result.reason}`);
-                } else if (result.fileName !== aFile?.submittedID) {
-                    notDeletedErrorFiles.push(aFile);
-                }
-            });
+            if (result.status === 'rejected') {
+                console.error(`Failed to delete; submission ID: ${aSubmission?._id} file name: ${existingFiles[index][1]} error: ${result.reason}`);
+                notDeletedErrorFiles.push(existingFiles[index][0]);
+            }
         });
+        // after file deletions, it deletes all error records in the submission.
         await this.submissionCollection.update({_id: aSubmission?._id, fileErrors: notDeletedErrorFiles, updatedAt: getCurrentTime()});
-
-        // deleteAllOrphanedFiles
-        // TODO
-
-
-        return ValidationHandler.success(`${countSuccess} extra files deleted`);
+        return ValidationHandler.success(`${res.filter(result => result.status === 'fulfilled').length} extra files deleted`);
     }
 
     async #verifyQCResultsReadPermissions(context, submissionID){
