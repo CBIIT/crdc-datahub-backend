@@ -33,7 +33,7 @@ dbConnector.connect().then(async () => {
     const emailService = new EmailService(config.email_transport, config.emails_enabled);
     const notificationsService = new NotifyUser(emailService);
     const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days,
-        submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk};
+        submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk, remindSubmissionDay: config.remind_submission_days};
     const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
     const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection);
@@ -50,7 +50,7 @@ dbConnector.connect().then(async () => {
 
     const utilityService = new UtilityService();
     const dataModelInfo = await utilityService.fetchJsonFromUrl(config.model_url);
-    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, dataModelInfo, awsService, config.export_queue, s3Service);
+    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, dataModelInfo, awsService, config.export_queue, s3Service, emailParams);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.tier);
 
     root = {
