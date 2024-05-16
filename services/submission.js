@@ -34,7 +34,7 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, dataModelInfo) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, fetchDataModelInfo) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -43,7 +43,7 @@ class Submission {
         this.notificationService = notificationService;
         this.dataRecordService = dataRecordService;
         this.tier = tier;
-        this.modelVersion = this.#getModelVersion(dataModelInfo);
+        this.fetchDataModelInfo = fetchDataModelInfo;
     }
 
     async createSubmission(params, context) {
@@ -59,8 +59,9 @@ class Submission {
         if (!aUserOrganization.studies.some((study) => study.studyAbbreviation === params.studyAbbreviation)) {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
         }
-
-        const newSubmission = DataSubmission.createSubmission(params.name, userInfo, params.dataCommons, params.studyAbbreviation, params.dbGaPID, aUserOrganization, this.modelVersion);
+        const latestDataModel = await this.fetchDataModelInfo();
+        const modelVersion = this.#getModelVersion(latestDataModel)
+        const newSubmission = DataSubmission.createSubmission(params.name, userInfo, params.dataCommons, params.studyAbbreviation, params.dbGaPID, aUserOrganization, modelVersion);
         const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
