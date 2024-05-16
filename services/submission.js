@@ -290,7 +290,7 @@ class Submission {
                 $lt: subtractDaysFromNow(inactiveDuration),
                 $gt: subtractDaysFromNow(inactiveDuration + 1),
             },
-            status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, ARCHIVED, REJECTED, WITHDRAWN]},
+            status: {$in: [NEW, IN_PROGRESS, REJECTED, WITHDRAWN]},
             inactiveReminder: {$ne: true}
         };
         const submissions = await this.submissionCollection.aggregate([{$match: remindCondition}]);
