@@ -1,4 +1,4 @@
-FROM node:20.11.1-alpine3.19
+FROM node:20.11.1-alpine3.19 AS fnl_base_image
 ENV PORT 8080
 ENV NODE_ENV production
 WORKDIR /usr/src/app
