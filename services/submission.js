@@ -537,7 +537,7 @@ class Submission {
         return configString.format({token: tokenDict.tokens[0]})
     }
 
-    async deleteExtraFile(params, context) {
+    async deleteOrphanedFile(params, context) {
         verifySession(context)
             .verifyInitialized()
             .verifyRole([ROLES.ADMIN, ROLES.ORG_OWNER, ROLES.CURATOR, ROLES.SUBMITTER]);
@@ -559,6 +559,8 @@ class Submission {
                 return ValidationHandler.handle(ERROR.DELETE_NO_EXISTS_SUBMISSION);
             }
             await this.s3Service.deleteFile(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/${fileName}`);
+            const fileErrors = aSubmission?.fileErrors.filter(item => item.submittedID !== fileName);
+            await this.submissionCollection.update({_id: aSubmission?._id, fileErrors, updatedAt: getCurrentTime()});
             return ValidationHandler.success();
         } catch(err) {
             console.error(`File deletion failed; submission ID: ${aSubmission?._id} file name: ${fileName}`, err);
@@ -566,7 +568,7 @@ class Submission {
         }
     }
 
-    async deleteAllExtraFiles(params, context) {
+    async deleteAllOrphanedFiles(params, context) {
         verifySession(context)
             .verifyInitialized()
             .verifyRole([ROLES.ADMIN, ROLES.ORG_OWNER, ROLES.CURATOR, ROLES.SUBMITTER]);
@@ -581,10 +583,12 @@ class Submission {
         );
         const fileResults = await Promise.all(filePromises);
         const existingFiles = new Set();
-        fileResults.forEach((file, index) => {
+        fileResults.forEach((file) => {
             const aFileContent = (file?.Contents)?.pop();
-            if (aSubmission.fileErrors.some(errorFile => `${aSubmission.rootPath}/${FILE}/${errorFile?.submittedID}` === aFileContent?.Key)) {
-                existingFiles.add(aFileContent?.Key);
+            const aFileError = aSubmission.fileErrors.find(errorFile => `${aSubmission.rootPath}/${FILE}/${errorFile?.submittedID}` === aFileContent?.Key);
+            if (aFileError) {
+                // [store original error file object, aws storage path]
+                existingFiles.add([aFileError, aFileContent?.Key]);
             }
         });
         // check file existence in the bucket
@@ -592,15 +596,18 @@ class Submission {
             return ValidationHandler.handle(ERROR.DELETE_NO_EXISTS_SUBMISSION);
         }
 
-        const promises = Array.from(existingFiles).map(fileName => this.s3Service.deleteFile(aSubmission?.bucketName, fileName));
+        const promises = Array.from(existingFiles).map(aFile => this.s3Service.deleteFile(aSubmission?.bucketName, aFile[1]));
         const res = await Promise.allSettled(promises);
-        const countSuccess = res.filter(result => result.status === 'fulfilled').length;
+        const notDeletedErrorFiles = [];
         res.forEach((result, index) => {
             if (result.status === 'rejected') {
-                console.error(`Failed to delete; submission ID: ${aSubmission?._id} file name: ${aSubmission?.fileErrors[index]?.fileName} error: ${result.reason}`);
+                console.error(`Failed to delete; submission ID: ${aSubmission?._id} file name: ${existingFiles[index][1]} error: ${result.reason}`);
+                notDeletedErrorFiles.push(existingFiles[index][0]);
             }
         });
-        return ValidationHandler.success(`${countSuccess} extra files deleted`);
+        // after file deletions, it deletes all error records in the submission.
+        await this.submissionCollection.update({_id: aSubmission?._id, fileErrors: notDeletedErrorFiles, updatedAt: getCurrentTime()});
+        return ValidationHandler.success(`${res.filter(result => result.status === 'fulfilled').length} extra files deleted`);
     }
 
     async #verifyQCResultsReadPermissions(context, submissionID){

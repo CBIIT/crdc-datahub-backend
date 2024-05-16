@@ -470,8 +470,8 @@ type Mutation {
         comment: String
     ): Submission
 
-    deleteExtraFile(_id: ID!, fileName: String!): DataValidation
-    deleteAllExtraFiles(_id: ID!): DataValidation
+    deleteOrphanedFile(_id: ID!, fileName: String!): DataValidation
+    deleteAllOrphanedFiles(_id: ID!): DataValidation
 
     createBatch (submissionID: ID!, type: String, metadataIntention: String, files: [FileInput]): NewBatch
     updateBatch (batchID: ID!, files: [UploadResult]): Batch
