@@ -615,15 +615,15 @@ class Submission {
      * description: overnight job to set inactive submission status to "Deleted", delete related data and files
      */
     async deleteInactiveSubmissions(){
-        //get max inactive date
+        //get target inactive date, current date - config.inactive_submission_days (default 120 days)
         var target_inactive_date = new Date();
         target_inactive_date.setDate(target_inactive_date.getDate() - config.inactive_submission_days);
         const query = [{"$match": {"status": IN_PROGRESS, "accessedAt": {"$lte": target_inactive_date}}}];
         try {
             const inactive_subs = await this.submissionCollection.aggregate(query);
-            if (!inactive_subs || inactive_subs.length == 0) {
+            if (!inactive_subs || inactive_subs.length === 0) {
                 console.debug("No inactive submission found.")
-                return;
+                return "No inactive submissions";
             }
             const inactive_sub_ids = Array.from(inactive_subs).map(s => s._id);
             //delete all metadata under inactive submissions
@@ -631,23 +631,25 @@ class Submission {
             //delete files under inactive submissions
             const promises = Array.from(inactive_subs).map(aSub => this.s3Service.deleteDirectory(aSub.bucketName, aSub.rootPath));
             const res = await Promise.allSettled(promises);
+            let failed_delete_subs = []
             res.forEach((result, index) => {
                 if (result.status === 'rejected') {
-                    const msg = `Failed to delete files under inactive submission: ${inactive_subs[index]["_id"]} with error: ${result.reason}.`;
+                    const sub_id = inactive_subs[index]["_id"];
+                    const msg = `Failed to delete files under inactive submission: ${sub_id} with error: ${result.reason}.`;
                     console.error(msg);
-                    return msg;
+                    failed_delete_subs.push(sub_id);
                 }
                 else{
-                    const msg = `Successfully deleted files under inactive submission: ${inactive_subs[index]["_id"]}.`;
-                    console.debug(msg);
+                    //const msg = `Successfully deleted files under inactive submission: ${inactive_subs[index]["_id"]}.`;
+                    //console.debug(msg);
+                    //finally set the submission status to "Deleted".
+                    this.submissionCollection.updateOne({"_id": inactive_subs[index]["_id"]}, {"status" : "Deleted"});
                 }
             });
-            //finally change submission status to "Deleted"
-            await this.submissionCollection.updateMany({"_id": {"$in": inactive_sub_ids}}, {"status" : "Deleted"});
-            return "successful!";
+            return (failed_delete_subs.length === 0 )? "successful!" : `Failed to delete files under submissions: ${failed_delete_subs.toString()}.  please contact admin.`;
         }
-        catch (error){
-            console.error(error);
+        catch (e){
+            console.error("Failed to delete inactive submission(s) with error:" + e.message);
             return "failed!";
         }
     }
