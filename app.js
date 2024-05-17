@@ -11,9 +11,12 @@ const statusRouter = require("./routers/status-endpoints-router");
 const graphqlRouter = require("./routers/graphql-router");
 const {MongoDBCollection} = require("./crdc-datahub-database-drivers/mongodb-collection");
 const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, LOG_COLLECTION, APPROVED_STUDIES_COLLECTION,
-    ORGANIZATION_COLLECTION, SUBMISSIONS_COLLECTION
+    ORGANIZATION_COLLECTION, SUBMISSIONS_COLLECTION, DATA_RECORDS_COLLECTION
 } = require("./crdc-datahub-database-drivers/database-constants");
 const {Application} = require("./services/application");
+const {Submission} = require("./services/submission");
+const {DataRecordService} = require("./services/data-record-service");
+const {S3Service} = require("./crdc-datahub-database-drivers/services/s3-service");
 const {MongoQueries} = require("./crdc-datahub-database-drivers/mongo-queries");
 const {DatabaseConnector} = require("./crdc-datahub-database-drivers/database-connector");
 const {getCurrentTime, subtractDaysFromNow} = require("./crdc-datahub-database-drivers/utility/time-utility");
@@ -70,7 +73,9 @@ cronJob.schedule(config.schedule_job, async () => {
         const organizationService = new Organization(organizationCollection);
         const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
         const userService = new User(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.tier);
-
+        const s3Service = new S3Service()
+        const dataRecordCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_COLLECTION);
+        const dataRecordService = new DataRecordService(dataRecordCollection, config.file_queue, config.metadata_queue, null);
         const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.tier);
         console.log("Running a scheduled background task to delete inactive application at " + getCurrentTime());
         await dataInterface.deleteInactiveApplications();
@@ -78,6 +83,9 @@ cronJob.schedule(config.schedule_job, async () => {
         await runDeactivateInactiveUsers(userService, notificationsService);
         console.log("Running a scheduled background task to remind inactive application at " + getCurrentTime());
         await dataInterface.remindApplicationSubmission();
+        console.log("Running a scheduled job to delete inactive data submission and related data ann files at " + getCurrentTime());
+        const subInterface = new Submission(logCollection, submissionCollection, null, userService, organizationService, notificationsService, dataRecordService, null, null, null, null, s3Service )
+        await subInterface.deleteInactiveSubmissions()
         await dbConnector.disconnect();
     });
 });

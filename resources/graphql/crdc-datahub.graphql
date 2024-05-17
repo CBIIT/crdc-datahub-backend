@@ -64,7 +64,7 @@ type Submission {
     dbGaPID: String # aka. phs number
     bucketName: String # populated from organization
     rootPath: String # append "/<submission ID>" to organization's rootPath
-    status: String # [New, In Progress, Submitted, Released, Canceled, Transferred, Completed, Archived]
+    status: String # [New, In Progress, Submitted, Released, Canceled, Transferred, Completed, Archived, Deleted]
     metadataValidationStatus: String # [New, Validating, Passed, Error, Warning], new successfully uploaded batch will set it to "New"
     fileValidationStatus: String # [New, Validating, Passed, Error, Warning], new successfully uploaded batch will set it to "New"
     crossSubmissionStatus: String # [New, Validating, Passed, Error, Warning]
@@ -78,6 +78,7 @@ type Submission {
     updatedAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
     intention: String # [Update, New, Delete]
     otherSubmissions: String
+    accessedAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
 }
 
 type Batch {
@@ -510,4 +511,7 @@ type Mutation {
       role: String,
       dataCommons: [String], # Applies to Data Commons POC role only. Empty for other roles.
     ): User
+
+    "test delete inactive submission, comment out after testing"
+    deleteInactiveSubmissions: String
 }

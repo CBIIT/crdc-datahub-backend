@@ -45,7 +45,8 @@ let config = {
     committee_emails: process.env.REVIEW_COMMITTEE_EMAIL ? process.env.REVIEW_COMMITTEE_EMAIL.split(',') : ["CRDCSubmisison@nih.gov"],
     model_url: getModelUrl(),
     //uploader configuration file template
-    uploaderCLIConfigs: readUploaderCLIConfigTemplate()
+    uploaderCLIConfigs: readUploaderCLIConfigTemplate(),
+    inactive_submission_days: process.env.INACTIVE_SUBMISSION_DAYS_DELETE || 120,  // days
 };
 config.mongo_db_connection_string = `mongodb://${config.mongo_db_user}:${config.mongo_db_password}@${config.mongo_db_host}:${process.env.MONGO_DB_PORT}`;
 

@@ -50,7 +50,7 @@ class Submission {
         this.dataRecordService = dataRecordService;
         this.tier = tier;
         this.dataModelInfo = dataModelInfo;
-        this.modelVersion = this.#getModelVersion(dataModelInfo);
+        //this.modelVersion = this.#getModelVersion(dataModelInfo);
         this.awsService = awsService;
         this.metadataQueueName = metadataQueueName;
         this.s3Service = s3Service;
@@ -76,7 +76,7 @@ class Submission {
         }
 
         const newSubmission = DataSubmission.createSubmission(
-            params.name, userInfo, params.dataCommons, params.studyAbbreviation, params.dbGaPID, aUserOrganization, this.modelVersion, intention);
+            params.name, userInfo, params.dataCommons, params.studyAbbreviation, params.dbGaPID, aUserOrganization, this.#getModelVersion(this.dataModelInfo, params.dataCommons), intention);
         const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
@@ -610,6 +610,48 @@ class Submission {
         return ValidationHandler.success(`${res.filter(result => result.status === 'fulfilled').length} extra files deleted`);
     }
 
+    /**
+     * deleteInactiveSubmission
+     * description: overnight job to set inactive submission status to "Deleted", delete related data and files
+     */
+    async deleteInactiveSubmissions(){
+        //get max inactive date
+        var target_inactive_date = new Date();
+        target_inactive_date.setDate(target_inactive_date.getDate() - config.inactive_submission_days);
+        const query = [{"$match": {"status": IN_PROGRESS, "accessedAt": {"$lte": target_inactive_date}}}];
+        try {
+            const inactive_subs = await this.submissionCollection.aggregate(query);
+            if (!inactive_subs || inactive_subs.length == 0) {
+                console.debug("No inactive submission found.")
+                return;
+            }
+            const inactive_sub_ids = Array.from(inactive_subs).map(s => s._id);
+            //delete all metadata under inactive submissions
+            await this.dataRecordService.deleteMetadataByFilter({"submissionID": {"$in": inactive_sub_ids}});
+            //delete files under inactive submissions
+            const promises = Array.from(inactive_subs).map(aSub => this.s3Service.deleteDirectory(aSub.bucketName, aSub.rootPath));
+            const res = await Promise.allSettled(promises);
+            res.forEach((result, index) => {
+                if (result.status === 'rejected') {
+                    const msg = `Failed to delete files under inactive submission: ${inactive_subs[index]["_id"]} with error: ${result.reason}.`;
+                    console.error(msg);
+                    return msg;
+                }
+                else{
+                    const msg = `Successfully deleted files under inactive submission: ${inactive_subs[index]["_id"]}.`;
+                    console.debug(msg);
+                }
+            });
+            //finally change submission status to "Deleted"
+            await this.submissionCollection.updateMany({"_id": {"$in": inactive_sub_ids}}, {"status" : "Deleted"});
+            return "successful!";
+        }
+        catch (error){
+            console.error(error);
+            return "failed!";
+        }
+    }
+
     async #verifyQCResultsReadPermissions(context, submissionID){
         verifySession(context)
             .verifyInitialized()
@@ -660,8 +702,8 @@ class Submission {
         }
     }
 
-    #getModelVersion(dataModelInfo) {
-        const modelVersion = dataModelInfo?.["CDS"]?.["current-version"];
+    #getModelVersion(dataModelInfo, dataCommonName) {
+        const modelVersion = dataModelInfo?.[dataCommonName]?.["current-version"];
         if (modelVersion) {
             return modelVersion;
         }
