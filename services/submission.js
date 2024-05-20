@@ -636,14 +636,14 @@ class Submission {
                     console.error(msg);
                     failed_delete_subs.push(sub_id);
                 }
-                else{
-                    //delete all metadata under the inactive submission
-                    this.dataRecordService.deleteMetadataByFilter({"submissionID": sub_id});
-                    //finally set the submission status to "Deleted".
-                    this.submissionCollection.updateOne({"_id": sub_id}, {"status" : "Deleted", "updatedAt": new Date()});
-                    console.debug(`Successfully deleted inactive submission: ${sub_id}.`);
-                }
-            });  
+            });
+            const inactiveSub_ids = Array.from(inactive_subs).map(s=>s._id).filter(n => !failed_delete_subs.includes(n));
+            //delete all metadata under the inactive submission
+            await this.dataRecordService.deleteMetadataByFilter({"submissionID": {"$in": inactiveSub_ids}});
+            //finally set the submission status to "Deleted".
+            await this.submissionCollection.updateMany({"_id": {"$in": inactiveSub_ids}}, {"status" : "Deleted", "updatedAt": new Date()});
+            console.debug(`Successfully deleted inactive submissions: ${inactiveSub_ids.toString()}.`);
+             
             return (failed_delete_subs.length === 0 )? "successful!" : `Failed to delete files under submissions: ${failed_delete_subs.toString()}.  please contact admin.`;
         }
         catch (e){
