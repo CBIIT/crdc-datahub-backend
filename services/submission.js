@@ -618,34 +618,32 @@ class Submission {
         //get target inactive date, current date - config.inactive_submission_days (default 120 days)
         var target_inactive_date = new Date();
         target_inactive_date.setDate(target_inactive_date.getDate() - config.inactive_submission_days);
-        const query = [{"$match": {"status": IN_PROGRESS, "accessedAt": {"$lte": target_inactive_date}}}];
+        const query = [{"$match": {"status": IN_PROGRESS, "accessedAt": {"$exists": true, "$ne": null, "$lte": target_inactive_date}}}];
         try {
             const inactive_subs = await this.submissionCollection.aggregate(query);
             if (!inactive_subs || inactive_subs.length === 0) {
                 console.debug("No inactive submission found.")
                 return "No inactive submissions";
             }
-            const inactive_sub_ids = Array.from(inactive_subs).map(s => s._id);
-            //delete all metadata under inactive submissions
-            await this.dataRecordService.deleteMetadataByFilter({"submissionID": {"$in": inactive_sub_ids}});
             //delete files under inactive submissions
             const promises = Array.from(inactive_subs).map(aSub => this.s3Service.deleteDirectory(aSub.bucketName, aSub.rootPath));
             const res = await Promise.allSettled(promises);
             let failed_delete_subs = []
             res.forEach((result, index) => {
+                const sub_id = inactive_subs[index]["_id"];
                 if (result.status === 'rejected') {
-                    const sub_id = inactive_subs[index]["_id"];
                     const msg = `Failed to delete files under inactive submission: ${sub_id} with error: ${result.reason}.`;
                     console.error(msg);
                     failed_delete_subs.push(sub_id);
                 }
                 else{
-                    //const msg = `Successfully deleted files under inactive submission: ${inactive_subs[index]["_id"]}.`;
-                    //console.debug(msg);
+                    //delete all metadata under the inactive submission
+                    this.dataRecordService.deleteMetadataByFilter({"submissionID": sub_id});
                     //finally set the submission status to "Deleted".
-                    this.submissionCollection.updateOne({"_id": inactive_subs[index]["_id"]}, {"status" : "Deleted"});
+                    this.submissionCollection.updateOne({"_id": sub_id}, {"status" : "Deleted", "updatedAt": new Date()});
+                    console.debug(`Successfully deleted inactive submission: ${sub_id}.`);
                 }
-            });
+            });  
             return (failed_delete_subs.length === 0 )? "successful!" : `Failed to delete files under submissions: ${failed_delete_subs.toString()}.  please contact admin.`;
         }
         catch (e){
