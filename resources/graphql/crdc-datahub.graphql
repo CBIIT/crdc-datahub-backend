@@ -76,8 +76,9 @@ type Submission {
     errors: [ErrorMessage] # store validation errors
     createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
     updatedAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
-    intention: String # [Update, New, Delete]
+    intention: String # [New/Update, Delete]
     otherSubmissions: String
+    dataType: String # [Metadata Only, Metadata and Data Files]
 }
 
 type Batch {
@@ -462,7 +463,7 @@ type Mutation {
     deleteApplication (_id: ID!): Application
 
     "Submitter or Org Owner"
-    createSubmission (studyAbbreviation: String!, dbGaPID: String, dataCommons: String!, name: String!, intention: String!): Submission
+    createSubmission (studyAbbreviation: String!, dbGaPID: String, dataCommons: String!, name: String!, intention: String!, dataType: String!): Submission
     submissionAction (
         submissionID: ID!,
         # in [Submit, Release, Withdraw, Reject, Complete, Cancel, Archive]

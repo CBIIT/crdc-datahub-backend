@@ -43,9 +43,13 @@ module.exports = Object.freeze({
         }
     },
     INTENTION: {
-        UPDATE: "Update",
+        UPDATE: "New/Update",
         NEW: "New",
         DELETE: "Delete"
     },
-    DATA_FILE: "Data File"
+    DATA_FILE: "Data File",
+    DATA_TYPE: {
+        METADATA_ONLY: "Metadata Only",
+        METADATA_AND_DATA_FILES: "Metadata and Data Files"
+    }
 });
