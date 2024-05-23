@@ -31,7 +31,8 @@ const isUndefined = (p) => {
 const replaceMessageVariables = (input, messageVariables) => {
     for (let key in messageVariables){
         // message variable must start with $
-        input = input.replace(`$${key}`, messageVariables[key]);
+        const regex = new RegExp(`\\$${key}`, 'g');
+        input = input.replace(regex, messageVariables[key]);
     }
     return input;
 }
