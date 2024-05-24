@@ -62,7 +62,7 @@ class SubmissionActionVerifier {
                 }
             }
 
-            if ([INTENTION.NEW, INTENTION.UPDATE].includes(aSubmission?.intention) && this.isSubmitActionCommentRequired(aSubmission, role, comment)) {
+            if ([INTENTION.UPDATE].includes(aSubmission?.intention) && this.isSubmitActionCommentRequired(aSubmission, role, comment)) {
                 throw new Error(ERROR.VERIFY.SUBMIT_ACTION_COMMENT_REQUIRED);
             }
         }

@@ -1,5 +1,5 @@
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
-    REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, EXPORT, INTENTION
+    REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, EXPORT, INTENTION, DATA_TYPE
 } = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
@@ -61,23 +61,17 @@ class Submission {
         verifySession(context)
             .verifyInitialized()
             .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER]);
-        validateCreateSubmissionParams(params);
-        const userInfo = context.userInfo;
-        if (!userInfo.organization) {
-            throw new Error(ERROR.CREATE_SUBMISSION_NO_ORGANIZATION_ASSIGNED);
-        }
-        const aUserOrganization= await this.organizationService.getOrganizationByName(userInfo?.organization?.orgName);
+        const intention = [INTENTION.UPDATE, INTENTION.DELETE].find((i) => i.toLowerCase() === params?.intention.toLowerCase());
+        const dataType = [DATA_TYPE.METADATA_AND_DATA_FILES, DATA_TYPE.METADATA_ONLY].find((i) => i.toLowerCase() === params?.dataType.toLowerCase());
+        validateCreateSubmissionParams(params, intention, dataType, context?.userInfo);
+
+        const aUserOrganization= await this.organizationService.getOrganizationByName(context.userInfo?.organization?.orgName);
         if (!aUserOrganization.studies.some((study) => study.studyAbbreviation === params.studyAbbreviation)) {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
         }
 
-        const intention = [INTENTION.NEW, INTENTION.UPDATE, INTENTION.DELETE].find((i) => i.toLowerCase() === params?.intention.toLowerCase());
-        if (!intention) {
-            throw new Error(ERROR.CREATE_SUBMISSION_INVALID_INTENTION);
-        }
-
         const newSubmission = DataSubmission.createSubmission(
-            params.name, userInfo, params.dataCommons, params.studyAbbreviation, params.dbGaPID, aUserOrganization, this.modelVersion, intention);
+            params.name, context.userInfo, params.dataCommons, params.studyAbbreviation, params.dbGaPID, aUserOrganization, this.modelVersion, intention, dataType);
         const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
@@ -1078,12 +1072,28 @@ function listConditions(userID, userRole, userDataCommons, userOrganization, par
     return [{"$match": conditions}];
 }
 
-function validateCreateSubmissionParams (params) {
+function validateCreateSubmissionParams (params, intention, dataType, userInfo) {
     if (!params.name || !params.studyAbbreviation || !params.dataCommons) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
     }
     if (!dataCommonsTempList.some((value) => value === params.dataCommons)) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_DATA_COMMONS);
+    }
+
+    if (!userInfo.organization) {
+        throw new Error(ERROR.CREATE_SUBMISSION_NO_ORGANIZATION_ASSIGNED);
+    }
+
+    if (!intention) {
+        throw new Error(ERROR.CREATE_SUBMISSION_INVALID_INTENTION);
+    }
+
+    if (!dataType) {
+        throw new Error(ERROR.CREATE_SUBMISSION_INVALID_DATA_TYPE);
+    }
+
+    if (intention === INTENTION.DELETE && dataType !== DATA_TYPE.METADATA_ONLY) {
+        throw new Error(ERROR.CREATE_SUBMISSION_INVALID_DELETE_INTENTION);
     }
 }
 
@@ -1119,7 +1129,7 @@ const isSubmissionPermitted = (aSubmission, userInfo) => {
 }
 
 class DataSubmission {
-    constructor(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization, modelVersion, intention) {
+    constructor(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization, modelVersion, intention, dataType) {
         this._id = v4();
         this.name = name;
         this.submitterID = userInfo._id;
@@ -1144,11 +1154,12 @@ class DataSubmission {
         this.fileErrors = [];
         this.fileWarnings = [];
         this.intention = intention;
+        this.dataType = dataType;
         this.accessedAt = getCurrentTime();
     }
 
-    static createSubmission(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization, modelVersion, intention) {
-        return new DataSubmission(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization, modelVersion, intention);
+    static createSubmission(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization, modelVersion, intention, dataType) {
+        return new DataSubmission(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization, modelVersion, intention, dataType);
     }
 }
 

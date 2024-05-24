@@ -50,6 +50,8 @@ const ERROR = {
     CREATE_SUBMISSION_INSERTION_ERROR: "An error occurred while attempting to insert the created data submission into the database",
     CREATE_SUBMISSION_INVALID_PARAMS: "One or more of the parameters for creating a submission is invalid",
     CREATE_SUBMISSION_INVALID_INTENTION: "submission intention is invalid",
+    CREATE_SUBMISSION_INVALID_DATA_TYPE: "submission data type is invalid",
+    CREATE_SUBMISSION_INVALID_DELETE_INTENTION: "when intention is Delete, only 'Metadata Only' is allowed",
     UPDATE_SUBMISSION_ERROR:"An error occurred while attempting to update the submission in the database",
     CREATE_SUBMISSION_INVALID_DATA_COMMONS: "Invalid Data Commons for creating a submission",
     CREATE_SUBMISSION_NO_MATCHING_STUDY: "The study provided does not match an approved study within the user's organization",
