@@ -44,7 +44,6 @@ module.exports = Object.freeze({
     },
     INTENTION: {
         UPDATE: "New/Update",
-        NEW: "New",
         DELETE: "Delete"
     },
     DATA_FILE: "Data File",
