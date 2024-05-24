@@ -2,7 +2,7 @@ const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
     REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, EXPORT, INTENTION, DATA_TYPE
 } = require("../constants/submission-constants");
 const {v4} = require('uuid')
-const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
+const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifySession, verifyApiToken, verifySubmitter, validateToken} = require("../verifier/user-info-verifier");
 const {verifySubmissionAction} = require("../verifier/submission-verifier");
@@ -40,7 +40,7 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, dataModelInfo, awsService, metadataQueueName, s3Service) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, dataModelInfo, awsService, metadataQueueName, s3Service, emailParams) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -54,6 +54,7 @@ class Submission {
         this.awsService = awsService;
         this.metadataQueueName = metadataQueueName;
         this.s3Service = s3Service;
+        this.emailParams = emailParams;
     }
 
     async createSubmission(params, context) {
@@ -212,6 +213,10 @@ class Submission {
             const conditionAdmin = [ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN].includes(context?.userInfo?.role );
             //  role based access control
             if( conditionDCPOC || conditionORGOwner || conditionSubmitter || conditionAdmin){
+                // Store the timestamp for the inactive submission purpose
+                if (conditionSubmitter) {
+                    await this.submissionCollection.update({_id: aSubmission?._id, accessedAt: getCurrentTime()});
+                }
                 return aSubmission
             }
             throw new Error(ERROR.INVALID_ROLE);
@@ -272,6 +277,29 @@ class Submission {
         return submission;
     }
 
+    async remindInactiveSubmission() {
+        const inactiveDuration = this.emailParams.remindSubmissionDay;
+        const remindCondition = {
+            accessedAt: {
+                $lt: subtractDaysFromNow(inactiveDuration),
+                $gt: subtractDaysFromNow(inactiveDuration + 1),
+            },
+            status: {$in: [NEW, IN_PROGRESS, REJECTED, WITHDRAWN]},
+            inactiveReminder: {$ne: true}
+        };
+        const submissions = await this.submissionCollection.aggregate([{$match: remindCondition}]);
+        if (submissions?.length > 0) {
+            await Promise.all(submissions.map(async (aSubmission) => {
+                await sendEmails.remindInactiveSubmission(this.emailParams, aSubmission, this.userService, this.organizationService, this.notificationService, this.tier);
+            }));
+            const submissionIDs = submissions.map(submission => submission._id);
+            const query = {_id: {$in: submissionIDs}};
+            const updatedReminder = await this.submissionCollection.updateMany(query, {inactiveReminder: true});
+            if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
+                console.error("The email reminder flag intended to notify the inactive submission user is not being stored");
+            }
+        }
+    }
     async #isValidReleaseAction(action, submissionID, studyAbbreviation, crossSubmissionStatus) {
         if (action?.toLowerCase() === ACTIONS.RELEASE.toLowerCase()) {
             const submissions = await this.submissionCollection.aggregate([{"$match": {_id: {"$ne": submissionID}, studyAbbreviation: studyAbbreviation}}]);
@@ -773,6 +801,18 @@ const releaseSubmissionEmailInfo = async (userInfo, aSubmission, userService, or
     return [ccEmails, POCs, aOrganization];
 }
 
+const inactiveSubmissionEmailInfo = async (aSubmission, userService, organizationService) => {
+    const promises = [
+        await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
+        await organizationService.getOrganizationByID(aSubmission?.organization?._id),
+    ];
+    const results = await Promise.all(promises);
+    const orgOwnerEmails = getUserEmails(results[0] || []);
+    const aOrganization = results[1] || {};
+    const ccEmails = new Set(orgOwnerEmails).toArray();
+    return [ccEmails, aOrganization];
+}
+
 const cancelOrRejectSubmissionEmailInfo = async (aSubmission, userService, organizationService) => {
     const promises = [
         await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
@@ -924,6 +964,22 @@ const sendEmails = {
             conciergeName: aOrganization?.conciergeName || NA
         }, tier);
     },
+    remindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService, tier) => {
+        const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
+        if (!aSubmitter) {
+            console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
+            return;
+        }
+        const [ccEmails, aOrganization] = await inactiveSubmissionEmailInfo(aSubmission, userService, organizationService);
+        await notificationService.inactiveSubmissionNotification(aSubmitter?.email, ccEmails, {
+            firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
+        }, {
+            title: aSubmission?.name,
+            studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+            days: emailParams.remindSubmissionDay || NA,
+            url: emailParams.url || NA
+        }, tier);
+    }
 }
 
 // only one study name
@@ -1099,6 +1155,7 @@ class DataSubmission {
         this.fileWarnings = [];
         this.intention = intention;
         this.dataType = dataType;
+        this.accessedAt = getCurrentTime();
     }
 
     static createSubmission(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization, modelVersion, intention, dataType) {
