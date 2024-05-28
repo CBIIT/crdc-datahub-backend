@@ -135,6 +135,10 @@ class Submission {
             throw new Error(ERROR.NO_SUBMISSION_BUCKET);
         }
 
+        if (DATA_TYPE.METADATA_ONLY === aSubmission?.dataType && params?.type === BATCH.TYPE.DATA_FILE) {
+            throw new Error(ERROR.INVALID_BATCH_DATA_TYPE);
+        }
+
         const result = await this.batchService.createBatch(params, aSubmission.bucketName, aSubmission?.rootPath);
         // The submission status needs to be updated after createBatch
         if ([NEW, WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
