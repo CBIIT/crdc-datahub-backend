@@ -84,7 +84,7 @@ class SubmissionActionVerifier {
     #isValidAdminStatus(role, aSubmission) {
         const isRoleAdmin = role === USER.ROLES.ADMIN;
         const isMetadataInvalid = aSubmission?.metadataValidationStatus === VALIDATION_STATUS.NEW;
-        const isFileInValid =  aSubmission?.fileValidationStatus === VALIDATION_STATUS.NEW;
+        const isFileInValid = aSubmission?.fileValidationStatus === VALIDATION_STATUS.NEW;
         const isDeleteIntention = aSubmission?.intention === INTENTION.DELETE;
         const ignoreFileValidationStatus = aSubmission?.dataType === DATA_TYPE.METADATA_ONLY;
         // if deleted intention, allow it to be submitted without any data files, if metadata only, any value is ignored for fileValidationStatus
