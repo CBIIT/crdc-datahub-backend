@@ -1,5 +1,5 @@
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
-    REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, EXPORT, INTENTION, DATA_TYPE
+    REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, EXPORT, INTENTION, DATA_TYPE, DELETED
 } = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
@@ -1042,15 +1042,15 @@ const isPermittedUser = (aTargetUser, userInfo) => {
 
 function listConditions(userID, userRole, userDataCommons, userOrganization, params){
     const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
-        REJECTED, WITHDRAWN]}};
+        REJECTED, WITHDRAWN, DELETED]}};
     // Default conditions are:
     // Make sure application has valid status
     let conditions = {...validApplicationStatus};
     // Filter on organization and status
-    if (params.organization !== ALL_FILTER) {
+    if (params.organization && params.organization !== ALL_FILTER) {
         conditions = {...conditions, "organization._id": params.organization};
     }
-    if (params.status !== ALL_FILTER) {
+    if (params.status && params.status !== ALL_FILTER) {
         conditions = {...conditions, status: params.status};
     }
     // List all applications if Fed Lead / Admin / Data Concierge / Data Curator
@@ -1102,21 +1102,10 @@ function validateCreateSubmissionParams (params, intention, dataType, userInfo) 
 }
 
 function validateListSubmissionsParams (params) {
-    if (params.status !== NEW &&
-        params.status !== IN_PROGRESS &&
-        params.status !== SUBMITTED &&
-        params.status !== RELEASED &&
-        params.status !== COMPLETED &&
-        params.status !== ARCHIVED &&
-        params.status !== REJECTED &&
-        params.status !== WITHDRAWN &&
-        params.status !== CANCELED &&
-        params.status !== ALL_FILTER
-        ) {
+    const validStatus = new Set([NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, REJECTED, WITHDRAWN, CANCELED, DELETED, ALL_FILTER]);
+    if (!validStatus.has(params.status)) {
         throw new Error(ERROR.LIST_SUBMISSION_INVALID_STATUS_FILTER);
     }
-    // Don't need to validate organization as frontend uses the same organization collection
-    // as backend does as selection options. AKA, frontend will only ever send valid organizations.
 }
 
 const isSubmissionPermitted = (aSubmission, userInfo) => {
