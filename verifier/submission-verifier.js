@@ -1,6 +1,6 @@
 const ERROR = require("../constants/error-constants");
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
-    REJECTED, WITHDRAWN, ACTIONS, VALIDATION_STATUS, INTENTION
+    REJECTED, WITHDRAWN, ACTIONS, VALIDATION_STATUS, INTENTION, DATA_TYPE
 } = require("../constants/submission-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
@@ -52,9 +52,10 @@ class SubmissionActionVerifier {
             const isInvalidAdminStatus = !this.#isValidAdminStatus(role, aSubmission);
             const isValidRole = [USER.ROLES.CURATOR, USER.ROLES.ORG_OWNER, USER.ROLES.SUBMITTER].includes(role);
             const validStatus = [VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING];
-            // if deleted intention, allow it to be submitted without any data files.
+            // if deleted intention, allow it to be submitted without any data files. Ignore any value if meta-data only data file
+            const ignoreFileValidationStatus = aSubmission?.dataType === DATA_TYPE.METADATA_ONLY;
             const isValidatedStatus = aSubmission?.intention === INTENTION.DELETE || (validStatus.includes(aSubmission?.metadataValidationStatus)
-                && validStatus.includes(aSubmission?.fileValidationStatus));
+                && (ignoreFileValidationStatus || validStatus.includes(aSubmission?.fileValidationStatus)));
 
             if (isInvalidAdminStatus) {
                 if (ROLES.ADMIN === role ||(![ROLES.ADMIN].includes(role) && (!isValidRole || !isValidatedStatus))) {
@@ -85,8 +86,9 @@ class SubmissionActionVerifier {
         const isMetadataInvalid = aSubmission?.metadataValidationStatus === VALIDATION_STATUS.NEW;
         const isFileInValid = aSubmission?.fileValidationStatus === VALIDATION_STATUS.NEW;
         const isDeleteIntention = aSubmission?.intention === INTENTION.DELETE;
-        // if deleted intention, allow it to be submitted without any data files.
-        const isDataFileValidated = isDeleteIntention || !isMetadataInvalid && (aSubmission?.fileValidationStatus === null || !isFileInValid);
+        const ignoreFileValidationStatus = aSubmission?.dataType === DATA_TYPE.METADATA_ONLY;
+        // if deleted intention, allow it to be submitted without any data files, if metadata only, any value is ignored for fileValidationStatus
+        const isDataFileValidated = isDeleteIntention || !isMetadataInvalid && (ignoreFileValidationStatus || (aSubmission?.fileValidationStatus === null || !isFileInValid));
         // null fileValidationStatus means this submission doesn't have any files uploaded
         return isRoleAdmin && isDataFileValidated;
     }
