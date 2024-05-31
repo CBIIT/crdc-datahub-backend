@@ -361,6 +361,11 @@ type Node {
     props: String #a stringified JSON string contains all properties of the node, including parent mapping properties like program.prorgam_acronym
 }
 
+type institution {
+    _id: ID,
+    name: String
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -446,6 +451,8 @@ type Query {
         dataFolder: String = "/Users/my_name/my_files",
         manifest: String = "/Users/my_name/my_manifest.tsv"
     ): String
+
+    listInstitutions: [String]
 }
 type Mutation {
     "User initiated operations"
