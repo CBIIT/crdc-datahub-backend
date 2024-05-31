@@ -417,12 +417,16 @@ class DataRecordService {
         page_pipeline.push({
             $sort: sortFields
         });
-        page_pipeline.push({
-            $skip: offset
-        });
-        page_pipeline.push({
-            $limit: first
-        });
+        // if -1, returns all data of given node & ignore offset
+        if (first !== -1) {
+            page_pipeline.push({
+                $skip: offset
+            });
+            page_pipeline.push({
+                $limit: first
+            });
+        }
+
         pipeline.push({
             $facet: {
                 total: [{
