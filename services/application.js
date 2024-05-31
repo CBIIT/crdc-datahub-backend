@@ -15,7 +15,7 @@ const {parseJsonString} = require("../crdc-datahub-database-drivers/utility/stri
 const {formatName} = require("../utility/format-name");
 
 class Application {
-    constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, tier) {
+    constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, tier, institutionService) {
         this.logCollection = logCollection;
         this.applicationCollection = applicationCollection;
         this.approvedStudiesService = approvedStudiesService;
@@ -25,6 +25,7 @@ class Application {
         this.emailParams = emailParams;
         this.organizationService = organizationService;
         this.tier = tier;
+        this.institutionService = institutionService;
     }
 
     async getApplication(params, context) {
@@ -244,6 +245,7 @@ class Application {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
             $push: {history}
         });
+        await this.institutionService.addNewInstitutions(document.institutions);
         await this.sendEmailAfterApproveApplication(context, application);
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             const promises = [
