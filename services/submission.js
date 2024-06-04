@@ -625,25 +625,21 @@ class Submission {
                 console.debug("No inactive submission found.")
                 return "No inactive submissions";
             }
-            //delete files under inactive submissions
-            const promises = Array.from(inactive_subs).map(aSub => this.s3Service.deleteDirectory(aSub.bucketName, aSub.rootPath));
-            const res = await Promise.allSettled(promises);
             let failed_delete_subs = []
-            res.forEach((result, index) => {
-                const sub_id = inactive_subs[index]["_id"];
-                if (result.status === 'rejected') {
-                    const msg = `Failed to delete files under inactive submission: ${sub_id} with error: ${result.reason}.`;
-                    console.error(msg);
-                    failed_delete_subs.push(sub_id);
+            //delete related data and files
+            for (const sub of inactive_subs) {
+                try {
+                    const result = await this.s3Service.deleteDirectory(sub.bucketName, sub.rootPath);
+                    if (result === true) {
+                        await this.dataRecordService.deleteMetadataByFilter({"submissionID": sub._id});
+                        await this.submissionCollection.updateOne({"_id": sub._id}, {"status" : "Deleted", "updatedAt": new Date()});
+                        console.debug(`Successfully deleted inactive submissions: ${sub._id}.`);
+                    }
+                } catch (e) {
+                    console.error(`Failed to delete files under inactive submission: ${sub._id} with error: ${e.message}.`);
+                    failed_delete_subs.push(sub._id);
                 }
-            });
-            const inactiveSub_ids = Array.from(inactive_subs).map(s=>s._id).filter(n => !failed_delete_subs.includes(n));
-            //delete all metadata under the inactive submission
-            await this.dataRecordService.deleteMetadataByFilter({"submissionID": {"$in": inactiveSub_ids}});
-            //finally set the submission status to "Deleted".
-            await this.submissionCollection.updateMany({"_id": {"$in": inactiveSub_ids}}, {"status" : "Deleted", "updatedAt": new Date()});
-            console.debug(`Successfully deleted inactive submissions: ${inactiveSub_ids.toString()}.`);
-             
+            }
             return (failed_delete_subs.length === 0 )? "successful!" : `Failed to delete files under submissions: ${failed_delete_subs.toString()}.  please contact admin.`;
         }
         catch (e){
