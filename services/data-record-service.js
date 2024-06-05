@@ -474,10 +474,10 @@ const getFileNodes = async (dataRecordsCollection, submissionID, scope) => {
     const isNewScope = scope?.toLowerCase() === VALIDATION.SCOPE.NEW.toLowerCase();
     const fileNodes = await dataRecordsCollection.aggregate([{
         $match: {
-            s3FileInfo: { $exists: true, $ne: null },
+            s3FileInfo: { $exists: true, $ne: null},
             submissionID: submissionID,
             // case-insensitive search
-            ...(isNewScope ? { status: { $regex: new RegExp("^" + VALIDATION.SCOPE.NEW + "$", "i") } } : {})}},
+            ...(isNewScope ? { "s3FileInfo.status": { $regex: new RegExp("^" + VALIDATION.SCOPE.NEW + "$", "i") } } : {})}},
         {$sort: {"s3FileInfo.size": 1}}
     ]);
     return fileNodes || [];

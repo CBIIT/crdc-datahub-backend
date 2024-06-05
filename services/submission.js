@@ -69,7 +69,6 @@ class Submission {
         if (!aUserOrganization.studies.some((study) => study.studyAbbreviation === params.studyAbbreviation)) {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
         }
-
         const newSubmission = DataSubmission.createSubmission(
             params.name, context.userInfo, params.dataCommons, params.studyAbbreviation, params.dbGaPID, aUserOrganization, this.modelVersion, intention, dataType);
         const res = await this.submissionCollection.insert(newSubmission);
@@ -390,14 +389,12 @@ class Submission {
         const userInfo = context?.userInfo;
         const promises = [
             await this.userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
-            await this.userService.getUserByID(aSubmission?.submitterID),
-            await this.organizationService.getOrganizationByID(aSubmission?.organization?._id)
+            await this.userService.getUserByID(aSubmission?.submitterID)
         ];
         const results = await Promise.all(promises);
         const isOrgOwners = (results[0] || []).some((aUser) => isPermittedUser(aUser, userInfo));
         const isSubmitter = isPermittedUser(results[1], userInfo);
-        const aOrganization = results[2];
-        const isDataCurator = aOrganization?.conciergeID === userInfo?._id;
+        const isDataCurator = ROLES.CURATOR === userInfo?.role;
         const isPermittedAccess = this.userService.isAdmin(userInfo?.role) || isOrgOwners || isSubmitter || isDataCurator;
         if (!isPermittedAccess) {
             throw new Error(ERROR.INVALID_VALIDATE_METADATA)
@@ -1077,7 +1074,7 @@ function listConditions(userID, userRole, userDataCommons, userOrganization, par
 }
 
 function validateCreateSubmissionParams (params, intention, dataType, userInfo) {
-    if (!params.name || !params.studyAbbreviation || !params.dataCommons) {
+    if (!params.name || params?.name?.trim().length === 0 || !params.studyAbbreviation || !params.dataCommons) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
     }
     if (!dataCommonsTempList.some((value) => value === params.dataCommons)) {
