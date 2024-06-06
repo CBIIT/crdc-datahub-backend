@@ -25,22 +25,20 @@ const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
 const FILE = "file";
 
-// TODO: Data commons needs to be in a predefined list, currently only "CDS" and "ICDC" are allowed
-// eventually frontend and backend will use same source for this list.
-const dataCommonsTempList = ["CDS", "ICDC"];
 const UPLOAD_TYPES = ['file','metadata'];
 const LOG_DIR = 'logs';
 const LOG_FILE_EXT_ZIP ='.zip';
 const LOG_FILE_EXT_LOG ='.log';
 const DATA_MODEL_SEMANTICS = 'semantics';
 const DATA_MODEL_FILE_NODES = 'file-nodes';
+const CDS = "CDS";
 // Set to array
 Set.prototype.toArray = function() {
     return Array.from(this);
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, dataModelInfo, awsService, metadataQueueName, s3Service, emailParams) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, dataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -50,11 +48,12 @@ class Submission {
         this.dataRecordService = dataRecordService;
         this.tier = tier;
         this.dataModelInfo = dataModelInfo;
-        this.modelVersion = this.#getModelVersion(dataModelInfo);
+        this.modelVersion = this.#getModelVersion(dataModelInfo, CDS);
         this.awsService = awsService;
         this.metadataQueueName = metadataQueueName;
         this.s3Service = s3Service;
         this.emailParams = emailParams;
+        this.allowedDataCommons = new Set(dataCommonsList);
     }
 
     async createSubmission(params, context) {
@@ -63,7 +62,7 @@ class Submission {
             .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER]);
         const intention = [INTENTION.UPDATE, INTENTION.DELETE].find((i) => i.toLowerCase() === params?.intention.toLowerCase());
         const dataType = [DATA_TYPE.METADATA_AND_DATA_FILES, DATA_TYPE.METADATA_ONLY].find((i) => i.toLowerCase() === params?.dataType.toLowerCase());
-        validateCreateSubmissionParams(params, intention, dataType, context?.userInfo);
+        validateCreateSubmissionParams(params, this.allowedDataCommons, intention, dataType, context?.userInfo);
 
         const aUserOrganization= await this.organizationService.getOrganizationByName(context.userInfo?.organization?.orgName);
         if (!aUserOrganization.studies.some((study) => study.studyAbbreviation === params.studyAbbreviation)) {
@@ -683,8 +682,8 @@ class Submission {
         }
     }
 
-    #getModelVersion(dataModelInfo) {
-        const modelVersion = dataModelInfo?.["CDS"]?.["current-version"];
+    #getModelVersion(dataModelInfo, dataCommonType) {
+        const modelVersion = dataModelInfo?.[dataCommonType]?.["current-version"];
         if (modelVersion) {
             return modelVersion;
         }
@@ -1073,11 +1072,11 @@ function listConditions(userID, userRole, userDataCommons, userOrganization, par
     return [{"$match": conditions}];
 }
 
-function validateCreateSubmissionParams (params, intention, dataType, userInfo) {
+function validateCreateSubmissionParams (params, allowedDataCommons, intention, dataType, userInfo) {
     if (!params.name || params?.name?.trim().length === 0 || !params.studyAbbreviation || !params.dataCommons) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
     }
-    if (!dataCommonsTempList.some((value) => value === params.dataCommons)) {
+    if (!allowedDataCommons.has(params.dataCommons)) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_DATA_COMMONS);
     }
 
