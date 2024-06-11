@@ -519,25 +519,28 @@ class Submission {
             
         }
         else {
-             return await this.#listSubmissionDataFiles(params, aSubmission);
+             //1) cal s3 listObjectV2
+            return await this.s3Service.listFileInDir(aSubmission.bucketName,  `${aSubmission.rootPath}/${FILE}/`)
+                .then(result => 
+                {
+                    //process the file info and return the submission file list
+                    return this.#listSubmissionDataFiles(params, result);
+                })
+                .catch(err => {
+                    console.log(err);
+                    throw new Error(ERROR.FAILED_LIST_DATA_FILES)
+                });
         }
         
     }
-    async #listSubmissionDataFiles(params, aSubmission) {
+    async #listSubmissionDataFiles(params, listedObjects) {
         let s3Files = [];
         let returnVal = {
             total: 0,
             properties: [],
             nodes: []
         };
-        //1) cal s3 listObjectV2, 2) populate s3Files and sorting, paging 3) retrieve file node info from dataRecords
-        // const listedObjects = await this.s3Service.listFileInDir(aSubmission.bucketName,  `${aSubmission.rootPath}/${FILE}/`)
-        //     .then(result => result.data)
-        //     .catch(err => {
-        //         console.log(err);
-        //         throw new Error(ERROR.FAILED_LIST_DATA_FILES)
-        //     });
-        const listedObjects = await this.s3Service.listFileInDir(aSubmission.bucketName,  `${aSubmission.rootPath}/${FILE}/`)
+        //2) populate s3Files and sorting and paging 3) retrieve file node info from dataRecords
         if (!listedObjects || !listedObjects.Contents || listedObjects.Contents.length === 0) 
             return returnVal;
         // populate s3Files list and 
@@ -577,9 +580,12 @@ class Submission {
         for (let file of return_s3Files) {
             const node = (result && result.length > 0)? result.find(x => x.nodeID === file.nodeID) : null ;
             if (node) {
-                file["Batch ID"] = node.batchID;
                 file.status = node.status;
                 file.Orphaned = "N";
+            }
+            const lastBatchID = await this.batchService.getLastFileBatchID(file.submissionID, file.nodeID);
+            if (lastBatch) {
+                file["Batch ID"] = lastBatchID
             }
             const props = {
                 "Batch ID": file["Batch ID"],

@@ -461,9 +461,9 @@ class DataRecordService {
         });
         pipeline.push({
             $project: {
+                _id: 0,
                 nodeID: "$s3FileInfo.fileName",
                 status:  "$s3FileInfo.status",
-                batchID: "$latestBatchID",
             }
         });
         return await this.dataRecordsCollection.aggregate(pipeline);
