@@ -455,8 +455,8 @@ class DataRecordService {
         pipeline.push({
             $match: {
                 submissionID: submissionID, 
-                s3FileInfo: {"$exists": true, "$ne": null},
-                "s3FileInfo.fileName": {"$in": s3FileNames}
+                s3FileInfo: {$exists: true, $ne: null},
+                "s3FileInfo.fileName": {$in: s3FileNames}
             }
         });
         pipeline.push({
@@ -466,10 +466,7 @@ class DataRecordService {
                 batchID: "$latestBatchID",
             }
         });
-        
-        let dataRecords = await this.dataRecordsCollection.aggregate(pipeline);
-        dataRecords = dataRecords.length > 0 ? dataRecords[0] : {}
-        return {results: dataRecords.results || []}
+        return await this.dataRecordsCollection.aggregate(pipeline);
     }
 
     async listSubmissionNodeTypes(submissionID){
