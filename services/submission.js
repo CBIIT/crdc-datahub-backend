@@ -48,7 +48,6 @@ class Submission {
         this.dataRecordService = dataRecordService;
         this.tier = tier;
         this.dataModelInfo = dataModelInfo;
-        this.modelVersion = this.#getModelVersion(dataModelInfo, CDS);
         this.awsService = awsService;
         this.metadataQueueName = metadataQueueName;
         this.s3Service = s3Service;
@@ -68,8 +67,9 @@ class Submission {
         if (!aUserOrganization.studies.some((study) => study.studyAbbreviation === params.studyAbbreviation)) {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
         }
+        const modelVersion = this.#getModelVersion(this.dataModelInfo, params.dataCommons);
         const newSubmission = DataSubmission.createSubmission(
-            params.name, context.userInfo, params.dataCommons, params.studyAbbreviation, params.dbGaPID, aUserOrganization, this.modelVersion, intention, dataType);
+            params.name, context.userInfo, params.dataCommons, params.studyAbbreviation, params.dbGaPID, aUserOrganization, modelVersion, intention, dataType);
         const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
