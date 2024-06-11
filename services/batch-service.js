@@ -118,7 +118,12 @@ class BatchService {
         const totalDocs = batches.pop();
         return totalDocs?.total + 1 || 1;
     }
-
+    /**
+     * getLastFileBatchID
+     * @param {*} submissionID 
+     * @param {*} fileName 
+     * @returns int
+     */
     async getLastFileBatchID(submissionID, fileName){
         const pipeline = [
             {$match: {submissionID: submissionID, type: "data file", "files.fileName": fileName, status: "Uploaded"}},
