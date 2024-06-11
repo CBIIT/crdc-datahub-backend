@@ -20,6 +20,6 @@ Config:
     #file uploading retries
     retries: 3
     # if overwrite existed file
-    overwrite: true
+    overwrite: false
     # if only run file validation without uploading
     dryrun: false
