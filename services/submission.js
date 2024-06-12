@@ -584,7 +584,7 @@ class Submission {
                 file.Orphaned = "N";
             }
             const lastBatchID = await this.batchService.getLastFileBatchID(file.submissionID, file.nodeID);
-            if (lastBatch) {
+            if (lastBatchID) {
                 file["Batch ID"] = lastBatchID
             }
             const props = {
