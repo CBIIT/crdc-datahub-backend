@@ -46,7 +46,8 @@ let config = {
     committee_emails: process.env.REVIEW_COMMITTEE_EMAIL ? process.env.REVIEW_COMMITTEE_EMAIL.split(',') : ["CRDCSubmisison@nih.gov"],
     model_url: getModelUrl(),
     //uploader configuration file template
-    uploaderCLIConfigs: readUploaderCLIConfigTemplate()
+    uploaderCLIConfigs: readUploaderCLIConfigTemplate(),
+    dataCommonsList: process.env.DATA_COMMONS_LIST ? process.env.DATA_COMMONS_LIST : ["CDS", "ICDC"]
 };
 config.mongo_db_connection_string = `mongodb://${config.mongo_db_user}:${config.mongo_db_password}@${config.mongo_db_host}:${process.env.MONGO_DB_PORT}`;
 
@@ -82,7 +83,7 @@ function getModelUrl() {
     }
     const tier = extractTierName();
     // By default url
-    const modelUrl = ['https://raw.githubusercontent.com/CBIIT/crdc-datahub-models/', 'master', '/content.json']
+    const modelUrl = ['https://raw.githubusercontent.com/CBIIT/crdc-datahub-models/', tier || 'master', '/content.json']
     if (tier?.length > 0) {
         modelUrl[1] = tier.toLowerCase();
     }
