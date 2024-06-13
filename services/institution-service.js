@@ -34,7 +34,11 @@ class InstitutionService {
             if (newInstitutionNames.length > 0){
                 const newInstitutions = createNewInstitutions(newInstitutionNames);
                 const insertResult = await this.institutionCollection.insertMany(newInstitutions);
-                console.log(`${insertResult?.insertedCount} new institution(s) created in the database`)
+                const insertedCount = insertResult?.insertedCount;
+                if (insertedCount !== newInstitutions.length){
+                    throw new Error(`only ${insertedCount}/${newInstitutions.length} were created successfully`);
+                }
+                console.log(`${insertedCount} new institution(s) created in the database`)
             }
         }
         catch (exception){
