@@ -8,6 +8,7 @@ let config = {
     inactive_user_days : process.env.INACTIVE_USER_DAYS || 60,
     remind_application_days: process.env.REMIND_APPLICATION_DAYS || 30,
     inactive_application_days : process.env.INACTIVE_APPLICATION_DAYS || 45,
+    inactive_submission_days_notify: process.env.INACTIVE_SUBMISSION_DAYS_NOTIFY || 60,
     //Mongo DB
     mongo_db_user: process.env.MONGO_DB_USER,
     mongo_db_password: process.env.MONGO_DB_PASSWORD,
@@ -46,6 +47,7 @@ let config = {
     model_url: getModelUrl(),
     //uploader configuration file template
     uploaderCLIConfigs: readUploaderCLIConfigTemplate(),
+    dataCommonsList: process.env.DATA_COMMONS_LIST ? process.env.DATA_COMMONS_LIST : ["CDS", "ICDC"],
     inactive_submission_days: process.env.INACTIVE_SUBMISSION_DAYS_DELETE || 120,  // days
 };
 config.mongo_db_connection_string = `mongodb://${config.mongo_db_user}:${config.mongo_db_password}@${config.mongo_db_host}:${process.env.MONGO_DB_PORT}`;
@@ -82,7 +84,7 @@ function getModelUrl() {
     }
     const tier = extractTierName();
     // By default url
-    const modelUrl = ['https://raw.githubusercontent.com/CBIIT/crdc-datahub-models/', 'master', '/content.json']
+    const modelUrl = ['https://raw.githubusercontent.com/CBIIT/crdc-datahub-models/', tier || 'master', '/content.json']
     if (tier?.length > 0) {
         modelUrl[1] = tier.toLowerCase();
     }

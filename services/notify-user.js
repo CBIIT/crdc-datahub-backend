@@ -256,6 +256,22 @@ class NotifyUser {
             );
         });
     }
+
+    async inactiveSubmissionNotification(email, CCs, template_params, messageVariables, tier) {
+        const subject = replaceMessageVariables(this.email_constants.INACTIVE_SUBMISSION_SUBJECT, messageVariables);
+        const message = replaceMessageVariables(this.email_constants.INACTIVE_SUBMISSION_CONTENT, messageVariables);
+        return await this.send(async () => {
+            await this.emailService.sendNotification(
+                this.email_constants.NOTIFICATION_SENDER,
+                isTierAdded(tier) ? `${tier} ${subject}` : subject,
+                await createEmailTemplate("notification-template.html", {
+                    message, ...template_params
+                }),
+                email,
+                CCs
+            );
+        });
+    }
 }
 
 const isTierAdded = (tier) => {

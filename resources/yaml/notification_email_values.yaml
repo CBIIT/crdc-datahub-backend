@@ -33,4 +33,6 @@ REJECT_DATA_SUBMISSION_SUBJECT: "CRDC Data Submission Rejected"
 REJECT_DATA_SUBMISSION_CONTENT: "Your data submission request $submissionID / $submissionName has been rejected by the CRDC Data Team. Please review the status of your submission and correct any errors that have been reported. If you have any questions, please contact $conciergeName at $conciergeEmail"
 RELEASE_DATA_SUBMISSION_SUBJECT: "$Tier CRDC Data Submission Released to $dataCommonName"
 RELEASE_DATA_SUBMISSION_CONTENT: "Data Submission $idandname for study $projectName has passed all validation tests and is ready to be copied to your data commons. Please contact $dataconcierge to arrange the transfer."
+INACTIVE_SUBMISSION_SUBJECT: "Your CRDC Data Submission ( $title ) is to expire"
+INACTIVE_SUBMISSION_CONTENT: "Your data submission, ( $title ), for the $studyName study has not been accessed for $days days. If you intend to complete this data submission, please log into $url and resume your Data Submission. If there are no updates in the next $days days, your Data Submission will be automatically deleted."
 

@@ -39,6 +39,7 @@ const ERROR = {
     INVALID_UPDATE_BATCH_STATUS: "The batch update is aborted because the current batch status is not suitable for modification",
     FAILED_BATCH_UPDATE: "An error occurred while updating a batch",
     INVALID_BATCH_INTENTION: "Uploading data files is not allowed for a Delete submission",
+    INVALID_BATCH_DATA_TYPE: "Uploading data files is not allowed for a Metadata Only submission",
     // Approved Studies
     APPROVED_STUDIES_INSERTION: "An error occurred while attempting to insert the approved studies into the database.",
     ORGANIZATION_APPROVED_STUDIES_INSERTION: "An error occurred while attempting to insert the approved studies for the organization into the database.",
@@ -50,6 +51,8 @@ const ERROR = {
     CREATE_SUBMISSION_INSERTION_ERROR: "An error occurred while attempting to insert the created data submission into the database",
     CREATE_SUBMISSION_INVALID_PARAMS: "One or more of the parameters for creating a submission is invalid",
     CREATE_SUBMISSION_INVALID_INTENTION: "submission intention is invalid",
+    CREATE_SUBMISSION_INVALID_DATA_TYPE: "submission data type is invalid",
+    CREATE_SUBMISSION_INVALID_DELETE_INTENTION: "when intention is Delete, only 'Metadata Only' is allowed",
     UPDATE_SUBMISSION_ERROR:"An error occurred while attempting to update the submission in the database",
     CREATE_SUBMISSION_INVALID_DATA_COMMONS: "Invalid Data Commons for creating a submission",
     CREATE_SUBMISSION_NO_MATCHING_STUDY: "The study provided does not match an approved study within the user's organization",

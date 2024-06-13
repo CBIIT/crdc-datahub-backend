@@ -76,8 +76,9 @@ type Submission {
     errors: [ErrorMessage] # store validation errors
     createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
     updatedAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
-    intention: String # [Update, New, Delete]
+    intention: String # [New/Update, Delete]
     otherSubmissions: String
+    dataType: String # [Metadata Only, Metadata and Data Files]
     accessedAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
 }
 
@@ -361,6 +362,11 @@ type Node {
     props: String #a stringified JSON string contains all properties of the node, including parent mapping properties like program.prorgam_acronym
 }
 
+type institution {
+    _id: ID,
+    name: String
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -446,6 +452,8 @@ type Query {
         dataFolder: String = "/Users/my_name/my_files",
         manifest: String = "/Users/my_name/my_manifest.tsv"
     ): String
+
+    listInstitutions: [String]
 }
 type Mutation {
     "User initiated operations"
@@ -463,7 +471,7 @@ type Mutation {
     deleteApplication (_id: ID!): Application
 
     "Submitter or Org Owner"
-    createSubmission (studyAbbreviation: String!, dbGaPID: String, dataCommons: String!, name: String!, intention: String!): Submission
+    createSubmission (studyAbbreviation: String!, dbGaPID: String, dataCommons: String!, name: String!, intention: String!, dataType: String!): Submission
     submissionAction (
         submissionID: ID!,
         # in [Submit, Release, Withdraw, Reject, Complete, Cancel, Archive]

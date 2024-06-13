@@ -7,7 +7,8 @@ const {AWSService} = require("../services/aws-request");
 const {MongoQueries} = require("../crdc-datahub-database-drivers/mongo-queries");
 const {DATABASE_NAME, APPLICATION_COLLECTION, SUBMISSIONS_COLLECTION, USER_COLLECTION, ORGANIZATION_COLLECTION, LOG_COLLECTION,
     APPROVED_STUDIES_COLLECTION, BATCH_COLLECTION,
-    DATA_RECORDS_COLLECTION
+    DATA_RECORDS_COLLECTION,
+    INSTITUTION_COLLECTION
 } = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoDBCollection} = require("../crdc-datahub-database-drivers/mongodb-collection");
 const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-connector");
@@ -21,6 +22,7 @@ const {Organization} = require("../crdc-datahub-database-drivers/services/organi
 const ERROR = require("../constants/error-constants");
 const {DataRecordService} = require("../services/data-record-service");
 const {UtilityService} = require("../services/utility");
+const {InstitutionService} = require("../services/institution-service");
 const schema = buildSchema(require("fs").readFileSync("resources/graphql/crdc-datahub.graphql", "utf8"));
 const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
 const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
@@ -33,7 +35,7 @@ dbConnector.connect().then(async () => {
     const emailService = new EmailService(config.email_transport, config.emails_enabled);
     const notificationsService = new NotifyUser(emailService);
     const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days,
-        submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk};
+        submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk, remindSubmissionDay: config.inactive_submission_days_notify};
     const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
     const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection);
@@ -44,13 +46,15 @@ dbConnector.connect().then(async () => {
     const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
     const awsService = new AWSService(submissionCollection, userService);
     const batchService = new BatchService(s3Service, batchCollection, config.sqs_loader_queue, awsService);
+    const institutionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, INSTITUTION_COLLECTION);
+    const institutionService = new InstitutionService(institutionCollection);
 
     const dataRecordCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_COLLECTION);
     const dataRecordService = new DataRecordService(dataRecordCollection, config.file_queue, config.metadata_queue, awsService);
 
     const utilityService = new UtilityService();
     const dataModelInfo = await utilityService.fetchJsonFromUrl(config.model_url);
-    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, dataModelInfo, awsService, config.export_queue, s3Service);
+    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, dataModelInfo, awsService, config.export_queue, s3Service, emailParams, config.dataCommonsList);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.tier);
 
     root = {
@@ -84,6 +88,7 @@ dbConnector.connect().then(async () => {
         listSubmissionNodeTypes: submissionService.listSubmissionNodeTypes.bind(submissionService),
         getSubmissionNodes: submissionService.listSubmissionNodes.bind(submissionService),
         retrieveCLIConfig: submissionService.getUploaderCLIConfigs.bind(submissionService),
+        listInstitutions: institutionService.listInstitutions.bind(institutionService),
         // AuthZ
         getMyUser : userService.getMyUser.bind(userService),
         getUser : userService.getUser.bind(userService),

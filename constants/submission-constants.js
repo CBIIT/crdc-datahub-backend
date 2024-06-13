@@ -9,6 +9,7 @@ module.exports = Object.freeze({
     CANCELED:'Canceled',
     REJECTED:'Rejected',
     WITHDRAWN: 'Withdrawn',
+    DELETED: "Deleted",
     EXPORT: "Export metadata",
     //data submission actions
     ACTIONS: {
@@ -43,9 +44,12 @@ module.exports = Object.freeze({
         }
     },
     INTENTION: {
-        UPDATE: "Update",
-        NEW: "New",
+        UPDATE: "New/Update",
         DELETE: "Delete"
     },
-    DATA_FILE: "Data File"
+    DATA_FILE: "Data File",
+    DATA_TYPE: {
+        METADATA_ONLY: "Metadata Only",
+        METADATA_AND_DATA_FILES: "Metadata and Data Files"
+    }
 });
