@@ -1,5 +1,6 @@
 const {verifySession} = require("../verifier/user-info-verifier");
 const {v4} = require('uuid')
+const {getListDifference} = require("../utility/list-util");
 
 class InstitutionService {
 
@@ -26,28 +27,34 @@ class InstitutionService {
         return institutionsArray;
     }
 
-    // Create institutions if they don't already exist in the database
-    async addNewInstitutions(institutionNames) {
-        institutionNames = institutionNames instanceof Array ? institutionNames : [];
-        if (institutionNames.length > 0){
+    async addNewInstitutions(institutionNames){
+        try{
             const existingInstitutions = await this.#listInstitutions();
-            let newInstitutions = [];
-            institutionNames.forEach(name => {
-                if (!existingInstitutions.includes(name)) {
-                    newInstitutions.push({
-                        _id: v4(undefined, undefined, undefined),
-                        name: name
-                    });
-                }
-            });
-            if (newInstitutions.length > 0){
+            const newInstitutionNames = getListDifference(institutionNames, existingInstitutions);
+            if (newInstitutionNames.length > 0){
+                const newInstitutions = createNewInstitutions(newInstitutionNames);
                 const insertResult = await this.institutionCollection.insertMany(newInstitutions);
                 console.log(`${insertResult?.insertedCount} new institution(s) created in the database`)
             }
         }
+        catch (exception){
+            console.error('An exception occurred while attempting to create new institutions: ', exception);
+        }
     }
 }
 
+function createNewInstitutions(institutionNames){
+    let newInstitutions = [];
+    institutionNames.forEach(name => {
+        newInstitutions.push({
+            _id: v4(undefined, undefined, undefined),
+            name: name
+        });
+    });
+    return newInstitutions;
+}
+
 module.exports = {
-    InstitutionService
+    InstitutionService,
+    createNewInstitutions
 };
