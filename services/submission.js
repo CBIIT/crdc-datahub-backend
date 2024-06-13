@@ -654,6 +654,7 @@ class Submission {
                     const result = await this.s3Service.deleteDirectory(sub.bucketName, sub.rootPath);
                     if (result === true) {
                         await this.dataRecordService.deleteMetadataByFilter({"submissionID": sub._id});
+                        await this.batchService.deleteBatchByFilter({"submissionID": sub._id});
                         await this.submissionCollection.updateOne({"_id": sub._id}, {"status" : "Deleted", "updatedAt": new Date()});
                         console.debug(`Successfully deleted inactive submissions: ${sub._id}.`);
                     }
