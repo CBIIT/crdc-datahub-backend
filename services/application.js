@@ -15,7 +15,7 @@ const {parseJsonString} = require("../crdc-datahub-database-drivers/utility/stri
 const {formatName} = require("../utility/format-name");
 
 class Application {
-    constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, tier) {
+    constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, tier, institutionService) {
         this.logCollection = logCollection;
         this.applicationCollection = applicationCollection;
         this.approvedStudiesService = approvedStudiesService;
@@ -25,6 +25,7 @@ class Application {
         this.emailParams = emailParams;
         this.organizationService = organizationService;
         this.tier = tier;
+        this.institutionService = institutionService;
     }
 
     async getApplication(params, context) {
@@ -244,20 +245,19 @@ class Application {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
             $push: {history}
         });
-        await this.sendEmailAfterApproveApplication(context, application);
+        let promises = [];
+        promises.push(this.institutionService.addNewInstitutions(document.institutions));
+        promises.push(this.sendEmailAfterApproveApplication(context, application));
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
-            const promises = [
-                await this.getApplicationById(document._id),
-                await saveApprovedStudies(this.approvedStudiesService, this.organizationService, application),
-                this.logCollection.insert(
-                    UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, APPROVED)
-                )
-            ];
-            return await Promise.all(promises).then(function(results) {
-                return results[0];
-            });
+            promises.unshift(this.getApplicationById(document._id));
+            promises.push(saveApprovedStudies(this.approvedStudiesService, this.organizationService, application));
+            promises.push(this.logCollection.insert(
+                UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, APPROVED)
+            ));
         }
-        return null;
+        return await Promise.all(promises).then(results => {
+            return results[0];
+        })
     }
 
     async rejectApplication(document, context) {
