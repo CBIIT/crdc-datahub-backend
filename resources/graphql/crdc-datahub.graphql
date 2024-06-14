@@ -79,6 +79,7 @@ type Submission {
     intention: String # [New/Update, Delete]
     otherSubmissions: String
     dataType: String # [Metadata Only, Metadata and Data Files]
+    inactiveReminder: Boolean
 }
 
 type Batch {
