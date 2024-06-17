@@ -79,9 +79,10 @@ type Submission {
     intention: String # [New/Update, Delete]
     otherSubmissions: String
     dataType: String # [Metadata Only, Metadata and Data Files]
+    inactiveReminder: Boolean
     validationStarted: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
     validationEnded: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
-    validationType: String
+    validationType: [String] # String [metadata, file, cross-submission, data file]
     validationScope: String
 }
 
