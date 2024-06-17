@@ -218,7 +218,7 @@ class Submission {
             if( conditionDCPOC || conditionORGOwner || conditionSubmitter || conditionAdmin){
                 // Store the timestamp for the inactive submission purpose
                 if (conditionSubmitter) {
-                    await this.submissionCollection.update({_id: aSubmission?._id, accessedAt: getCurrentTime()});
+                    await this.submissionCollection.update({_id: aSubmission?._id, accessedAt: getCurrentTime(), inactiveReminder: false});
                 }
                 return aSubmission
             }
@@ -285,7 +285,6 @@ class Submission {
         const remindCondition = {
             accessedAt: {
                 $lt: subtractDaysFromNow(inactiveDuration),
-                $gt: subtractDaysFromNow(inactiveDuration + 1),
             },
             status: {$in: [NEW, IN_PROGRESS, REJECTED, WITHDRAWN]},
             inactiveReminder: {$ne: true}
