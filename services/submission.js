@@ -70,7 +70,7 @@ class Submission {
         }
         const modelVersion = this.#getModelVersion(this.dataModelInfo, params.dataCommons);
         const newSubmission = DataSubmission.createSubmission(
-            params.name, userInfo, params.dataCommons, params.studyAbbreviation, params.dbGaPID, aUserOrganization, this.modelVersion, intention);
+            params.name, context.userInfo, params.dataCommons, params.studyAbbreviation, params.dbGaPID, aUserOrganization, modelVersion, intention);
         const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
@@ -722,8 +722,8 @@ class Submission {
         }
     }
 
-    #getModelVersion(dataModelInfo) {
-        const modelVersion = dataModelInfo?.["CDS"]?.["current-version"];
+    #getModelVersion(dataModelInfo, dataCommonType) {
+        const modelVersion = dataModelInfo?.[dataCommonType]?.["current-version"];
         if (modelVersion) {
             return modelVersion;
         }
