@@ -387,6 +387,10 @@ class DataRecordService {
         }
     }
 
+    async deleteMetadataByFilter(filter){
+        return await this.dataRecordsCollection.deleteMany(filter);
+    }
+
     async submissionNodes(submissionID, nodeType, first, offset, orderBy, sortDirection) {
         // set orderBy
         let sort = orderBy;

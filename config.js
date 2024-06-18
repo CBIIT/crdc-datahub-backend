@@ -47,7 +47,8 @@ let config = {
     model_url: getModelUrl(),
     //uploader configuration file template
     uploaderCLIConfigs: readUploaderCLIConfigTemplate(),
-    dataCommonsList: process.env.DATA_COMMONS_LIST ? process.env.DATA_COMMONS_LIST : ["CDS", "ICDC"]
+    dataCommonsList: process.env.DATA_COMMONS_LIST ? process.env.DATA_COMMONS_LIST : ["CDS", "ICDC"],
+    inactive_submission_days: process.env.INACTIVE_SUBMISSION_DAYS_DELETE || 120,  // days
 };
 config.mongo_db_connection_string = `mongodb://${config.mongo_db_user}:${config.mongo_db_password}@${config.mongo_db_host}:${process.env.MONGO_DB_PORT}`;
 

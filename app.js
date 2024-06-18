@@ -14,6 +14,9 @@ const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, LOG_COLLECTION, A
     ORGANIZATION_COLLECTION, SUBMISSIONS_COLLECTION, BATCH_COLLECTION, DATA_RECORDS_COLLECTION, VALIDATION_COLLECTION
 } = require("./crdc-datahub-database-drivers/database-constants");
 const {Application} = require("./services/application");
+const {Submission} = require("./services/submission");
+const {DataRecordService} = require("./services/data-record-service");
+const {S3Service} = require("./crdc-datahub-database-drivers/services/s3-service");
 const {MongoQueries} = require("./crdc-datahub-database-drivers/mongo-queries");
 const {DatabaseConnector} = require("./crdc-datahub-database-drivers/database-connector");
 const {getCurrentTime, subtractDaysFromNow} = require("./crdc-datahub-database-drivers/utility/time-utility");
@@ -25,11 +28,8 @@ const {ApprovedStudiesService} = require("./services/approved-studies");
 const {USER} = require("./crdc-datahub-database-drivers/constants/user-constants");
 const {Organization} = require("./crdc-datahub-database-drivers/services/organization");
 const {LOGIN, REACTIVATE_USER} = require("./crdc-datahub-database-drivers/constants/event-constants");
-const {Submission} = require("./services/submission");
 const {BatchService} = require("./services/batch-service");
-const {S3Service} = require("./crdc-datahub-database-drivers/services/s3-service");
 const {AWSService} = require("./services/aws-request");
-const {DataRecordService} = require("./services/data-record-service");
 const {UtilityService} = require("./services/utility");
 // print environment variables to log
 console.info(config);
@@ -97,8 +97,9 @@ cronJob.schedule(config.schedule_job, async () => {
         await runDeactivateInactiveUsers(userService, notificationsService);
         console.log("Running a scheduled background task to remind inactive application at " + getCurrentTime());
         await dataInterface.remindApplicationSubmission();
-        console.log("Running a scheduled background task to remind inactive submission at " + getCurrentTime());
-        await submissionService.remindInactiveSubmission();
+        console.log("Running a scheduled job to delete inactive data submission and related data ann files at " + getCurrentTime());
+        const subInterface = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, null, null, null, null, s3Service )
+        await subInterface.deleteInactiveSubmissions()
         await dbConnector.disconnect();
     });
 });

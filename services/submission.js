@@ -70,7 +70,7 @@ class Submission {
         }
         const modelVersion = this.#getModelVersion(this.dataModelInfo, params.dataCommons);
         const newSubmission = DataSubmission.createSubmission(
-            params.name, context.userInfo, params.dataCommons, params.studyAbbreviation, params.dbGaPID, aUserOrganization, modelVersion, intention, dataType);
+            params.name, userInfo, params.dataCommons, params.studyAbbreviation, params.dbGaPID, aUserOrganization, this.modelVersion, intention);
         const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
@@ -634,6 +634,44 @@ class Submission {
         return ValidationHandler.success(`${res.filter(result => result.status === 'fulfilled').length} extra files deleted`);
     }
 
+    /**
+     * deleteInactiveSubmission
+     * description: overnight job to set inactive submission status to "Deleted", delete related data and files
+     */
+    async deleteInactiveSubmissions(){
+        //get target inactive date, current date - config.inactive_submission_days (default 120 days)
+        var target_inactive_date = new Date();
+        target_inactive_date.setDate(target_inactive_date.getDate() - config.inactive_submission_days);
+        const query = [{"$match": {"status": IN_PROGRESS, "accessedAt": {"$exists": true, "$ne": null, "$lte": target_inactive_date}}}];
+        try {
+            const inactive_subs = await this.submissionCollection.aggregate(query);
+            if (!inactive_subs || inactive_subs.length === 0) {
+                console.debug("No inactive submission found.")
+                return "No inactive submissions";
+            }
+            let failed_delete_subs = []
+            //delete related data and files
+            for (const sub of inactive_subs) {
+                try {
+                    const result = await this.s3Service.deleteDirectory(sub.bucketName, sub.rootPath);
+                    if (result === true) {
+                        await this.dataRecordService.deleteMetadataByFilter({"submissionID": sub._id});
+                        await this.batchService.deleteBatchByFilter({"submissionID": sub._id});
+                        await this.submissionCollection.updateOne({"_id": sub._id}, {"status" : "Deleted", "updatedAt": new Date()});
+                        console.debug(`Successfully deleted inactive submissions: ${sub._id}.`);
+                    }
+                } catch (e) {
+                    console.error(`Failed to delete files under inactive submission: ${sub._id} with error: ${e.message}.`);
+                    failed_delete_subs.push(sub._id);
+                }
+            }
+            return (failed_delete_subs.length === 0 )? "successful!" : `Failed to delete files under submissions: ${failed_delete_subs.toString()}.  please contact admin.`;
+        }
+        catch (e){
+            console.error("Failed to delete inactive submission(s) with error:" + e.message);
+            return "failed!";
+        }
+    }
     async #verifyQCResultsReadPermissions(context, submissionID){
         verifySession(context)
             .verifyInitialized()
@@ -684,8 +722,8 @@ class Submission {
         }
     }
 
-    #getModelVersion(dataModelInfo, dataCommonType) {
-        const modelVersion = dataModelInfo?.[dataCommonType]?.["current-version"];
+    #getModelVersion(dataModelInfo) {
+        const modelVersion = dataModelInfo?.["CDS"]?.["current-version"];
         if (modelVersion) {
             return modelVersion;
         }
