@@ -80,6 +80,21 @@ type Submission {
     otherSubmissions: String
     dataType: String # [Metadata Only, Metadata and Data Files]
     accessedAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    inactiveReminder: Boolean
+    validationStarted: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    validationEnded: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    validationType: [String] # String [metadata, file, cross-submission, data file]
+    validationScope: String
+}
+
+# not being used currently
+type Validation {
+    _id: ID
+    submissionID: String
+    type: [String]
+    scope: String
+    started:  Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    status: String
 }
 
 type Batch {
@@ -463,7 +478,7 @@ type Mutation {
 
     "Fed lead initiated operations"
     reviewApplication (_id: ID!): Application # same as getApplication but will set Application to "In Review" state
-    approveApplication (_id: ID!, wholeProgram: Boolean, comment: String): Application
+    approveApplication (_id: ID!, wholeProgram: Boolean, comment: String, institutions: [String]): Application
     rejectApplication (_id: ID!, comment: String!): Application
     inquireApplication (_id: ID!, comment: String!): Application
 

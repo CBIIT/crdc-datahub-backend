@@ -38,7 +38,7 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, dataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, dataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList, validationCollection) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -53,6 +53,7 @@ class Submission {
         this.s3Service = s3Service;
         this.emailParams = emailParams;
         this.allowedDataCommons = new Set(dataCommonsList);
+        this.validationCollection = validationCollection;
     }
 
     async createSubmission(params, context) {
@@ -217,7 +218,7 @@ class Submission {
             if( conditionDCPOC || conditionORGOwner || conditionSubmitter || conditionAdmin){
                 // Store the timestamp for the inactive submission purpose
                 if (conditionSubmitter) {
-                    await this.submissionCollection.update({_id: aSubmission?._id, accessedAt: getCurrentTime()});
+                    await this.submissionCollection.update({_id: aSubmission?._id, accessedAt: getCurrentTime(), inactiveReminder: false});
                 }
                 return aSubmission
             }
@@ -284,7 +285,6 @@ class Submission {
         const remindCondition = {
             accessedAt: {
                 $lt: subtractDaysFromNow(inactiveDuration),
-                $gt: subtractDaysFromNow(inactiveDuration + 1),
             },
             status: {$in: [NEW, IN_PROGRESS, REJECTED, WITHDRAWN]},
             inactiveReminder: {$ne: true}
@@ -403,31 +403,33 @@ class Submission {
             [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus, aSubmission?.crossSubmissionStatus, aSubmission?.updatedAt];
 
         await this.#updateValidationStatus(params?.types, aSubmission, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING, getCurrentTime());
-        const result = await this.dataRecordService.validateMetadata(params._id, params?.types, params?.scope);
+        const validationRecord = ValidationRecord.createValidation(aSubmission?._id, params?.types, params?.scope, VALIDATION_STATUS.VALIDATING);
+        const result = await this.dataRecordService.validateMetadata(params._id, params?.types, params?.scope, validationRecord._id);
+        const updatedSubmission = await this.#recordSubmissionValidation(params._id, validationRecord);
         // roll back validation if service failed
         if (!result.success) {
             if (result.message && result.message.includes(ERROR.NO_VALIDATION_METADATA)) {
                 if (result.message.includes(ERROR.FAILED_VALIDATE_FILE)) 
-                    await this.#updateValidationStatus(params?.types, aSubmission, null, prevFileValidationStatus, null, getCurrentTime());
+                    await this.#updateValidationStatus(params?.types, updatedSubmission, null, prevFileValidationStatus, null, getCurrentTime());
                 else {
-                    await this.#updateValidationStatus(params?.types, aSubmission, null, "NA", null, getCurrentTime());
+                    await this.#updateValidationStatus(params?.types, updatedSubmission, null, "NA", null, getCurrentTime());
                     result.success = true;
                 }
             } 
             else if (result.message && result.message.includes(ERROR.NO_NEW_VALIDATION_METADATA)){
                 if (result.message.includes(ERROR.FAILED_VALIDATE_FILE))
-                    await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, prevFileValidationStatus, null, prevTime);
+                    await this.#updateValidationStatus(params?.types, updatedSubmission, prevMetadataValidationStatus, prevFileValidationStatus, null, prevTime);
                 else {
-                    await this.#updateValidationStatus(params?.types, aSubmission, prevMetadataValidationStatus, "NA", null, prevTime);
+                    await this.#updateValidationStatus(params?.types, updatedSubmission, prevMetadataValidationStatus, "NA", null, prevTime);
                     result.success = true;
                 }
             } else if (result.message && result.message.includes(ERROR.FAILED_VALIDATE_CROSS_SUBMISSION)) {
-                await this.#updateValidationStatus(params?.types, aSubmission, null, null, prevCrossSubmissionStatus, prevTime);
+                await this.#updateValidationStatus(params?.types, updatedSubmission, null, null, prevCrossSubmissionStatus, prevTime);
             } else {
                 const metadataValidationStatus = result.message.includes(ERROR.FAILED_VALIDATE_METADATA) ? prevMetadataValidationStatus : "NA";
                 const fileValidationStatus = (result.message.includes(ERROR.FAILED_VALIDATE_FILE)) ? prevFileValidationStatus : "NA";
                 const crossSubmissionStatus = result.message.includes(ERROR.FAILED_VALIDATE_CROSS_SUBMISSION) ? prevCrossSubmissionStatus : "NA";
-                await this.#updateValidationStatus(params?.types, aSubmission, metadataValidationStatus, fileValidationStatus, crossSubmissionStatus, prevTime);
+                await this.#updateValidationStatus(params?.types, updatedSubmission, metadataValidationStatus, fileValidationStatus, crossSubmissionStatus, prevTime);
             }
         }
         return result;
@@ -736,6 +738,18 @@ class Submission {
         }
     }
 
+    async #recordSubmissionValidation(submissionID, validationRecord) {
+        const dataValidation = DataValidation.createDataValidation(validationRecord.type, validationRecord.scope, validationRecord.started);
+        let updated = await this.submissionCollection.findOneAndUpdate({_id: submissionID}, {...dataValidation, updatedAt: getCurrentTime()}, {returnDocument: 'after'});
+        if (!updated?.value) {
+            throw new Error(ERROR.FAILED_RECORD_VALIDATION_PROPERTY);
+        }
+        const res = await this.validationCollection.insert(ValidationRecord.createValidation(submissionID, dataValidation.validationType, dataValidation.validationScope, VALIDATION_STATUS.VALIDATING));
+        if (!res?.acknowledged) {
+            throw new Error(ERROR.FAILED_INSERT_VALIDATION_OBJECT);
+        }
+        return updated.value;
+    }
 }
 
 const updateSubmissionStatus = async (submissionCollection, aSubmission, userInfo, newStatus) => {
@@ -1153,6 +1167,41 @@ const isSubmissionPermitted = (aSubmission, userInfo) => {
         return;
     }
     throw new Error(ERROR.INVALID_STATS_SUBMISSION_PERMISSION);
+}
+
+class ValidationRecord {
+    // submissionID: string
+    // type: array
+    // scope: array
+    // started: Date
+    // status: string
+    constructor(submissionID, type, scope, status) {
+        this._id = v4();
+        this.submissionID = submissionID;
+        this.type = type;
+        this.scope = scope;
+        this.started = getCurrentTime();
+        this.status = status;
+    }
+    static createValidation(submissionID, validationType, validationScope, status) {
+        return new ValidationRecord(submissionID, validationType, validationScope, status);
+    }
+}
+
+
+class DataValidation {
+    // validationType: string
+    // validationScope: string
+    // validationStarted: Date
+    constructor(validationType, validationScope, validationStarted) {
+        this.validationStarted = validationStarted ? validationStarted : getCurrentTime();
+        this.validationEnded = null;
+        this.validationType = validationType?.map(type => type.toLowerCase());
+        this.validationScope = validationScope?.toLowerCase();
+    }
+    static createDataValidation(validationType, validationScope, validationStarted) {
+        return new DataValidation(validationType, validationScope, validationStarted);
+    }
 }
 
 class DataSubmission {

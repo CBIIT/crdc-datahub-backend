@@ -84,7 +84,7 @@ class DataRecordService {
         }
     }
 
-    async validateMetadata(submissionID, types, scope) {
+    async validateMetadata(submissionID, types, scope, validationID) {
         isValidMetadata(types, scope);
         const isMetadata = types.some(t => t === VALIDATION.TYPES.METADATA || t === VALIDATION.TYPES.CROSS_SUBMISSION);
         let errorMessages = [];
@@ -93,14 +93,14 @@ class DataRecordService {
             if (docCount === 0)  errorMessages.push(ERRORS.FAILED_VALIDATE_METADATA, ERRORS.NO_VALIDATION_METADATA);
             else {
                 if (types.includes(VALIDATION.TYPES.CROSS_SUBMISSION)) {
-                    const msg = Message.createMetadataMessage("Validate Cross-submission", submissionID);
+                    const msg = Message.createMetadataMessage("Validate Cross-submission", submissionID, null, validationID);
                     const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.metadataQueueName, submissionID);
                     if (!success.success)
                         errorMessages.push(ERRORS.FAILED_VALIDATE_CROSS_SUBMISSION, success.message);
                 } else {
                     const newDocCount = await getCount(this.dataRecordsCollection, submissionID, scope);
                     if (!(scope.toLowerCase() === VALIDATION.SCOPE.NEW && newDocCount === 0)) {
-                        const msg = Message.createMetadataMessage("Validate Metadata", submissionID, scope);
+                        const msg = Message.createMetadataMessage("Validate Metadata", submissionID, scope, validationID);
                         const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.metadataQueueName, submissionID);
                         if (!success.success)
                             errorMessages.push(ERRORS.FAILED_VALIDATE_METADATA, success.message)
@@ -117,13 +117,13 @@ class DataRecordService {
             const fileNodes = await getFileNodes(this.dataRecordsCollection, submissionID, scope);
             if (fileNodes && fileNodes.length > 0) {
                 for (const aFile of fileNodes) {
-                    const msg = Message.createFileNodeMessage("Validate File", aFile._id);
+                    const msg = Message.createFileNodeMessage("Validate File", aFile._id, validationID);
                     const result = await sendSQSMessageWrapper(this.awsService, msg, aFile._id, this.fileQueueName, submissionID);
                     if (!result.success)
                         fileValidationErrors.push(result.message);
                 }
             }
-            const msg = Message.createFileSubmissionMessage("Validate Submission Files", submissionID);
+            const msg = Message.createFileSubmissionMessage("Validate Submission Files", submissionID, validationID);
             const result= await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.fileQueueName, submissionID);
             if (!result.success)
                 fileValidationErrors.push(result.message);
@@ -521,11 +521,14 @@ const isValidMetadata = (types, scope) => {
 }
 
 class Message {
-    constructor(type) {
+    constructor(type, validationID) {
         this.type = type;
+        if (validationID) {
+            this.validationID = validationID;
+        }
     }
-    static createMetadataMessage(type, submissionID, scope) {
-        const msg = new Message(type);
+    static createMetadataMessage(type, submissionID, scope, validationID) {
+        const msg = new Message(type, validationID);
         msg.submissionID = submissionID;
         if (scope) {
             msg.scope= scope;
@@ -533,14 +536,14 @@ class Message {
         return msg;
     }
 
-    static createFileSubmissionMessage(type, submissionID) {
-        const msg = new Message(type);
+    static createFileSubmissionMessage(type, submissionID, validationID) {
+        const msg = new Message(type, validationID);
         msg.submissionID = submissionID;
         return msg;
     }
 
-    static createFileNodeMessage(type, dataRecordID) {
-        const msg = new Message(type);
+    static createFileNodeMessage(type, dataRecordID, validationID) {
+        const msg = new Message(type, validationID);
         msg.dataRecordID = dataRecordID;
         return msg;
     }
