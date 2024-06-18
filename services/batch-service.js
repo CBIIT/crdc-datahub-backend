@@ -106,6 +106,10 @@ class BatchService {
             }
         });
     }
+    
+    async deleteBatchByFilter(filter) {
+        return await this.batchCollection.deleteMany(filter);
+    }
 
     async findByID(id) {
         const aBatch = await this.batchCollection.find(id);
