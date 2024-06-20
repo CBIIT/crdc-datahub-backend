@@ -108,7 +108,7 @@ const submissionActionMap = [
         roles: [ROLES.ADMIN, ROLES.DC_POC], toStatus:REJECTED},
     {action:ACTIONS.COMPLETE, fromStatus: [RELEASED], 
         roles: [ROLES.CURATOR,ROLES.ADMIN, ROLES.DC_POC], toStatus:COMPLETED},
-    {action:ACTIONS.CANCEL, fromStatus: [NEW,IN_PROGRESS], 
+    {action:ACTIONS.CANCEL, fromStatus: [NEW,IN_PROGRESS, REJECTED],
         roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:CANCELED},
     {action:ACTIONS.ARCHIVE, fromStatus: [COMPLETED], 
         roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:ARCHIVED},
