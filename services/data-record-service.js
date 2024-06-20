@@ -24,12 +24,15 @@ const NODE_VIEW = {
     parents: "$parents",
     rawData: "$rawData"
 }
+
+const FILE = "file";
 class DataRecordService {
-    constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService) {
+    constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService, s3Service) {
         this.dataRecordsCollection = dataRecordsCollection;
         this.fileQueueName = fileQueueName;
         this.metadataQueueName = metadataQueueName;
         this.awsService = awsService;
+        this.s3Service = s3Service;
     }
 
     async submissionStats(aSubmission) {
@@ -38,10 +41,11 @@ class DataRecordService {
         const res = await Promise.all([
             this.dataRecordsCollection.aggregate([{ "$match": {submissionID: aSubmission?._id, status: {$in: validNodeStatus}}}, groupPipeline]),
             this.dataRecordsCollection.aggregate([
-                { "$match": {submissionID: aSubmission?._id, "s3FileInfo.status": {$in: validNodeStatus}}},
-                { "$group": { _id: "$s3FileInfo.status", count: { $sum: 1 }} }]),
+                { "$match": {submissionID: aSubmission?._id, "s3FileInfo.status": {$in: validNodeStatus}}}]),
+            // submission's root path should be matched, otherwise the other file node count return wrong
+            await this.s3Service.listFile(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}`)
         ]);
-        const [groupByNodeType, groupByDataFile] = res;
+        const [groupByNodeType, fileRecords, s3SubmissionFiles] = res;
         const statusPipeline = { "$group": { _id: "$status", count: { $sum: 1 }}};
         const promises = groupByNodeType.map(async node =>
             [await this.dataRecordsCollection.aggregate([{ "$match": {submissionID: aSubmission?._id, nodeType: node?._id, status: {$in: validNodeStatus}}}, statusPipeline]), node?._id]
@@ -58,17 +62,48 @@ class DataRecordService {
                 submissionStats.addStats(stat);
             }
         });
-        this.#saveDataFileStats(submissionStats, groupByDataFile, aSubmission);
+        const uploadedFiles = s3SubmissionFiles?.Contents
+            .filter((f)=> f && f.Key !== `${aSubmission.rootPath}/${FILE}/`)
+            .map((f)=> f.Key.replace(`${aSubmission.rootPath}/${FILE}/`, ''));
+        // This dataFiles represents the intersection of the orphanedFiles and missingFiles.
+        const [orphanedFiles, missingFiles, dataFiles] = this.#dataFilesStats(uploadedFiles, fileRecords);
+        this.#saveDataFileStats(submissionStats, orphanedFiles, missingFiles, dataFiles, aSubmission);
         return submissionStats;
     }
 
-    #saveDataFileStats(submissionStats, dataFiles, aSubmission) {
+
+    #dataFilesStats(s3SubmissionFiles, fileRecords) {
+        const s3FileSet = new Set(s3SubmissionFiles);
+        const fileDataRecordsMap = new Map(fileRecords.map(file => [file?.s3FileInfo?.fileName, file?.s3FileInfo]));
+        const [orphanedFiles, missingFiles, dataFiles] = [[], [], []];
+
+        s3FileSet.forEach(file => {
+            if (fileDataRecordsMap.has(file)) {
+                dataFiles.push(fileDataRecordsMap.get(file));
+            } else {
+                orphanedFiles.push(file);
+            }
+        });
+
+        fileRecords.forEach(file => {
+            if (!s3FileSet.has(file?.s3FileInfo?.fileName)) {
+                missingFiles.push(file?.s3FileInfo?.fileName);
+            }
+        });
+
+        return [orphanedFiles, missingFiles, dataFiles];
+    }
+
+    #saveDataFileStats(submissionStats, orphanedFiles, missingFiles, dataFiles, aSubmission) {
         const stat = Stat.createStat(DATA_FILE);
+        // submission error should be under data file's s3FileInfo.status == "Error", plus count of orphanedFiles + missingFiles
         aSubmission?.fileErrors?.forEach(file => {
             if (file?.type === DATA_FILE) {
                 stat.countNodeType(VALIDATION_STATUS.ERROR, 1);
             }
         });
+        stat.countNodeType(VALIDATION_STATUS.ERROR, orphanedFiles.length + missingFiles.length);
+        // submission warning should be under data file's s3FileInfo.status == "Warning", plus count of Submission.fileWarnings
         aSubmission?.fileWarnings?.forEach(file => {
             if (file?.type === DATA_FILE) {
                 stat.countNodeType(VALIDATION_STATUS.WARNING, 1);
@@ -76,7 +111,7 @@ class DataRecordService {
         });
 
         dataFiles.forEach(node => {
-            stat.countNodeType(node?._id, node.count);
+            stat.countNodeType(node?.status, 1);
         });
 
         if (stat.total > 0) {
