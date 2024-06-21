@@ -100,6 +100,7 @@ const ERROR = {
     NO_UPLOADER_CLI_CONFIG_TEMPLATE: "Data file uploader CLI config template is not found.",
     INVALID_DATA_MODEL: "No file node properties in the data model.",
     NO_SUBMISSION_BUCKET: "Unable to create a batch, no submission bucket is stored",
+    FAILED_LIST_DATA_FILES: "Unable to list data files in the bucket",
 }
 
 module.exports = ERROR;

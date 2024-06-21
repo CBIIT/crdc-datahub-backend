@@ -487,6 +487,27 @@ class DataRecordService {
             results: dataRecords.results || []}
     }
 
+    async submissionDataFiles(submissionID, nodeType, first, offset, orderBy, sortDirection, s3FileNames) {
+        // set orderBy
+        let sort = orderBy;
+        let pipeline = [];
+        pipeline.push({
+            $match: {
+                submissionID: submissionID, 
+                s3FileInfo: {$exists: true, $ne: null},
+                "s3FileInfo.fileName": {$in: s3FileNames}
+            }
+        });
+        pipeline.push({
+            $project: {
+                _id: 0,
+                nodeID: "$s3FileInfo.fileName",
+                status:  "$s3FileInfo.status",
+            }
+        });
+        return await this.dataRecordsCollection.aggregate(pipeline);
+    }
+
     async listSubmissionNodeTypes(submissionID){
         if (!submissionID){
             return []
@@ -641,5 +662,3 @@ class SubmissionStats {
 module.exports = {
     DataRecordService
 };
-
-

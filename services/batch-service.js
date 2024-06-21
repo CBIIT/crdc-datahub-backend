@@ -122,6 +122,25 @@ class BatchService {
         const totalDocs = batches.pop();
         return totalDocs?.total + 1 || 1;
     }
+    /**
+     * getLastFileBatchID
+     * @param {*} submissionID 
+     * @param {*} fileName 
+     * @returns int
+     */
+    async getLastFileBatchID(submissionID, fileName){
+        const pipeline = [
+            {$match: {submissionID: submissionID, type: "data file", "files.fileName": fileName, status: "Uploaded"}},
+            {$project: {
+                _id: 0,
+                batchID: "$displayID"
+            }},
+            {$sort: {displayID: -1}},
+            {$limit: 1}
+        ];
+        const batches = await this.batchCollection.aggregate(pipeline);
+        return (batches && batches.length > 0)? batches[0].batchID : null;
+    }
 }
 const listBatchConditions = (userID, userRole, aUserOrganization, submissionID, userDataCommonsNames) => {
     const submissionJoin = [

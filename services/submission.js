@@ -473,35 +473,133 @@ class Submission {
         }
         return this.dataRecordService.listSubmissionNodeTypes(submissionID)
     }
-
+    /**
+     * list Submission Nodes or files
+     * @param {*} params 
+     * @param {*} context 
+     * @returns returnVal object
+     */
     async listSubmissionNodes(params, context) {
         verifySession(context)
-            .verifyInitialized()
-        const result = await this.dataRecordService.submissionNodes(params.submissionID, params.nodeType, 
-            params.first, params.offset, params.orderBy, params.sortDirection);
+            .verifyInitialized();
+
+        //check if submission exists
+        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        if(!aSubmission){
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
+        }
 
         let returnVal = {
-            total: result.total,
+            total: 0,
             properties: [],
             nodes: []
         };
-        if (result.results && result.results.length > 0){
-            let propsSet = new Set();
-            for (let node of result.results) {
-                if (node.parents && node.parents.length > 0) {
-                    for (let parent of node.parents) {
-                        node.props[`${parent.parentType}.${parent.parentIDPropName}`] = parent.parentIDValue;
+        if (params?.nodeType !== "Data File") {
+            const result = await this.dataRecordService.submissionNodes(params.submissionID, params.nodeType, 
+                params.first, params.offset, params.orderBy, params.sortDirection);
+    
+            returnVal.total = result.total;
+            if (result.results && result.results.length > 0){
+                let propsSet = new Set();
+                for (let node of result.results) {
+                    if (node.parents && node.parents.length > 0) {
+                        for (let parent of node.parents) {
+                            node.props[`${parent.parentType}.${parent.parentIDPropName}`] = parent.parentIDValue;
+                        }
                     }
+                    if (node.props && Object.keys(node.props).length > 0){
+                        Object.keys(node.props).forEach(propsSet.add, propsSet);
+                    }
+                    node.props = JSON.stringify(node.props);
+                    delete node.parents;
+                    returnVal.nodes.push(node);
                 }
-                if (node.props && Object.keys(node.props).length > 0){
-                    Object.keys(node.props).forEach(propsSet.add, propsSet);
-                }
-                node.props = JSON.stringify(node.props);
-                delete node.parents;
-                returnVal.nodes.push(node);
+                returnVal.properties = Array.from(propsSet);
             }
-            returnVal.properties = Array.from(propsSet);
+            return returnVal;
+            
         }
+        else {
+             //1) cal s3 listObjectV2
+            return await this.s3Service.listFileInDir(aSubmission.bucketName,  `${aSubmission.rootPath}/${FILE}/`)
+                .then(result => 
+                {
+                    //process the file info and return the submission file list
+                    return this.#listSubmissionDataFiles(params, result);
+                })
+                .catch(err => {
+                    console.log(err);
+                    throw new Error(ERROR.FAILED_LIST_DATA_FILES)
+                });
+        }
+        
+    }
+    async #listSubmissionDataFiles(params, listedObjects) {
+        let s3Files = [];
+        let returnVal = {
+            total: 0,
+            properties: [],
+            nodes: []
+        };
+        //2) populate s3Files and sorting and paging 3) retrieve file node info from dataRecords
+        if (!listedObjects || !listedObjects.Contents || listedObjects.Contents.length === 0) 
+            return returnVal;
+        // populate s3Files list and 
+        for (let file of listedObjects.Contents) {
+            //don't retrieve logs
+            if (file.Key.endsWith('/log'))
+                break
+            const file_name = file.Key.split('/').pop();
+            let s3File = {
+                submissionID: params.submissionID,
+                nodeType: "Data File",
+                nodeID: file_name,
+                status:  "N/A",
+                "Batch ID": "N/A",
+                "File Name": file_name,
+                "File Size": file.Size,
+                Orphaned: "Y",
+                "Uploaded Date/Time": file.LastModified
+            };
+            s3Files.push(s3File);  
+        } 
+        returnVal.total = s3Files.length;
+        //sorting and slicing
+        s3Files.sort((a, b) => {
+            if (a[params.orderBy] < b[params.orderBy])
+                return (params.sortDirection === "ASC")? -1 : 1;
+            if (a[params.orderBy] > b[params.orderBy])
+                return (params.sortDirection === "ASC")? 1 : -1;
+            return 0;
+        });
+
+        let return_s3Files = s3Files.slice(params.offset, params.offset + params.first);
+        //retrieve file nodes from dataRecords
+        const result = await this.dataRecordService.submissionDataFiles(params.submissionID, params.nodeType,
+            params.first, params.offset, params.orderBy, params.sortDirection, return_s3Files.map(f=>f.nodeID));
+        
+        for (let file of return_s3Files) {
+            const node = (result && result.length > 0)? result.find(x => x.nodeID === file.nodeID) : null ;
+            if (node) {
+                file.status = node.status;
+                file.Orphaned = "N";
+            }
+            const lastBatchID = await this.batchService.getLastFileBatchID(file.submissionID, file.nodeID);
+            if (lastBatchID) {
+                file["Batch ID"] = lastBatchID
+            }
+            const props = {
+                "Batch ID": file["Batch ID"],
+                "File Name": file["File Name"],
+                "File Size": file["File Size"],
+                Orphaned: file.Orphaned,
+                "Uploaded Date/Time": file["Uploaded Date/Time"]
+            };
+
+            file.props = JSON.stringify(props);
+            returnVal.nodes.push(file);
+        }
+        returnVal.properties = ["Batch ID", "File Name", "File Size", "Orphaned", "Uploaded Date/Time"] 
         return returnVal;
     }
     /**
