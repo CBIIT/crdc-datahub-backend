@@ -492,7 +492,7 @@ class Submission {
             properties: [],
             nodes: []
         };
-        if (params?.nodeType && params?.nodeType !== "Data File") {
+        if (params?.nodeType !== "Data File") {
             const result = await this.dataRecordService.submissionNodes(params.submissionID, params.nodeType, 
                 params.first, params.offset, params.orderBy, params.sortDirection);
     
