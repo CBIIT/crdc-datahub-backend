@@ -405,7 +405,7 @@ class Submission {
         await this.#updateValidationStatus(params?.types, aSubmission, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING, getCurrentTime());
         const validationRecord = ValidationRecord.createValidation(aSubmission?._id, params?.types, params?.scope, VALIDATION_STATUS.VALIDATING);
         const result = await this.dataRecordService.validateMetadata(params._id, params?.types, params?.scope, validationRecord._id);
-        const updatedSubmission = await this.#recordSubmissionValidation(params._id, validationRecord);
+        const updatedSubmission = await this.#recordSubmissionValidation(params._id, validationRecord, params?.types, aSubmission);
         // roll back validation if service failed
         if (!result.success) {
             if (result.message && result.message.includes(ERROR.NO_VALIDATION_METADATA)) {
@@ -836,8 +836,13 @@ class Submission {
         }
     }
 
-    async #recordSubmissionValidation(submissionID, validationRecord) {
-        const dataValidation = DataValidation.createDataValidation(validationRecord.type, validationRecord.scope, validationRecord.started);
+    async #recordSubmissionValidation(submissionID, validationRecord, dataTypes, submission) {
+        // The file/metadata only allowed for recording validation
+        const metadataTypes = validationRecord.type?.filter((i) => i === VALIDATION.TYPES.METADATA || i === VALIDATION.TYPES.FILE);
+        if (metadataTypes.length === 0) {
+            return submission;
+        }
+        const dataValidation = DataValidation.createDataValidation(metadataTypes, validationRecord.scope, validationRecord.started);
         let updated = await this.submissionCollection.findOneAndUpdate({_id: submissionID}, {...dataValidation, updatedAt: getCurrentTime()}, {returnDocument: 'after'});
         if (!updated?.value) {
             throw new Error(ERROR.FAILED_RECORD_VALIDATION_PROPERTY);
