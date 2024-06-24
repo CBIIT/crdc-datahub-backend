@@ -47,7 +47,7 @@ module.exports = Object.freeze({
         UPDATE: "New/Update",
         DELETE: "Delete"
     },
-    DATA_FILE: "Data File",
+    DATA_FILE: "data file",
     DATA_TYPE: {
         METADATA_ONLY: "Metadata Only",
         METADATA_AND_DATA_FILES: "Metadata and Data Files"
