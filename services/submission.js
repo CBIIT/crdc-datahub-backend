@@ -1,5 +1,5 @@
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
-    REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, EXPORT, INTENTION, DATA_TYPE, DELETED
+    REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, EXPORT, INTENTION, DATA_TYPE, DELETED, DATA_FILE
 } = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
@@ -494,7 +494,7 @@ class Submission {
             properties: [],
             nodes: []
         };
-        if (params?.nodeType !== "Data File") {
+        if (params?.nodeType !== DATA_FILE) {
             const result = await this.dataRecordService.submissionNodes(params.submissionID, params.nodeType, 
                 params.first, params.offset, params.orderBy, params.sortDirection);
     
@@ -552,7 +552,7 @@ class Submission {
             const file_name = file.Key.split('/').pop();
             let s3File = {
                 submissionID: params.submissionID,
-                nodeType: "Data File",
+                nodeType: DATA_FILE,
                 nodeID: file_name,
                 status:  "N/A",
                 "Batch ID": "N/A",
