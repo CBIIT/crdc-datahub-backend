@@ -851,10 +851,6 @@ class Submission {
         if (!updated?.value) {
             throw new Error(ERROR.FAILED_RECORD_VALIDATION_PROPERTY);
         }
-        // const res = await this.validationCollection.insert(ValidationRecord.createValidation(submissionID, dataValidation.validationType, dataValidation.validationScope, VALIDATION_STATUS.VALIDATING));
-        // if (!res?.acknowledged) {
-        //     throw new Error(ERROR.FAILED_INSERT_VALIDATION_OBJECT);
-        // }
         return updated.value;
     }
 }
