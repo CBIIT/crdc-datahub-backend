@@ -558,7 +558,7 @@ class Submission {
                 submissionID: params.submissionID,
                 nodeType: DATA_FILE,
                 nodeID: file_name,
-                status:  "N/A",
+                status:  "Error",
                 "Batch ID": "N/A",
                 "File Name": file_name,
                 "File Size": file.Size,
@@ -568,21 +568,12 @@ class Submission {
             s3Files.push(s3File);  
         } 
         returnVal.total = s3Files.length;
-        //sorting and slicing
-        s3Files.sort((a, b) => {
-            if (a[params.orderBy] < b[params.orderBy])
-                return (params.sortDirection === "ASC")? -1 : 1;
-            if (a[params.orderBy] > b[params.orderBy])
-                return (params.sortDirection === "ASC")? 1 : -1;
-            return 0;
-        });
-
-        let return_s3Files = s3Files.slice(params.offset, params.offset + params.first);
+       
         //retrieve file nodes from dataRecords
         const result = await this.dataRecordService.submissionDataFiles(params.submissionID, params.nodeType,
-            params.first, params.offset, params.orderBy, params.sortDirection, return_s3Files.map(f=>f.nodeID));
+            params.first, params.offset, params.orderBy, params.sortDirection, s3Files.map(f=>f.nodeID));
         
-        for (let file of return_s3Files) {
+        for (let file of s3Files) {
             const node = (result && result.length > 0)? result.find(x => x.nodeID === file.nodeID) : null ;
             if (node) {
                 file.status = node.status;
@@ -599,10 +590,18 @@ class Submission {
                 Orphaned: file.Orphaned,
                 "Uploaded Date/Time": file["Uploaded Date/Time"]
             };
-
             file.props = JSON.stringify(props);
-            returnVal.nodes.push(file);
         }
+         //sorting and slicing
+        s3Files.sort((a, b) => {
+            if (a[params.orderBy] < b[params.orderBy])
+                return (params.sortDirection === "ASC")? -1 : 1;
+            if (a[params.orderBy] > b[params.orderBy])
+                return (params.sortDirection === "ASC")? 1 : -1;
+            return 0;
+        });
+
+        returnVal.nodes = s3Files.slice(params.offset, params.offset + params.first);
         returnVal.properties = ["Batch ID", "File Name", "File Size", "Orphaned", "Uploaded Date/Time"] 
         return returnVal;
     }
