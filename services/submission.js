@@ -31,7 +31,9 @@ const LOG_FILE_EXT_ZIP ='.zip';
 const LOG_FILE_EXT_LOG ='.log';
 const DATA_MODEL_SEMANTICS = 'semantics';
 const DATA_MODEL_FILE_NODES = 'file-nodes';
-const CDS = "CDS";
+const COMPLETE_SUBMISSION = "Complete Submission";
+const GENERATE_DCF_MANIFEST = "Generate DCF Manifest";
+
 // Set to array
 Set.prototype.toArray = function() {
     return Array.from(this);
@@ -268,7 +270,8 @@ class Submission {
         // Send complete action
         const completePromise = [];
         if (action === ACTIONS.COMPLETE) {
-            completePromise.push(this.#sendCompleteMessage({type: "Complete Submission", submissionID}, submissionID));
+            completePromise.push(this.#sendCompleteMessage({type: COMPLETE_SUBMISSION, submissionID}, submissionID));
+            completePromise.push(this.#sendCompleteMessage({type: GENERATE_DCF_MANIFEST, submissionID}, submissionID));
         }
 
         //log event and send notification
