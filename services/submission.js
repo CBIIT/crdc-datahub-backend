@@ -404,6 +404,10 @@ class Submission {
 
         await this.#updateValidationStatus(params?.types, aSubmission, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING, getCurrentTime());
         const validationRecord = ValidationRecord.createValidation(aSubmission?._id, params?.types, params?.scope, VALIDATION_STATUS.VALIDATING);
+        const res = await this.validationCollection.insert(validationRecord);
+        if (!res?.acknowledged) {
+            throw new Error(ERROR.FAILED_INSERT_VALIDATION_OBJECT);
+        }
         const result = await this.dataRecordService.validateMetadata(params._id, params?.types, params?.scope, validationRecord._id);
         const updatedSubmission = await this.#recordSubmissionValidation(params._id, validationRecord, params?.types, aSubmission);
         // roll back validation if service failed
@@ -847,10 +851,10 @@ class Submission {
         if (!updated?.value) {
             throw new Error(ERROR.FAILED_RECORD_VALIDATION_PROPERTY);
         }
-        const res = await this.validationCollection.insert(ValidationRecord.createValidation(submissionID, dataValidation.validationType, dataValidation.validationScope, VALIDATION_STATUS.VALIDATING));
-        if (!res?.acknowledged) {
-            throw new Error(ERROR.FAILED_INSERT_VALIDATION_OBJECT);
-        }
+        // const res = await this.validationCollection.insert(ValidationRecord.createValidation(submissionID, dataValidation.validationType, dataValidation.validationScope, VALIDATION_STATUS.VALIDATING));
+        // if (!res?.acknowledged) {
+        //     throw new Error(ERROR.FAILED_INSERT_VALIDATION_OBJECT);
+        // }
         return updated.value;
     }
 }
