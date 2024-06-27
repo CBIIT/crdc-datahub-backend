@@ -29,6 +29,7 @@ input AppInput {
     programName: String
     studyAbbreviation: String
     questionnaireData: String
+    controlledAccess: Boolean
 }
 
 type Applicant {

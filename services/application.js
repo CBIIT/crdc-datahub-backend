@@ -77,6 +77,7 @@ class Application {
         let newApplicationProperties = {
             _id: v4(undefined, undefined, undefined),
             status: NEW,
+            controlledAccess: application?.controlledAccess,
             applicant: {
                 applicantID: userInfo._id,
                 applicantName: formatName(userInfo),
