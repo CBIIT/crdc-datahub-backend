@@ -6,3 +6,4 @@ node_modules
 *.http
 **/.DS_Store
 *.vscode*
+local-files

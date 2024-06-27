@@ -278,9 +278,35 @@ type QCResult{
     warnings: [ErrorMessage]
 }
 
+type CrossValidationResults {
+    total: Int
+    results: [CrossValidationResult]
+}
+
+type CrossValidationResult{
+    submissionID: ID
+    type: String
+    validationType: String #[metadata, file]
+    batchID: String
+    displayID: Int
+    submittedID: String
+    severity: String # [Error, Warning]
+    uploadedDate: Date # batch.updatedAt
+    validatedDate: Date
+    errors: [ErrorMessage]
+    warnings: [ErrorMessage]
+    conflictingSubmissions: [ID]
+}
+
 type ErrorMessage {
     title: String
     description: String
+}
+
+type CrossValidationMessage {
+    title: String
+    description: String
+    conflictingSubmissions: [ID]
 }
 
 type DataRecord {
@@ -303,7 +329,8 @@ type DataRecord {
 #    rawData: RawData
     s3FileInfo: S3FileInfo # only for "file" types, should be null for other nodes
     CRDC_ID: String
-    additionalErrors: [ErrorMessage]
+    additionalErrors: [CrossValidationMessage]
+    latestBatchID: ID
 }
 
 type S3FileInfo {
@@ -422,6 +449,17 @@ type Query {
         orderBy: String = "uploadedDate",
         sortDirection: String = "DESC"
     ): QCResults
+
+    submissionCrossValidationResults(
+        submissionID: ID!,
+        nodeTypes: [String],
+        batchIDs: [ID],
+        severities: String, # All, Error, Warning
+        first: Int = 10,
+        offset: Int = 0
+        orderBy: String = "validatedDate",
+        sortDirection: String = "DESC"
+    ): CrossValidationResults
 
     listSubmissionNodeTypes(_id: ID!): [String]
 
