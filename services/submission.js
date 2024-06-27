@@ -846,7 +846,10 @@ class Submission {
         if (metadataTypes.length === 0) {
             return submission;
         }
-        const dataValidation = DataValidation.createDataValidation(metadataTypes, validationRecord.scope, validationRecord.started);
+        // When running the validation again with the "new" scope, the submission's properties are updated
+        // and a new validation is created. Since the API won't send SQS messages, the end time is set to match the start time.
+        const validationEnded = validationRecord.scope === VALIDATION.SCOPE.NEW ? validationRecord.started : null;
+        const dataValidation = DataValidation.createDataValidation(metadataTypes, validationRecord.scope, validationRecord.started, validationEnded);
         let updated = await this.submissionCollection.findOneAndUpdate({_id: submissionID}, {...dataValidation, updatedAt: getCurrentTime()}, {returnDocument: 'after'});
         if (!updated?.value) {
             throw new Error(ERROR.FAILED_RECORD_VALIDATION_PROPERTY);
@@ -1296,14 +1299,14 @@ class DataValidation {
     // validationType: string
     // validationScope: string
     // validationStarted: Date
-    constructor(validationType, validationScope, validationStarted) {
+    constructor(validationType, validationScope, validationStarted, validationEnded) {
         this.validationStarted = validationStarted ? validationStarted : getCurrentTime();
-        this.validationEnded = null;
+        this.validationEnded = validationEnded ? validationEnded: null;
         this.validationType = validationType?.map(type => type.toLowerCase());
         this.validationScope = validationScope?.toLowerCase();
     }
-    static createDataValidation(validationType, validationScope, validationStarted) {
-        return new DataValidation(validationType, validationScope, validationStarted);
+    static createDataValidation(validationType, validationScope, validationStarted, validationEnded) {
+        return new DataValidation(validationType, validationScope, validationStarted, validationEnded);
     }
 }
 
