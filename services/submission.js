@@ -23,7 +23,6 @@ const NA = "NA"
 const config = require("../config");
 const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
-const {Admin} = require("mongodb");
 const FILE = "file";
 
 const UPLOAD_TYPES = ['file','metadata'];
