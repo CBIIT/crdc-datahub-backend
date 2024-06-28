@@ -13,6 +13,7 @@ const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-d
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const {parseJsonString} = require("../crdc-datahub-database-drivers/utility/string-utility");
 const {formatName} = require("../utility/format-name");
+const {isUndefined} = require("../utility/string-util");
 
 class Application {
     constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, tier, institutionService) {
@@ -74,9 +75,11 @@ class Application {
     }
 
     async createApplication(application, userInfo) {
+        const timestamp = getCurrentTime();
         let newApplicationProperties = {
             _id: v4(undefined, undefined, undefined),
             status: NEW,
+            controlledAccess: application?.controlledAccess,
             applicant: {
                 applicantID: userInfo._id,
                 applicantName: formatName(userInfo),
@@ -87,7 +90,8 @@ class Application {
                 name: userInfo?.organization?.orgName
             },
             history: [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)],
-            createdAt: application.updatedAt
+            createdAt: timestamp,
+            updatedAt: timestamp
         };
         application = {
             ...application,
@@ -102,7 +106,6 @@ class Application {
         verifySession(context)
             .verifyInitialized();
         let inputApplication = params.application;
-        inputApplication.updatedAt = getCurrentTime();
         const id = inputApplication?._id;
         if (!id) {
             return await this.createApplication(inputApplication, context.userInfo);
@@ -434,6 +437,7 @@ async function updateApplication(applicationCollection, application, prevStatus,
     }
     // Save an email reminder when an inactive application is reactivated.
     application.inactiveReminder = false;
+    application.updatedAt = getCurrentTime();
     const updateResult = await applicationCollection.update(application);
     if ((updateResult?.matchedCount || 0) < 1) {
         throw new Error(ERROR.APPLICATION_NOT_FOUND + application?._id);
@@ -510,10 +514,21 @@ const saveApprovedStudies = async (approvedStudiesService, organizationService, 
     }
     // use study name when study abbreviation is not available
     const studyAbbreviation = !!aApplication?.studyAbbreviation?.trim() ? aApplication?.studyAbbreviation : questionnaire?.study?.name;
+    const controlledAccess = aApplication?.controlledAccess;
+    if (isUndefined(controlledAccess)) {
+        console.error(ERROR.APPLICATION_CONTROLLED_ACCESS_NOT_FOUND, ` id=${aApplication?._id}`);
+    }
     await approvedStudiesService.storeApprovedStudies(
-        questionnaire?.study?.name, studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name
+        questionnaire?.study?.name, studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name, controlledAccess
     );
-    await organizationService.storeApprovedStudies(aApplication?.organization?._id, questionnaire?.study?.name, studyAbbreviation);
+    const approvedStudies = await approvedStudiesService.findByStudyAbbreviation(studyAbbreviation);
+    const orgApprovedStudies = approvedStudies?.map((study) => ({
+        _id: study?._id,
+        studyName: study?.studyName,
+        studyAbbreviation: study?.studyAbbreviation,
+        controlledAccess: study?.controlledAccess
+    }));
+    await organizationService.storeApprovedStudies(aApplication?.organization?._id, orgApprovedStudies);
 }
 
 module.exports = {

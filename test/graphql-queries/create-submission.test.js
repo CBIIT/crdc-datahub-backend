@@ -43,10 +43,10 @@ const submissionService = new Submission(logCollection, submissionCollection, ba
 describe('createSubmission API test', () => {
     test("create submission", async () => {
         organizationCollection.aggregate.mockImplementation(() => {
-            return [{name: "test", rootPath: "test", studies: [{studyAbbreviation: "test"}]}];
+            return [{name: "test", rootPath: "test", studies: [{studyID: "test"}]}];
         });
         const allowedRole = USER.ROLES.SUBMITTER;
         const context = {userInfo: {...TEST_SESSION.userInfo, ...{role: allowedRole, organization: {orgName: "test"}}}}
-        expect(submissionService.createSubmission({dataCommons: "TEST_DATA_COMMONS", intention: INTENTION.UPDATE, dataType: DATA_TYPE.METADATA_ONLY, name: "test", studyAbbreviation: "test"}, context)).rejects.toThrow(ERROR.CREATE_SUBMISSION_INVALID_DATA_COMMONS);
+        expect(submissionService.createSubmission({dataCommons: "TEST_DATA_COMMONS", intention: INTENTION.UPDATE, dataType: DATA_TYPE.METADATA_ONLY, name: "test", studyID: "test"}, context)).rejects.toThrow(ERROR.CREATE_SUBMISSION_INVALID_DATA_COMMONS);
     });
 });

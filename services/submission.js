@@ -65,12 +65,13 @@ class Submission {
         validateCreateSubmissionParams(params, this.allowedDataCommons, intention, dataType, context?.userInfo);
 
         const aUserOrganization= await this.organizationService.getOrganizationByName(context.userInfo?.organization?.orgName);
-        if (!aUserOrganization.studies.some((study) => study.studyAbbreviation === params.studyAbbreviation)) {
+        const approvedStudy = aUserOrganization.studies.find((study) => study?._id === params.studyID);
+        if (!approvedStudy) {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
         }
         const modelVersion = this.#getModelVersion(this.dataModelInfo, params.dataCommons);
         const newSubmission = DataSubmission.createSubmission(
-            params.name, context.userInfo, params.dataCommons, params.studyAbbreviation, params.dbGaPID, aUserOrganization, modelVersion, intention, dataType);
+            params.name, context.userInfo, params.dataCommons, params.studyID, params.dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy?.controlledAccess);
         const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
@@ -197,10 +198,10 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }else{
-            if (aSubmission?.studyAbbreviation) {
+            if (aSubmission?.studyID) {
                 const submissions = await this.submissionCollection.aggregate([
                     {"$match": {$and: [
-                        {studyAbbreviation: aSubmission.studyAbbreviation},
+                        {studyID: aSubmission.studyID},
                         {status: {$in: [IN_PROGRESS, SUBMITTED]}},
                         {_id: { $not: { $eq: params._id}}}]}}]);
                 const otherSubmissions = {[IN_PROGRESS]: [], [SUBMITTED]: []};
@@ -247,7 +248,7 @@ class Submission {
         //verify if user's role is valid for the action
         const newStatus = verifier.inRoles(userInfo);
         verifier.isValidSubmitAction(userInfo?.role, submission, params?.comment);
-        await this.#isValidReleaseAction(action, submission?._id, submission?.studyAbbreviation, submission?.crossSubmissionStatus);
+        await this.#isValidReleaseAction(action, submission?._id, submission?.studyID, submission?.crossSubmissionStatus);
         //update submission
         let events = submission.history || [];
         // admin role and submit action only can leave a comment
@@ -302,9 +303,9 @@ class Submission {
             }
         }
     }
-    async #isValidReleaseAction(action, submissionID, studyAbbreviation, crossSubmissionStatus) {
+    async #isValidReleaseAction(action, submissionID, studyID, crossSubmissionStatus) {
         if (action?.toLowerCase() === ACTIONS.RELEASE.toLowerCase()) {
-            const submissions = await this.submissionCollection.aggregate([{"$match": {_id: {"$ne": submissionID}, studyAbbreviation: studyAbbreviation}}]);
+            const submissions = await this.submissionCollection.aggregate([{"$match": {_id: {"$ne": submissionID}, studyID: studyID}}]);
             // Throw error if other submissions associated with the same study
             // are some of them are in "Submitted" status if cross submission validation is not Passed.
             if (submissions?.some(i => i?.status === SUBMITTED) && crossSubmissionStatus !== VALIDATION_STATUS.PASSED) {
@@ -1139,7 +1140,7 @@ const sendEmails = {
 // only one study name
 const getSubmissionStudyName = (studies, aSubmission) => {
     const studyNames = studies
-        ?.filter((aStudy) => aStudy?.studyAbbreviation === aSubmission?.studyAbbreviation)
+        ?.filter((aStudy) => aStudy?.studyID === aSubmission?.studyID)
         ?.map((aStudy) => aStudy.studyName);
     return studyNames?.length > 0 ? studyNames[0] : NA;
 }
@@ -1227,7 +1228,7 @@ function listConditions(userID, userRole, userDataCommons, userOrganization, par
 }
 
 function validateCreateSubmissionParams (params, allowedDataCommons, intention, dataType, userInfo) {
-    if (!params.name || params?.name?.trim().length === 0 || !params.studyAbbreviation || !params.dataCommons) {
+    if (!params.name || params?.name?.trim().length === 0 || !params.studyID || !params.dataCommons) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
     }
     if (!allowedDataCommons.has(params.dataCommons)) {
@@ -1307,7 +1308,7 @@ class DataValidation {
 }
 
 class DataSubmission {
-    constructor(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization, modelVersion, intention, dataType) {
+    constructor(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, controlledAccess) {
         this._id = v4();
         this.name = name;
         this.submitterID = userInfo._id;
@@ -1318,7 +1319,7 @@ class DataSubmission {
         };
         this.dataCommons = dataCommons;
         this.modelVersion = modelVersion;
-        this.studyAbbreviation = studyAbbreviation;
+        this.studyID = studyID;
         this.dbGaPID = dbGaPID;
         this.status = NEW;
         this.history = [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)];
@@ -1333,11 +1334,12 @@ class DataSubmission {
         this.fileWarnings = [];
         this.intention = intention;
         this.dataType = dataType;
+        this.controlledAccess = controlledAccess;
         this.accessedAt = getCurrentTime();
     }
 
-    static createSubmission(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization, modelVersion, intention, dataType) {
-        return new DataSubmission(name, userInfo, dataCommons, studyAbbreviation, dbGaPID, aUserOrganization, modelVersion, intention, dataType);
+    static createSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy) {
+        return new DataSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy);
     }
 }
 
