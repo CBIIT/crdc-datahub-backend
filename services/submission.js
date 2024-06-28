@@ -471,6 +471,13 @@ class Submission {
         return this.dataRecordService.submissionQCResults(params._id, params.nodeTypes, params.batchIDs, params.severities, params.first, params.offset, params.orderBy, params.sortDirection);
     }
 
+    async submissionCrossValidationResults(params, context){
+        verifySession(context)
+            .verifyInitialized()
+            .verifyRole([ROLES.ADMIN, ROLES.CURATOR])
+        return this.dataRecordService.submissionCrossValidationResults(params.submissionID, params.nodeTypes, params.batchIDs, params.severities, params.first, params.offset, params.orderBy, params.sortDirection);
+    }
+
     async listSubmissionNodeTypes(params, context) {
         const submissionID = params?._id;
         if (!(await this.#verifyQCResultsReadPermissions(context, submissionID))){
