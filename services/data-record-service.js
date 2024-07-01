@@ -629,23 +629,58 @@ class DataRecordService {
     }
 
     async NodeDetail(submissionID, nodeType, nodeID){
-        const filter = {
-            nodeId: nodeID,
-            nodeType: nodeType,
-            submissionID: submissionID
-        };
-        const aNode = await this.dataRecordsCollection.findOne(filter);
-        if(!aNode){
-            throw new Error(ERROR.INVALID_NODE_NOT_FOUND);
+        const aNodes = await this.dataRecordsCollection.aggregate([{
+            $match: {
+                nodeID: nodeID,
+                nodeType: nodeType,
+                submissionID: submissionID
+            }},
+            {$limit: 1}
+        ]);
+        if(aNodes.length === 0){
+            throw new Error(ERRORS.INVALID_NODE_NOT_FOUND);
         }
+        const aNode = aNodes[0];
         let nodeDetail = {
             submissionID: aNode.submissionID,
-            nodeID: aNode.nodeId,
+            nodeID: aNode.nodeID,
             nodeType: aNode.nodeType,
+            IDPropName: aNode.IDPropName,
+            parents: this.#ConvertParents(aNode.parents),
+            children: await this.#GetNodeChildren(submissionID, nodeType, nodeID)
         };
-
         return nodeDetail
+    }
+    #ConvertParents(parents){
+        let convertedParents = {};
+        let parentTypes = new Set();
+        for (let parent of parents){
+            parentTypes.add(parent.parentType)
+        }
+        parentTypes.forEach((parentType) => {
+            convertedParents[parentType] = parents.filter((parent) => parent.parentType === parentType).length;
+        });
+        return JSON.stringify(convertedParents) ;
+    }
 
+    async #GetNodeChildren(submissionID, nodeType, nodeID){
+        let convertedChildren= {};
+        // get children
+        const children = await this.dataRecordsCollection.aggregate([{
+            $match: {
+                "parents.parentIDValue": nodeID,
+                "parents.parentType": nodeType,
+                submissionID: submissionID
+            }}
+        ]);
+        let childTypes = new Set();
+        for (let child of children){
+            childTypes.add(child.nodeType)
+        }
+        childTypes.forEach((childType) => {
+            convertedChildren[childType] = children.filter((child) => child.nodeType === childType).length;
+        });
+        return JSON.stringify(convertedChildren);
     }
 
     async listSubmissionNodeTypes(submissionID){

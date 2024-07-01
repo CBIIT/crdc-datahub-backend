@@ -415,26 +415,26 @@ class Submission {
         if (!result.success) {
             if (result.message && result.message.includes(ERROR.NO_VALIDATION_METADATA)) {
                 if (result.message.includes(ERROR.FAILED_VALIDATE_FILE)) 
-                    await this.#updateValidationStatus(params?.types, updatedSubmission, null, prevFileValidationStatus, null, getCurrentTime());
+                    await this.#updateValidationStatus(params?.types, updatedSubmission, null, prevFileValidationStatus, null, getCurrentTime(), validationRecord);
                 else {
-                    await this.#updateValidationStatus(params?.types, updatedSubmission, null, "NA", null, getCurrentTime());
+                    await this.#updateValidationStatus(params?.types, updatedSubmission, null, "NA", null, getCurrentTime(), validationRecord);
                     result.success = true;
                 }
             } 
             else if (result.message && result.message.includes(ERROR.NO_NEW_VALIDATION_METADATA)){
                 if (result.message.includes(ERROR.FAILED_VALIDATE_FILE))
-                    await this.#updateValidationStatus(params?.types, updatedSubmission, prevMetadataValidationStatus, prevFileValidationStatus, null, prevTime);
+                    await this.#updateValidationStatus(params?.types, updatedSubmission, prevMetadataValidationStatus, prevFileValidationStatus, null, prevTime, validationRecord);
                 else {
-                    await this.#updateValidationStatus(params?.types, updatedSubmission, prevMetadataValidationStatus, "NA", null, prevTime);
+                    await this.#updateValidationStatus(params?.types, updatedSubmission, prevMetadataValidationStatus, "NA", null, prevTime, validationRecord);
                     result.success = true;
                 }
             } else if (result.message && result.message.includes(ERROR.FAILED_VALIDATE_CROSS_SUBMISSION)) {
-                await this.#updateValidationStatus(params?.types, updatedSubmission, null, null, prevCrossSubmissionStatus, prevTime);
+                await this.#updateValidationStatus(params?.types, updatedSubmission, null, null, prevCrossSubmissionStatus, prevTime, validationRecord);
             } else {
                 const metadataValidationStatus = result.message.includes(ERROR.FAILED_VALIDATE_METADATA) ? prevMetadataValidationStatus : "NA";
                 const fileValidationStatus = (result.message.includes(ERROR.FAILED_VALIDATE_FILE)) ? prevFileValidationStatus : "NA";
                 const crossSubmissionStatus = result.message.includes(ERROR.FAILED_VALIDATE_CROSS_SUBMISSION) ? prevCrossSubmissionStatus : "NA";
-                await this.#updateValidationStatus(params?.types, updatedSubmission, metadataValidationStatus, fileValidationStatus, crossSubmissionStatus, prevTime);
+                await this.#updateValidationStatus(params?.types, updatedSubmission, metadataValidationStatus, fileValidationStatus, crossSubmissionStatus, prevTime, validationRecord);
             }
         }
         return result;
@@ -768,7 +768,7 @@ class Submission {
         //get target inactive date, current date - config.inactive_submission_days (default 120 days)
         var target_inactive_date = new Date();
         target_inactive_date.setDate(target_inactive_date.getDate() - config.inactive_submission_days);
-        const query = [{"$match": {"status": IN_PROGRESS, "accessedAt": {"$exists": true, "$ne": null, "$lte": target_inactive_date}}}];
+        const query = [{"$match": {"status": {"$in":[IN_PROGRESS, NEW, REJECTED, WITHDRAWN]}, "accessedAt": {"$exists": true, "$ne": null, "$lte": target_inactive_date}}}];
         try {
             const inactive_subs = await this.submissionCollection.aggregate(query);
             if (!inactive_subs || inactive_subs.length === 0) {
@@ -823,7 +823,7 @@ class Submission {
     }
 
     // private function
-    async #updateValidationStatus(types, aSubmission, metaStatus, fileStatus, crossSubmissionStatus, updatedTime) {
+    async #updateValidationStatus(types, aSubmission, metaStatus, fileStatus, crossSubmissionStatus, updatedTime, validationRecord = null) {
         const typesToUpdate = {};
         if (crossSubmissionStatus && crossSubmissionStatus !== "NA" && types.includes(VALIDATION.TYPES.CROSS_SUBMISSION)) {
             typesToUpdate.crossSubmissionStatus = crossSubmissionStatus;
@@ -843,6 +843,11 @@ class Submission {
             return;
         }
         const updated = await this.submissionCollection.update({_id: aSubmission?._id, ...typesToUpdate, updatedAt: updatedTime});
+        if(validationRecord){
+            validationRecord["ended"] = new Date();
+            validationRecord["status"] = "Error";
+            await this.validationCollection.updateOne({_id: validationRecord["_id"]}, validationRecord);
+        }
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
             throw new Error(ERROR.FAILED_VALIDATE_METADATA);
         }
