@@ -613,6 +613,23 @@ class Submission {
         returnVal.properties = ["Batch ID", "File Name", "File Size", "Orphaned", "Uploaded Date/Time"] 
         return returnVal;
     }
+
+    /**
+     * API: getNodeDetail to retrieve node detail info
+     * @param {*} params 
+     * @param {*} context 
+     * @returns 
+     */
+    async getNodeDetail(params, context){
+        verifySession(context)
+            .verifyInitialized();
+        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        if(!aSubmission){
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
+        }
+        const IDPropName = this.dataModelInfo
+        return this.dataRecordService.NodeDetail(params.submissionID, params.nodeType, params.nodeID);
+    }
     /**
      * API: getUploaderCLIConfigs for submitter to download a config file
      * @param {*} params 

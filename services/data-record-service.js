@@ -628,6 +628,26 @@ class DataRecordService {
         return await this.dataRecordsCollection.aggregate(pipeline);
     }
 
+    async NodeDetail(submissionID, nodeType, nodeID){
+        const filter = {
+            nodeId: nodeID,
+            nodeType: nodeType,
+            submissionID: submissionID
+        };
+        const aNode = await this.dataRecordsCollection.findOne(filter);
+        if(!aNode){
+            throw new Error(ERROR.INVALID_NODE_NOT_FOUND);
+        }
+        let nodeDetail = {
+            submissionID: aNode.submissionID,
+            nodeID: aNode.nodeId,
+            nodeType: aNode.nodeType,
+        };
+
+        return nodeDetail
+
+    }
+
     async listSubmissionNodeTypes(submissionID){
         if (!submissionID){
             return []

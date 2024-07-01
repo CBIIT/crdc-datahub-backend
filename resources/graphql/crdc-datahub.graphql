@@ -409,6 +409,15 @@ type Node {
     props: String #a stringified JSON string contains all properties of the node, including parent mapping properties like program.prorgam_acronym
 }
 
+type NodeDetail_Result {
+    submissionID: String,
+    nodeType: String,
+    nodeID: String,
+    IDPropName,
+    parents: Object,
+    children: Object
+}
+
 type institution {
     _id: ID,
     name: String
@@ -512,6 +521,12 @@ type Query {
     ): String
 
     listInstitutions: [String]
+
+    getNodeDetail {
+        submissionID: String!, # submissionID in dataRecords collection
+        nodeType: String!,
+        nodeID: string!  # nodeID in dataRecords collection
+    }
 }
 type Mutation {
     "User initiated operations"
