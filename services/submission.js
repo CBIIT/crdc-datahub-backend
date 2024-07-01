@@ -23,6 +23,7 @@ const NA = "NA"
 const config = require("../config");
 const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
+const {isUndefined} = require("../utility/string-util");
 const FILE = "file";
 
 const UPLOAD_TYPES = ['file','metadata'];
@@ -71,7 +72,7 @@ class Submission {
         }
         const modelVersion = this.#getModelVersion(this.dataModelInfo, params.dataCommons);
         const newSubmission = DataSubmission.createSubmission(
-            params.name, context.userInfo, params.dataCommons, params.studyID, params.dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy?.controlledAccess);
+            params.name, context.userInfo, params.dataCommons, params.studyID, params.dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy);
         const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
@@ -1315,7 +1316,7 @@ class DataValidation {
 }
 
 class DataSubmission {
-    constructor(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, controlledAccess) {
+    constructor(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy) {
         this._id = v4();
         this.name = name;
         this.submitterID = userInfo._id;
@@ -1341,7 +1342,10 @@ class DataSubmission {
         this.fileWarnings = [];
         this.intention = intention;
         this.dataType = dataType;
-        this.controlledAccess = controlledAccess;
+        this.studyAbbreviation = approvedStudy?.studyAbbreviation
+        if (!isUndefined(approvedStudy?.controlledAccess)) {
+            this.controlledAccess = approvedStudy.controlledAccess;
+        }
         this.accessedAt = getCurrentTime();
     }
 
