@@ -627,7 +627,6 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
-        const IDPropName = this.dataModelInfo
         return this.dataRecordService.NodeDetail(params.submissionID, params.nodeType, params.nodeID);
     }
     /**
