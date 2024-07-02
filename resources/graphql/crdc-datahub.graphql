@@ -106,7 +106,6 @@ type Batch {
     submissionID: ID # parent
     displayID: Int
     type: String # [metadata, file]
-    metadataIntention: String # [New, Update, Delete], Update is meant for "Update or insert", metadata only! file batches are always treated as Update
     fileCount: Int # calculated by BE
     files: [FileInfo]
     status: String # [Uploading, Uploaded, Upload Failed, Loaded, Rejected] Loaded and Rejected are for metadata batch only
@@ -137,7 +136,6 @@ type NewBatch {
     bucketName: String # S3 bucket of the submission, for file batch / CLI use
     filePrefix: String # prefix/path within S3 bucket, for file batch / CLI use
     type: String # [metadata, file]
-    metadataIntention: String # [New, Update, Delete], Update is meant for "Update or insert", metadata only! file batches are always treated as Update
     fileCount: Int
     files: [FileURL] # only available for metadata batch
     status: String # [Uploading, Uploaded, Upload Failed, Loaded, Rejected]
@@ -540,7 +538,7 @@ type Mutation {
     deleteOrphanedFile(_id: ID!, fileName: String!): DataValidation
     deleteAllOrphanedFiles(_id: ID!): DataValidation
 
-    createBatch (submissionID: ID!, type: String, metadataIntention: String, files: [FileInput]): NewBatch
+    createBatch (submissionID: ID!, type: String, files: [FileInput]): NewBatch
     updateBatch (batchID: ID!, files: [UploadResult]): Batch
     createTempCredentials (submissionID: ID!): TempCredentials
     validateSubmission(

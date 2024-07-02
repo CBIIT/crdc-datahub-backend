@@ -19,7 +19,6 @@ const ERROR = {
         UNDEFINED_BATCH_TYPE: "Batch metadata-intention is undefined",
         EMPTY_BATCH_FILE: "Batch file is empty",
         INVALID_BATCH_TYPE: "Batch type is invalid",
-        INVALID_METADATA_INTENTION_TYPE: "Metadata Intention type is invalid",
         // submission action
         INVALID_SUBMISSION_ACTION: "Invalid submission action:",
         INVALID_SUBMISSION_ACTION_STATUS: "Invalid submission status for the action:",

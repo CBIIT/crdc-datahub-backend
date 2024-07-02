@@ -117,11 +117,6 @@ class Submission {
             .isUndefined()
             .notEmpty()
             .type([BATCH.TYPE.METADATA, BATCH.TYPE.DATA_FILE, BATCH.TYPE.FILE]);
-        // Optional metadata intention
-        if (params.type === BATCH.TYPE.METADATA) {
-            verifyBatch(params)
-                .metadataIntention([BATCH.INTENTION.NEW, BATCH.INTENTION.UPDATE, BATCH.INTENTION.DELETE]);
-        }
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
         // The submission status must be valid states
