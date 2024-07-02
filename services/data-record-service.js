@@ -65,9 +65,9 @@ class DataRecordService {
         const uploadedFiles = s3SubmissionFiles?.Contents
             .filter((f)=> f && f.Key !== `${aSubmission.rootPath}/${FILE}/`)
             .map((f)=> f.Key.replace(`${aSubmission.rootPath}/${FILE}/`, ''));
-        // This dataFiles represents the intersection of the orphanedFiles and missingFiles.
-        const [orphanedFiles, missingFiles, dataFiles] = this.#dataFilesStats(uploadedFiles, fileRecords);
-        this.#saveDataFileStats(submissionStats, orphanedFiles, missingFiles, dataFiles, aSubmission);
+        // This dataFiles represents the intersection of the orphanedFiles.
+        const [orphanedFiles, dataFiles] = this.#dataFilesStats(uploadedFiles, fileRecords);
+        this.#saveDataFileStats(submissionStats, orphanedFiles, dataFiles, uploadedFiles?.length, aSubmission);
         return submissionStats;
     }
 
@@ -75,8 +75,7 @@ class DataRecordService {
     #dataFilesStats(s3SubmissionFiles, fileRecords) {
         const s3FileSet = new Set(s3SubmissionFiles);
         const fileDataRecordsMap = new Map(fileRecords.map(file => [file?.s3FileInfo?.fileName, file?.s3FileInfo]));
-        const [orphanedFiles, missingFiles, dataFiles] = [[], [], []];
-
+        const [orphanedFiles, dataFiles] = [[], []];
         s3FileSet.forEach(file => {
             if (fileDataRecordsMap.has(file)) {
                 dataFiles.push(fileDataRecordsMap.get(file));
@@ -85,24 +84,18 @@ class DataRecordService {
             }
         });
 
-        fileRecords.forEach(file => {
-            if (!s3FileSet.has(file?.s3FileInfo?.fileName)) {
-                missingFiles.push(file?.s3FileInfo?.fileName);
-            }
-        });
-
-        return [orphanedFiles, missingFiles, dataFiles];
+        return [orphanedFiles, dataFiles];
     }
 
-    #saveDataFileStats(submissionStats, orphanedFiles, missingFiles, dataFiles, aSubmission) {
+    #saveDataFileStats(submissionStats, orphanedFiles, dataFiles, totalCount, aSubmission) {
         const stat = Stat.createStat(DATA_FILE);
-        // submission error should be under data file's s3FileInfo.status == "Error", plus count of orphanedFiles + missingFiles
+        // submission error should be under data file's s3FileInfo.status == "Error", plus count of orphanedFiles
         aSubmission?.fileErrors?.forEach(file => {
             if (file?.type === DATA_FILE) {
                 stat.countNodeType(VALIDATION_STATUS.ERROR, 1);
             }
         });
-        stat.countNodeType(VALIDATION_STATUS.ERROR, orphanedFiles.length + missingFiles.length);
+        stat.countNodeType(VALIDATION_STATUS.ERROR, orphanedFiles.length);
         // submission warning should be under data file's s3FileInfo.status == "Warning", plus count of Submission.fileWarnings
         aSubmission?.fileWarnings?.forEach(file => {
             if (file?.type === DATA_FILE) {
@@ -115,6 +108,8 @@ class DataRecordService {
         });
 
         if (stat.total > 0) {
+            // The total is the number of files uploaded to S3.
+            stat.total = totalCount;
             submissionStats.addStats(stat);
         }
     }
