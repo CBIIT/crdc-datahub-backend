@@ -91,6 +91,7 @@ dbConnector.connect().then(async () => {
         listSubmissionNodeTypes: submissionService.listSubmissionNodeTypes.bind(submissionService),
         getSubmissionNodes: submissionService.listSubmissionNodes.bind(submissionService),
         getNodeDetail: submissionService.getNodeDetail.bind(submissionService),
+        getRelatedNodes: submissionService.getRelatedNodes.bind(submissionService),
         retrieveCLIConfig: submissionService.getUploaderCLIConfigs.bind(submissionService),
         listInstitutions: institutionService.listInstitutions.bind(institutionService),
         // AuthZ

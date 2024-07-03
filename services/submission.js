@@ -627,8 +627,18 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
-        return this.dataRecordService.NodeDetail(params.submissionID, params.nodeType, params.nodeID);
+        return await this.dataRecordService.NodeDetail(params.submissionID, params.nodeType, params.nodeID);
     }
+
+    async getRelatedNodes(params, context){
+        verifySession(context)
+            .verifyInitialized();
+        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        if(!aSubmission){
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
+        }
+        return await this.dataRecordService.NodeDetail(params.submissionID, params.nodeType, params.nodeID);
+
     /**
      * API: getUploaderCLIConfigs for submitter to download a config file
      * @param {*} params 
