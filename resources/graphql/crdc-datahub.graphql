@@ -244,8 +244,7 @@ input UpdateUserInput {
 }
 
 input ApprovedStudyInput {
-  studyName: String!
-  studyAbbreviation: String!
+  studyID: String!
 }
 
 type SubmissionStats {
