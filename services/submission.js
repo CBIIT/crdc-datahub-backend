@@ -23,6 +23,7 @@ const NA = "NA"
 const config = require("../config");
 const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
+const {NODE_RELATION_TYPES} = require("./data-record-service");
 const FILE = "file";
 
 const UPLOAD_TYPES = ['file','metadata'];
@@ -31,7 +32,7 @@ const LOG_FILE_EXT_ZIP ='.zip';
 const LOG_FILE_EXT_LOG ='.log';
 const DATA_MODEL_SEMANTICS = 'semantics';
 const DATA_MODEL_FILE_NODES = 'file-nodes';
-const CDS = "CDS";
+
 // Set to array
 Set.prototype.toArray = function() {
     return Array.from(this);
@@ -501,35 +502,10 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        let returnVal = {
-            total: 0,
-            properties: [],
-            nodes: []
-        };
         if (params?.nodeType !== DATA_FILE) {
             const result = await this.dataRecordService.submissionNodes(params.submissionID, params.nodeType, 
                 params.first, params.offset, params.orderBy, params.sortDirection);
-    
-            returnVal.total = result.total;
-            if (result.results && result.results.length > 0){
-                let propsSet = new Set();
-                for (let node of result.results) {
-                    if (node.parents && node.parents.length > 0) {
-                        for (let parent of node.parents) {
-                            node.props[`${parent.parentType}.${parent.parentIDPropName}`] = parent.parentIDValue;
-                        }
-                    }
-                    if (node.props && Object.keys(node.props).length > 0){
-                        Object.keys(node.props).forEach(propsSet.add, propsSet);
-                    }
-                    node.props = JSON.stringify(node.props);
-                    delete node.parents;
-                    returnVal.nodes.push(node);
-                }
-                returnVal.properties = Array.from(propsSet);
-            }
-            return returnVal;
-            
+            return this.#ProcessSubmissionNodes(result);
         }
         else {
              //1) cal s3 listObjectV2
@@ -546,6 +522,34 @@ class Submission {
         }
         
     }
+    #ProcessSubmissionNodes(result) {
+        let returnVal = {
+            total: 0,
+            properties: [],
+            nodes: []
+        };
+
+        returnVal.total = result.total;
+        if (result.results && result.results.length > 0){
+            let propsSet = new Set();
+            for (let node of result.results) {
+                if (node.parents && node.parents.length > 0) {
+                    for (let parent of node.parents) {
+                        node.props[`${parent.parentType}.${parent.parentIDPropName}`] = parent.parentIDValue;
+                    }
+                }
+                if (node.props && Object.keys(node.props).length > 0){
+                    Object.keys(node.props).forEach(propsSet.add, propsSet);
+                }
+                node.props = JSON.stringify(node.props);
+                delete node.parents;
+                returnVal.nodes.push(node);
+            }
+            returnVal.properties = Array.from(propsSet);
+        }
+        return returnVal;
+    }
+
     async #listSubmissionDataFiles(params, listedObjects) {
         let s3Files = [];
         let returnVal = {
@@ -578,8 +582,8 @@ class Submission {
         returnVal.total = s3Files.length;
        
         //retrieve file nodes from dataRecords
-        const result = await this.dataRecordService.submissionDataFiles(params.submissionID, params.nodeType,
-            params.first, params.offset, params.orderBy, params.sortDirection, s3Files.map(f=>f.nodeID));
+        const result = await this.dataRecordService.submissionDataFiles(params.submissionID,
+             s3Files.map(f=>f.nodeID));
         
         for (let file of s3Files) {
             const node = (result && result.length > 0)? result.find(x => x.nodeID === file.nodeID) : null ;
@@ -629,7 +633,12 @@ class Submission {
         }
         return await this.dataRecordService.NodeDetail(params.submissionID, params.nodeType, params.nodeID);
     }
-
+    /**
+     * API: getRelatedNodes to retrieve related nodes
+     * @param {*} params 
+     * @param {*} context 
+     * @returns 
+     */
     async getRelatedNodes(params, context){
         verifySession(context)
             .verifyInitialized();
@@ -637,7 +646,12 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
-        return await this.dataRecordService.NodeDetail(params.submissionID, params.nodeType, params.nodeID);
+        if (!NODE_RELATION_TYPES.includes(params.relationship)){
+            throw new Error(ERROR.INVALID_NODE_RELATIONSHIP);
+        }
+        const result = await this.dataRecordService.RelatedNodes(params);
+        return this.#ProcessSubmissionNodes(result);
+    }
 
     /**
      * API: getUploaderCLIConfigs for submitter to download a config file
