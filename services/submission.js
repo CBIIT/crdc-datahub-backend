@@ -16,6 +16,7 @@ const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-consta
 const { API_TOKEN } = require("../constants/application-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {AWSService} = require("../services/aws-request");
+// const {write2file} = require("../utility/io-util") //keep the line for future testing.
 
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const ALL_FILTER = "All";
@@ -640,16 +641,37 @@ class Submission {
         configString = this.#replaceFileNodeProps(aSubmission, configString);
         //insert token into the string
         configString = await this.#replaceToken(context, configString);
-        /** test code: write yaml string to file for verification of output
-        write2file(configString, "logs/userUploaderConfig.yaml")
-        end test code **/
+        /** test code: write yaml string to file for verification of output **/
+        // write2file(configString, "logs/userUploaderConfig.yaml")
+        /** end test code **/
         return configString;
     }
 
     #replaceFileNodeProps(aSubmission, configString){
         const modelFileNodeInfos = Object.values(this.dataModelInfo?.[aSubmission.dataCommons]?.[DATA_MODEL_SEMANTICS]?.[DATA_MODEL_FILE_NODES]);
         if (modelFileNodeInfos.length > 0){
-            return configString.format(modelFileNodeInfos[0]);
+            let modelFileNodeInfo = modelFileNodeInfos[0];
+            // check if content.js configured file_id and omit-DCF-prefix
+            if(!modelFileNodeInfo["id-field"]) {
+                //populate id_field setting if no file_id property in content.json 
+                let id_field = "file_id";
+                switch(aSubmission.dataCommons){
+                    case "ICDC":
+                        id_field = "uuid";
+                        break;
+                    case "CTDC":
+                        id_field = "data_file_uuid";
+                        break;
+                    case "CDS":
+                    default:
+                        break;
+                }
+                modelFileNodeInfo["id-field"] = id_field;
+            }
+            if(!modelFileNodeInfo["omit-DCF-prefix"])
+                modelFileNodeInfo["omit-DCF-prefix"] = false;
+
+            return configString.format(modelFileNodeInfo);
         }
         else{
             throw new Error(ERROR.INVALID_DATA_MODEL);
