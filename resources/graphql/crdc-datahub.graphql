@@ -536,7 +536,7 @@ type Mutation {
 
     deleteOrphanedFile(_id: ID!, fileName: String!): DataValidation
     deleteAllOrphanedFiles(_id: ID!): DataValidation
-
+    deleteDataRecords(submissionID: String!, nodeType: String!, nodeIDs: [String!]): DataValidation
     createBatch (submissionID: ID!, type: String, files: [FileInput]): NewBatch
     updateBatch (batchID: ID!, files: [UploadResult]): Batch
     createTempCredentials (submissionID: ID!): TempCredentials

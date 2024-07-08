@@ -385,17 +385,7 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        const userInfo = context?.userInfo;
-        const promises = [
-            await this.userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
-            await this.userService.getUserByID(aSubmission?.submitterID)
-        ];
-        const results = await Promise.all(promises);
-        const isOrgOwners = (results[0] || []).some((aUser) => isPermittedUser(aUser, userInfo));
-        const isSubmitter = isPermittedUser(results[1], userInfo);
-        const isDataCurator = ROLES.CURATOR === userInfo?.role;
-        const isPermittedAccess = this.userService.isAdmin(userInfo?.role) || isOrgOwners || isSubmitter || isDataCurator;
-        if (!isPermittedAccess) {
+        if (!await this.#isValidPermission(context?.userInfo, aSubmission)) {
             throw new Error(ERROR.INVALID_VALIDATE_METADATA)
         }
         // start validation, change validating status
@@ -780,6 +770,35 @@ class Submission {
             return "failed!";
         }
     }
+
+    async deleteDataRecords(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyRole([ROLES.ADMIN, ROLES.ORG_OWNER, ROLES.CURATOR, ROLES.SUBMITTER]);
+        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        if (!aSubmission) {
+            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+        }
+
+        if (!await this.#isValidPermission(context?.userInfo, aSubmission)) {
+            throw new Error(ERROR.INVALID_DELETE_DATA_RECORDS_PERMISSION)
+        }
+
+        return this.dataRecordService.deleteDataRecords(params.submissionID, params.nodeType, params.nodeIDs);
+    }
+
+    async #isValidPermission(userInfo, aSubmission) {
+        const promises = [
+            await this.userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
+            await this.userService.getUserByID(aSubmission?.submitterID)
+        ];
+        const results = await Promise.all(promises);
+        const isOrgOwners = (results[0] || []).some((aUser) => isPermittedUser(aUser, userInfo));
+        const isSubmitter = isPermittedUser(results[1], userInfo);
+        const isDataCurator = ROLES.CURATOR === userInfo?.role;
+        return this.userService.isAdmin(userInfo?.role) || isOrgOwners || isSubmitter || isDataCurator
+    }
+
     async #verifyQCResultsReadPermissions(context, submissionID){
         verifySession(context)
             .verifyInitialized()
