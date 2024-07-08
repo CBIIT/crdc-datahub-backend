@@ -649,28 +649,10 @@ class Submission {
 
     #replaceFileNodeProps(aSubmission, configString){
         const modelFileNodeInfos = Object.values(this.dataModelInfo?.[aSubmission.dataCommons]?.[DATA_MODEL_SEMANTICS]?.[DATA_MODEL_FILE_NODES]);
+        const omit_DCF_prefix = this.dataModelInfo?.[aSubmission.dataCommons]?.['omit-DCF-prefix'];
         if (modelFileNodeInfos.length > 0){
             let modelFileNodeInfo = modelFileNodeInfos[0];
-            // check if content.js configured file_id and omit-DCF-prefix
-            if(!modelFileNodeInfo["id-field"]) {
-                //populate id_field setting if no file_id property in content.json 
-                let id_field = "file_id";
-                switch(aSubmission.dataCommons){
-                    case "ICDC":
-                        id_field = "uuid";
-                        break;
-                    case "CTDC":
-                        id_field = "data_file_uuid";
-                        break;
-                    case "CDS":
-                    default:
-                        break;
-                }
-                modelFileNodeInfo["id-field"] = id_field;
-            }
-            if(!modelFileNodeInfo["omit-DCF-prefix"])
-                modelFileNodeInfo["omit-DCF-prefix"] = false;
-
+            modelFileNodeInfo['omit-DCF-prefix'] = (!omit_DCF_prefix)?false:omit_DCF_prefix;
             return configString.format(modelFileNodeInfo);
         }
         else{
