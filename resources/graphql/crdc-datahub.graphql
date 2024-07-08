@@ -408,14 +408,17 @@ type Node {
     lineNumber: Int,
     props: String #a stringified JSON string contains all properties of the node, including parent mapping properties like program.prorgam_acronym
 }
-
+type Related_Node {
+    nodeType: String,
+    counts: Int
+}
 type NodeDetail_Result {
     submissionID: String,
     nodeType: String,
     nodeID: String,
     IDPropName: String,
-    parents: String, #a stringified JSON string contains nodeType and counts
-    children: String #a stringified JSON string contains nodeType and counts
+    parents: [Related_Node], # array of Related node contains nodeType and counts
+    children: [Related_Node] # array of Related node contains nodeType and counts
 }
 
 type institution {

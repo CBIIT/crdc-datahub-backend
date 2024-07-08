@@ -652,19 +652,19 @@ class DataRecordService {
         return nodeDetail
     }
     #ConvertParents(parents){
-        let convertedParents = {};
+        let convertedParents = [];
         let parentTypes = new Set();
         for (let parent of parents){
             parentTypes.add(parent.parentType)
         }
         parentTypes.forEach((parentType) => {
-            convertedParents[parentType] = parents.filter((parent) => parent.parentType === parentType).length;
+            convertedParents.push({nodeType: parentType, counts: parents.filter((parent) => parent.parentType === parentType).length});
         });
-        return JSON.stringify(convertedParents) ;
+        return convertedParents ;
     }
 
     async #GetNodeChildren(submissionID, nodeType, nodeID){
-        let convertedChildren= {};
+        let convertedChildren= [];
         // get children
         const children = await this.dataRecordsCollection.aggregate([{
             $match: {
@@ -678,9 +678,9 @@ class DataRecordService {
             childTypes.add(child.nodeType)
         }
         childTypes.forEach((childType) => {
-            convertedChildren[childType] = children.filter((child) => child.nodeType === childType).length;
+            convertedChildren.push({nodeType: childType, counts:children.filter((child) => child.nodeType === childType).length});
         });
-        return JSON.stringify(convertedChildren);
+        return convertedChildren;
     }
 
     async listSubmissionNodeTypes(submissionID){
