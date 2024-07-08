@@ -495,16 +495,31 @@ class Submission {
     async listSubmissionNodes(params, context) {
         verifySession(context)
             .verifyInitialized();
-
+        const {
+            submissionID, 
+            nodeType, 
+            status,
+            nodeID, 
+            first,
+            offset,
+            orderBy,
+            sortDirection} = params;
         //check if submission exists
-        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        const aSubmission = await findByID(this.submissionCollection, submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
+        if(!["All", "New", "Error", "Passed", "Warning"].includes(status)){
+            throw new Error(ERROR.INVALID_NODE_STATUS_NOT_FOUND);
+        }
+
         if (params?.nodeType !== DATA_FILE) {
-            const result = await this.dataRecordService.submissionNodes(params.submissionID, params.nodeType, 
-                params.first, params.offset, params.orderBy, params.sortDirection);
+            const query = {submissionID: submissionID, nodeType: nodeType};
+            if (status !== "All") query.status = status;
+            if (nodeID) query.nodeID = nodeID;
+            const result = await this.dataRecordService.submissionNodes(submissionID, nodeType, 
+                first, offset, orderBy, sortDirection, query);
             return this.#ProcessSubmissionNodes(result);
         }
         else {
@@ -604,7 +619,12 @@ class Submission {
             };
             file.props = JSON.stringify(props);
         }
-         //sorting and slicing
+        // filter status and nodeID
+        if (params.status !== "All")
+            s3Files = s3Files.filter(f => f.status === params.status);
+        if (params.nodeID)
+            s3Files = s3Files.filter(f => f.nodeID === params.nodeID);
+        //sorting and slicing
         s3Files.sort((a, b) => {
             if (a[params.orderBy] < b[params.orderBy])
                 return (params.sortDirection === "ASC")? -1 : 1;

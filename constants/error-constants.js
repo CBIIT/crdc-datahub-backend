@@ -106,7 +106,8 @@ const ERROR = {
     FAILED_LIST_DATA_FILES: "Unable to list data files in the bucket",
     INVALID_NODE_RELATIONSHIP: "Invalid node relationship",
     INVALID_NO_PARENTS_FOUND: "No parents found for the node type",
-    INVALID_NO_CHILDREN_FOUND: "No children found for the node type",
+    INVALID_NO_CHILDREN_FOUND: "No children found for the node type", 
+    INVALID_NODE_STATUS_NOT_FOUND: "Invalid node status",
 }
 
 module.exports = ERROR;
