@@ -2,36 +2,52 @@ const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-
 const {v4} = require("uuid");
 const {BATCH, FILE} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 class Batch {
-    constructor(submissionID, bucketName, filePrefix, type, status, metadataIntention) {
+    constructor(submissionID, displayID, bucketName, filePrefix, type, status, metadataIntention) {
         this._id = v4();
         this.bucketName = bucketName;
-        this.filePrefix = filePrefix;
         this.submissionID = submissionID;
+        this.displayID = displayID;
         this.type = type;
+        if (type === BATCH.TYPE.DATA_FILE || type === BATCH.TYPE.FILE) {
+            this.type = BATCH.TYPE.DATA_FILE;
+        }
         this.status = status;
         this.fileCount = 0;
         // Optional
+        metadataIntention = [BATCH.INTENTION.NEW, BATCH.INTENTION.UPDATE, BATCH.INTENTION.DELETE].find(i => i.toLowerCase() === metadataIntention?.toLowerCase());
         if (metadataIntention) {
             this.metadataIntention = metadataIntention;
         }
         this.files = [];
         this.createdAt = this.updatedAt = getCurrentTime();
+        if (type === BATCH.TYPE.METADATA) {
+            filePrefix += `/${this.createdAt?.getTime()}`;
+        }
+        this.filePrefix = filePrefix;
     }
 
-    addFile(name, size, signedURL) {
-        const file = new BatchFile(name, size, signedURL, this.filePrefix);
+    addDataFile(name, size){
+        this.#addFile(name, size, null, true)
+    }
+
+    addMetadataFile(name, size, signedURL){
+        this.#addFile(name, size, signedURL, false)
+    }
+
+    #addFile(name, size, signedURL, isDataFile) {
+        const file = new BatchFile(name, size, signedURL, this.filePrefix, isDataFile);
         this.files.push(file);
         this.fileCount += 1;
     }
 
-    static createNewBatch(submissionID, bucketName, filePrefix, type, metadataIntention = null) {
+    static createNewBatch(submissionID, displayID, bucketName, filePrefix, type, metadataIntention = null) {
         const status = BATCH.STATUSES.UPLOADING;
-        return new Batch(submissionID, bucketName, filePrefix, type, status, metadataIntention);
+        return new Batch(submissionID, displayID, bucketName, filePrefix, type, status, metadataIntention);
     }
 }
 
 class BatchFile {
-    constructor(fileName, size, signedURL, filePrefix) {
+    constructor(fileName, size, signedURL, filePrefix, isDataFile) {
         this.fileName = fileName;
         this.size = size;
         this.status = FILE.UPLOAD_STATUSES.NEW;
@@ -41,6 +57,9 @@ class BatchFile {
         this.filePrefix = filePrefix;
         this.createdAt = this.updatedAt = getCurrentTime();
         this.errors = [];
+        if (isDataFile){
+            this.nodeType = BATCH.TYPE.DATA_FILE
+        }
     }
 }
 

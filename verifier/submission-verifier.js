@@ -1,7 +1,9 @@
 const ERROR = require("../constants/error-constants");
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
-    REJECTED, WITHDRAWN, ACTIONS } = require("../constants/submission-constants");
+    REJECTED, WITHDRAWN, ACTIONS, VALIDATION_STATUS
+} = require("../constants/submission-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
+const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 
 function verifySubmissionAction(submissionId, action){ 
@@ -26,9 +28,13 @@ class SubmissionActionVerifier {
         return this.submission;
     }
 
-    isValidAction(){
-        if(this.action === ACTIONS.REJECT)
+    isValidAction(comment){
+        if(this.action === ACTIONS.REJECT) {
             this.action = `${this.action}_${this.submission.status}`;
+            if(!comment || comment?.trim()?.length === 0) {
+                throw new Error(ERROR.VERIFY.REJECT_ACTION_COMMENT_REQUIRED);
+            }
+        }
 
         let actionMap = submissionActionMap?.filter((a)=>a.action === this.action);
         if(!actionMap || actionMap.length === 0)
@@ -41,11 +47,44 @@ class SubmissionActionVerifier {
         this.newStatus = this.actionMap.toStatus;
     }
 
+    isValidSubmitAction(role, aSubmission, comment) {
+        if(this.action === ACTIONS.SUBMIT) {
+            const isInvalidAdminStatus = !this.#isValidAdminStatus(role, aSubmission);
+            const isValidRole = [USER.ROLES.CURATOR, USER.ROLES.ORG_OWNER, USER.ROLES.SUBMITTER].includes(role);
+            const validStatus = [VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING];
+            const isValidatedStatus = validStatus.includes(aSubmission?.metadataValidationStatus)
+                && validStatus.includes(aSubmission?.fileValidationStatus);
+
+            if (isInvalidAdminStatus) {
+                if (ROLES.ADMIN === role ||(![ROLES.ADMIN].includes(role) && (!isValidRole || !isValidatedStatus))) {
+                    throw new Error(ERROR.VERIFY.INVALID_SUBMIT_ACTION);
+                }
+            }
+
+            if (this.isSubmitActionCommentRequired(aSubmission, role, comment)) {
+                throw new Error(ERROR.VERIFY.SUBMIT_ACTION_COMMENT_REQUIRED);
+            }
+        }
+    }
+
+    isSubmitActionCommentRequired(aSubmission, role, comment) {
+            const isError = [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus].includes(VALIDATION_STATUS.ERROR);
+            return this.action === ACTIONS.SUBMIT && ROLES.ADMIN === role && isError && (!comment || comment?.trim()?.length === 0);
+    }
+
     inRoles(userInfo){
         const role = userInfo?.role;
         if(this.actionMap.roles.indexOf(role) < 0)
             throw new Error(`Invalid user role for the action: ${this.action}!`);
         return this.newStatus;
+    }
+    // Private Function
+    #isValidAdminStatus(role, aSubmission) {
+        const isRoleAdmin = role === USER.ROLES.ADMIN;
+        const isMetadataInvalid = aSubmission?.metadataValidationStatus === VALIDATION_STATUS.NEW;
+        const isFileInValid = aSubmission?.fileValidationStatus === VALIDATION_STATUS.NEW;
+        // null fileValidationStatus means this submission doesn't have any files uploaded
+        return isRoleAdmin && !isMetadataInvalid && (aSubmission?.fileValidationStatus === null || !isFileInValid);
     }
 }
 

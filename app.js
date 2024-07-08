@@ -11,12 +11,12 @@ const statusRouter = require("./routers/status-endpoints-router");
 const graphqlRouter = require("./routers/graphql-router");
 const {MongoDBCollection} = require("./crdc-datahub-database-drivers/mongodb-collection");
 const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, LOG_COLLECTION, APPROVED_STUDIES_COLLECTION,
-    ORGANIZATION_COLLECTION
+    ORGANIZATION_COLLECTION, SUBMISSIONS_COLLECTION
 } = require("./crdc-datahub-database-drivers/database-constants");
 const {Application} = require("./services/application");
 const {MongoQueries} = require("./crdc-datahub-database-drivers/mongo-queries");
 const {DatabaseConnector} = require("./crdc-datahub-database-drivers/database-connector");
-const {getCurrentTime} = require("./crdc-datahub-database-drivers/utility/time-utility");
+const {getCurrentTime, subtractDaysFromNow} = require("./crdc-datahub-database-drivers/utility/time-utility");
 const {EmailService} = require("./services/email");
 const {NotifyUser} = require("./services/notify-user");
 const {User} = require("./crdc-datahub-database-drivers/services/user");
@@ -24,6 +24,7 @@ const {extractAndJoinFields} = require("./utility/string-util");
 const {ApprovedStudiesService} = require("./services/approved-studies");
 const {USER} = require("./crdc-datahub-database-drivers/constants/user-constants");
 const {Organization} = require("./crdc-datahub-database-drivers/services/organization");
+const {LOGIN, REACTIVATE_USER} = require("./crdc-datahub-database-drivers/constants/event-constants");
 // print environment variables to log
 console.info(config);
 
@@ -62,15 +63,15 @@ cronJob.schedule(config.schedule_job, async () => {
         const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days,
             submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk};
         const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
-        const userService = new User(userCollection, logCollection);
-
         const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
         const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection);
 
         const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
         const organizationService = new Organization(organizationCollection);
+        const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
+        const userService = new User(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.tier);
 
-        const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.devTier);
+        const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.tier);
         console.log("Running a scheduled background task to delete inactive application at " + getCurrentTime());
         await dataInterface.deleteInactiveApplications();
         console.log("Running a scheduled job to disable user(s) because of no activities at " + getCurrentTime());
@@ -82,20 +83,15 @@ cronJob.schedule(config.schedule_job, async () => {
 });
 
 const runDeactivateInactiveUsers = async (userService, notificationsService) => {
-    // if there is no user login detected in the log collection, we will deactivate these users.
-    const allUsersByEmailAndIDP = await userService.getAllUsersByEmailAndIDP();
-    const nonLogUsers = await userService.findUsersExcludingEmailAndIDP(allUsersByEmailAndIDP);
-    const inactiveUsers = await userService.getInactiveUsers(config.inactive_user_days);
-    // merge and remove duplicate users
-    const inactiveUserConditions = [...new Map([...nonLogUsers, ...inactiveUsers].map((user) => [user.email + user.IDP, user])).values()];
-    const disabledUsers = await userService.disableInactiveUsers(inactiveUserConditions);
+    const usersToBeInactivated = await userService.checkForInactiveUsers([LOGIN, REACTIVATE_USER]);
+    const disabledUsers = await userService.disableInactiveUsers(usersToBeInactivated);
     if (disabledUsers.length > 0) {
         // Email disabled user(s)
         await Promise.all(disabledUsers.map(async (user) => {
             await notificationsService.inactiveUserNotification(user.email,
                 {firstName: user.firstName},
                 {inactiveDays: config.inactive_user_days, officialEmail: config.official_email},
-                config.devTier);
+                config.tier);
         }));
         // Email admin(s)
         const adminUsers = await userService.getAdminUserEmails();
@@ -112,7 +108,7 @@ const runDeactivateInactiveUsers = async (userService, notificationsService) => 
                 await notificationsService.inactiveUserAdminNotification(admin.email,
                     {firstName: admin.firstName,users: commaJoinedUsers},
                     {inactiveDays: config.inactive_user_days},
-                    config.devTier);
+                    config.tier);
             }
         }));
     }
