@@ -13,6 +13,10 @@ Config:
     manifest: {manifest}
     #file name header name in the manifest file, default is file_name
     name-field: {name-field}
+    #file id header name in the manifest file in data model
+    id-field: {id-field}
+    # if id_field need to be DCF prefix id, read from data model content.json
+    omit-DCF-prefix: {omit-DCF-prefix}
     #file size header name in the manifest file, default is file_size
     size-field: {size-field}
     #file md5 header name in the manifest file, default is md5sum

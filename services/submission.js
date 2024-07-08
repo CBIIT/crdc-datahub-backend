@@ -16,6 +16,7 @@ const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-consta
 const { API_TOKEN } = require("../constants/application-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {AWSService} = require("../services/aws-request");
+// const {write2file} = require("../utility/io-util") //keep the line for future testing.
 
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const ALL_FILTER = "All";
@@ -630,16 +631,19 @@ class Submission {
         configString = this.#replaceFileNodeProps(aSubmission, configString);
         //insert token into the string
         configString = await this.#replaceToken(context, configString);
-        /** test code: write yaml string to file for verification of output
-        write2file(configString, "logs/userUploaderConfig.yaml")
-        end test code **/
+        /** test code: write yaml string to file for verification of output **/
+        // write2file(configString, "logs/userUploaderConfig.yaml")
+        /** end test code **/
         return configString;
     }
 
     #replaceFileNodeProps(aSubmission, configString){
         const modelFileNodeInfos = Object.values(this.dataModelInfo?.[aSubmission.dataCommons]?.[DATA_MODEL_SEMANTICS]?.[DATA_MODEL_FILE_NODES]);
+        const omit_DCF_prefix = this.dataModelInfo?.[aSubmission.dataCommons]?.['omit-DCF-prefix'];
         if (modelFileNodeInfos.length > 0){
-            return configString.format(modelFileNodeInfos[0]);
+            let modelFileNodeInfo = modelFileNodeInfos[0];
+            modelFileNodeInfo['omit-DCF-prefix'] = (!omit_DCF_prefix)?false:omit_DCF_prefix;
+            return configString.format(modelFileNodeInfo);
         }
         else{
             throw new Error(ERROR.INVALID_DATA_MODEL);
