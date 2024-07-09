@@ -658,7 +658,7 @@ class DataRecordService {
             parentTypes.add(parent.parentType)
         }
         parentTypes.forEach((parentType) => {
-            convertedParents.push({nodeType: parentType, counts: parents.filter((parent) => parent.parentType === parentType).length});
+            convertedParents.push({nodeType: parentType, total: parents.filter((parent) => parent.parentType === parentType).length});
         });
         return convertedParents ;
     }
@@ -678,7 +678,7 @@ class DataRecordService {
             childTypes.add(child.nodeType)
         }
         childTypes.forEach((childType) => {
-            convertedChildren.push({nodeType: childType, counts:children.filter((child) => child.nodeType === childType).length});
+            convertedChildren.push({nodeType: childType, total:children.filter((child) => child.nodeType === childType).length});
         });
         return convertedChildren;
     }

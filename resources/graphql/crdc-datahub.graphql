@@ -410,7 +410,7 @@ type Node {
 }
 type Related_Node {
     nodeType: String,
-    counts: Int
+    total: Int
 }
 type NodeDetail_Result {
     submissionID: String,
