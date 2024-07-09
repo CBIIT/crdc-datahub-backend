@@ -18,7 +18,6 @@ describe('BatchService', () => {
             const params = {
                 submissionID: 'submission123',
                 type: BATCH.TYPE.METADATA,
-                metadataIntention: 'intention123',
                 files: [
                     { fileName: 'file1.txt' },
                     { fileName: 'file2.txt' },
@@ -48,7 +47,6 @@ describe('BatchService', () => {
             const params = {
                 submissionID: 'submission123',
                 type: BATCH.TYPE.METADATA,
-                metadataIntention: 'intention123',
                 files: [
                     { fileName: 'file1.txt' },
                     { fileName: 'file2.txt' },

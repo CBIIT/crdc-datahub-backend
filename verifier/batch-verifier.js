@@ -9,8 +9,6 @@ class BatchVerifier {
         this.submissionID = batch?.submissionID;
         this.batchType = batch?.type;
         this.files = batch?.files;
-        // Optional
-        this.intention = batch?.metadataIntention;
         this.batchID = batch?.batchID;
     }
 
@@ -47,18 +45,6 @@ class BatchVerifier {
         }
         if (!type.includes(this.batchType.toLowerCase())) {
             throw Error(ERROR.VERIFY.INVALID_BATCH_TYPE);
-        }
-        return this;
-    }
-
-    metadataIntention(intention) {
-        if (!Array.isArray(intention)){
-            intention = [intention];
-        }
-        intention = intention.map(i => i?.toLowerCase());
-        const isValidIntentionType = this.intention && intention.includes(this.intention.toLowerCase());
-        if (!isValidIntentionType || this.intention === "") {
-            throw Error(ERROR.VERIFY.INVALID_METADATA_INTENTION_TYPE);
         }
         return this;
     }
