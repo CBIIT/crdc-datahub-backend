@@ -571,6 +571,8 @@ class Submission {
             if (file.Key.endsWith('/log'))
                 break
             const file_name = file.Key.split('/').pop();
+            
+
             let s3File = {
                 submissionID: params.submissionID,
                 nodeType: DATA_FILE,
@@ -582,10 +584,16 @@ class Submission {
                 Orphaned: "Y",
                 "Uploaded Date/Time": file.LastModified
             };
-            s3Files.push(s3File);  
+            if(params.nodeID )
+                if(file_name !== params.nodeID) continue;
+                else {
+                    s3Files.push(s3File);  
+                    break;
+                }
+            else
+                s3Files.push(s3File);  
         } 
-        returnVal.total = s3Files.length;
-       
+        
         //retrieve file nodes from dataRecords
         const result = await this.dataRecordService.submissionDataFiles(params.submissionID,
              s3Files.map(f=>f.nodeID));
@@ -612,8 +620,6 @@ class Submission {
         // filter status and nodeID
         if (params.status !== "All")
             s3Files = s3Files.filter(f => f.status === params.status);
-        if (params.nodeID)
-            s3Files = s3Files.filter(f => f.nodeID === params.nodeID);
         //sorting and slicing
         s3Files.sort((a, b) => {
             if (a[params.orderBy] < b[params.orderBy])
@@ -622,7 +628,7 @@ class Submission {
                 return (params.sortDirection === "ASC")? 1 : -1;
             return 0;
         });
-
+        returnVal.total = s3Files.length;
         returnVal.nodes = s3Files.slice(params.offset, params.offset + params.first);
         returnVal.properties = ["Batch ID", "File Name", "File Size", "Orphaned", "Uploaded Date/Time"] 
         return returnVal;
