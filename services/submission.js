@@ -512,9 +512,10 @@ class Submission {
         }
         
     }
-    #ProcessSubmissionNodes(result) {
+    #ProcessSubmissionNodes(result, IDPropName=null) {
         let returnVal = {
             total: 0,
+            IDPropName: IDPropName,
             properties: [],
             nodes: []
         };
@@ -640,7 +641,7 @@ class Submission {
             throw new Error(ERROR.INVALID_NODE_RELATIONSHIP);
         }
         const result = await this.dataRecordService.RelatedNodes(params);
-        return this.#ProcessSubmissionNodes(result);
+        return this.#ProcessSubmissionNodes(result[0], result[1]);
     }
 
     /**
