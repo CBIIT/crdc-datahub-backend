@@ -389,6 +389,7 @@ type AsyncProcessResult {
 
 type SubmissionNodes {
     total: Int, #total nodes of a given nodeType and data submission
+    IDPropName: String,
     properties: [String], #all properties of a node including parents 
     nodes: [Node]
 }

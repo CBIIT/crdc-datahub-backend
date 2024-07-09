@@ -12,6 +12,7 @@ const NODE_VIEW = {
     submissionID: "$submissionID",
     nodeType: "$nodeType",
     nodeID: "$nodeID",
+    IDPropName: "$IDPropName",
     status:  "$status",
     createdAt: "$createdAt",
     updatedAt: "$updatedAt",
@@ -697,6 +698,7 @@ class DataRecordService {
         
         const aNode = await this.#GetNode(submissionID, nodeType, nodeID);
         let query = null;
+        let IDPropName = null;
         switch (relationship) {
             case NODE_RELATION_TYPE_PARENT:
                 const parents = aNode.parents?.filter(p=>p.parentType === relatedNodeType);
@@ -708,6 +710,7 @@ class DataRecordService {
                     "nodeID": {$in: parents.map(p=>p.parentIDValue)},
                     "nodeType": relatedNodeType
                 };
+                IDPropName = parents[0].parentIDPropName;
                 break;
             case NODE_RELATION_TYPE_CHILD:
                 query = {
@@ -720,7 +723,9 @@ class DataRecordService {
             default:
                 throw new Error(ERRORS.INVALID_NODE_RELATIONSHIP);
         }
-        return await this.submissionNodes(submissionID, nodeType, first, offset, orderBy, sortDirection, query); 
+        const result = await this.submissionNodes(submissionID, nodeType, first, offset, orderBy, sortDirection, query); 
+        IDPropName = (IDPropName) ? IDPropName : (result.total > 0)? result.results[0].IDPropName : null;
+        return [result, IDPropName];
     }
     async listSubmissionNodeTypes(submissionID){
         if (!submissionID){
