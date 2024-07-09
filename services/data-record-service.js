@@ -24,6 +24,9 @@ const NODE_VIEW = {
     parents: "$parents",
     rawData: "$rawData"
 }
+const NODE_RELATION_TYPE_PARENT="parent";
+const NODE_RELATION_TYPE_CHILD="child";
+const NODE_RELATION_TYPES = [NODE_RELATION_TYPE_PARENT, NODE_RELATION_TYPE_CHILD];
 
 const FILE = "file";
 class DataRecordService {
@@ -541,7 +544,7 @@ class DataRecordService {
         return await this.dataRecordsCollection.deleteMany(filter);
     }
 
-    async submissionNodes(submissionID, nodeType, first, offset, orderBy, sortDirection) {
+    async submissionNodes(submissionID, nodeType, first, offset, orderBy, sortDirection, query=null) {
         // set orderBy
         let sort = orderBy;
         if ( !Object.keys(NODE_VIEW).includes(orderBy)) {
@@ -552,10 +555,10 @@ class DataRecordService {
         }
         let pipeline = [];
         pipeline.push({
-            $match: {
+            $match: (!query)?{
                 submissionID: submissionID, 
                 nodeType: nodeType
-            }
+            }:query
         });
         pipeline.push({
             $project: NODE_VIEW
@@ -602,9 +605,7 @@ class DataRecordService {
             results: dataRecords.results || []}
     }
 
-    async submissionDataFiles(submissionID, nodeType, first, offset, orderBy, sortDirection, s3FileNames) {
-        // set orderBy
-        let sort = orderBy;
+    async submissionDataFiles(submissionID, s3FileNames) {
         let pipeline = [];
         pipeline.push({
             $match: {
@@ -624,6 +625,18 @@ class DataRecordService {
     }
 
     async NodeDetail(submissionID, nodeType, nodeID){
+        const aNode = await this.#GetNode(submissionID, nodeType, nodeID);
+        let nodeDetail = {
+            submissionID: aNode.submissionID,
+            nodeID: aNode.nodeID,
+            nodeType: aNode.nodeType,
+            IDPropName: aNode.IDPropName,
+            parents: this.#ConvertParents(aNode.parents),
+            children: await this.#GetNodeChildren(submissionID, nodeType, nodeID)
+        };
+        return nodeDetail
+    }
+    async #GetNode(submissionID, nodeType, nodeID){
         const aNodes = await this.dataRecordsCollection.aggregate([{
             $match: {
                 nodeID: nodeID,
@@ -635,16 +648,8 @@ class DataRecordService {
         if(aNodes.length === 0){
             throw new Error(ERRORS.INVALID_NODE_NOT_FOUND);
         }
-        const aNode = aNodes[0];
-        let nodeDetail = {
-            submissionID: aNode.submissionID,
-            nodeID: aNode.nodeID,
-            nodeType: aNode.nodeType,
-            IDPropName: aNode.IDPropName,
-            parents: this.#ConvertParents(aNode.parents),
-            children: await this.#GetNodeChildren(submissionID, nodeType, nodeID)
-        };
-        return nodeDetail
+        else 
+            return aNodes[0];
     }
     #ConvertParents(parents){
         let convertedParents = [];
@@ -678,6 +683,45 @@ class DataRecordService {
         return convertedChildren;
     }
 
+    async RelatedNodes(param){
+        const {
+            submissionID, 
+            nodeType, 
+            nodeID, 
+            relationship,
+            relatedNodeType,
+            first,
+            offset,
+            orderBy,
+            sortDirection} = param;
+        
+        const aNode = await this.#GetNode(submissionID, nodeType, nodeID);
+        let query = null;
+        switch (relationship) {
+            case NODE_RELATION_TYPE_PARENT:
+                const parents = aNode.parents?.filter(p=>p.parentType === relatedNodeType);
+                if (parents.length === 0){
+                    throw new Error(ERRORS.INVALID_NO_PARENTS_FOUND);
+                }
+                query = {
+                    "submissionID": submissionID,
+                    "nodeID": {$in: parents.map(p=>p.parentIDValue)},
+                    "nodeType": relatedNodeType
+                };
+                break;
+            case NODE_RELATION_TYPE_CHILD:
+                query = {
+                    submissionID: submissionID,
+                    nodeType: relatedNodeType,
+                    "parents.parentIDValue": nodeID,
+                    "parents.parentType": nodeType
+                };
+                break;
+            default:
+                throw new Error(ERRORS.INVALID_NODE_RELATIONSHIP);
+        }
+        return await this.submissionNodes(submissionID, nodeType, first, offset, orderBy, sortDirection, query); 
+    }
     async listSubmissionNodeTypes(submissionID){
         if (!submissionID){
             return []
@@ -846,5 +890,6 @@ class SubmissionStats {
 }
 
 module.exports = {
-    DataRecordService
+    DataRecordService, 
+    NODE_RELATION_TYPES
 };
