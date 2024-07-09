@@ -19,7 +19,6 @@ const ERROR = {
         UNDEFINED_BATCH_TYPE: "Batch metadata-intention is undefined",
         EMPTY_BATCH_FILE: "Batch file is empty",
         INVALID_BATCH_TYPE: "Batch type is invalid",
-        INVALID_METADATA_INTENTION_TYPE: "Metadata Intention type is invalid",
         // submission action
         INVALID_SUBMISSION_ACTION: "Invalid submission action:",
         INVALID_SUBMISSION_ACTION_STATUS: "Invalid submission status for the action:",
@@ -97,6 +96,8 @@ const ERROR = {
     //export dataRecords
     INVALID_EXPORT_METADATA: "You do not have permission to export submission data",
     INVALID_DATA_MODEL_VERSION: "An error occurred while trying to retrieve the data model version from the given URL",
+    INVALID_DELETE_DATA_RECORDS_PERMISSION: "You do not have the correct permissions to delete data records",
+    FAILED_DELETE_DATA_RECORDS: "Failed to send a delete data record message",
     // delete submission error file list
     DELETE_NO_FILE_SUBMISSION: "No extra file found",
     DELETE_NO_EXISTS_SUBMISSION: "No extra files found for deletion in the bucket",

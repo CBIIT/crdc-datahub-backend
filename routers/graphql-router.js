@@ -39,10 +39,11 @@ dbConnector.connect().then(async () => {
         submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk, remindSubmissionDay: config.inactive_submission_days_notify};
     const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
-    const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection);
-    const userService = new User(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.tier);
     const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
+    const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection, approvedStudiesCollection);
     const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, organizationService);
+
+    const userService = new User(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.tier);
     const s3Service = new S3Service();
     const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
     const awsService = new AWSService(submissionCollection, userService);
@@ -108,6 +109,7 @@ dbConnector.connect().then(async () => {
         createOrganization : organizationService.createOrganizationAPI.bind(organizationService),
         deleteOrphanedFile: submissionService.deleteOrphanedFile.bind(submissionService),
         deleteAllOrphanedFiles: submissionService.deleteAllOrphanedFiles.bind(submissionService),
+        deleteDataRecords: submissionService.deleteDataRecords.bind(submissionService)
     };
 });
 

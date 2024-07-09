@@ -68,9 +68,9 @@ class DataRecordService {
         const uploadedFiles = s3SubmissionFiles?.Contents
             .filter((f)=> f && f.Key !== `${aSubmission.rootPath}/${FILE}/`)
             .map((f)=> f.Key.replace(`${aSubmission.rootPath}/${FILE}/`, ''));
-        // This dataFiles represents the intersection of the orphanedFiles and missingFiles.
-        const [orphanedFiles, missingFiles, dataFiles] = this.#dataFilesStats(uploadedFiles, fileRecords);
-        this.#saveDataFileStats(submissionStats, orphanedFiles, missingFiles, dataFiles, aSubmission);
+        // This dataFiles represents the intersection of the orphanedFiles.
+        const [orphanedFiles, dataFiles] = this.#dataFilesStats(uploadedFiles, fileRecords);
+        this.#saveDataFileStats(submissionStats, orphanedFiles, dataFiles, uploadedFiles?.length, aSubmission);
         return submissionStats;
     }
 
@@ -78,8 +78,7 @@ class DataRecordService {
     #dataFilesStats(s3SubmissionFiles, fileRecords) {
         const s3FileSet = new Set(s3SubmissionFiles);
         const fileDataRecordsMap = new Map(fileRecords.map(file => [file?.s3FileInfo?.fileName, file?.s3FileInfo]));
-        const [orphanedFiles, missingFiles, dataFiles] = [[], [], []];
-
+        const [orphanedFiles, dataFiles] = [[], []];
         s3FileSet.forEach(file => {
             if (fileDataRecordsMap.has(file)) {
                 dataFiles.push(fileDataRecordsMap.get(file));
@@ -88,24 +87,18 @@ class DataRecordService {
             }
         });
 
-        fileRecords.forEach(file => {
-            if (!s3FileSet.has(file?.s3FileInfo?.fileName)) {
-                missingFiles.push(file?.s3FileInfo?.fileName);
-            }
-        });
-
-        return [orphanedFiles, missingFiles, dataFiles];
+        return [orphanedFiles, dataFiles];
     }
 
-    #saveDataFileStats(submissionStats, orphanedFiles, missingFiles, dataFiles, aSubmission) {
+    #saveDataFileStats(submissionStats, orphanedFiles, dataFiles, totalCount, aSubmission) {
         const stat = Stat.createStat(DATA_FILE);
-        // submission error should be under data file's s3FileInfo.status == "Error", plus count of orphanedFiles + missingFiles
+        // submission error should be under data file's s3FileInfo.status == "Error", plus count of orphanedFiles
         aSubmission?.fileErrors?.forEach(file => {
             if (file?.type === DATA_FILE) {
                 stat.countNodeType(VALIDATION_STATUS.ERROR, 1);
             }
         });
-        stat.countNodeType(VALIDATION_STATUS.ERROR, orphanedFiles.length + missingFiles.length);
+        stat.countNodeType(VALIDATION_STATUS.ERROR, orphanedFiles.length);
         // submission warning should be under data file's s3FileInfo.status == "Warning", plus count of Submission.fileWarnings
         aSubmission?.fileWarnings?.forEach(file => {
             if (file?.type === DATA_FILE) {
@@ -118,6 +111,8 @@ class DataRecordService {
         });
 
         if (stat.total > 0) {
+            // The total is the number of files uploaded to S3.
+            stat.total = totalCount;
             submissionStats.addStats(stat);
         }
     }
@@ -657,19 +652,19 @@ class DataRecordService {
             return aNodes[0];
     }
     #ConvertParents(parents){
-        let convertedParents = {};
+        let convertedParents = [];
         let parentTypes = new Set();
         for (let parent of parents){
             parentTypes.add(parent.parentType)
         }
         parentTypes.forEach((parentType) => {
-            convertedParents[parentType] = parents.filter((parent) => parent.parentType === parentType).length;
+            convertedParents.push({nodeType: parentType, total: parents.filter((parent) => parent.parentType === parentType).length});
         });
-        return JSON.stringify(convertedParents) ;
+        return convertedParents ;
     }
 
     async #GetNodeChildren(submissionID, nodeType, nodeID){
-        let convertedChildren= {};
+        let convertedChildren= [];
         // get children
         const children = await this.dataRecordsCollection.aggregate([{
             $match: {
@@ -683,9 +678,9 @@ class DataRecordService {
             childTypes.add(child.nodeType)
         }
         childTypes.forEach((childType) => {
-            convertedChildren[childType] = children.filter((child) => child.nodeType === childType).length;
+            convertedChildren.push({nodeType: childType, total:children.filter((child) => child.nodeType === childType).length});
         });
-        return JSON.stringify(convertedChildren);
+        return convertedChildren;
     }
 
     async RelatedNodes(param){
@@ -736,7 +731,13 @@ class DataRecordService {
         };
         return await this.dataRecordsCollection.distinct("nodeType", filter);
     }
-    
+
+    async deleteDataRecords(submissionID, nodeType, nodeIDs) {
+        const msg = Message.deleteMetadata(submissionID, nodeType, nodeIDs);
+        const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.metadataQueueName, submissionID);
+        return !success.success ? ValidationHandler.handle([ERRORS.FAILED_DELETE_DATA_RECORDS, success?.message]) : ValidationHandler.success();
+    }
+
     #replaceNaN(results, replacement){
         results?.map((result) => {
             Object.keys(result).forEach((key) => {
@@ -795,6 +796,8 @@ const isValidMetadata = (types, scope) => {
     }
 }
 
+const DELETE_METADATA = "Delete Metadata";
+
 class Message {
     constructor(type, validationID) {
         this.type = type;
@@ -820,6 +823,14 @@ class Message {
     static createFileNodeMessage(type, dataRecordID, validationID) {
         const msg = new Message(type, validationID);
         msg.dataRecordID = dataRecordID;
+        return msg;
+    }
+
+    static deleteMetadata(submissionID, nodeType, nodeIDs) {
+        const msg = new Message(DELETE_METADATA);
+        msg.submissionID = submissionID;
+        msg.nodeType = nodeType;
+        msg.nodeIDs = nodeIDs;
         return msg;
     }
 }

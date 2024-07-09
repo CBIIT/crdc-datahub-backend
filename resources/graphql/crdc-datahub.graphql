@@ -106,7 +106,6 @@ type Batch {
     submissionID: ID # parent
     displayID: Int
     type: String # [metadata, file]
-    metadataIntention: String # [New, Update, Delete], Update is meant for "Update or insert", metadata only! file batches are always treated as Update
     fileCount: Int # calculated by BE
     files: [FileInfo]
     status: String # [Uploading, Uploaded, Upload Failed, Loaded, Rejected] Loaded and Rejected are for metadata batch only
@@ -137,7 +136,6 @@ type NewBatch {
     bucketName: String # S3 bucket of the submission, for file batch / CLI use
     filePrefix: String # prefix/path within S3 bucket, for file batch / CLI use
     type: String # [metadata, file]
-    metadataIntention: String # [New, Update, Delete], Update is meant for "Update or insert", metadata only! file batches are always treated as Update
     fileCount: Int
     files: [FileURL] # only available for metadata batch
     status: String # [Uploading, Uploaded, Upload Failed, Loaded, Rejected]
@@ -246,8 +244,7 @@ input UpdateUserInput {
 }
 
 input ApprovedStudyInput {
-  studyName: String!
-  studyAbbreviation: String!
+  studyID: String!
 }
 
 type SubmissionStats {
@@ -408,14 +405,17 @@ type Node {
     lineNumber: Int,
     props: String #a stringified JSON string contains all properties of the node, including parent mapping properties like program.prorgam_acronym
 }
-
+type Related_Node {
+    nodeType: String,
+    total: Int
+}
 type NodeDetail_Result {
     submissionID: String,
     nodeType: String,
     nodeID: String,
     IDPropName: String,
-    parents: String, #a stringified JSON string contains nodeType and counts
-    children: String #a stringified JSON string contains nodeType and counts
+    parents: [Related_Node], # array of Related node contains nodeType and counts
+    children: [Related_Node] # array of Related node contains nodeType and counts
 }
 
 type institution {
@@ -568,8 +568,8 @@ type Mutation {
 
     deleteOrphanedFile(_id: ID!, fileName: String!): DataValidation
     deleteAllOrphanedFiles(_id: ID!): DataValidation
-
-    createBatch (submissionID: ID!, type: String, metadataIntention: String, files: [FileInput]): NewBatch
+    deleteDataRecords(submissionID: String!, nodeType: String!, nodeIDs: [String!]): DataValidation
+    createBatch (submissionID: ID!, type: String, files: [FileInput]): NewBatch
     updateBatch (batchID: ID!, files: [UploadResult]): Batch
     createTempCredentials (submissionID: ID!): TempCredentials
     validateSubmission(

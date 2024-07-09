@@ -16,6 +16,7 @@ const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-consta
 const { API_TOKEN } = require("../constants/application-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {AWSService} = require("../services/aws-request");
+// const {write2file} = require("../utility/io-util") //keep the line for future testing.
 
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const ALL_FILTER = "All";
@@ -23,6 +24,7 @@ const NA = "NA"
 const config = require("../config");
 const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
+const {isUndefined} = require("../utility/string-util");
 const {NODE_RELATION_TYPES} = require("./data-record-service");
 const FILE = "file";
 
@@ -32,6 +34,8 @@ const LOG_FILE_EXT_ZIP ='.zip';
 const LOG_FILE_EXT_LOG ='.log';
 const DATA_MODEL_SEMANTICS = 'semantics';
 const DATA_MODEL_FILE_NODES = 'file-nodes';
+const COMPLETE_SUBMISSION = "Complete Submission";
+const GENERATE_DCF_MANIFEST = "Generate DCF Manifest";
 
 // Set to array
 Set.prototype.toArray = function() {
@@ -72,7 +76,7 @@ class Submission {
         }
         const modelVersion = this.#getModelVersion(this.dataModelInfo, params.dataCommons);
         const newSubmission = DataSubmission.createSubmission(
-            params.name, context.userInfo, params.dataCommons, params.studyID, params.dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy?.controlledAccess);
+            params.name, context.userInfo, params.dataCommons, params.studyID, params.dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy);
         const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
@@ -116,11 +120,6 @@ class Submission {
             .isUndefined()
             .notEmpty()
             .type([BATCH.TYPE.METADATA, BATCH.TYPE.DATA_FILE, BATCH.TYPE.FILE]);
-        // Optional metadata intention
-        if (params.type === BATCH.TYPE.METADATA) {
-            verifyBatch(params)
-                .metadataIntention([BATCH.INTENTION.NEW, BATCH.INTENTION.UPDATE, BATCH.INTENTION.DELETE]);
-        }
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
         // The submission status must be valid states
@@ -203,9 +202,9 @@ class Submission {
                 const submissions = await this.submissionCollection.aggregate([
                     {"$match": {$and: [
                         {studyID: aSubmission.studyID},
-                        {status: {$in: [IN_PROGRESS, SUBMITTED]}},
+                        {status: {$in: [IN_PROGRESS, SUBMITTED, RELEASED]}},
                         {_id: { $not: { $eq: params._id}}}]}}]);
-                const otherSubmissions = {[IN_PROGRESS]: [], [SUBMITTED]: []};
+                const otherSubmissions = {[IN_PROGRESS]: [], [SUBMITTED]: [], [RELEASED]: []};
                 submissions.forEach((submission) => {
                     otherSubmissions[submission.status].push(submission._id);
                 });
@@ -270,7 +269,8 @@ class Submission {
         // Send complete action
         const completePromise = [];
         if (action === ACTIONS.COMPLETE) {
-            completePromise.push(this.#sendCompleteMessage({type: "Complete Submission", submissionID}, submissionID));
+            completePromise.push(this.#sendCompleteMessage({type: COMPLETE_SUBMISSION, submissionID}, submissionID));
+            completePromise.push(this.#sendCompleteMessage({type: GENERATE_DCF_MANIFEST, submissionID}, submissionID));
         }
 
         //log event and send notification
@@ -387,17 +387,7 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        const userInfo = context?.userInfo;
-        const promises = [
-            await this.userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
-            await this.userService.getUserByID(aSubmission?.submitterID)
-        ];
-        const results = await Promise.all(promises);
-        const isOrgOwners = (results[0] || []).some((aUser) => isPermittedUser(aUser, userInfo));
-        const isSubmitter = isPermittedUser(results[1], userInfo);
-        const isDataCurator = ROLES.CURATOR === userInfo?.role;
-        const isPermittedAccess = this.userService.isAdmin(userInfo?.role) || isOrgOwners || isSubmitter || isDataCurator;
-        if (!isPermittedAccess) {
+        if (!await this.#isValidPermission(context?.userInfo, aSubmission)) {
             throw new Error(ERROR.INVALID_VALIDATE_METADATA)
         }
         // start validation, change validating status
@@ -701,16 +691,19 @@ class Submission {
         configString = this.#replaceFileNodeProps(aSubmission, configString);
         //insert token into the string
         configString = await this.#replaceToken(context, configString);
-        /** test code: write yaml string to file for verification of output
-        write2file(configString, "logs/userUploaderConfig.yaml")
-        end test code **/
+        /** test code: write yaml string to file for verification of output **/
+        // write2file(configString, "logs/userUploaderConfig.yaml")
+        /** end test code **/
         return configString;
     }
 
     #replaceFileNodeProps(aSubmission, configString){
         const modelFileNodeInfos = Object.values(this.dataModelInfo?.[aSubmission.dataCommons]?.[DATA_MODEL_SEMANTICS]?.[DATA_MODEL_FILE_NODES]);
+        const omit_DCF_prefix = this.dataModelInfo?.[aSubmission.dataCommons]?.['omit-DCF-prefix'];
         if (modelFileNodeInfos.length > 0){
-            return configString.format(modelFileNodeInfos[0]);
+            let modelFileNodeInfo = modelFileNodeInfos[0];
+            modelFileNodeInfo['omit-DCF-prefix'] = (!omit_DCF_prefix)?false:omit_DCF_prefix;
+            return configString.format(modelFileNodeInfo);
         }
         else{
             throw new Error(ERROR.INVALID_DATA_MODEL);
@@ -841,6 +834,35 @@ class Submission {
             return "failed!";
         }
     }
+
+    async deleteDataRecords(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyRole([ROLES.ADMIN, ROLES.ORG_OWNER, ROLES.CURATOR, ROLES.SUBMITTER]);
+        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        if (!aSubmission) {
+            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+        }
+
+        if (!await this.#isValidPermission(context?.userInfo, aSubmission)) {
+            throw new Error(ERROR.INVALID_DELETE_DATA_RECORDS_PERMISSION)
+        }
+
+        return this.dataRecordService.deleteDataRecords(params.submissionID, params.nodeType, params.nodeIDs);
+    }
+
+    async #isValidPermission(userInfo, aSubmission) {
+        const promises = [
+            await this.userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
+            await this.userService.getUserByID(aSubmission?.submitterID)
+        ];
+        const results = await Promise.all(promises);
+        const isOrgOwners = (results[0] || []).some((aUser) => isPermittedUser(aUser, userInfo));
+        const isSubmitter = isPermittedUser(results[1], userInfo);
+        const isDataCurator = ROLES.CURATOR === userInfo?.role;
+        return this.userService.isAdmin(userInfo?.role) || isOrgOwners || isSubmitter || isDataCurator
+    }
+
     async #verifyQCResultsReadPermissions(context, submissionID){
         verifySession(context)
             .verifyInitialized()
@@ -1380,7 +1402,7 @@ class DataValidation {
 }
 
 class DataSubmission {
-    constructor(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, controlledAccess) {
+    constructor(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy) {
         this._id = v4();
         this.name = name;
         this.submitterID = userInfo._id;
@@ -1406,7 +1428,10 @@ class DataSubmission {
         this.fileWarnings = [];
         this.intention = intention;
         this.dataType = dataType;
-        this.controlledAccess = controlledAccess;
+        this.studyAbbreviation = approvedStudy?.studyAbbreviation
+        if (!isUndefined(approvedStudy?.controlledAccess)) {
+            this.controlledAccess = approvedStudy.controlledAccess;
+        }
         this.accessedAt = getCurrentTime();
     }
 
