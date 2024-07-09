@@ -623,6 +623,61 @@ class DataRecordService {
         return await this.dataRecordsCollection.aggregate(pipeline);
     }
 
+    async NodeDetail(submissionID, nodeType, nodeID){
+        const aNodes = await this.dataRecordsCollection.aggregate([{
+            $match: {
+                nodeID: nodeID,
+                nodeType: nodeType,
+                submissionID: submissionID
+            }},
+            {$limit: 1}
+        ]);
+        if(aNodes.length === 0){
+            throw new Error(ERRORS.INVALID_NODE_NOT_FOUND);
+        }
+        const aNode = aNodes[0];
+        let nodeDetail = {
+            submissionID: aNode.submissionID,
+            nodeID: aNode.nodeID,
+            nodeType: aNode.nodeType,
+            IDPropName: aNode.IDPropName,
+            parents: this.#ConvertParents(aNode.parents),
+            children: await this.#GetNodeChildren(submissionID, nodeType, nodeID)
+        };
+        return nodeDetail
+    }
+    #ConvertParents(parents){
+        let convertedParents = [];
+        let parentTypes = new Set();
+        for (let parent of parents){
+            parentTypes.add(parent.parentType)
+        }
+        parentTypes.forEach((parentType) => {
+            convertedParents.push({nodeType: parentType, total: parents.filter((parent) => parent.parentType === parentType).length});
+        });
+        return convertedParents ;
+    }
+
+    async #GetNodeChildren(submissionID, nodeType, nodeID){
+        let convertedChildren= [];
+        // get children
+        const children = await this.dataRecordsCollection.aggregate([{
+            $match: {
+                "parents.parentIDValue": nodeID,
+                "parents.parentType": nodeType,
+                submissionID: submissionID
+            }}
+        ]);
+        let childTypes = new Set();
+        for (let child of children){
+            childTypes.add(child.nodeType)
+        }
+        childTypes.forEach((childType) => {
+            convertedChildren.push({nodeType: childType, total:children.filter((child) => child.nodeType === childType).length});
+        });
+        return convertedChildren;
+    }
+
     async listSubmissionNodeTypes(submissionID){
         if (!submissionID){
             return []

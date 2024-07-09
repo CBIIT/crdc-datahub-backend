@@ -405,6 +405,18 @@ type Node {
     lineNumber: Int,
     props: String #a stringified JSON string contains all properties of the node, including parent mapping properties like program.prorgam_acronym
 }
+type Related_Node {
+    nodeType: String,
+    total: Int
+}
+type NodeDetail_Result {
+    submissionID: String,
+    nodeType: String,
+    nodeID: String,
+    IDPropName: String,
+    parents: [Related_Node], # array of Related node contains nodeType and counts
+    children: [Related_Node] # array of Related node contains nodeType and counts
+}
 
 type institution {
     _id: ID,
@@ -509,6 +521,12 @@ type Query {
     ): String
 
     listInstitutions: [String]
+
+    getNodeDetail(
+        submissionID: String!, # submissionID in dataRecords collection
+        nodeType: String!,
+        nodeID: String!  # nodeID in dataRecords collection
+    ): NodeDetail_Result
 }
 type Mutation {
     "User initiated operations"
