@@ -31,12 +31,13 @@ const NODE_RELATION_TYPES = [NODE_RELATION_TYPE_PARENT, NODE_RELATION_TYPE_CHILD
 
 const FILE = "file";
 class DataRecordService {
-    constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService, s3Service) {
+    constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService, s3Service, sqsLoaderQueue) {
         this.dataRecordsCollection = dataRecordsCollection;
         this.fileQueueName = fileQueueName;
         this.metadataQueueName = metadataQueueName;
         this.awsService = awsService;
         this.s3Service = s3Service;
+        this.sqsLoaderQueue = sqsLoaderQueue;
     }
 
     async submissionStats(aSubmission) {
@@ -739,7 +740,7 @@ class DataRecordService {
 
     async deleteDataRecords(submissionID, nodeType, nodeIDs) {
         const msg = Message.deleteMetadata(submissionID, nodeType, nodeIDs);
-        const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.metadataQueueName, submissionID);
+        const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.sqsLoaderQueue, submissionID);
         return !success.success ? ValidationHandler.handle([ERRORS.FAILED_DELETE_DATA_RECORDS, success?.message]) : ValidationHandler.success();
     }
 
