@@ -1,7 +1,6 @@
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {v4, v5} = require("uuid");
 const {BATCH, FILE} = require("../crdc-datahub-database-drivers/constants/batch-constants");
-const DG_4DFC = "dg.4DFC";
 class Batch {
     constructor(submissionID, displayID, bucketName, filePrefix, type, status) {
         this._id = v4();
@@ -22,8 +21,8 @@ class Batch {
         this.filePrefix = filePrefix;
     }
 
-    addDataFile(name, size, url, dataCommons, studyID){
-        const fileID = this.#generateDataFileUUID(name, url, dataCommons, studyID);
+    addDataFile(name, size, url, dataCommons, studyID, filePrefix){
+        const fileID = this.#generateDataFileUUID(name, url, dataCommons, studyID, filePrefix);
         this.#addFile(name, size, null, true, fileID);
     }
 
@@ -31,11 +30,14 @@ class Batch {
         this.#addFile(name, size, signedURL, false)
     }
 
-    #generateDataFileUUID(fileName, url, dataCommons, studyID) {
+    #generateDataFileUUID(fileName, url, dataCommons, studyID, filePrefix) {
         const urlUUID = v5(url, v5.URL, undefined, undefined);
         const dataCommonsUUID = v5(dataCommons, urlUUID, undefined, undefined);
         const studyUUID = v5(studyID, dataCommonsUUID, undefined, undefined);
-        return `${DG_4DFC}/${v5(fileName, studyUUID, undefined, undefined)}`;
+        if (filePrefix && filePrefix.trim() !== '' && !filePrefix.endsWith('/')) {
+            filePrefix += '/';
+        }
+        return `${filePrefix}${v5(fileName, studyUUID, undefined, undefined)}`;
     }
 
 
