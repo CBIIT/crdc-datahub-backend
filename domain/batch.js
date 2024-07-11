@@ -1,5 +1,5 @@
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
-const {v4} = require("uuid");
+const {v4, v5} = require("uuid");
 const {BATCH, FILE} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 class Batch {
     constructor(submissionID, displayID, bucketName, filePrefix, type, status) {
@@ -21,16 +21,28 @@ class Batch {
         this.filePrefix = filePrefix;
     }
 
-    addDataFile(name, size){
-        this.#addFile(name, size, null, true)
+    addDataFile(name, size, url, dataCommons, studyID, filePrefix){
+        const fileID = this.#generateDataFileUUID(name, url, dataCommons, studyID, filePrefix);
+        this.#addFile(name, size, null, true, fileID);
     }
 
     addMetadataFile(name, size, signedURL){
         this.#addFile(name, size, signedURL, false)
     }
 
-    #addFile(name, size, signedURL, isDataFile) {
-        const file = new BatchFile(name, size, signedURL, this.filePrefix, isDataFile);
+    #generateDataFileUUID(fileName, url, dataCommons, studyID, filePrefix) {
+        const urlUUID = v5(url, v5.URL, undefined, undefined);
+        const dataCommonsUUID = v5(dataCommons, urlUUID, undefined, undefined);
+        const studyUUID = v5(studyID, dataCommonsUUID, undefined, undefined);
+        if (filePrefix && filePrefix.trim() !== '' && !filePrefix.endsWith('/')) {
+            filePrefix += '/';
+        }
+        return `${filePrefix}${v5(fileName, studyUUID, undefined, undefined)}`;
+    }
+
+
+    #addFile(name, size, signedURL, isDataFile, fileID) {
+        const file = new BatchFile(name, size, signedURL, this.filePrefix, isDataFile, fileID);
         this.files.push(file);
         this.fileCount += 1;
     }
@@ -42,7 +54,7 @@ class Batch {
 }
 
 class BatchFile {
-    constructor(fileName, size, signedURL, filePrefix, isDataFile) {
+    constructor(fileName, size, signedURL, filePrefix, isDataFile, fileID) {
         this.fileName = fileName;
         this.size = size;
         this.status = FILE.UPLOAD_STATUSES.NEW;
@@ -54,6 +66,9 @@ class BatchFile {
         this.errors = [];
         if (isDataFile){
             this.nodeType = BATCH.TYPE.DATA_FILE
+        }
+        if (fileID) {
+            this.fileID = fileID;
         }
     }
 }

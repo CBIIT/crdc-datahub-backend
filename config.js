@@ -31,6 +31,7 @@ let config = {
     submission_doc_url: process.env.SUBMISSION_DOC_URL || "",
     submission_helpdesk: "CRDCSubmissions@nih.gov",
     submission_system_portal: "https://datacommons.cancer.gov/",
+    prod_url: process.env.PROD_URL || "https://hub.datacommons.cancer.gov/",
     submission_bucket: process.env.SUBMISSION_BUCKET, 
     //aws sts assume role
     role_arn: process.env.ROLE_ARN,
