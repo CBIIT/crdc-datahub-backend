@@ -32,7 +32,7 @@ class BatchService {
             }));
         } else {
             // The prefix "dg.4DFC" only need to be added if "omit-dcf-prefix" is null or set to false in the data model
-            const dataModelPrefix = (this.dataModelInfo?.[aSubmission?.dataCommons]?.[OMIT_DCF_PREFIX]) ? DG_4DFC : "";
+            const dataModelPrefix = (this.dataModelInfo?.[aSubmission?.dataCommons]?.[OMIT_DCF_PREFIX]) ? "" : DG_4DFC;
             params.files.forEach((file) => {
                 if (file.fileName) {
                     newBatch.addDataFile(file.fileName, file.size, this.prodURL, aSubmission?.dataCommons, aSubmission?.studyID, dataModelPrefix);
