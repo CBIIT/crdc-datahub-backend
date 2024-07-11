@@ -47,7 +47,7 @@ dbConnector.connect().then(async () => {
     const s3Service = new S3Service();
     const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
     const awsService = new AWSService(submissionCollection, userService);
-    const batchService = new BatchService(s3Service, batchCollection, config.sqs_loader_queue, awsService);
+    const batchService = new BatchService(s3Service, batchCollection, config.sqs_loader_queue, awsService, config.prod_url);
     const institutionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, INSTITUTION_COLLECTION);
     const institutionService = new InstitutionService(institutionCollection);
 

@@ -8,28 +8,29 @@ const {SUBMISSIONS_COLLECTION} = require("../crdc-datahub-database-drivers/datab
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const LOAD_METADATA = "Load Metadata";
 class BatchService {
-    constructor(s3Service, batchCollection, sqsLoaderQueue, awsService) {
+    constructor(s3Service, batchCollection, sqsLoaderQueue, awsService, prodURL) {
         this.s3Service = s3Service;
         this.batchCollection = batchCollection;
         this.sqsLoaderQueue = sqsLoaderQueue;
         this.awsService = awsService;
+        this.prodURL = prodURL;
     }
 
-    async createBatch(params, bucketName, rootPath) {
-        const prefix = createPrefix(params, rootPath);
+    async createBatch(params, aSubmission) {
+        const prefix = createPrefix(params, aSubmission?.rootPath);
         const newDisplayID = await this.#getBatchDisplayID(params.submissionID);
-        const newBatch = Batch.createNewBatch(params.submissionID, newDisplayID, bucketName, prefix, params.type.toLowerCase());
+        const newBatch = Batch.createNewBatch(params.submissionID, newDisplayID, aSubmission?.bucketName, prefix, params.type.toLowerCase());
         if (BATCH.TYPE.METADATA === params.type.toLowerCase()) {
             await Promise.all(params.files.map(async (file) => {
                 if (file.fileName) {
-                    const signedURL = await this.s3Service.createPreSignedURL(bucketName, newBatch.filePrefix, file.fileName);
+                    const signedURL = await this.s3Service.createPreSignedURL(aSubmission?.bucketName, newBatch.filePrefix, file.fileName);
                     newBatch.addMetadataFile(file.fileName, file.size, signedURL);
                 }
             }));
         } else {
             params.files.forEach((file) => {
                 if (file.fileName) {
-                    newBatch.addDataFile(file.fileName, file.size);
+                    newBatch.addDataFile(file.fileName, file.size, this.prodURL, aSubmission?.dataCommons, aSubmission?.studyID);
                 }
             });
         }
