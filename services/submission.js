@@ -507,7 +507,7 @@ class Submission {
         if (params?.nodeType !== DATA_FILE) {
             const query = {submissionID: submissionID, nodeType: nodeType};
             if (status !== "All") query.status = status;
-            if (nodeID) query.nodeID = nodeID;
+            if (nodeID) query.nodeID = new RegExp(nodeID, 'i');
             const result = await this.dataRecordService.submissionNodes(submissionID, nodeType, 
                 first, offset, orderBy, sortDirection, query);
             return this.#ProcessSubmissionNodes(result);
@@ -620,6 +620,8 @@ class Submission {
         // filter status and nodeID
         if (params.status !== "All")
             s3Files = s3Files.filter(f => f.status === params.status);
+        if (params.nodeID)  
+            s3Files = s3Files.filter(f => f.nodeID.includes(params.nodeID));
         //sorting and slicing
         s3Files.sort((a, b) => {
             if (a[params.orderBy] < b[params.orderBy])
