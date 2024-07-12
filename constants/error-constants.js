@@ -99,6 +99,7 @@ const ERROR = {
     INVALID_DATA_MODEL_VERSION: "An error occurred while trying to retrieve the data model version from the given URL",
     INVALID_DELETE_DATA_RECORDS_PERMISSION: "You do not have the correct permissions to delete data records",
     FAILED_DELETE_DATA_RECORDS: "Failed to send a delete data record message",
+    FAILED_UPDATE_DELETE_STATUS: "Failed to update the status of data record deletion",
     // delete submission error file list
     DELETE_NO_FILE_SUBMISSION: "No extra file found",
     DELETE_NO_EXISTS_SUBMISSION: "No extra files found for deletion in the bucket",

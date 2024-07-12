@@ -833,7 +833,13 @@ class Submission {
             throw new Error(ERROR.INVALID_DELETE_DATA_RECORDS_PERMISSION)
         }
 
-        return this.dataRecordService.deleteDataRecords(params.submissionID, params.nodeType, params.nodeIDs);
+        const res = await this.dataRecordService.deleteDataRecords(params.submissionID, params.nodeType, params.nodeIDs);
+        const updated = await this.submissionCollection.updateOne({_id: aSubmission?._id}, {deletingData: Boolean(res?.success), updatedAt: getCurrentTime()});
+        if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
+            console.error(ERROR.FAILED_UPDATE_DELETE_STATUS, aSubmission?._id);
+            throw new Error(ERROR.FAILED_UPDATE_DELETE_STATUS);
+        }
+        return res;
     }
 
     async #isValidPermission(userInfo, aSubmission) {
