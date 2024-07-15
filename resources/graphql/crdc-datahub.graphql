@@ -397,6 +397,7 @@ type Node {
     submissionID: String,
     nodeType: String,
     nodeID: String,
+    IDPropName: String,
     status: String,
     createdAt: Date,
     updatedAt: Date,
