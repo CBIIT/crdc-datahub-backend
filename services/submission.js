@@ -1225,7 +1225,7 @@ const sendEmails = {
 // only one study name
 const getSubmissionStudyName = (studies, aSubmission) => {
     const studyNames = studies
-        ?.filter((aStudy) => aStudy?.studyID === aSubmission?.studyID)
+        ?.filter((aStudy) => aStudy?._id === aSubmission?.studyID)
         ?.map((aStudy) => aStudy.studyName);
     return studyNames?.length > 0 ? studyNames[0] : NA;
 }
