@@ -577,7 +577,6 @@ class Submission {
                 submissionID: params.submissionID,
                 nodeType: DATA_FILE,
                 nodeID: file_name,
-                IDPropName: "File Name",
                 status:  "Error",
                 "Batch ID": "N/A",
                 "File Name": file_name,
@@ -586,7 +585,7 @@ class Submission {
                 "Uploaded Date/Time": file.LastModified
             };
             if(params.nodeID )
-                if(!file_name.includes(params.nodeID)) continue;
+                if(!file_name.includes(params.nodeID)) continue;  //filter with params nodeID
                 else {
                     s3Files.push(s3File);  
                     break;
@@ -605,10 +604,6 @@ class Submission {
                 file.status = node.status;
                 file.Orphaned = "N";
             }
-            // const lastBatchID = await this.batchService.getLastFileBatchID(file.submissionID, file.nodeID);
-            // if (lastBatchID) {
-            //     file["Batch ID"] = lastBatchID
-            // }
             const props = {
                 // "Batch ID": file["Batch ID"],
                 "File Name": file["File Name"],
@@ -618,7 +613,7 @@ class Submission {
             };
             file.props = JSON.stringify(props);
         }
-        // filter status and nodeID
+        // filter status
         if (params.status !== "All")
             s3Files = s3Files.filter(f => f.status === params.status);
 
@@ -631,6 +626,7 @@ class Submission {
             return 0;
         });
         returnVal.total = s3Files.length;
+        returnVal.IDPropName = "File Name",
         returnVal.nodes = s3Files.slice(params.offset, params.offset + params.first);
         returnVal.properties = ["File Name", "File Size", "Orphaned", "Uploaded Date/Time"] 
         return returnVal;
