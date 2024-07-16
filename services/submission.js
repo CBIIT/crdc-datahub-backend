@@ -335,7 +335,39 @@ class Submission {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
         isSubmissionPermitted(aSubmission, context?.userInfo);
-        return this.dataRecordService.submissionStats(aSubmission);
+        const [orphanedFiles, submissionStats] = this.dataRecordService.submissionStats(aSubmission);
+
+        if (orphanedFiles?.length > 0 && aSubmission?.fileErrors?.length === 0) {
+            console.error(ERROR.MISSING_SUBMISSION_FILE_ERRORS, params?._id);
+            throw new Error(ERROR.MISSING_SUBMISSION_FILE_ERRORS);
+        }
+
+        const fileErrors = [];
+        orphanedFiles?.forEach((fileName) => {
+            const error = aSubmission?.fileErrors.find(errorFile => errorFile?.submittedID === fileName);
+            if (error) {
+                const qcResult = {
+                    ...error,
+                    type: VALIDATION.TYPES.DATA_FILE,
+                    ValidationType: VALIDATION.TYPES.DATA_FILE,
+                    submittedID: error?.submissionID,
+                    batchID: error?.batchID,
+                    displayID: error?.displayID,
+                    severity: VALIDATION_STATUS.ERROR,
+                    uploadedDate: error?.uploadedDate,
+                    validatedDate: getCurrentTime(),
+                    errors: error?.errors || [],
+                    warnings: error?.warnings || []
+                }
+                fileErrors.push(qcResult);
+            }
+        });
+
+        if (fileErrors.length > 0) {
+            await this.submissionCollection.update({_id: aSubmission?._id, fileErrors, updatedAt: getCurrentTime()});
+        }
+
+        return submissionStats;
     }
 
     /**
