@@ -922,7 +922,7 @@ class Submission {
         if (Object.keys(typesToUpdate).length === 0) {
             return;
         }
-        const updated = await this.submissionCollection.update({_id: aSubmission?._id, ...typesToUpdate, updatedAt: updatedTime, validationEnded: updatedTime});
+        const updated = await this.submissionCollection.update({_id: aSubmission?._id, ...typesToUpdate, updatedAt: updatedTime, validationEnded: new Date()});
         if(validationRecord){
             validationRecord["ended"] = new Date();
             validationRecord["status"] = "Error";
