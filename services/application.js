@@ -13,7 +13,7 @@ const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-d
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const {parseJsonString} = require("../crdc-datahub-database-drivers/utility/string-utility");
 const {formatName} = require("../utility/format-name");
-const {isUndefined} = require("../utility/string-util");
+const {isUndefined, replaceErrorString} = require("../utility/string-util");
 
 class Application {
     constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, tier, institutionService) {
@@ -243,6 +243,12 @@ class Application {
         verifyApplication(application)
             .notEmpty()
             .state([IN_REVIEW, SUBMITTED]);
+
+        const approvedStudies = await this.approvedStudiesService.findByStudyName(application?.studyName);
+        if (approvedStudies.length > 0) {
+            throw new Error(replaceErrorString(ERROR.DUPLICATE_APPROVED_STUDY_NAME, `'${application?.studyName}'`));
+        }
+
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, APPROVED, document.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
@@ -518,11 +524,11 @@ const saveApprovedStudies = async (approvedStudiesService, organizationService, 
     if (isUndefined(controlledAccess)) {
         console.error(ERROR.APPLICATION_CONTROLLED_ACCESS_NOT_FOUND, ` id=${aApplication?._id}`);
     }
-    await approvedStudiesService.storeApprovedStudies(
-        questionnaire?.study?.name, studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name, controlledAccess
+    const savedApprovedStudy = await approvedStudiesService.storeApprovedStudies(
+        aApplication?.studyName, studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name, controlledAccess
     );
-    const approvedStudies = await approvedStudiesService.findByStudyAbbreviation(studyAbbreviation);
-    const orgApprovedStudies = approvedStudies?.map((study) => ({
+
+    const orgApprovedStudies = [savedApprovedStudy]?.map((study) => ({
         _id: study?._id,
         studyName: study?.studyName,
         studyAbbreviation: study?.studyAbbreviation,

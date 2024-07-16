@@ -12,6 +12,7 @@ type Application {
     organization: Organization
     # sort fields
     programName: String
+    studyName: String
     studyAbbreviation: String
     controlledAccess: Boolean
     # questionnaire data as JSON string
@@ -30,6 +31,7 @@ input AppInput {
     programName: String
     studyAbbreviation: String
     questionnaireData: String
+    studyName: String!
     controlledAccess: Boolean!
 }
 
