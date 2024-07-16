@@ -738,11 +738,11 @@ class DataRecordService {
         return await this.dataRecordsCollection.distinct("nodeType", filter);
     }
 
-    async deleteDataRecords(submissionID, nodeType, nodeIDs) {
-        const msg = Message.deleteMetadata(submissionID, nodeType, nodeIDs);
-        const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.sqsLoaderQueue, submissionID);
-        return !success.success ? ValidationHandler.handle([ERRORS.FAILED_DELETE_DATA_RECORDS, success?.message]) : ValidationHandler.success();
-    }
+    // async deleteDataRecords(submissionID, nodeType, nodeIDs) {
+    //     const msg = Message.deleteMetadata(submissionID, nodeType, nodeIDs);
+    //     const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.sqsLoaderQueue, submissionID);
+    //     return !success.success ? ValidationHandler.handle([ERRORS.FAILED_DELETE_DATA_RECORDS, success?.message]) : ValidationHandler.success();
+    // }
 
     #replaceNaN(results, replacement){
         results?.map((result) => {
@@ -802,7 +802,7 @@ const isValidMetadata = (types, scope) => {
     }
 }
 
-const DELETE_METADATA = "Delete Metadata";
+// const DELETE_METADATA = "Delete Metadata";
 
 class Message {
     constructor(type, validationID) {
@@ -832,13 +832,13 @@ class Message {
         return msg;
     }
 
-    static deleteMetadata(submissionID, nodeType, nodeIDs) {
-        const msg = new Message(DELETE_METADATA);
-        msg.submissionID = submissionID;
-        msg.nodeType = nodeType;
-        msg.nodeIDs = nodeIDs;
-        return msg;
-    }
+    // static deleteMetadata(submissionID, nodeType, nodeIDs) {
+    //     const msg = new Message(DELETE_METADATA);
+    //     msg.submissionID = submissionID;
+    //     msg.nodeType = nodeType;
+    //     msg.nodeIDs = nodeIDs;
+    //     return msg;
+    // }
 }
 
 class Stat {
