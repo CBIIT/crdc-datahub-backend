@@ -489,16 +489,31 @@ class Submission {
     async listSubmissionNodes(params, context) {
         verifySession(context)
             .verifyInitialized();
-
+        const {
+            submissionID, 
+            nodeType, 
+            status,
+            nodeID, 
+            first,
+            offset,
+            orderBy,
+            sortDirection} = params;
         //check if submission exists
-        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        const aSubmission = await findByID(this.submissionCollection, submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
+        if(!["All", "New", "Error", "Passed", "Warning"].includes(status)){
+            throw new Error(ERROR.INVALID_NODE_STATUS_NOT_FOUND);
+        }
+
         if (params?.nodeType !== DATA_FILE) {
-            const result = await this.dataRecordService.submissionNodes(params.submissionID, params.nodeType, 
-                params.first, params.offset, params.orderBy, params.sortDirection);
+            const query = {submissionID: submissionID, nodeType: nodeType};
+            if (status !== "All") query.status = status;
+            if (nodeID) query.nodeID = new RegExp(nodeID, 'i');
+            const result = await this.dataRecordService.submissionNodes(submissionID, nodeType, 
+                first, offset, orderBy, sortDirection, query);
             return this.#ProcessSubmissionNodes(result);
         }
         else {
@@ -561,6 +576,8 @@ class Submission {
             if (file.Key.endsWith('/log'))
                 break
             const file_name = file.Key.split('/').pop();
+            
+
             let s3File = {
                 submissionID: params.submissionID,
                 nodeType: DATA_FILE,
@@ -572,10 +589,16 @@ class Submission {
                 Orphaned: "Y",
                 "Uploaded Date/Time": file.LastModified
             };
-            s3Files.push(s3File);  
+            if(params.nodeID )
+                if(!file_name.includes(params.nodeID)) continue;  //filter with params nodeID
+                else {
+                    s3Files.push(s3File);  
+                    break;
+                }
+            else
+                s3Files.push(s3File);  
         } 
-        returnVal.total = s3Files.length;
-       
+        
         //retrieve file nodes from dataRecords
         const result = await this.dataRecordService.submissionDataFiles(params.submissionID,
              s3Files.map(f=>f.nodeID));
@@ -586,12 +609,8 @@ class Submission {
                 file.status = node.status;
                 file.Orphaned = "N";
             }
-            const lastBatchID = await this.batchService.getLastFileBatchID(file.submissionID, file.nodeID);
-            if (lastBatchID) {
-                file["Batch ID"] = lastBatchID
-            }
             const props = {
-                "Batch ID": file["Batch ID"],
+                // "Batch ID": file["Batch ID"],
                 "File Name": file["File Name"],
                 "File Size": file["File Size"],
                 Orphaned: file.Orphaned,
@@ -599,7 +618,11 @@ class Submission {
             };
             file.props = JSON.stringify(props);
         }
-         //sorting and slicing
+        // filter status
+        if (params.status !== "All")
+            s3Files = s3Files.filter(f => f.status === params.status);
+
+        //sorting and slicing
         s3Files.sort((a, b) => {
             if (a[params.orderBy] < b[params.orderBy])
                 return (params.sortDirection === "ASC")? -1 : 1;
@@ -607,9 +630,10 @@ class Submission {
                 return (params.sortDirection === "ASC")? 1 : -1;
             return 0;
         });
-
+        returnVal.total = s3Files.length;
+        returnVal.IDPropName = "File Name",
         returnVal.nodes = s3Files.slice(params.offset, params.offset + params.first);
-        returnVal.properties = ["Batch ID", "File Name", "File Size", "Orphaned", "Uploaded Date/Time"] 
+        returnVal.properties = ["File Name", "File Size", "Orphaned", "Uploaded Date/Time"] 
         return returnVal;
     }
 
@@ -898,7 +922,7 @@ class Submission {
         if (Object.keys(typesToUpdate).length === 0) {
             return;
         }
-        const updated = await this.submissionCollection.update({_id: aSubmission?._id, ...typesToUpdate, updatedAt: updatedTime});
+        const updated = await this.submissionCollection.update({_id: aSubmission?._id, ...typesToUpdate, updatedAt: updatedTime, validationEnded: updatedTime});
         if(validationRecord){
             validationRecord["ended"] = new Date();
             validationRecord["status"] = "Error";

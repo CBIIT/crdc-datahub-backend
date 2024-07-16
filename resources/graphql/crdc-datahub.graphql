@@ -511,6 +511,8 @@ type Query {
     getSubmissionNodes(
         submissionID: String!, 
         nodeType: String!,
+        status: String = "All", # ["All", "New", "Error", "Passed", "Warning"]
+        nodeID: String,
         first: Int = 10,
         offset: Int = 0,
         orderBy: String = "nodeID",
