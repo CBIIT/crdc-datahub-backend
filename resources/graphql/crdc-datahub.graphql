@@ -89,6 +89,7 @@ type Submission {
     validationScope: String
     studyID: String
     controlledAccess: Boolean
+    deletingData: Boolean
 }
 
 # not being used currently
