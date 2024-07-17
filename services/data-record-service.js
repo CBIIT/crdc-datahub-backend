@@ -31,13 +31,12 @@ const NODE_RELATION_TYPES = [NODE_RELATION_TYPE_PARENT, NODE_RELATION_TYPE_CHILD
 
 const FILE = "file";
 class DataRecordService {
-    constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService, s3Service, sqsLoaderQueue) {
+    constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService, s3Service) {
         this.dataRecordsCollection = dataRecordsCollection;
         this.fileQueueName = fileQueueName;
         this.metadataQueueName = metadataQueueName;
         this.awsService = awsService;
         this.s3Service = s3Service;
-        this.sqsLoaderQueue = sqsLoaderQueue;
     }
 
     async submissionStats(aSubmission) {
@@ -738,12 +737,6 @@ class DataRecordService {
         return await this.dataRecordsCollection.distinct("nodeType", filter);
     }
 
-    async deleteDataRecords(submissionID, nodeType, nodeIDs) {
-        const msg = Message.deleteMetadata(submissionID, nodeType, nodeIDs);
-        const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.sqsLoaderQueue, submissionID);
-        return !success.success ? ValidationHandler.handle([ERRORS.FAILED_DELETE_DATA_RECORDS, success?.message]) : ValidationHandler.success();
-    }
-
     #replaceNaN(results, replacement){
         results?.map((result) => {
             Object.keys(result).forEach((key) => {
@@ -802,8 +795,6 @@ const isValidMetadata = (types, scope) => {
     }
 }
 
-const DELETE_METADATA = "Delete Metadata";
-
 class Message {
     constructor(type, validationID) {
         this.type = type;
@@ -829,14 +820,6 @@ class Message {
     static createFileNodeMessage(type, dataRecordID, validationID) {
         const msg = new Message(type, validationID);
         msg.dataRecordID = dataRecordID;
-        return msg;
-    }
-
-    static deleteMetadata(submissionID, nodeType, nodeIDs) {
-        const msg = new Message(DELETE_METADATA);
-        msg.submissionID = submissionID;
-        msg.nodeType = nodeType;
-        msg.nodeIDs = nodeIDs;
         return msg;
     }
 }
