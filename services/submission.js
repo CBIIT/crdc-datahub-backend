@@ -810,7 +810,6 @@ class Submission {
             throw new Error(ERROR.INVALID_DELETE_DATA_RECORDS_PERMISSION)
         }
 
-        // if data file attempt, it will delete file in s3 bucket
         if (params?.nodeType === VALIDATION.TYPES.DATA_FILE) {
             return await this.#deleteDataFiles(params.nodeIDs, aSubmission);
         }
