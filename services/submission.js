@@ -909,14 +909,6 @@ class Submission {
         throw new Error(ERROR.INVALID_DATA_MODEL_VERSION);
     }
 
-    #extraFileRoleValidator(context, aSubmission) {
-        const conditionORGOwner = (context?.userInfo?.role === ROLES.ORG_OWNER) && !(context?.userInfo?.organization?.orgID === aSubmission?.organization?._id);
-        const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && !(context?.userInfo?._id === aSubmission?.submitterID);
-        if (conditionORGOwner || conditionSubmitter) {
-            throw new Error(ERROR.INVALID_ROLE);
-        }
-    }
-
     async #recordSubmissionValidation(submissionID, validationRecord, dataTypes, submission) {
         // The file/metadata only allowed for recording validation
         const metadataTypes = validationRecord.type?.filter((i) => i === VALIDATION.TYPES.METADATA || i === VALIDATION.TYPES.FILE);
