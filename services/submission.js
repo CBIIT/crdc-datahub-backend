@@ -340,24 +340,19 @@ class Submission {
         isSubmissionPermitted(aSubmission, context?.userInfo);
         const [orphanedFiles, submissionStats] = await this.dataRecordService.submissionStats(aSubmission);
 
-        if (orphanedFiles?.length > 0 && (!aSubmission?.fileErrors || aSubmission?.fileErrors?.length === 0)) {
-            console.error(ERROR.MISSING_SUBMISSION_FILE_ERRORS, params?._id);
-            throw new Error(ERROR.MISSING_SUBMISSION_FILE_ERRORS);
-        }
-
-        const fileErrors = [];
-        orphanedFiles?.forEach((fileName) => {
-            const error = aSubmission?.fileErrors.find(errorFile => errorFile?.submittedID === fileName);
-            if (error) {
-                const qcResult = QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, error?.submittedID, error?.batchID, error?.displayID, VALIDATION_STATUS.ERROR, error?.uploadedDate, getCurrentTime(), error?.errors, error?.warnings);
-                fileErrors.push({...error, ...qcResult});
+        if (orphanedFiles?.length > 0 && aSubmission?.fileErrors?.length > 0) {
+            const fileErrors = [];
+            orphanedFiles?.forEach((fileName) => {
+                const error = aSubmission?.fileErrors.find(errorFile => errorFile?.submittedID === fileName);
+                if (error) {
+                    const qcResult = QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, error?.submittedID, error?.batchID, error?.displayID, VALIDATION_STATUS.ERROR, error?.uploadedDate, getCurrentTime(), error?.errors, error?.warnings);
+                    fileErrors.push({...error, ...qcResult});
+                }
+            });
+            if (fileErrors.length > 0) {
+                await this.submissionCollection.update({_id: aSubmission?._id, fileErrors, updatedAt: getCurrentTime()});
             }
-        });
-
-        if (fileErrors.length > 0) {
-            await this.submissionCollection.update({_id: aSubmission?._id, fileErrors, updatedAt: getCurrentTime()});
         }
-
         return submissionStats;
     }
 
