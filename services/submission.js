@@ -756,12 +756,7 @@ class Submission {
     }
 
     async #deleteDataFiles(fileNames, aSubmission) {
-        if (!aSubmission || aSubmission?.fileErrors?.length === 0) {
-            return ValidationHandler.handle(ERROR.DELETE_NO_FILE_SUBMISSION);
-        }
-        const fileErrorSet = new Set(aSubmission?.fileErrors?.map((file) => file.submittedID) || []);
         const filePromises = fileNames
-            .filter((fileName) => fileErrorSet.has(fileName))
             .map(fileName =>
             this.s3Service.listFile(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}/${fileName}`)
         );
