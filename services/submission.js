@@ -340,7 +340,7 @@ class Submission {
         isSubmissionPermitted(aSubmission, context?.userInfo);
         const [orphanedFiles, submissionStats] = await this.dataRecordService.submissionStats(aSubmission);
 
-        if (aSubmission?.fileErrors?.length > 0) {
+        if (orphanedFiles?.length > 0 && aSubmission?.fileErrors?.length > 0) {
             const fileErrors = [];
             orphanedFiles?.forEach((fileName) => {
                 const error = aSubmission?.fileErrors.find(errorFile => errorFile?.submittedID === fileName);
