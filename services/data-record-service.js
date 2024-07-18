@@ -72,7 +72,7 @@ class DataRecordService {
         // This dataFiles represents the intersection of the orphanedFiles.
         const [orphanedFiles, dataFiles] = this.#dataFilesStats(uploadedFiles, fileRecords);
         this.#saveDataFileStats(submissionStats, orphanedFiles, dataFiles, uploadedFiles?.length, aSubmission);
-        return submissionStats;
+        return [orphanedFiles, submissionStats];
     }
 
 
