@@ -94,11 +94,6 @@ class DataRecordService {
     #saveDataFileStats(submissionStats, orphanedFiles, dataFiles, totalCount, aSubmission) {
         const stat = Stat.createStat(DATA_FILE);
         // submission error should be under data file's s3FileInfo.status == "Error", plus count of orphanedFiles
-        aSubmission?.fileErrors?.forEach(file => {
-            if (file?.type === DATA_FILE) {
-                stat.countNodeType(VALIDATION_STATUS.ERROR, 1);
-            }
-        });
         stat.countNodeType(VALIDATION_STATUS.ERROR, orphanedFiles.length);
         // submission warning should be under data file's s3FileInfo.status == "Warning", plus count of Submission.fileWarnings
         aSubmission?.fileWarnings?.forEach(file => {
