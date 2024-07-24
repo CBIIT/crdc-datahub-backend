@@ -560,7 +560,9 @@ class Submission {
         returnVal.total = result.total;
         if (result.results && result.results.length > 0){
             let propsSet = new Set();
+            
             for (let node of result.results) {
+                if (!returnVal.IDPropName) returnVal.IDPropName = node.IDPropName;
                 if (node.parents && node.parents.length > 0) {
                     for (let parent of node.parents) {
                         node.props[`${parent.parentType}.${parent.parentIDPropName}`] = parent.parentIDValue;
