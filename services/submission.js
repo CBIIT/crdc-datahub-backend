@@ -67,6 +67,7 @@ class Submission {
     async createSubmission(params, context) {
         verifySession(context)
             .verifyInitialized()
+            .verifyOrganization()
             .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER]);
         const intention = [INTENTION.UPDATE, INTENTION.DELETE].find((i) => i.toLowerCase() === params?.intention.toLowerCase());
         const dataType = [DATA_TYPE.METADATA_AND_DATA_FILES, DATA_TYPE.METADATA_ONLY].find((i) => i.toLowerCase() === params?.dataType.toLowerCase());

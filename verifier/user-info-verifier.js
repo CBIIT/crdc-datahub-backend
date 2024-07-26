@@ -1,6 +1,7 @@
 const ERROR = require("../constants/error-constants");
 const {API_TOKEN} = require("../constants/application-constants");
 const {decodeToken, verifyToken} = require("./token-verifier");
+const {ORGANIZATION} = require("../crdc-datahub-database-drivers/constants/organization-constants");
 
 function verifySession(context){
     return new UserInfoVerifier(context);
@@ -21,6 +22,13 @@ class UserInfoVerifier {
 
     verifyRole(roles) {
         if (!roles.includes(this?.userInfo?.role)) throw new Error(ERROR.INVALID_ROLE);
+        return this;
+    }
+
+    verifyOrganization() {
+        if (!this?.userInfo?.organization?.status || this?.userInfo?.organization?.status === ORGANIZATION.STATUSES.INACTIVE) {
+            throw new Error(ERROR.VERIFY.INVALID_ORGANIZATION_STATUS);
+        }
         return this;
     }
 
