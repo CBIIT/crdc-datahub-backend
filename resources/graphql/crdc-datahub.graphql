@@ -301,7 +301,7 @@ type CrossValidationResult{
     validatedDate: Date
     errors: [ErrorMessage]
     warnings: [ErrorMessage]
-    conflictingSubmissions: [ID]
+    conflictingSubmission: ID
 }
 
 type ErrorMessage {

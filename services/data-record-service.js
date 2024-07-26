@@ -447,36 +447,54 @@ class DataRecordService {
                     $exists: true,
                     $not: {
                         $size: 0,
-                    }
+                    },
+                    $type: "array"
                 }
             }
         });
-        // Reformat documents
+        // Unwind additional errors and conflicting submissions
         dataRecordQCResultsPipeline.push({
-            $project: {
-                submissionID: 1,
-                type: "$results.type",
-                validationType: "$results.validation_type",
-                batchID: "$latestBatchID",
-                displayID: {
-                    $first: "$batch.displayID",
+            $unwind: {
+                path: "$additionalErrors"
+            }
+        });
+        dataRecordQCResultsPipeline.push({
+            $unwind: {
+                path: "$additionalErrors.conflictingSubmissions"
+            }
+        });
+        // Group errors by conflicting submission
+        dataRecordQCResultsPipeline.push({
+            $group: {
+                _id: {
+                    submissionID: "$submissionID",
+                    type: "$results.type",
+                    validationType: "$results.validation_type",
+                    batchID: "$latestBatchID",
+                    displayID: {
+                        $first: "$batch.displayID",
+                    },
+                    submittedID: "$submittedID",
+                    uploadedDate: "$updatedAt",
+                    validatedDate: "$validatedAt",
+                    warnings: [],
+                    severity: VALIDATION_STATUS.ERROR,
+                    conflictingSubmission: "$additionalErrors.conflictingSubmissions"
                 },
-                submittedID: "$submittedID",
-                uploadedDate: "$updatedAt",
-                validatedDate: "$validatedAt",
-                errors: "$additionalErrors",
-                warnings: [],
-                // convert array of arrays into a single set of values
-                conflictingSubmissions: {
-                    $setUnion: {
-                        $reduce: {
-                            input: '$additionalErrors.conflictingSubmissions',
-                            initialValue: [],
-                            in: {$concatArrays: ['$$value', '$$this']}
-                        }
-                    }
-                },
-                severity: VALIDATION_STATUS.ERROR
+                errors: {
+                    $addToSet: "$additionalErrors"
+                }
+            }
+        });
+        // Reformatting
+        dataRecordQCResultsPipeline.push({
+            $set:{
+                "_id.errors": "$errors"
+            }
+        });
+        dataRecordQCResultsPipeline.push({
+            $replaceRoot: {
+                newRoot: "$_id"
             }
         });
         // Filter by node types
