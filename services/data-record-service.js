@@ -474,7 +474,7 @@ class DataRecordService {
                     displayID: {
                         $first: "$batch.displayID",
                     },
-                    submittedID: "$submittedID",
+                    submittedID: "$results.submittedID",
                     uploadedDate: "$updatedAt",
                     validatedDate: "$validatedAt",
                     warnings: [],
@@ -517,6 +517,22 @@ class DataRecordService {
                 }
             });
         }
+        if (severities === ERROR){
+            severities = [ERROR];
+        }
+        else if (severities === WARNING){
+            severities = [WARNING];
+        }
+        else {
+            severities = [ERROR, WARNING];
+        }
+        dataRecordQCResultsPipeline.push({
+            $match: {
+                severity: {
+                    $in: severities
+                }
+            }
+        })
         // Create count pipeline
         let countPipeline = [...dataRecordQCResultsPipeline];
         countPipeline.push({
