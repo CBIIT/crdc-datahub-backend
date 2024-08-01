@@ -71,7 +71,7 @@ class DataRecordService {
             .map((f)=> f.Key.replace(`${aSubmission.rootPath}/${FILE}/`, ''));
         // This dataFiles represents the intersection of the orphanedFiles.
         const [orphanedFiles, dataFiles] = this.#dataFilesStats(uploadedFiles, fileRecords);
-        this.#saveDataFileStats(submissionStats, orphanedFiles, dataFiles, uploadedFiles?.length, aSubmission);
+        this.#saveDataFileStats(submissionStats, orphanedFiles, dataFiles, aSubmission);
         return [orphanedFiles, submissionStats];
     }
 
@@ -90,7 +90,7 @@ class DataRecordService {
         return [orphanedFiles, dataFiles];
     }
 
-    #saveDataFileStats(submissionStats, orphanedFiles, dataFiles, totalCount, aSubmission) {
+    #saveDataFileStats(submissionStats, orphanedFiles, dataFiles, aSubmission) {
         const stat = Stat.createStat(DATA_FILE);
         // submission error should be under data file's s3FileInfo.status == "Error", plus count of orphanedFiles
         stat.countNodeType(VALIDATION_STATUS.ERROR, orphanedFiles.length);
@@ -106,8 +106,6 @@ class DataRecordService {
         });
 
         if (stat.total > 0) {
-            // The total is the number of files uploaded to S3
-            // stat.total = totalCount;
             submissionStats.addStats(stat);
         }
     }
