@@ -341,15 +341,24 @@ class Submission {
         isSubmissionPermitted(aSubmission, context?.userInfo);
         const [orphanedFiles, submissionStats] = await this.dataRecordService.submissionStats(aSubmission);
 
-        if (orphanedFiles?.length > 0 && aSubmission?.fileErrors?.length > 0) {
+        if (orphanedFiles?.length > 0) {
             const fileErrors = [];
-            orphanedFiles?.forEach((fileName) => {
-                const error = aSubmission?.fileErrors.find(errorFile => errorFile?.submittedID === fileName);
-                if (error) {
-                    const qcResult = QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, error?.submittedID, error?.batchID, error?.displayID, VALIDATION_STATUS.ERROR, error?.uploadedDate, getCurrentTime(), error?.errors, error?.warnings);
-                    fileErrors.push({...error, ...qcResult});
-                }
-            });
+            if (aSubmission?.fileErrors) {
+                aSubmission?.fileErrors?.forEach((errorFile) => {
+                    const error = orphanedFiles.find(fileName => errorFile?.submittedID === fileName);
+                    if (error) {
+                        const qcResult = QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, errorFile?.submittedID, errorFile?.batchID, errorFile?.displayID, VALIDATION_STATUS.ERROR, errorFile?.uploadedDate, getCurrentTime(), [ERROR.MISSING_DATA_NODE_FILE], []);
+                        fileErrors.push(qcResult);
+                    } else {
+                        fileErrors.push(errorFile);
+                    }
+                });
+            } else {
+                orphanedFiles?.forEach((fileName) => {
+                    const qcResult = QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, fileName, null, null, VALIDATION_STATUS.ERROR, getCurrentTime(), getCurrentTime(), [ERROR.MISSING_DATA_NODE_FILE], []);
+                    fileErrors.push(qcResult);
+                });
+            }
             if (fileErrors.length > 0) {
                 await this.submissionCollection.update({_id: aSubmission?._id, fileErrors, updatedAt: getCurrentTime()});
             }

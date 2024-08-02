@@ -114,6 +114,7 @@ const ERROR = {
     INVALID_NO_PARENTS_FOUND: "No parents found for the node type",
     INVALID_NO_CHILDREN_FOUND: "No children found for the node type", 
     INVALID_NODE_STATUS_NOT_FOUND: "Invalid node status",
+    MISSING_DATA_NODE_FILE: "The data file is only in the S3 bucket, and the data nodes are missing from the database."
 }
 
 module.exports = ERROR;
