@@ -348,16 +348,16 @@ class Submission {
                     const error = orphanedFiles.find(fileName => errorFile?.submittedID === fileName);
                     if (error) {
                         const errorMsg = QCResultError.create(ERROR.MISSING_DATA_NODE_FILE_TITLE, replaceErrorString(ERROR.MISSING_DATA_NODE_FILE_DESC, `'${errorFile?.submittedID}'`));
-                        const qcResult = QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, errorFile?.submittedID, errorFile?.batchID, errorFile?.displayID, VALIDATION_STATUS.ERROR, errorFile?.uploadedDate, getCurrentTime(), [errorMsg], []);
+                        const qcResult = QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, errorFile?.submittedID, null, null, VALIDATION_STATUS.ERROR, errorFile?.uploadedDate, getCurrentTime(), [errorMsg], []);
                         fileErrors.push(qcResult);
                     } else {
                         fileErrors.push(errorFile);
                     }
                 });
             } else {
-                orphanedFiles?.forEach((fileName, index) => {
+                orphanedFiles?.forEach((fileName) => {
                     const errorMsg = QCResultError.create(ERROR.MISSING_DATA_NODE_FILE_TITLE, replaceErrorString(ERROR.MISSING_DATA_NODE_FILE_DESC, `'${fileName}'`));
-                    const qcResult = QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, fileName, null, index, VALIDATION_STATUS.ERROR, getCurrentTime(), getCurrentTime(), [errorMsg], []);
+                    const qcResult = QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, fileName, null, null, VALIDATION_STATUS.ERROR, getCurrentTime(), getCurrentTime(), [errorMsg], []);
                     fileErrors.push(qcResult);
                 });
             }
