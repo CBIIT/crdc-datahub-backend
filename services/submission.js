@@ -342,26 +342,15 @@ class Submission {
         const [orphanedFiles, submissionStats] = await this.dataRecordService.submissionStats(aSubmission);
 
         if (orphanedFiles?.length > 0) {
-            const fileErrors = [];
-            if (aSubmission?.fileErrors?.length > 0) {
-                aSubmission?.fileErrors?.forEach((errorFile) => {
-                    const error = orphanedFiles.find(fileName => errorFile?.submittedID === fileName);
-                    if (error) {
-                        const errorMsg = QCResultError.create(ERROR.MISSING_DATA_NODE_FILE_TITLE, replaceErrorString(ERROR.MISSING_DATA_NODE_FILE_DESC, `'${errorFile?.submittedID}'`));
-                        const qcResult = QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, errorFile?.submittedID, errorFile?.batchID, errorFile?.displayID, VALIDATION_STATUS.ERROR, errorFile?.uploadedDate, getCurrentTime(), [errorMsg], []);
-                        fileErrors.push(qcResult);
-                    } else {
-                        fileErrors.push(errorFile);
-                    }
-                });
-            } else {
-                orphanedFiles?.forEach((fileName, index) => {
-                    const errorMsg = QCResultError.create(ERROR.MISSING_DATA_NODE_FILE_TITLE, replaceErrorString(ERROR.MISSING_DATA_NODE_FILE_DESC, `'${fileName}'`));
-                    const qcResult = QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, fileName, null, index, VALIDATION_STATUS.ERROR, getCurrentTime(), getCurrentTime(), [errorMsg], []);
-                    fileErrors.push(qcResult);
-                });
-            }
-            if (fileErrors.length > 0) {
+            const fileErrors = orphanedFiles?.map((fileName) => {
+                const errorMsg = QCResultError.create(
+                    ERROR.MISSING_DATA_NODE_FILE_TITLE,
+                    replaceErrorString(ERROR.MISSING_DATA_NODE_FILE_DESC, `'${fileName}'`)
+                );
+                return QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, fileName, null, null, VALIDATION_STATUS.ERROR, getCurrentTime(), getCurrentTime(), [errorMsg], []);
+            });
+
+            if (fileErrors?.length > 0) {
                 await this.submissionCollection.update({_id: aSubmission?._id, fileErrors, updatedAt: getCurrentTime()});
             }
         }
