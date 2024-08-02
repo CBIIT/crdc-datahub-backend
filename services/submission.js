@@ -343,7 +343,7 @@ class Submission {
 
         if (orphanedFiles?.length > 0) {
             const fileErrors = [];
-            if (aSubmission?.fileErrors) {
+            if (aSubmission?.fileErrors?.length > 0) {
                 aSubmission?.fileErrors?.forEach((errorFile) => {
                     const error = orphanedFiles.find(fileName => errorFile?.submittedID === fileName);
                     if (error) {
