@@ -18,6 +18,18 @@ class QCResult {
 
 }
 
+class QCResultError {
+    constructor(title, description) {
+        this.title = title;
+        this.description = description;
+    }
+
+    static create(title, description) {
+        return new QCResultError(title, description);
+    }
+}
+
 module.exports = {
-    QCResult
+    QCResult,
+    QCResultError
 };
