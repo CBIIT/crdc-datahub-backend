@@ -354,8 +354,8 @@ class Submission {
                     }
                 });
             } else {
-                orphanedFiles?.forEach((fileName) => {
-                    const qcResult = QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, fileName, null, null, VALIDATION_STATUS.ERROR, getCurrentTime(), getCurrentTime(), [ERROR.MISSING_DATA_NODE_FILE], []);
+                orphanedFiles?.forEach((fileName, index) => {
+                    const qcResult = QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, fileName, null, index, VALIDATION_STATUS.ERROR, getCurrentTime(), getCurrentTime(), [ERROR.MISSING_DATA_NODE_FILE], []);
                     fileErrors.push(qcResult);
                 });
             }
