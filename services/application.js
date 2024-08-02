@@ -259,7 +259,7 @@ class Application {
         promises.push(this.sendEmailAfterApproveApplication(context, application));
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             promises.unshift(this.getApplicationById(document._id));
-            promises.push(saveApprovedStudies(this.approvedStudiesService, this.organizationService, application, document.ORCID));
+            promises.push(saveApprovedStudies(this.approvedStudiesService, this.organizationService, application));
             promises.push(this.logCollection.insert(
                 UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, APPROVED)
             ));
@@ -512,7 +512,7 @@ const sendEmails = {
     }
 }
 
-const saveApprovedStudies = async (approvedStudiesService, organizationService, aApplication, ORCID = "") => {
+const saveApprovedStudies = async (approvedStudiesService, organizationService, aApplication) => {
     const questionnaire = parseJsonString(aApplication?.questionnaireData);
     if (!questionnaire) {
         console.error(ERROR.FAILED_STORE_APPROVED_STUDIES + ` id=${aApplication?._id}`);
@@ -525,7 +525,7 @@ const saveApprovedStudies = async (approvedStudiesService, organizationService, 
         console.error(ERROR.APPLICATION_CONTROLLED_ACCESS_NOT_FOUND, ` id=${aApplication?._id}`);
     }
     const savedApprovedStudy = await approvedStudiesService.storeApprovedStudies(
-        aApplication?.studyName, studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name, controlledAccess, ORCID
+        aApplication?.studyName, studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name, controlledAccess, aApplication?.ORCID
     );
 
     const orgApprovedStudies = [savedApprovedStudy]?.map((study) => ({

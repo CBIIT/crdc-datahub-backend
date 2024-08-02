@@ -15,6 +15,7 @@ type Application {
     studyName: String
     studyAbbreviation: String
     controlledAccess: Boolean
+    ORCID: String
     # questionnaire data as JSON string
     questionnaireData: String
 }
@@ -33,6 +34,7 @@ input AppInput {
     questionnaireData: String
     studyName: String!
     controlledAccess: Boolean!
+    ORCID: String
 }
 
 type Applicant {
@@ -558,7 +560,7 @@ type Mutation {
 
     "Fed lead initiated operations"
     reviewApplication (_id: ID!): Application # same as getApplication but will set Application to "In Review" state
-    approveApplication (_id: ID!, wholeProgram: Boolean, comment: String, institutions: [String], ORCID: String): Application
+    approveApplication (_id: ID!, wholeProgram: Boolean, comment: String, institutions: [String]): Application
     rejectApplication (_id: ID!, comment: String!): Application
     inquireApplication (_id: ID!, comment: String!): Application
 
