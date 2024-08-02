@@ -341,19 +341,15 @@ class Submission {
         isSubmissionPermitted(aSubmission, context?.userInfo);
         const [orphanedFiles, submissionStats] = await this.dataRecordService.submissionStats(aSubmission);
 
-        if (orphanedFiles?.length > 0) {
-            const fileErrors = orphanedFiles?.map((fileName) => {
-                const errorMsg = QCResultError.create(
-                    ERROR.MISSING_DATA_NODE_FILE_TITLE,
-                    replaceErrorString(ERROR.MISSING_DATA_NODE_FILE_DESC, `'${fileName}'`)
-                );
-                return QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, fileName, null, null, VALIDATION_STATUS.ERROR, getCurrentTime(), getCurrentTime(), [errorMsg], []);
-            });
+        const fileErrors = orphanedFiles?.map((fileName) => {
+            const errorMsg = QCResultError.create(
+                ERROR.MISSING_DATA_NODE_FILE_TITLE,
+                replaceErrorString(ERROR.MISSING_DATA_NODE_FILE_DESC, `'${fileName}'`)
+            );
+            return QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, fileName, null, null, VALIDATION_STATUS.ERROR, getCurrentTime(), getCurrentTime(), [errorMsg], []);
+        });
 
-            if (fileErrors?.length > 0) {
-                await this.submissionCollection.update({_id: aSubmission?._id, fileErrors, updatedAt: getCurrentTime()});
-            }
-        }
+        await this.submissionCollection.update({_id: aSubmission?._id, fileErrors, updatedAt: getCurrentTime()});
         return submissionStats;
     }
 
