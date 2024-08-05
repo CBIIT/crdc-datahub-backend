@@ -85,7 +85,7 @@ function getModelUrl() {
     }
     const tier = extractTierName();
     // By default url
-    const modelUrl = ['https://raw.githubusercontent.com/CBIIT/crdc-datahub-models/', tier || 'master', '/content.json']
+    const modelUrl = ['https://raw.githubusercontent.com/CBIIT/crdc-datahub-models/', tier || 'master', '/cache/content.json']
     if (tier?.length > 0) {
         modelUrl[1] = tier.toLowerCase();
     }
