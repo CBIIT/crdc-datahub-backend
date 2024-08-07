@@ -110,6 +110,13 @@ class DataRecordService {
             }
         });
 
+        // A data file error is thrown when the file isn't in the S3 bucket.
+        fileRecords.forEach((node) => {
+            if (node?.nodeType === FILE && (node?.s3FileInfo?.status === VALIDATION_STATUS.ERROR || node?.s3FileInfo?.status === VALIDATION_STATUS.WARNING)) {
+                stat.countNodeType(node?.s3FileInfo?.status, 1);
+            }
+        });
+
         // total should be orphaned files(s3) + db file nodes
         const missingFiles = fileRecords.filter(({file}) => file?.s3FileInfo?.status !== VALIDATION_STATUS.NEW);
         const total = orphanedFiles.length + missingFiles.length;
