@@ -104,7 +104,9 @@ class DataRecordService {
         });
 
         dataFiles.forEach(node => {
-            stat.countNodeType(node?.status, 1);
+            if (node?.status === VALIDATION_STATUS.NEW || node?.status === VALIDATION_STATUS.PASSED || node?.status === VALIDATION_STATUS.WARNING) {
+                stat.countNodeType(node?.status, 1);
+            }
         });
 
         // total should be orphaned files(s3) + db file nodes
