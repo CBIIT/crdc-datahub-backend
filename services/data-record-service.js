@@ -79,14 +79,15 @@ class DataRecordService {
     #dataFilesStats(s3SubmissionFiles, fileRecords) {
         const s3FileSet = new Set(s3SubmissionFiles);
         const fileDataRecordsMap = new Map(fileRecords.map(file => [file?.s3FileInfo?.fileName, file?.s3FileInfo]));
-        const orphanedFiles = [];
+        const [orphanedFiles, dataFiles] = [[], []];
         s3FileSet.forEach(file => {
-            if (!fileDataRecordsMap.has(file)) {
+            if (fileDataRecordsMap.has(file)) {
+                dataFiles.push(fileDataRecordsMap.get(file));
+            } else {
                 orphanedFiles.push(file);
             }
         });
 
-        const dataFiles = Array.from(fileDataRecordsMap.values());
         return [orphanedFiles, dataFiles];
     }
 
@@ -104,13 +105,22 @@ class DataRecordService {
         });
 
         dataFiles.forEach(node => {
-            stat.countNodeType(node?.status, 1);
+            if (node?.status === VALIDATION_STATUS.NEW || node?.status === VALIDATION_STATUS.PASSED || node?.status === VALIDATION_STATUS.WARNING) {
+                stat.countNodeType(node?.status, 1);
+            }
+        });
+
+        // A data file error is thrown when the file isn't in the S3 bucket.
+        fileRecords.forEach((node) => {
+            if (node?.nodeType === FILE && (node?.s3FileInfo?.status === VALIDATION_STATUS.ERROR || node?.s3FileInfo?.status === VALIDATION_STATUS.WARNING)) {
+                stat.countNodeType(node?.s3FileInfo?.status, 1);
+            }
         });
 
         // total should be orphaned files(s3) + db file nodes
         const missingFiles = fileRecords.filter(({file}) => file?.s3FileInfo?.status !== VALIDATION_STATUS.NEW);
         const total = orphanedFiles.length + missingFiles.length;
-        if (total > 0) {
+        if (stat.total > 0 && total > 0) {
             stat.total = total
             submissionStats.addStats(stat);
         }
