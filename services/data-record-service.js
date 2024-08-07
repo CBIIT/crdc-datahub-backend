@@ -79,14 +79,15 @@ class DataRecordService {
     #dataFilesStats(s3SubmissionFiles, fileRecords) {
         const s3FileSet = new Set(s3SubmissionFiles);
         const fileDataRecordsMap = new Map(fileRecords.map(file => [file?.s3FileInfo?.fileName, file?.s3FileInfo]));
-        const orphanedFiles = [];
+        const [orphanedFiles, dataFiles] = [[], []];
         s3FileSet.forEach(file => {
-            if (!fileDataRecordsMap.has(file)) {
+            if (fileDataRecordsMap.has(file)) {
+                dataFiles.push(fileDataRecordsMap.get(file));
+            } else {
                 orphanedFiles.push(file);
             }
         });
 
-        const dataFiles = Array.from(fileDataRecordsMap.values());
         return [orphanedFiles, dataFiles];
     }
 
