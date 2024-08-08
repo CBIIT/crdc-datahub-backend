@@ -115,7 +115,9 @@ const ERROR = {
     INVALID_NO_CHILDREN_FOUND: "No children found for the node type", 
     INVALID_NODE_STATUS_NOT_FOUND: "Invalid node status",
     MISSING_DATA_NODE_FILE_TITLE: "Orphaned file found",
-    MISSING_DATA_NODE_FILE_DESC: "Data file $item$: associated metadata not found. Please upload associated metadata (aka. manifest) file."
+    MISSING_DATA_NODE_FILE_DESC: "Data file $item$: associated metadata not found. Please upload associated metadata (aka. manifest) file.",
+    // Quicksight Dashboard
+    MISSING_QUICKSIGHT_USER_NAME: "A user configuration is missing for the AWS Quicksight"
 }
 
 module.exports = ERROR;
