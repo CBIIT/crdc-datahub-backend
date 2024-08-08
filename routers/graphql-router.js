@@ -24,6 +24,7 @@ const ERROR = require("../constants/error-constants");
 const {DataRecordService} = require("../services/data-record-service");
 const {UtilityService} = require("../services/utility");
 const {InstitutionService} = require("../services/institution-service");
+const {DashboardService} = require("../services/dashboardService");
 const schema = buildSchema(require("fs").readFileSync("resources/graphql/crdc-datahub.graphql", "utf8"));
 const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
 const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
@@ -62,6 +63,7 @@ dbConnector.connect().then(async () => {
     const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, dataModelInfo, awsService, config.export_queue, s3Service, emailParams, config.dataCommonsList, validationCollection, config.sqs_loader_queue);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.tier, institutionService);
 
+    const dashboardService = new DashboardService(userService, awsService, {dashboardUserID: config.dashboardUserID, dashboardID: config.dashboardID, sessionTimeout: config.dashboardSessionTimeout});
     root = {
         version: () => {return config.version},
         saveApplication: dataInterface.saveApplication.bind(dataInterface),
@@ -109,7 +111,8 @@ dbConnector.connect().then(async () => {
         getOrganization : organizationService.getOrganizationAPI.bind(organizationService),
         editOrganization : organizationService.editOrganizationAPI.bind(organizationService),
         createOrganization : organizationService.createOrganizationAPI.bind(organizationService),
-        deleteDataRecords: submissionService.deleteDataRecords.bind(submissionService)
+        deleteDataRecords: submissionService.deleteDataRecords.bind(submissionService),
+        getDashboardURL: dashboardService.getDashboardURL.bind(dashboardService)
     };
 });
 
