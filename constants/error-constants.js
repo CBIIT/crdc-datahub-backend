@@ -117,7 +117,8 @@ const ERROR = {
     MISSING_DATA_NODE_FILE_TITLE: "Orphaned file found",
     MISSING_DATA_NODE_FILE_DESC: "Data file $item$: associated metadata not found. Please upload associated metadata (aka. manifest) file.",
     // Quicksight Dashboard
-    MISSING_QUICKSIGHT_USER_NAME: "A user configuration is missing for the AWS Quicksight"
+    MISSING_QUICKSIGHT_USER_NAME: "A user configuration is missing for the AWS Quicksight",
+    NO_VALID_DASHBOARD_TYPE: "The dashboard name you provided does not exist"
 }
 
 module.exports = ERROR;

@@ -1,6 +1,6 @@
 const {verifySession} = require("../verifier/user-info-verifier");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
-const {ERROR} = require("../crdc-datahub-database-drivers/constants/error-constants");
+const ERROR = require("../constants/error-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 class DashboardService {
     constructor(userService, awsService, configurationService, {dashboardUserID, sessionTimeout}) {
