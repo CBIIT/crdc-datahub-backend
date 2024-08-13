@@ -112,7 +112,7 @@ class DataRecordService {
 
         // A data file error is thrown when the file isn't in the S3 bucket.
         fileRecords.forEach((node) => {
-            if (node?.nodeType === FILE && (node?.s3FileInfo?.status === VALIDATION_STATUS.ERROR || node?.s3FileInfo?.status === VALIDATION_STATUS.WARNING)) {
+            if (node?.nodeType === FILE && (node?.s3FileInfo?.status === VALIDATION_STATUS.ERROR)) {
                 stat.countNodeType(node?.s3FileInfo?.status, 1);
             }
         });
