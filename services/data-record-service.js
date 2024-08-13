@@ -105,14 +105,14 @@ class DataRecordService {
         });
 
         dataFiles.forEach(node => {
-            if (node?.status === VALIDATION_STATUS.NEW || node?.status === VALIDATION_STATUS.PASSED || node?.status === VALIDATION_STATUS.WARNING) {
+            if (node?.status === VALIDATION_STATUS.NEW || node?.status === VALIDATION_STATUS.PASSED) {
                 stat.countNodeType(node?.status, 1);
             }
         });
 
         // A data file error is thrown when the file isn't in the S3 bucket.
         fileRecords.forEach((node) => {
-            if (node?.nodeType === FILE && (node?.s3FileInfo?.status === VALIDATION_STATUS.ERROR)) {
+            if (node?.nodeType === FILE && (node?.s3FileInfo?.status === VALIDATION_STATUS.ERROR || node?.s3FileInfo?.status === VALIDATION_STATUS.WARNING)) {
                 stat.countNodeType(node?.s3FileInfo?.status, 1);
             }
         });
