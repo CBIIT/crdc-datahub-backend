@@ -105,7 +105,7 @@ class DataRecordService {
         });
 
         dataFiles.forEach(node => {
-            if (node?.status === VALIDATION_STATUS.NEW || node?.status === VALIDATION_STATUS.PASSED || node?.status === VALIDATION_STATUS.WARNING) {
+            if (node?.status === VALIDATION_STATUS.NEW || node?.status === VALIDATION_STATUS.PASSED) {
                 stat.countNodeType(node?.status, 1);
             }
         });
