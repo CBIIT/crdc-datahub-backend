@@ -9,7 +9,8 @@ const {DATABASE_NAME, APPLICATION_COLLECTION, SUBMISSIONS_COLLECTION, USER_COLLE
     APPROVED_STUDIES_COLLECTION, BATCH_COLLECTION,
     DATA_RECORDS_COLLECTION,
     INSTITUTION_COLLECTION,
-    VALIDATION_COLLECTION
+    VALIDATION_COLLECTION,
+    CONFIGURATION_COLLECTION
 } = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoDBCollection} = require("../crdc-datahub-database-drivers/mongodb-collection");
 const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-connector");
@@ -25,6 +26,7 @@ const {DataRecordService} = require("../services/data-record-service");
 const {UtilityService} = require("../services/utility");
 const {InstitutionService} = require("../services/institution-service");
 const {DashboardService} = require("../services/dashboardService");
+const {ConfigurationService} = require("../services/configurationService");
 const schema = buildSchema(require("fs").readFileSync("resources/graphql/crdc-datahub.graphql", "utf8"));
 const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
 const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
@@ -63,7 +65,9 @@ dbConnector.connect().then(async () => {
     const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, dataModelInfo, awsService, config.export_queue, s3Service, emailParams, config.dataCommonsList, validationCollection, config.sqs_loader_queue);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.tier, institutionService);
 
-    const dashboardService = new DashboardService(userService, awsService, {dashboardUserID: config.dashboardUserID, dashboardID: config.dashboardID, sessionTimeout: config.dashboardSessionTimeout});
+    const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
+    const configurationService = new ConfigurationService(configurationCollection)
+    const dashboardService = new DashboardService(userService, awsService, configurationService, {dashboardUserID: config.dashboardUserID, dashboardID: config.dashboardID, sessionTimeout: config.dashboardSessionTimeout});
     root = {
         version: () => {return config.version},
         saveApplication: dataInterface.saveApplication.bind(dataInterface),
