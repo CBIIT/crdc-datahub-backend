@@ -31,6 +31,7 @@ const {LOGIN, REACTIVATE_USER} = require("./crdc-datahub-database-drivers/consta
 const {BatchService} = require("./services/batch-service");
 const {AWSService} = require("./services/aws-request");
 const {UtilityService} = require("./services/utility");
+const authenticationMiddleware = require("./middleware/authentication-middleware");
 // print environment variables to log
 console.info(config);
 
@@ -54,6 +55,16 @@ app.use("/", statusRouter);
 
 // create session
 app.use(createSession(config.session_secret, config.session_timeout, config.mongo_db_connection_string));
+
+// authentication middleware
+app.use(async (req, res, next) => {
+    try{
+        await authenticationMiddleware(req, res, next);
+    }
+    catch(error){
+        next(error);
+    }
+});
 
 // add graphql endpoint
 app.use("/api/graphql", graphqlRouter);

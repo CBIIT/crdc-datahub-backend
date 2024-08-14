@@ -20,7 +20,6 @@ const {ApprovedStudiesService} = require("../services/approved-studies");
 const {BatchService} = require("../services/batch-service");
 const {S3Service} = require("../crdc-datahub-database-drivers/services/s3-service");
 const {Organization} = require("../crdc-datahub-database-drivers/services/organization");
-const ERROR = require("../constants/error-constants");
 const {DataRecordService} = require("../services/data-record-service");
 const {UtilityService} = require("../services/utility");
 const {InstitutionService} = require("../services/institution-service");
@@ -116,22 +115,10 @@ dbConnector.connect().then(async () => {
     };
 });
 
-const extractContext =(req) => {
-    let context;
-    let token = req.headers.authorization;
-    if(token && token.split(' ').length > 1) {
-        token = token.split(' ')[1];
-        context = {"api-token":  token} ;
-    }
-    else context = req.session;
-    if(!context) throw new Error(ERROR.INVALID_SESSION_OR_TOKEN);
-    return context;
-}
-
 module.exports = (req, res) => {
     createHandler({
         schema: schema,
         rootValue: root,
-        context: extractContext(req)
+        context: req.session
     })(req,res);
 };

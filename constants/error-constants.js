@@ -89,6 +89,7 @@ const ERROR = {
     INVALID_TOKEN_EMPTY: "Invalid token: it is empty string!",
     INVALID_TOKEN_NO_USER: "Invalid token: no user info!",
     INVALID_TOKEN_NO_USER_ID: 'Invalid token: no user id!',
+    INVALID_TOKEN_NOT_IN_WHITELIST: "Invalid token: this token is not whitelisted!",
     INVALID_SUBMISSION_EMPTY: 'Invalid submissionID: it can not be empty string!',
     INVALID_SUBMISSION_NOT_FOUND: "Cant find the submission by submissionID",
     INVALID_NODE_NOT_FOUND: "Cant find the node by nodeID, nodeType and submissionID",
