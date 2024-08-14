@@ -15,6 +15,7 @@ type Application {
     studyName: String
     studyAbbreviation: String
     controlledAccess: Boolean
+    ORCID: String
     # questionnaire data as JSON string
     questionnaireData: String
 }
@@ -33,6 +34,7 @@ input AppInput {
     questionnaireData: String
     studyName: String!
     controlledAccess: Boolean!
+    ORCID: String
 }
 
 type Applicant {
@@ -91,6 +93,7 @@ type Submission {
     validationScope: String
     studyID: String
     controlledAccess: Boolean
+    ORCID: String
     deletingData: Boolean
 }
 
@@ -177,6 +180,7 @@ type ApprovedStudy {
     studyAbbreviation: String # must be unique
     dbGaPID: String # aka. phs number
     controlledAccess: Boolean
+    ORCID: String
 }
 
 type ListLogFiles {
@@ -395,7 +399,7 @@ type AsyncProcessResult {
 type SubmissionNodes {
     total: Int, #total nodes of a given nodeType and data submission
     IDPropName: String,
-    properties: [String], #all properties of a node including parents 
+    properties: [String], #all properties of a node including parents
     nodes: [Node]
 }
 
@@ -511,7 +515,7 @@ type Query {
     getOrganization(orgID: ID!): UserOrganization
 
     getSubmissionNodes(
-        submissionID: String!, 
+        submissionID: String!,
         nodeType: String!,
         status: String = "All", # ["All", "New", "Error", "Passed", "Warning"]
         nodeID: String,

@@ -1445,6 +1445,7 @@ class DataSubmission {
         if (!isUndefined(approvedStudy?.controlledAccess)) {
             this.controlledAccess = approvedStudy.controlledAccess;
         }
+        this.ORCID = approvedStudy?.ORCID || null;
         this.accessedAt = getCurrentTime();
     }
 
