@@ -349,7 +349,13 @@ class Submission {
             return QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, fileName, null, null, VALIDATION_STATUS.ERROR, getCurrentTime(), getCurrentTime(), [errorMsg], []);
         });
 
-        await this.submissionCollection.update({_id: aSubmission?._id, fileErrors, updatedAt: getCurrentTime()});
+        const aSubmissionErrors = aSubmission.fileErrors
+            .filter((f)=> f && f.type === VALIDATION.TYPES.DATA_FILE && f.severity === VALIDATION_STATUS.ERROR)
+            .map((study)=> study.submittedID);
+
+        if (JSON.stringify(aSubmissionErrors) !== JSON.stringify(orphanedFiles)) {
+            await this.submissionCollection.update({_id: aSubmission?._id, fileErrors, updatedAt: getCurrentTime()});
+        }
         return submissionStats;
     }
 
