@@ -118,7 +118,11 @@ const ERROR = {
     MISSING_DATA_NODE_FILE_TITLE: "Orphaned file found",
     MISSING_DATA_NODE_FILE_DESC: "Data file $item$: associated metadata not found. Please upload associated metadata (aka. manifest) file.",
     // Quicksight Dashboard
-    MISSING_QUICKSIGHT_USER_NAME: "A user configuration is missing for the AWS Quicksight"
+    MISSING_QUICKSIGHT_USER_NAME: "A user configuration is missing for the AWS Quicksight",
+    // Initialization
+    CREATE_USER_MISSING_INFO: "Email and IDP are required to create a new user.",
+    CREATE_USER_ORG_MISSING_INFO: "Organization ID is required to initialize the user's organization information."
+
 }
 
 module.exports = ERROR;
