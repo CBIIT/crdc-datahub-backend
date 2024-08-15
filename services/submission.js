@@ -655,7 +655,7 @@ class Submission {
         });
         returnVal.total = s3Files.length;
         returnVal.IDPropName = "File Name",
-        returnVal.nodes = s3Files.slice(params.offset, params.offset + params.first);
+        returnVal.nodes = (params.first > 0) ? s3Files.slice(params.offset, params.offset + params.first) : s3Files;
         returnVal.properties = ["File Name", "File Size", "Orphaned", "Uploaded Date/Time"] 
         return returnVal;
     }
