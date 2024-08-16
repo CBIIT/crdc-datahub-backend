@@ -87,8 +87,9 @@ const ERROR = {
     MISSING_SUBMISSION_FILE_ERRORS: "The file errors property is missing from the submission",
     // Token
     INVALID_TOKEN_EMPTY: "Invalid token: it is empty string!",
-    INVALID_TOKEN_NO_USER: "Invalid token: no user info!",
     INVALID_TOKEN_NO_USER_ID: 'Invalid token: no user id!',
+    INVALID_TOKEN_INVALID_USER_ID: 'Invalid token: invalid user id!',
+    INVALID_TOKEN_NOT_IN_WHITELIST: "Invalid token: this token is not whitelisted!",
     INVALID_SUBMISSION_EMPTY: 'Invalid submissionID: it can not be empty string!',
     INVALID_SUBMISSION_NOT_FOUND: "Cant find the submission by submissionID",
     INVALID_NODE_NOT_FOUND: "Cant find the node by nodeID, nodeType and submissionID",
@@ -117,7 +118,11 @@ const ERROR = {
     MISSING_DATA_NODE_FILE_TITLE: "Orphaned file found",
     MISSING_DATA_NODE_FILE_DESC: "Data file $item$: associated metadata not found. Please upload associated metadata (aka. manifest) file.",
     // Quicksight Dashboard
-    MISSING_QUICKSIGHT_USER_NAME: "A user configuration is missing for the AWS Quicksight"
+    MISSING_QUICKSIGHT_USER_NAME: "A user configuration is missing for the AWS Quicksight",
+    // Initialization
+    CREATE_USER_MISSING_INFO: "Email and IDP are required to create a new user.",
+    CREATE_USER_ORG_MISSING_INFO: "Organization ID is required to initialize the user's organization information."
+
 }
 
 module.exports = ERROR;
