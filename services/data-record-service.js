@@ -5,8 +5,9 @@ const {ValidationHandler} = require("../utility/validation-handler");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const config = require("../config");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants.js");
-const {QCResultError} = require("../domain/qc-result");
+const {QCResultError, QCResult} = require("../domain/qc-result");
 const {replaceErrorString} = require("../utility/string-util");
+const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 
 const ERROR = "Error";
 const WARNING = "Warning";
@@ -73,19 +74,35 @@ class DataRecordService {
             .map((f)=> f.Key.replace(`${aSubmission.rootPath}/${FILE}/`, ''));
         // This dataFiles represents the intersection of the orphanedFiles.
         const [orphanedFiles, dataFiles, missingFileSet] = this.#dataFilesStats(uploadedFiles, fileRecords);
+        // The data file might have been deleted, fixing the missing file to match the submission stat.
+        await this.#updateDataFileNode(fileRecords, missingFileSet);
+        this.#saveDataFileStats(submissionStats, orphanedFiles, dataFiles, fileRecords, aSubmission);
+        return [orphanedFiles, submissionStats];
+    }
 
-        // the data file could be deleted so that it updates the node error.
+    async #updateDataFileNode(fileRecords, missingFileSet) {
+        const updateRecords = [];
         fileRecords.forEach((node) => {
             if (node?.s3FileInfo?.status !== VALIDATION_STATUS.NEW && missingFileSet.has(node?.s3FileInfo?.fileName)) {
-                const errorDesc = replaceErrorString(ERRORS.MISSING_DATA_FILE.CONTENTS, `'${node?.s3FileInfo?.fileName}'`);
-                node.s3FileInfo.status = VALIDATION_STATUS.ERROR;
-                node.s3FileInfo.errors = [QCResultError.create(ERRORS.MISSING_DATA_FILE.TITLE, errorDesc)];
-                node.s3FileInfo.warnings = [];
+                const errors = [
+                    QCResultError.create(
+                        ERRORS.MISSING_DATA_FILE.TITLE,
+                        replaceErrorString(ERRORS.MISSING_DATA_FILE.CONTENTS, `'${node?.s3FileInfo?.fileName}'`))];
+                if (JSON.stringify(node?.s3FileInfo?.errors) !== JSON.stringify(errors)) {
+                    node.s3FileInfo.status = VALIDATION_STATUS.ERROR;
+                    node.s3FileInfo.errors = errors;
+                    node.s3FileInfo.warnings = [];
+                    updateRecords.push(node);
+                }
             }
         });
 
-        this.#saveDataFileStats(submissionStats, orphanedFiles, dataFiles, fileRecords, aSubmission);
-        return [orphanedFiles, submissionStats];
+        if (updateRecords.length > 0) {
+            await Promise.all(updateRecords.map(async (aRecord) => {
+                console.log(`update the error in the data record(${aRecord?._id}) because of missing data files in s3 bucket.`);
+                await this.dataRecordsCollection.updateOne({_id: aRecord?._id}, {...aRecord, updatedAt: getCurrentTime()});
+            }));
+        }
     }
 
 
