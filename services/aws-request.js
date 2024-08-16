@@ -1,7 +1,7 @@
 const AWS = require('aws-sdk');
 require('aws-sdk/lib/maintenance_mode_message').suppress = true;
 const {v4} = require('uuid')
-const {verifyApiToken,verifySubmitter} = require("../verifier/user-info-verifier");
+const {verifySubmitter} = require("../verifier/user-info-verifier");
 const path = require("path");
 const config = require('../config');
 const ERROR = require("../constants/error-constants");
@@ -35,7 +35,7 @@ class AWSService {
      */
     async createTempCredentials(params, context) {
         //1. verify token and decode token to get user info
-        const userInfo = verifyApiToken(context, config.session_secret);
+        const userInfo = context?.userInfo;
         //verify submitter
         const submission = await verifySubmitter(userInfo, params?.submissionID, this.submissions, this.userService);
         //2. create temp credential
