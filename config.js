@@ -50,7 +50,6 @@ let config = {
     uploaderCLIConfigs: readUploaderCLIConfigTemplate(),
     dataCommonsList: process.env.DATA_COMMONS_LIST ? JSON.parse(process.env.DATA_COMMONS_LIST) : ["CDS", "ICDC", "CTDC"],
     inactive_submission_days: process.env.INACTIVE_SUBMISSION_DAYS_DELETE || 120,
-    dashboardID: process.env.DASHBOARD_ID,
     dashboardSessionTimeout: process.env.DASHBOARD_SESSION_TIMEOUT || 3600, // 60 minutes by default
     dashboardUserID: process.env.DASHBOARD_USER_ID
 };

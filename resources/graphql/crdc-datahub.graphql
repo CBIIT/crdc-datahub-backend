@@ -552,7 +552,7 @@ type Query {
         sortDirection: String = "ASC"
     ): SubmissionNodes
 
-    getDashboardURL: Dashboard
+    getDashboardURL(type: String!): Dashboard
 
 }
 type Mutation {
