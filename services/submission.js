@@ -4,7 +4,7 @@ const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
 const {v4} = require('uuid')
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
-const {verifySession, verifyApiToken, verifySubmitter, validateToken} = require("../verifier/user-info-verifier");
+const {verifySession, verifySubmitter} = require("../verifier/user-info-verifier");
 const {verifySubmissionAction} = require("../verifier/submission-verifier");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {formatName} = require("../utility/format-name");
@@ -27,6 +27,7 @@ const {ValidationHandler} = require("../utility/validation-handler");
 const {isUndefined, replaceErrorString} = require("../utility/string-util");
 const {NODE_RELATION_TYPES} = require("./data-record-service");
 const {QCResult, QCResultError} = require("../domain/qc-result");
+const {verifyToken} = require("../verifier/token-verifier");
 const FILE = "file";
 
 const UPLOAD_TYPES = ['file','metadata'];
@@ -119,7 +120,7 @@ class Submission {
 
     async createBatch(params, context) {
         // updated to handle both API-token and session.
-        const userInfo = authenticateUser(context);
+        const userInfo = context?.userInfo
         verifyBatch(params)
             .isUndefined()
             .notEmpty()
@@ -156,7 +157,7 @@ class Submission {
     }
 
     async updateBatch(params, context) {
-        const userInfo = authenticateUser(context);
+        const userInfo = context?.userInfo;
         verifyBatch(params)
             .isValidBatchID()
             .notEmpty();
@@ -745,7 +746,7 @@ class Submission {
     async #replaceToken(context, configString){
         //check user's token
         const tokens = context.userInfo?.tokens;
-        if (tokens && tokens.length > 0 && validateToken(tokens[tokens.length-1], config.token_secret)) {
+        if (tokens && tokens.length > 0 && verifyToken(tokens[tokens.length-1], config.token_secret)) {
             return configString.format({token: tokens[tokens.length-1]})
         }
         const tokenDict = await this.userService.grantToken(null, context);
@@ -1266,14 +1267,6 @@ const findByID = async (submissionCollection, id) => {
     return (aSubmission?.length > 0) ? aSubmission[0] : null;
 }
 
-const authenticateUser = (context) => {
-    if (context[API_TOKEN]) {
-        return verifyApiToken(context, config.token_secret);
-    }
-    verifySession(context)
-        .verifyInitialized();
-    return context?.userInfo;
-}  
 
 const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
     // verify submission owner
