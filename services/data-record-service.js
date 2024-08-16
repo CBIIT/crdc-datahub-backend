@@ -5,6 +5,8 @@ const {ValidationHandler} = require("../utility/validation-handler");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const config = require("../config");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants.js");
+const {QCResultError} = require("../domain/qc-result");
+const {replaceErrorString} = require("../utility/string-util");
 
 const ERROR = "Error";
 const WARNING = "Warning";
@@ -70,7 +72,18 @@ class DataRecordService {
             .filter((f)=> f && f.Key !== `${aSubmission.rootPath}/${FILE}/`)
             .map((f)=> f.Key.replace(`${aSubmission.rootPath}/${FILE}/`, ''));
         // This dataFiles represents the intersection of the orphanedFiles.
-        const [orphanedFiles, dataFiles] = this.#dataFilesStats(uploadedFiles, fileRecords);
+        const [orphanedFiles, dataFiles, missingFileSet] = this.#dataFilesStats(uploadedFiles, fileRecords);
+
+        // the data file could be deleted so that it updates the node error.
+        fileRecords.forEach((node) => {
+            if (node?.s3FileInfo?.status !== VALIDATION_STATUS.NEW && missingFileSet.has(node?.s3FileInfo?.fileName)) {
+                const errorDesc = replaceErrorString(ERRORS.MISSING_DATA_FILE.CONTENTS, `'${node?.s3FileInfo?.fileName}'`);
+                node.s3FileInfo.status = VALIDATION_STATUS.ERROR;
+                node.s3FileInfo.errors = [QCResultError.create(ERRORS.MISSING_DATA_FILE.TITLE, errorDesc)];
+                node.s3FileInfo.warnings = [];
+            }
+        });
+
         this.#saveDataFileStats(submissionStats, orphanedFiles, dataFiles, fileRecords, aSubmission);
         return [orphanedFiles, submissionStats];
     }
@@ -79,7 +92,7 @@ class DataRecordService {
     #dataFilesStats(s3SubmissionFiles, fileRecords) {
         const s3FileSet = new Set(s3SubmissionFiles);
         const fileDataRecordsMap = new Map(fileRecords.map(file => [file?.s3FileInfo?.fileName, file?.s3FileInfo]));
-        const [orphanedFiles, dataFiles] = [[], []];
+        const [orphanedFiles, missingFileSet, dataFiles] = [[], new Set(), []];
         s3FileSet.forEach(file => {
             if (fileDataRecordsMap.has(file)) {
                 dataFiles.push(fileDataRecordsMap.get(file));
@@ -88,7 +101,12 @@ class DataRecordService {
             }
         });
 
-        return [orphanedFiles, dataFiles];
+        fileRecords.forEach(file => {
+            if (!s3FileSet.has(file?.s3FileInfo?.fileName)) {
+                missingFileSet.add(file?.s3FileInfo?.fileName);
+            }
+        });
+        return [orphanedFiles, dataFiles, missingFileSet];
     }
 
     #saveDataFileStats(submissionStats, orphanedFiles, dataFiles, fileRecords, aSubmission) {
@@ -112,7 +130,7 @@ class DataRecordService {
 
         // A data file error is thrown when the file isn't in the S3 bucket.
         fileRecords.forEach((node) => {
-            if (node?.nodeType === FILE && (node?.s3FileInfo?.status === VALIDATION_STATUS.ERROR || node?.s3FileInfo?.status === VALIDATION_STATUS.WARNING)) {
+            if (node?.s3FileInfo?.status === VALIDATION_STATUS.ERROR || node?.s3FileInfo?.status === VALIDATION_STATUS.WARNING) {
                 stat.countNodeType(node?.s3FileInfo?.status, 1);
             }
         });
