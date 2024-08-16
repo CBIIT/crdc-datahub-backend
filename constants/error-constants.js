@@ -122,8 +122,12 @@ const ERROR = {
     NO_VALID_DASHBOARD_TYPE: "The dashboard name you provided does not exist",
     // Initialization
     CREATE_USER_MISSING_INFO: "Email and IDP are required to create a new user.",
-    CREATE_USER_ORG_MISSING_INFO: "Organization ID is required to initialize the user's organization information."
-
+    CREATE_USER_ORG_MISSING_INFO: "Organization ID is required to initialize the user's organization information.",
+    // Submission Stats
+    MISSING_DATA_FILE: {
+        TITLE: "Data file not found",
+        CONTENTS: "Data file $item$ not found"
+    }
 }
 
 module.exports = ERROR;
