@@ -4,13 +4,15 @@ const config = require("../config");
 const {Application} = require("../services/application");
 const {Submission} = require("../services/submission");
 const {AWSService} = require("../services/aws-request");
+const {CDE} = require("../services/CDEService");
 const {MongoQueries} = require("../crdc-datahub-database-drivers/mongo-queries");
 const {DATABASE_NAME, APPLICATION_COLLECTION, SUBMISSIONS_COLLECTION, USER_COLLECTION, ORGANIZATION_COLLECTION, LOG_COLLECTION,
     APPROVED_STUDIES_COLLECTION, BATCH_COLLECTION,
     DATA_RECORDS_COLLECTION,
     INSTITUTION_COLLECTION,
     VALIDATION_COLLECTION,
-    CONFIGURATION_COLLECTION
+    CONFIGURATION_COLLECTION,
+    CDE_COLLECTION
 } = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoDBCollection} = require("../crdc-datahub-database-drivers/mongodb-collection");
 const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-connector");
@@ -69,6 +71,9 @@ dbConnector.connect().then(async () => {
     const configurationService = new ConfigurationService(configurationCollection)
     const dashboardService = new DashboardService(userService, awsService, configurationService, {dashboardUserID: config.dashboardUserID, dashboardID: config.dashboardID, sessionTimeout: config.dashboardSessionTimeout});
     const userInitializationService = new UserInitializationService(userCollection, organizationCollection);
+    
+    const cdeCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CDE_COLLECTION);
+    const cdeService = new CDE(cdeCollection);
     root = {
         version: () => {return config.version},
         saveApplication: dataInterface.saveApplication.bind(dataInterface),
@@ -117,7 +122,8 @@ dbConnector.connect().then(async () => {
         editOrganization : organizationService.editOrganizationAPI.bind(organizationService),
         createOrganization : organizationService.createOrganizationAPI.bind(organizationService),
         deleteDataRecords: submissionService.deleteDataRecords.bind(submissionService),
-        getDashboardURL: dashboardService.getDashboardURL.bind(dashboardService)
+        getDashboardURL: dashboardService.getDashboardURL.bind(dashboardService),
+        retrieveCDEs : cdeService.getCDEs.bind(cdeService)
     };
 });
 

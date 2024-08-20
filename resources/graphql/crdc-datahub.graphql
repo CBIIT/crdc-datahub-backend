@@ -433,6 +433,21 @@ type Dashboard {
     expiresIn: Int
 }
 
+input CDEInput {
+    CDECode: String!,
+    CDEVersion: String!
+}
+
+type CDE {
+    _id: ID,
+    CDEFullName: String,
+    CDECode: String,
+    CDEVersion: String,
+    permissibleValues: [String],
+    createdAt: Date,
+    updatedAt: Date
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -554,6 +569,9 @@ type Query {
 
     getDashboardURL(type: String!): Dashboard
 
+    retrieveCDEs (
+        CDEInfo: [CDEInput!]! 
+    ) : [CDE]
 }
 type Mutation {
     "User initiated operations"
