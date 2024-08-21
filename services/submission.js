@@ -211,9 +211,15 @@ class Submission {
                 const submissions = await this.submissionCollection.aggregate([
                     {"$match": {$and: [
                         {studyID: aSubmission.studyID},
-                        {status: {$in: [IN_PROGRESS, SUBMITTED, RELEASED]}},
+                        {status: {$in: [IN_PROGRESS, SUBMITTED, RELEASED, REJECTED, WITHDRAWN]}},
                         {_id: { $not: { $eq: params._id}}}]}}]);
-                const otherSubmissions = {[IN_PROGRESS]: [], [SUBMITTED]: [], [RELEASED]: []};
+                const otherSubmissions = {
+                    [IN_PROGRESS]: [],
+                    [SUBMITTED]: [],
+                    [RELEASED]: [],
+                    [REJECTED]: [],
+                    [WITHDRAWN]: [],
+                };
                 submissions.forEach((submission) => {
                     otherSubmissions[submission.status].push(submission._id);
                 });
