@@ -1,5 +1,10 @@
 const CDE_CODE = "CDECode";
 const CDE_VERSION = "CDEVersion";
+const CDE_FULL_NAME = "CDEFullName";
+const PERMISSIBLE_VALUES = "PermissibleValues";
+const CREATED_AT = "createdAt";
+const UPDATED_AT = "updatedAt";
+const DB_ID = "_id";
 /**
  * CDE Service
  * @class CDE
@@ -24,7 +29,8 @@ class CDE {
     }
 
     async #find_cde_by_code_version(query) {
-        return this.CDE_collection.aggregate([{"$match": query}]);
+        const return_data_fields = {$project: {DB_ID: 1, CDE_FULL_NAME:1, CDECode:1, CDEVersion:1,PERMISSIBLE_VALUES: 1, CREATED_AT: 1, UPDATED_AT: 1} };
+        return this.CDE_collection.aggregate([{"$match": query}, return_data_fields]);
     }
 }
 
