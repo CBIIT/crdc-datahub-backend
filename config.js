@@ -51,7 +51,6 @@ let config = {
     dataCommonsList: process.env.DATA_COMMONS_LIST ? JSON.parse(process.env.DATA_COMMONS_LIST) : ["CDS", "ICDC", "CTDC"],
     inactive_submission_days: process.env.INACTIVE_SUBMISSION_DAYS_DELETE || 120,
     dashboardSessionTimeout: process.env.DASHBOARD_SESSION_TIMEOUT || 3600, // 60 minutes by default
-    dashboardUserID: process.env.DASHBOARD_USER_ID
 };
 config.mongo_db_connection_string = `mongodb://${config.mongo_db_user}:${config.mongo_db_password}@${config.mongo_db_host}:${process.env.MONGO_DB_PORT}`;
 

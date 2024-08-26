@@ -146,17 +146,12 @@ class AWSService {
     /**
      * Generates an embed URL for a QuickSight dashboard.
      *
-     * @param {string} username - The QuickSight username for which the embed URL is being generated.
      * @param {string} dashboardID - The ID of the QuickSight dashboard to embed.
      * @param {number} sessionTimeout - The session timeout in seconds. Defaults to 60 minutes if not provided.
      * @returns {Promise<string>} - Resolves with the embed URL for the specified dashboard, or rejects with an error if the request fails.
      * @throws {Error} - Throws an error if the username is missing or invalid.
      */
-    async getQuickInsightURL(username, dashboardID, sessionTimeout) {
-        if (!username || username?.trim().length === 0) {
-            throw new Error(ERROR.MISSING_QUICKSIGHT_USER_NAME);
-
-        }
+    async getQuickInsightURL(dashboardID, sessionTimeout) {
         const accountID = await this.#getAccountID();
         const params = {
             AwsAccountId: accountID,
