@@ -443,7 +443,7 @@ type CDE {
     CDEFullName: String,
     CDECode: String,
     CDEVersion: String,
-    permissibleValues: [String],
+    PermissibleValues: [String],
     createdAt: Date,
     updatedAt: Date
 }
@@ -570,6 +570,7 @@ type Query {
     getDashboardURL(type: String!): Dashboard
 
     retrieveCDEs (
+        public: Boolean = true,
         CDEInfo: [CDEInput!]! 
     ) : [CDE]
 }

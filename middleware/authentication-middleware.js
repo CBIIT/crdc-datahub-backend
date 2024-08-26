@@ -1,3 +1,5 @@
+
+const {parse} = require("graphql");
 const config = require("../config");
 const {DATABASE_NAME, USER_COLLECTION, ORGANIZATION_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-connector");
@@ -15,12 +17,30 @@ dbConnector.connect().then(async () => {
     userInitializationService = new UserInitializationService(userCollection, organizationCollection);
 });
 
-module.exports = async (req, res, next) => {
-    let userID = req.session?.userInfo?.userID;
-    let userInfo = await authenticationService.verifyAuthenticated(req.session?.userInfo, req?.headers?.authorization);
-    if (!userID){
-        // session is not initialized
-        req.session.userInfo = await userInitializationService.initializeUser(userInfo);
+// escape public query 
+const escape = (req) => {
+    if(req.body && req.body.query){
+        try {
+            const parsedQuery = parse(req.body.query);
+            const api_name= parsedQuery.definitions.find(
+              (definition) => definition.kind === 'OperationDefinition'
+            ).selectionSet?.selections[0]?.name?.value;
+            return ['retrieveCDEs'].includes(api_name);
+          } catch (error) {
+            console.error('Failed to parse query:', error.message);
+          }
+        return true;
     }
-    next()
+}
+
+module.exports = async (req, res, next) => {
+    if(!escape(req)) {
+        let userID = req.session?.userInfo?.userID;
+        let userInfo = await authenticationService.verifyAuthenticated(req.session?.userInfo, req?.headers?.authorization);
+        if (!userID){
+            // session is not initialized
+            req.session.userInfo = await userInitializationService.initializeUser(userInfo);
+        }
+    }
+    next();
 }
