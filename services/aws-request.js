@@ -1,7 +1,7 @@
 const AWS = require('aws-sdk');
 require('aws-sdk/lib/maintenance_mode_message').suppress = true;
 const {v4} = require('uuid')
-const {verifyApiToken,verifySubmitter} = require("../verifier/user-info-verifier");
+const {verifySubmitter} = require("../verifier/user-info-verifier");
 const path = require("path");
 const config = require('../config');
 const ERROR = require("../constants/error-constants");
@@ -20,6 +20,8 @@ class AWSService {
         this.submissions = submissionCollection;
         this.s3 = new AWS.S3();
         this.sqs = new AWS.SQS();
+        this.sts = new AWS.STS();
+        this.quicksight = new AWS.QuickSight();
     }
     /**
      * createTempCredentials
@@ -140,6 +142,51 @@ class AWSService {
         });
     }
 
+
+    /**
+     * Generates an embed URL for a QuickSight dashboard.
+     *
+     * @param {string} username - The QuickSight username for which the embed URL is being generated.
+     * @param {string} dashboardID - The ID of the QuickSight dashboard to embed.
+     * @param {number} sessionTimeout - The session timeout in seconds. Defaults to 60 minutes if not provided.
+     * @returns {Promise<string>} - Resolves with the embed URL for the specified dashboard, or rejects with an error if the request fails.
+     * @throws {Error} - Throws an error if the username is missing or invalid.
+     */
+    async getQuickInsightURL(username, dashboardID, sessionTimeout) {
+        if (!username || username?.trim().length === 0) {
+            throw new Error(ERROR.MISSING_QUICKSIGHT_USER_NAME);
+
+        }
+        const accountID = await this.#getAccountID();
+        const params = {
+            AwsAccountId: accountID,
+            DashboardId: dashboardID,
+            IdentityType: 'ANONYMOUS',
+            SessionLifetimeInMinutes: sessionTimeout / 60 || 60, // by default 60 minutes
+            Namespace: `default`
+        };
+        return new Promise((resolve, reject) => {
+            this.quicksight.getDashboardEmbedUrl(params, (err, data) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(data?.EmbedUrl);
+                }
+            });
+        });
+    }
+
+    /**
+     * Private function
+     * Retrieves the AWS account ID of the caller.
+     *
+     * @returns {Promise<string>} - Resolves with the AWS account ID of the caller.
+     * @throws {Error} - Throws an error if the request to retrieve the account ID fails.
+     */
+    async #getAccountID() {
+        const data = await this.sts.getCallerIdentity({}).promise();
+        return data.Account;
+    }
 }
 const getQueueUrl = async (sqs, queueName, messageBody) => {
     return new Promise((resolve, reject) => {

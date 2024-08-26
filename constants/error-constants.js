@@ -114,6 +114,9 @@ const ERROR = {
     INVALID_NO_PARENTS_FOUND: "No parents found for the node type",
     INVALID_NO_CHILDREN_FOUND: "No children found for the node type", 
     INVALID_NODE_STATUS_NOT_FOUND: "Invalid node status",
+    // Quicksight Dashboard
+    MISSING_QUICKSIGHT_USER_NAME: "A user configuration is missing for the AWS Quicksight",
+    NO_VALID_DASHBOARD_TYPE: "The dashboard name you provided does not exist",
 }
 
 module.exports = ERROR;
