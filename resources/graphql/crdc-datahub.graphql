@@ -433,6 +433,11 @@ type institution {
     name: String
 }
 
+type Dashboard {
+    url: String
+    expiresIn: Int
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -551,6 +556,9 @@ type Query {
         orderBy: String = "nodeID",
         sortDirection: String = "ASC"
     ): SubmissionNodes
+
+    getDashboardURL(type: String!): Dashboard
+
 }
 type Mutation {
     "User initiated operations"
