@@ -1,5 +1,6 @@
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
-    REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, EXPORT, INTENTION, DATA_TYPE, DELETED, DATA_FILE
+    REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, EXPORT, INTENTION, DATA_TYPE, DELETED, DATA_FILE,
+    CONSTRAINTS
 } = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
@@ -1339,8 +1340,8 @@ function validateCreateSubmissionParams (params, allowedDataCommons, intention, 
     if (!params.name || params?.name?.trim().length === 0 || !params.studyID || !params.dataCommons) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
     }
-    if (params?.name?.trim().length > 25) {
-        throw new Error(ERROR.CREATE_SUBMISSION_INVALID_NAME);
+    if (params?.name?.trim().length > CONSTRAINTS.NAME_MAX_LENGTH) {
+        throw new Error(replaceErrorString(ERROR.CREATE_SUBMISSION_INVALID_NAME, `${CONSTRAINTS.NAME_MAX_LENGTH}`));
     }
     if (!allowedDataCommons.has(params.dataCommons)) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_DATA_COMMONS);
