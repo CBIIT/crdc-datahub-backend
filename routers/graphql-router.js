@@ -67,7 +67,7 @@ dbConnector.connect().then(async () => {
 
     const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
     const configurationService = new ConfigurationService(configurationCollection)
-    const dashboardService = new DashboardService(userService, awsService, configurationService, {dashboardUserID: config.dashboardUserID, dashboardID: config.dashboardID, sessionTimeout: config.dashboardSessionTimeout});
+    const dashboardService = new DashboardService(userService, awsService, configurationService, {sessionTimeout: config.dashboardSessionTimeout});
     const userInitializationService = new UserInitializationService(userCollection, organizationCollection);
     root = {
         version: () => {return config.version},
