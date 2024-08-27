@@ -4,7 +4,7 @@ const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
 const {v4} = require('uuid')
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
-const {verifySession, verifyApiToken, verifySubmitter, validateToken} = require("../verifier/user-info-verifier");
+const {verifySession, verifySubmitter} = require("../verifier/user-info-verifier");
 const {verifySubmissionAction} = require("../verifier/submission-verifier");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {formatName} = require("../utility/format-name");
@@ -24,9 +24,10 @@ const NA = "NA"
 const config = require("../config");
 const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
-const {isUndefined} = require("../utility/string-util");
+const {isUndefined, replaceErrorString} = require("../utility/string-util");
 const {NODE_RELATION_TYPES} = require("./data-record-service");
-const {QCResult} = require("../domain/qc-result");
+const {QCResult, QCResultError} = require("../domain/qc-result");
+const {verifyToken} = require("../verifier/token-verifier");
 const FILE = "file";
 
 const UPLOAD_TYPES = ['file','metadata'];
@@ -119,11 +120,11 @@ class Submission {
 
     async createBatch(params, context) {
         // updated to handle both API-token and session.
-        const userInfo = authenticateUser(context);
+        const userInfo = context?.userInfo
         verifyBatch(params)
             .isUndefined()
             .notEmpty()
-            .type([BATCH.TYPE.METADATA, BATCH.TYPE.DATA_FILE, BATCH.TYPE.FILE]);
+            .type([BATCH.TYPE.METADATA, BATCH.TYPE.DATA_FILE]);
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
         // The submission status must be valid states
@@ -156,7 +157,7 @@ class Submission {
     }
 
     async updateBatch(params, context) {
-        const userInfo = authenticateUser(context);
+        const userInfo = context?.userInfo;
         verifyBatch(params)
             .isValidBatchID()
             .notEmpty();
@@ -210,9 +211,15 @@ class Submission {
                 const submissions = await this.submissionCollection.aggregate([
                     {"$match": {$and: [
                         {studyID: aSubmission.studyID},
-                        {status: {$in: [IN_PROGRESS, SUBMITTED, RELEASED]}},
+                        {status: {$in: [IN_PROGRESS, SUBMITTED, RELEASED, REJECTED, WITHDRAWN]}},
                         {_id: { $not: { $eq: params._id}}}]}}]);
-                const otherSubmissions = {[IN_PROGRESS]: [], [SUBMITTED]: [], [RELEASED]: []};
+                const otherSubmissions = {
+                    [IN_PROGRESS]: [],
+                    [SUBMITTED]: [],
+                    [RELEASED]: [],
+                    [REJECTED]: [],
+                    [WITHDRAWN]: [],
+                };
                 submissions.forEach((submission) => {
                     otherSubmissions[submission.status].push(submission._id);
                 });
@@ -341,18 +348,20 @@ class Submission {
         isSubmissionPermitted(aSubmission, context?.userInfo);
         const [orphanedFiles, submissionStats] = await this.dataRecordService.submissionStats(aSubmission);
 
-        if (orphanedFiles?.length > 0 && aSubmission?.fileErrors?.length > 0) {
-            const fileErrors = [];
-            orphanedFiles?.forEach((fileName) => {
-                const error = aSubmission?.fileErrors.find(errorFile => errorFile?.submittedID === fileName);
-                if (error) {
-                    const qcResult = QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, error?.submittedID, error?.batchID, error?.displayID, VALIDATION_STATUS.ERROR, error?.uploadedDate, getCurrentTime(), error?.errors, error?.warnings);
-                    fileErrors.push({...error, ...qcResult});
-                }
-            });
-            if (fileErrors.length > 0) {
-                await this.submissionCollection.update({_id: aSubmission?._id, fileErrors, updatedAt: getCurrentTime()});
-            }
+        const fileErrors = orphanedFiles?.map((fileName) => {
+            const errorMsg = QCResultError.create(
+                ERROR.MISSING_DATA_NODE_FILE_TITLE,
+                replaceErrorString(ERROR.MISSING_DATA_NODE_FILE_DESC, `'${fileName}'`)
+            );
+            return QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, fileName, null, null, VALIDATION_STATUS.ERROR, getCurrentTime(), getCurrentTime(), [errorMsg], []);
+        });
+
+        const aSubmissionErrors = aSubmission.fileErrors
+            .filter((f)=> f && f.type === VALIDATION.TYPES.DATA_FILE && f.severity === VALIDATION_STATUS.ERROR)
+            .map((study)=> study.submittedID);
+
+        if (JSON.stringify(aSubmissionErrors) !== JSON.stringify(orphanedFiles)) {
+            await this.submissionCollection.update({_id: aSubmission?._id, fileErrors, updatedAt: getCurrentTime()});
         }
         return submissionStats;
     }
@@ -653,7 +662,7 @@ class Submission {
         });
         returnVal.total = s3Files.length;
         returnVal.IDPropName = "File Name",
-        returnVal.nodes = s3Files.slice(params.offset, params.offset + params.first);
+        returnVal.nodes = (params.first > 0) ? s3Files.slice(params.offset, params.offset + params.first) : s3Files;
         returnVal.properties = ["File Name", "File Size", "Orphaned", "Uploaded Date/Time"] 
         return returnVal;
     }
@@ -743,7 +752,7 @@ class Submission {
     async #replaceToken(context, configString){
         //check user's token
         const tokens = context.userInfo?.tokens;
-        if (tokens && tokens.length > 0 && validateToken(tokens[tokens.length-1], config.token_secret)) {
+        if (tokens && tokens.length > 0 && verifyToken(tokens[tokens.length-1], config.token_secret)) {
             return configString.format({token: tokens[tokens.length-1]})
         }
         const tokenDict = await this.userService.grantToken(null, context);
@@ -1264,14 +1273,6 @@ const findByID = async (submissionCollection, id) => {
     return (aSubmission?.length > 0) ? aSubmission[0] : null;
 }
 
-const authenticateUser = (context) => {
-    if (context[API_TOKEN]) {
-        return verifyApiToken(context, config.token_secret);
-    }
-    verifySession(context)
-        .verifyInitialized();
-    return context?.userInfo;
-}  
 
 const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
     // verify submission owner

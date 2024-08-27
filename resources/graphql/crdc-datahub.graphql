@@ -203,7 +203,6 @@ type User {
   email: String
   organization: OrgInfo # Organization
   dataCommons: [String] # Applies to Data Commons POC role only. Empty for other roles.
-  tokens: [String]
   createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
   updateAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
 }

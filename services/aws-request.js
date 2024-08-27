@@ -35,7 +35,7 @@ class AWSService {
      */
     async createTempCredentials(params, context) {
         //1. verify token and decode token to get user info
-        const userInfo = verifyApiToken(context, config.session_secret);
+        const userInfo = context?.userInfo;
         //verify submitter
         const submission = await verifySubmitter(userInfo, params?.submissionID, this.submissions, this.userService);
         //2. create temp credential

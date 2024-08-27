@@ -21,11 +21,11 @@ const {ApprovedStudiesService} = require("../services/approved-studies");
 const {BatchService} = require("../services/batch-service");
 const {S3Service} = require("../crdc-datahub-database-drivers/services/s3-service");
 const {Organization} = require("../crdc-datahub-database-drivers/services/organization");
-const ERROR = require("../constants/error-constants");
 const {DataRecordService} = require("../services/data-record-service");
 const {UtilityService} = require("../services/utility");
 const {InstitutionService} = require("../services/institution-service");
 const {DashboardService} = require("../services/dashboardService");
+const UserInitializationService = require("../services/user-initialization-service");
 const {ConfigurationService} = require("../services/configurationService");
 const schema = buildSchema(require("fs").readFileSync("resources/graphql/crdc-datahub.graphql", "utf8"));
 const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
@@ -68,6 +68,7 @@ dbConnector.connect().then(async () => {
     const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
     const configurationService = new ConfigurationService(configurationCollection)
     const dashboardService = new DashboardService(userService, awsService, configurationService, {sessionTimeout: config.dashboardSessionTimeout});
+    const userInitializationService = new UserInitializationService(userCollection, organizationCollection);
     root = {
         version: () => {return config.version},
         saveApplication: dataInterface.saveApplication.bind(dataInterface),
@@ -104,7 +105,7 @@ dbConnector.connect().then(async () => {
         retrieveCLIConfig: submissionService.getUploaderCLIConfigs.bind(submissionService),
         listInstitutions: institutionService.listInstitutions.bind(institutionService),
         // AuthZ
-        getMyUser : userService.getMyUser.bind(userService),
+        getMyUser : userInitializationService.getMyUser.bind(userInitializationService),
         getUser : userService.getUser.bind(userService),
         updateMyUser : userService.updateMyUser.bind(userService),
         listUsers : userService.listUsers.bind(userService),
@@ -120,22 +121,10 @@ dbConnector.connect().then(async () => {
     };
 });
 
-const extractContext =(req) => {
-    let context;
-    let token = req.headers.authorization;
-    if(token && token.split(' ').length > 1) {
-        token = token.split(' ')[1];
-        context = {"api-token":  token} ;
-    }
-    else context = req.session;
-    if(!context) throw new Error(ERROR.INVALID_SESSION_OR_TOKEN);
-    return context;
-}
-
 module.exports = (req, res) => {
     createHandler({
         schema: schema,
         rootValue: root,
-        context: extractContext(req)
+        context: req.session
     })(req,res);
 };
