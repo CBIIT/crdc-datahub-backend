@@ -13,9 +13,9 @@ Config:
     manifest: {manifest}
     #file name header name in the manifest file, default is file_name
     name-field: {name-field}
-    #file id header name in the manifest file in data model
+    # Property name for Key/ID property of file node. For example, "file_id" is the Key/ID property of file node in CDS.
     id-field: {id-field}
-    # if id_field need to be DCF prefix id, read from data model content.json
+    # Whether to omit DCF prefix when generating file IDs. For example, false means include DCF prefix when generating file IDs.
     omit-DCF-prefix: {omit-DCF-prefix}
     #file size header name in the manifest file, default is file_size
     size-field: {size-field}
