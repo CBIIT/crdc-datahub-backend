@@ -1,3 +1,4 @@
+directive @public on FIELD_DEFINITION|QUERY
 scalar Date
 
 type Application {
@@ -437,6 +438,21 @@ type Dashboard {
     expiresIn: Int
 }
 
+input CDEInput {
+    CDECode: String!,
+    CDEVersion: String!
+}
+
+type CDE {
+    _id: ID,
+    CDEFullName: String,
+    CDECode: String,
+    CDEVersion: String,
+    PermissibleValues: [String],
+    createdAt: Date,
+    updatedAt: Date
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -558,6 +574,9 @@ type Query {
 
     getDashboardURL(type: String!): Dashboard
 
+    retrieveCDEs  (
+        CDEInfo: [CDEInput!]!
+    ) : [CDE] @public
 }
 type Mutation {
     "User initiated operations"

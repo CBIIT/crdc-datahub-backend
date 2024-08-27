@@ -56,15 +56,15 @@ app.use("/", statusRouter);
 // create session
 app.use(createSession(config.session_secret, config.session_timeout, config.mongo_db_connection_string));
 
-// authentication middleware
-app.use(async (req, res, next) => {
-    try{
-        await authenticationMiddleware(req, res, next);
-    }
-    catch(error){
-        next(error);
-    }
-});
+// // authentication middleware
+// app.use(async (req, res, next) => {
+//     try{
+//         await authenticationMiddleware(req, res, next);
+//     }
+//     catch(error){
+//         next(error);
+//     }
+// });
 
 // add graphql endpoint
 app.use("/api/graphql", graphqlRouter);

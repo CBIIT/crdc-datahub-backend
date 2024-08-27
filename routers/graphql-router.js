@@ -4,13 +4,15 @@ const config = require("../config");
 const {Application} = require("../services/application");
 const {Submission} = require("../services/submission");
 const {AWSService} = require("../services/aws-request");
+const {CDE} = require("../services/CDEService");
 const {MongoQueries} = require("../crdc-datahub-database-drivers/mongo-queries");
 const {DATABASE_NAME, APPLICATION_COLLECTION, SUBMISSIONS_COLLECTION, USER_COLLECTION, ORGANIZATION_COLLECTION, LOG_COLLECTION,
     APPROVED_STUDIES_COLLECTION, BATCH_COLLECTION,
     DATA_RECORDS_COLLECTION,
     INSTITUTION_COLLECTION,
     VALIDATION_COLLECTION,
-    CONFIGURATION_COLLECTION
+    CONFIGURATION_COLLECTION,
+    CDE_COLLECTION
 } = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoDBCollection} = require("../crdc-datahub-database-drivers/mongodb-collection");
 const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-connector");
@@ -30,8 +32,12 @@ const {ConfigurationService} = require("../services/configurationService");
 const schema = buildSchema(require("fs").readFileSync("resources/graphql/crdc-datahub.graphql", "utf8"));
 const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
 const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
+const AuthenticationService = require("../services/authentication-service");
+const {apiAuthorization, extractAPINames, PUBLIC} = require("./api-authorization");
+const public_api_list = extractAPINames(schema, PUBLIC)
 
 let root;
+let authenticationService, userInitializationService;
 dbConnector.connect().then(async () => {
     const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
     const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
@@ -67,8 +73,14 @@ dbConnector.connect().then(async () => {
 
     const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
     const configurationService = new ConfigurationService(configurationCollection)
+
     const dashboardService = new DashboardService(userService, awsService, configurationService, {sessionTimeout: config.dashboardSessionTimeout});
-    const userInitializationService = new UserInitializationService(userCollection, organizationCollection);
+    userInitializationService = new UserInitializationService(userCollection, organizationCollection);
+    authenticationService = new AuthenticationService(userCollection);
+    
+    const cdeCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CDE_COLLECTION);
+    const cdeService = new CDE(cdeCollection);
+
     root = {
         version: () => {return config.version},
         saveApplication: dataInterface.saveApplication.bind(dataInterface),
@@ -117,14 +129,18 @@ dbConnector.connect().then(async () => {
         editOrganization : organizationService.editOrganizationAPI.bind(organizationService),
         createOrganization : organizationService.createOrganizationAPI.bind(organizationService),
         deleteDataRecords: submissionService.deleteDataRecords.bind(submissionService),
-        getDashboardURL: dashboardService.getDashboardURL.bind(dashboardService)
+        getDashboardURL: dashboardService.getDashboardURL.bind(dashboardService),
+        retrieveCDEs : cdeService.getCDEs.bind(cdeService)
     };
 });
 
+
 module.exports = (req, res) => {
-    createHandler({
-        schema: schema,
-        rootValue: root,
-        context: req.session
-    })(req,res);
+    apiAuthorization(req, authenticationService, userInitializationService, public_api_list).then((authorized) => {
+        createHandler({
+            schema: schema,
+            rootValue: root,
+            context: req.session
+        })(req,res);
+    })
 };
