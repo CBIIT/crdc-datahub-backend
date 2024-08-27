@@ -79,6 +79,9 @@ class Submission {
         if (!approvedStudy) {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
         }
+        if (approvedStudy.controlledAccess && !params.dbGaPID?.trim()?.length) {
+            throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
+        }
         const modelVersion = this.#getModelVersion(this.dataModelInfo, params.dataCommons);
         const newSubmission = DataSubmission.createSubmission(
             params.name, context.userInfo, params.dataCommons, params.studyID, params.dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy);
