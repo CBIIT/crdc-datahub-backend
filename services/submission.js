@@ -1339,6 +1339,9 @@ function validateCreateSubmissionParams (params, allowedDataCommons, intention, 
     if (!params.name || params?.name?.trim().length === 0 || !params.studyID || !params.dataCommons) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
     }
+    if (params?.name?.trim().length > 25) {
+        throw new Error(ERROR.CREATE_SUBMISSION_INVALID_NAME);
+    }
     if (!allowedDataCommons.has(params.dataCommons)) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_DATA_COMMONS);
     }
