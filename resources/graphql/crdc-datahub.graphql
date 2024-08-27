@@ -1,3 +1,4 @@
+directive @public on FIELD_DEFINITION|QUERY
 scalar Date
 
 type Application {
@@ -569,10 +570,9 @@ type Query {
 
     getDashboardURL(type: String!): Dashboard
 
-    retrieveCDEs (
-        public: Boolean = true,
-        CDEInfo: [CDEInput!]! 
-    ) : [CDE]
+    retrieveCDEs  (
+        CDEInfo: [CDEInput!]!
+    ) : [CDE] @public
 }
 type Mutation {
     "User initiated operations"

@@ -32,8 +32,11 @@ const {ConfigurationService} = require("../services/configurationService");
 const schema = buildSchema(require("fs").readFileSync("resources/graphql/crdc-datahub.graphql", "utf8"));
 const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
 const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
+const AuthenticationService = require("../services/authentication-service");
+const {apiAuthorization} = require("./api-authorization");
 
 let root;
+let authenticationService, userInitializationService;
 dbConnector.connect().then(async () => {
     const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
     const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
@@ -70,10 +73,12 @@ dbConnector.connect().then(async () => {
     const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
     const configurationService = new ConfigurationService(configurationCollection)
     const dashboardService = new DashboardService(userService, awsService, configurationService, {dashboardUserID: config.dashboardUserID, dashboardID: config.dashboardID, sessionTimeout: config.dashboardSessionTimeout});
-    const userInitializationService = new UserInitializationService(userCollection, organizationCollection);
+    userInitializationService = new UserInitializationService(userCollection, organizationCollection);
+    authenticationService = new AuthenticationService(userCollection);
     
     const cdeCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CDE_COLLECTION);
     const cdeService = new CDE(cdeCollection);
+
     root = {
         version: () => {return config.version},
         saveApplication: dataInterface.saveApplication.bind(dataInterface),
@@ -128,6 +133,7 @@ dbConnector.connect().then(async () => {
 });
 
 module.exports = (req, res) => {
+    apiAuthorization(req, authenticationService, userInitializationService, schema);
     createHandler({
         schema: schema,
         rootValue: root,

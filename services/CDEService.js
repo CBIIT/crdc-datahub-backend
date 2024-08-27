@@ -29,8 +29,7 @@ class CDE {
     }
 
     async #find_cde_by_code_version(query) {
-        const return_data_fields = {$project: {DB_ID: 1, CDE_FULL_NAME:1, CDECode:1, CDEVersion:1,PERMISSIBLE_VALUES: 1, CREATED_AT: 1, UPDATED_AT: 1} };
-        return this.CDE_collection.aggregate([{"$match": query}, return_data_fields]);
+        return this.CDE_collection.aggregate([{"$match": query}]);
     }
 }
 
