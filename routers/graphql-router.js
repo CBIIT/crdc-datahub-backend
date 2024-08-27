@@ -33,7 +33,8 @@ const schema = buildSchema(require("fs").readFileSync("resources/graphql/crdc-da
 const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
 const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
 const AuthenticationService = require("../services/authentication-service");
-const {apiAuthorization} = require("./api-authorization");
+const {apiAuthorization, extractAPINames, PUBLIC} = require("./api-authorization");
+const public_api_list = extractAPINames(schema, PUBLIC)
 
 let root;
 let authenticationService, userInitializationService;
@@ -133,7 +134,7 @@ dbConnector.connect().then(async () => {
 });
 
 module.exports = (req, res) => {
-    apiAuthorization(req, authenticationService, userInitializationService, schema);
+    apiAuthorization(req, authenticationService, userInitializationService, public_api_list);
     createHandler({
         schema: schema,
         rootValue: root,

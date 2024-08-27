@@ -1,8 +1,10 @@
 
 const {parse} = require("graphql");
 
+const PUBLIC = 'public';
+
 // escape public query 
-const req_api_name = (req) => {
+const getAPINameFromReq = (req) => {
     if(req.body && req.body.query){
         const parsedQuery = parse(req.body.query);
         const api_name= parsedQuery.definitions.find(
@@ -13,17 +15,17 @@ const req_api_name = (req) => {
     else return null
 }
 
-const escape = (req, schema) => {
+function extractAPINames(schema, api_type = PUBLIC){
     const fields = schema._queryType?._fields;
-    const public_api = Object.values(fields).find(
-        (f) => (f.astNode.directives.length > 0) && (f.astNode.directives[0].name?.value === 'public')
+    const public_api_list = Object.values(fields).filter(
+        (f) => (f.astNode.directives.length > 0) && (f.astNode.directives[0].name?.value === api_type)
       );
-    return (req_api_name(req) === public_api.name)
+    return public_api_list.map( (api) => api.name )
 }
 
-async function apiAuthorization(req, authenticationService, userInitializationService, schema) {
+async function apiAuthorization(req, authenticationService, userInitializationService, public_api_list) {
     try {
-        if (escape(req, schema)) return;
+        if (getAPINameFromReq(req) in public_api_list) return;
         let userID = req.session?.userInfo?.userID;
         let userInfo = await authenticationService.verifyAuthenticated(req.session?.userInfo, req?.headers?.authorization);
         if (!userID){
@@ -36,6 +38,8 @@ async function apiAuthorization(req, authenticationService, userInitializationSe
 }
 
 module.exports  = {
-    apiAuthorization
+    apiAuthorization,
+    extractAPINames,
+    PUBLIC
 };
 
