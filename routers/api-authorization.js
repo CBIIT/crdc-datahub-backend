@@ -25,7 +25,7 @@ function extractAPINames(schema, api_type = PUBLIC){
 
 async function apiAuthorization(req, authenticationService, userInitializationService, public_api_list) {
     try {
-        if (getAPINameFromReq(req) in public_api_list) return;
+        if (public_api_list.includes(getAPINameFromReq(req))) return;
         let userID = req.session?.userInfo?.userID;
         let userInfo = await authenticationService.verifyAuthenticated(req.session?.userInfo, req?.headers?.authorization);
         if (!userID){

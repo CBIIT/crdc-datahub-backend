@@ -133,11 +133,13 @@ dbConnector.connect().then(async () => {
     };
 });
 
+
 module.exports = (req, res) => {
-    apiAuthorization(req, authenticationService, userInitializationService, public_api_list);
-    createHandler({
-        schema: schema,
-        rootValue: root,
-        context: req.session
-    })(req,res);
+    apiAuthorization(req, authenticationService, userInitializationService, public_api_list).then((authorized) => {
+        createHandler({
+            schema: schema,
+            rootValue: root,
+            context: req.session
+        })(req,res);
+    })
 };
