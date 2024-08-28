@@ -60,6 +60,7 @@ const ERROR = {
     UPDATE_SUBMISSION_ERROR:"An error occurred while attempting to update the submission in the database",
     CREATE_SUBMISSION_INVALID_DATA_COMMONS: "Invalid Data Commons for creating a submission",
     CREATE_SUBMISSION_NO_MATCHING_STUDY: "The study provided does not match an approved study within the user's organization",
+    MISSING_CREATE_SUBMISSION_DBGAPID: "Submission dbGaPID is required for creating a data submission with a controlled access study.",
     // List Submissions
     LIST_SUBMISSION_INVALID_STATUS_FILTER: "The status filter is invalid",
     INVALID_SUBMISSION_PERMISSION: "You do not have the correct permissions to list submissions",
