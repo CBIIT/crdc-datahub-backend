@@ -22,8 +22,8 @@ class Batch {
         this.filePrefix = filePrefix;
     }
 
-    addDataFile(name, size, url, studyID){
-        const fileID = this.#generateDataFileUUID(name, url, studyID);
+    addDataFile(name, size, url, studyID, isOmitPrefix){
+        const fileID = this.#generateDataFileUUID(name, url, studyID, isOmitPrefix);
         this.#addFile(name, size, null, true, fileID);
     }
 
@@ -31,10 +31,11 @@ class Batch {
         this.#addFile(name, size, signedURL, false)
     }
 
-    #generateDataFileUUID(fileName, url, studyID) {
+    #generateDataFileUUID(fileName, url, studyID, isOmitPrefix) {
         const urlUUID = v5(url, v5.URL, undefined, undefined);
         const studyUUID = v5(studyID, urlUUID, undefined, undefined);
-        return `${DCF_PREFIX}/${v5(fileName, studyUUID, undefined, undefined)}`;
+        const fileNameUUID = `${v5(fileName, studyUUID, undefined, undefined)}`
+        return isOmitPrefix ? fileNameUUID : `${DCF_PREFIX}/${fileNameUUID}`;
     }
 
 
