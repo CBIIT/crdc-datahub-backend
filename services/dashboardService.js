@@ -13,7 +13,7 @@ class DashboardService {
     async getDashboardURL(params, context) {
         verifySession(context)
             .verifyInitialized()
-            .verifyRole([ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN]);
+            .verifyRole([ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN, ROLES.FEDERAL_MONITOR]);
 
         const aDashboardConf = await this.configurationService.findByType(params?.type);
         const dashboardID = aDashboardConf?.dashboardID;
