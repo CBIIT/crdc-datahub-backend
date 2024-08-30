@@ -48,7 +48,7 @@ let config = {
     model_url: getModelUrl(),
     //uploader configuration file template
     uploaderCLIConfigs: readUploaderCLIConfigTemplate(),
-    dataCommonsList: process.env.DATA_COMMONS_LIST ? JSON.parse(process.env.DATA_COMMONS_LIST) : ["CDS", "ICDC", "CTDC"],
+    dataCommonsList: process.env.DATA_COMMONS_LIST ? JSON.parse(process.env.DATA_COMMONS_LIST) : ["CDS", "ICDC", "CTDC", "CCDI"],
     inactive_submission_days: process.env.INACTIVE_SUBMISSION_DAYS_DELETE || 120,
     dashboardSessionTimeout: process.env.DASHBOARD_SESSION_TIMEOUT || 3600, // 60 minutes by default
 };
