@@ -135,12 +135,15 @@ dbConnector.connect().then(async () => {
 });
 
 
-module.exports = (req, res) => {
+module.exports = (req, res, next) => {
     apiAuthorization(req, authenticationService, userInitializationService, public_api_list).then((authorized) => {
         createHandler({
             schema: schema,
             rootValue: root,
             context: req.session
         })(req,res);
+    })
+    .catch((error) => {
+        next(error);
     })
 };
