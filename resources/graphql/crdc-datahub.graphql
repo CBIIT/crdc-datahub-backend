@@ -635,11 +635,13 @@ type Mutation {
         studies: [ApprovedStudyInput], # Will replace the list in the DB
         status: String # in [Active, Inactive]
     ): UserOrganization
+    
     editUser(
       userID: ID!,
       organization: String, # Organization ID
       status: String, # in [Active, Inactive]
       role: String,
       dataCommons: [String], # Applies to Data Commons POC role only. Empty for other roles.
+      studies: [String] #approved study IDs optional. It will be saved into user's study list
     ): User
 }
