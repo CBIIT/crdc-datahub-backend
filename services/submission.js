@@ -39,6 +39,8 @@ const DATA_MODEL_FILE_NODES = 'file-nodes';
 const COMPLETE_SUBMISSION = "Complete Submission";
 const GENERATE_DCF_MANIFEST = "Generate DCF Manifest";
 const DELETE_METADATA = "Delete Metadata";
+const INACTIVE_REMINDER = "inactiveReminder";
+const FINAL_INACTIVE_REMINDER = "finalInactiveReminder";
 
 // Set to array
 Set.prototype.toArray = function() {
@@ -234,7 +236,7 @@ class Submission {
             if( conditionDCPOC || conditionORGOwner || conditionSubmitter || conditionAdmin){
                 // Store the timestamp for the inactive submission purpose
                 if (conditionSubmitter) {
-                    await this.submissionCollection.update({_id: aSubmission?._id, accessedAt: getCurrentTime(), inactiveReminder: false});
+                    await this.submissionCollection.update({_id: aSubmission?._id, accessedAt: getCurrentTime(), [INACTIVE_REMINDER]: false, [FINAL_INACTIVE_REMINDER]: false});
                 }
                 return aSubmission
             }
@@ -298,27 +300,53 @@ class Submission {
     }
 
     async remindInactiveSubmission() {
-        const inactiveDuration = this.emailParams.remindSubmissionDay;
-        const remindCondition = {
-            accessedAt: {
-                $lt: subtractDaysFromNow(inactiveDuration),
-            },
-            status: {$in: [NEW, IN_PROGRESS, REJECTED, WITHDRAWN]},
-            inactiveReminder: {$ne: true}
-        };
-        const submissions = await this.submissionCollection.aggregate([{$match: remindCondition}]);
-        if (submissions?.length > 0) {
-            await Promise.all(submissions.map(async (aSubmission) => {
+        const inactiveSubmissions = await this.#getInactiveSubmissions(this.emailParams.remindSubmissionDay, INACTIVE_REMINDER);
+        if (inactiveSubmissions?.length > 0) {
+            await Promise.all(inactiveSubmissions.map(async (aSubmission) => {
                 await sendEmails.remindInactiveSubmission(this.emailParams, aSubmission, this.userService, this.organizationService, this.notificationService, this.tier);
             }));
-            const submissionIDs = submissions.map(submission => submission._id);
+            const submissionIDs = inactiveSubmissions.map(submission => submission._id);
             const query = {_id: {$in: submissionIDs}};
-            const updatedReminder = await this.submissionCollection.updateMany(query, {inactiveReminder: true});
+            const updatedReminder = await this.submissionCollection.updateMany(query, {[INACTIVE_REMINDER]: true});
             if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
                 console.error("The email reminder flag intended to notify the inactive submission user is not being stored");
             }
         }
+        // The system sends an email reminder a day before the data submission expires
+        const finalInactiveSubmissions = await this.#getInactiveSubmissions(this.emailParams.finalRemindSubmissionDay - 1, FINAL_INACTIVE_REMINDER)
+        if (finalInactiveSubmissions?.length > 0) {
+            await Promise.all(finalInactiveSubmissions.map(async (aSubmission) => {
+                // send only if the initial notification sent before
+                if (aSubmission?.[INACTIVE_REMINDER]) {
+                    await sendEmails.finalRemindInactiveSubmission(this.emailParams, aSubmission, this.userService, this.organizationService, this.notificationService, this.tier);
+                }
+            }));
+            const submissionIDs = finalInactiveSubmissions
+                .filter(submission => submission?.[INACTIVE_REMINDER])
+                .map(submission => submission._id);
+            const query = {_id: {$in: submissionIDs}};
+            const updatedReminder = await this.submissionCollection.updateMany(query, {[FINAL_INACTIVE_REMINDER]: true});
+            if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
+                console.error("The email reminder flag intended to notify the inactive submission user (FINAL) is not being stored");
+            }
+        }
+
     }
+
+    async #getInactiveSubmissions(inactiveDays, inactiveFlagField) {
+        const remindCondition = {
+            accessedAt: {
+                $lt: subtractDaysFromNow(inactiveDays),
+            },
+            status: {
+                $in: [NEW, IN_PROGRESS, REJECTED, WITHDRAWN]
+            },
+            // Tracks whether the notification has already been sent
+            [inactiveFlagField]: {$ne: true}
+        };
+        return await this.submissionCollection.aggregate([{$match: remindCondition}]);
+    }
+
     async #isValidReleaseAction(action, submissionID, studyID, crossSubmissionStatus) {
         if (action?.toLowerCase() === ACTIONS.RELEASE.toLowerCase()) {
             const submissions = await this.submissionCollection.aggregate([{"$match": {_id: {"$ne": submissionID}, studyID: studyID}}]);
@@ -828,7 +856,7 @@ class Submission {
                     if (result === true) {
                         await this.dataRecordService.deleteMetadataByFilter({"submissionID": sub._id});
                         await this.batchService.deleteBatchByFilter({"submissionID": sub._id});
-                        await this.submissionCollection.updateOne({"_id": sub._id}, {"status" : "Deleted", "updatedAt": new Date()});
+                        await this.submissionCollection.updateOne({"_id": sub._id}, {"status" : DELETED, "updatedAt": new Date()});
                         console.debug(`Successfully deleted inactive submissions: ${sub._id}.`);
                     }
                 } catch (e) {
@@ -1250,6 +1278,22 @@ const sendEmails = {
             title: aSubmission?.name,
             studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
             days: emailParams.remindSubmissionDay || NA,
+            url: emailParams.url || NA
+        }, tier);
+    },
+    finalRemindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService, tier) => {
+        const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
+        if (!aSubmitter) {
+            console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
+            return;
+        }
+        const [ccEmails, aOrganization] = await inactiveSubmissionEmailInfo(aSubmission, userService, organizationService);
+        await notificationService.finalInactiveSubmissionNotification(aSubmitter?.email, ccEmails, {
+            firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
+        }, {
+            title: aSubmission?.name,
+            studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+            days: emailParams.finalRemindSubmissionDay || NA,
             url: emailParams.url || NA
         }, tier);
     }
