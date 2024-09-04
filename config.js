@@ -8,7 +8,6 @@ let config = {
     inactive_user_days : process.env.INACTIVE_USER_DAYS || 60,
     remind_application_days: process.env.REMIND_APPLICATION_DAYS || 30,
     inactive_application_days : process.env.INACTIVE_APPLICATION_DAYS || 45,
-    inactive_submission_days_notify: process.env.INACTIVE_SUBMISSION_DAYS_NOTIFY || 60,
     //Mongo DB
     mongo_db_user: process.env.MONGO_DB_USER,
     mongo_db_password: process.env.MONGO_DB_PASSWORD,

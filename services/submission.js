@@ -1076,11 +1076,13 @@ const inactiveSubmissionEmailInfo = async (aSubmission, userService, organizatio
     const promises = [
         await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
         await organizationService.getOrganizationByID(aSubmission?.organization?._id),
+        await userService.getFederalMonitors()
     ];
     const results = await Promise.all(promises);
     const orgOwnerEmails = getUserEmails(results[0] || []);
+    const fedMonitorEmails = getUserEmails(results[2] || []);
     const aOrganization = results[1] || {};
-    const ccEmails = new Set(orgOwnerEmails).toArray();
+    const ccEmails = new Set([...orgOwnerEmails, ...fedMonitorEmails]).toArray();
     return [ccEmails, aOrganization];
 }
 
@@ -1095,7 +1097,7 @@ const cancelOrRejectSubmissionEmailInfo = async (aSubmission, userService, organ
     const aOrganization = results[1] || {};
     const curatorEmails = getUserEmails([{email: aOrganization?.conciergeEmail}]);
     const adminEmails = getUserEmails(results[2] || []);
-    const ccEmails = new Set([orgOwnerEmails, curatorEmails, adminEmails]).toArray();
+    const ccEmails = new Set([...orgOwnerEmails, ...curatorEmails, ...adminEmails]).toArray();
     return [ccEmails, aOrganization];
 }
 
