@@ -11,7 +11,8 @@ const statusRouter = require("./routers/status-endpoints-router");
 const graphqlRouter = require("./routers/graphql-router");
 const {MongoDBCollection} = require("./crdc-datahub-database-drivers/mongodb-collection");
 const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, LOG_COLLECTION, APPROVED_STUDIES_COLLECTION,
-    ORGANIZATION_COLLECTION, SUBMISSIONS_COLLECTION, BATCH_COLLECTION, DATA_RECORDS_COLLECTION, VALIDATION_COLLECTION
+    ORGANIZATION_COLLECTION, SUBMISSIONS_COLLECTION, BATCH_COLLECTION, DATA_RECORDS_COLLECTION, VALIDATION_COLLECTION,
+    CONFIGURATION_COLLECTION
 } = require("./crdc-datahub-database-drivers/database-constants");
 const {Application} = require("./services/application");
 const {Submission} = require("./services/submission");
@@ -32,6 +33,7 @@ const {BatchService} = require("./services/batch-service");
 const {AWSService} = require("./services/aws-request");
 const {UtilityService} = require("./services/utility");
 const authenticationMiddleware = require("./middleware/authentication-middleware");
+const {ConfigurationService} = require("./services/configurationService");
 // print environment variables to log
 console.info(config);
 
@@ -68,7 +70,7 @@ app.use(createSession(config.session_secret, config.session_timeout, config.mong
 
 // add graphql endpoint
 app.use("/api/graphql", graphqlRouter);
-
+const INACTIVE_SUBMISSION_DAYS = "Inactive_Submission_Notify_Days";
 cronJob.schedule(config.schedule_job, async () => {
     const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
     const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
@@ -77,8 +79,12 @@ cronJob.schedule(config.schedule_job, async () => {
     dbConnector.connect().then( async () => {
         const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
         const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
+
+        const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
+        const configurationService = new ConfigurationService(configurationCollection)
+        const inactiveSubmissionConf = await configurationService.findByType(INACTIVE_SUBMISSION_DAYS);
         const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days,
-            submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk, remindSubmissionDay: config.inactive_submission_days_notify};
+            submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk, remindSubmissionDay: inactiveSubmissionConf?.timeout || 60};
         const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
         const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
         const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection);
@@ -108,9 +114,10 @@ cronJob.schedule(config.schedule_job, async () => {
         await runDeactivateInactiveUsers(userService, notificationsService);
         console.log("Running a scheduled background task to remind inactive application at " + getCurrentTime());
         await dataInterface.remindApplicationSubmission();
+        console.log("Running a scheduled background task to remind inactive submission at " + getCurrentTime());
+        await submissionService.remindInactiveSubmission();
         console.log("Running a scheduled job to delete inactive data submission and related data ann files at " + getCurrentTime());
-        const subInterface = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, null, null, null, null, s3Service )
-        await subInterface.deleteInactiveSubmissions()
+        await submissionService.deleteInactiveSubmissions()
         await dbConnector.disconnect();
     });
 });
