@@ -206,6 +206,7 @@ type User {
   dataCommons: [String] # Applies to Data Commons POC role only. Empty for other roles.
   createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
   updateAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+  studies: [String]
 }
 
 type UserInfo {
@@ -480,6 +481,7 @@ type Query {
         #              "dbGapID", "status", "concierge"]
         orderBy: String = "updatedAt",
         sortDirection: String = "DESC"): ListSubmissions
+
     getSubmission(_id: ID!): Submission
     submissionStats(_id: ID!): SubmissionStats
     submissionQCResults(
