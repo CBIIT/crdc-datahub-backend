@@ -1343,7 +1343,7 @@ function validateCreateSubmissionParams (params, allowedDataCommons, intention, 
     if (!params.name || params?.name?.trim().length === 0 || !params.studyID || !params.dataCommons) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
     }
-    if (params?.name?.trim().length > CONSTRAINTS.NAME_MAX_LENGTH) {
+    if (params?.name?.length > CONSTRAINTS.NAME_MAX_LENGTH) {
         throw new Error(replaceErrorString(ERROR.CREATE_SUBMISSION_INVALID_NAME, `${CONSTRAINTS.NAME_MAX_LENGTH}`));
     }
     if (!allowedDataCommons.has(params.dataCommons)) {
