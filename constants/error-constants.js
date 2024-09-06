@@ -123,7 +123,7 @@ const ERROR = {
     // Initialization
     CREATE_USER_MISSING_INFO: "Email and IDP are required to create a new user.",
     CREATE_USER_ORG_MISSING_INFO: "Organization ID is required to initialize the user's organization information.",
-    INVALID_ROLE_STUDY: "No permission the study.",
+    INVALID_ROLE_STUDY: "User has no permissions on the study.",
     // Submission Stats
     MISSING_DATA_FILE: {
         TITLE: "Data file not found",
