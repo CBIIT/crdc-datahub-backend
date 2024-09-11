@@ -12,7 +12,7 @@ const graphqlRouter = require("./routers/graphql-router");
 const {MongoDBCollection} = require("./crdc-datahub-database-drivers/mongodb-collection");
 const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, LOG_COLLECTION, APPROVED_STUDIES_COLLECTION,
     ORGANIZATION_COLLECTION, SUBMISSIONS_COLLECTION, BATCH_COLLECTION, DATA_RECORDS_COLLECTION, VALIDATION_COLLECTION,
-    CONFIGURATION_COLLECTION
+    CONFIGURATION_COLLECTION, DATA_RECORDS_ARCHIVE_COLLECTION
 } = require("./crdc-datahub-database-drivers/database-constants");
 const {Application} = require("./services/application");
 const {Submission} = require("./services/submission");
@@ -100,7 +100,8 @@ cronJob.schedule(config.schedule_job, async () => {
         const batchService = new BatchService(s3Service, batchCollection, config.sqs_loader_queue, awsService);
 
         const dataRecordCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_COLLECTION);
-        const dataRecordService = new DataRecordService(dataRecordCollection, config.file_queue, config.metadata_queue, awsService);
+        const dataRecordArchiveCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_ARCHIVE_COLLECTION);
+        const dataRecordService = new DataRecordService(dataRecordCollection, dataRecordArchiveCollection, config.file_queue, config.metadata_queue, awsService);
 
         const utilityService = new UtilityService();
         const dataModelInfo = await utilityService.fetchJsonFromUrl(config.model_url);
@@ -117,7 +118,9 @@ cronJob.schedule(config.schedule_job, async () => {
         console.log("Running a scheduled background task to remind inactive submission at " + getCurrentTime());
         await submissionService.remindInactiveSubmission();
         console.log("Running a scheduled job to delete inactive data submission and related data ann files at " + getCurrentTime());
-        await submissionService.deleteInactiveSubmissions()
+        await submissionService.deleteInactiveSubmissions();
+        console.log("Running a scheduled job to archive completed submissions at " + getCurrentTime());
+        await submissionService.archiveCompletedSubmissions();
         await dbConnector.disconnect();
     });
 });
