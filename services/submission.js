@@ -1,5 +1,6 @@
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
-    REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, EXPORT, INTENTION, DATA_TYPE, DELETED, DATA_FILE
+    REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, EXPORT, INTENTION, DATA_TYPE, DELETED, DATA_FILE,
+    CONSTRAINTS
 } = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
@@ -13,7 +14,6 @@ const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-
 const {SubmissionActionEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const {verifyBatch} = require("../verifier/batch-verifier");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
-const { API_TOKEN } = require("../constants/application-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {AWSService} = require("../services/aws-request");
 // const {write2file} = require("../utility/io-util") //keep the line for future testing.
@@ -39,6 +39,8 @@ const DATA_MODEL_FILE_NODES = 'file-nodes';
 const COMPLETE_SUBMISSION = "Complete Submission";
 const GENERATE_DCF_MANIFEST = "Generate DCF Manifest";
 const DELETE_METADATA = "Delete Metadata";
+const INACTIVE_REMINDER = "inactiveReminder";
+const FINAL_INACTIVE_REMINDER = "finalInactiveReminder";
 
 // Set to array
 Set.prototype.toArray = function() {
@@ -78,6 +80,9 @@ class Submission {
         const approvedStudy = aUserOrganization.studies.find((study) => study?._id === params.studyID);
         if (!approvedStudy) {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
+        }
+        if (approvedStudy.controlledAccess && !params.dbGaPID?.trim()?.length) {
+            throw new Error(ERROR.MISSING_CREATE_SUBMISSION_DBGAPID);
         }
         const modelVersion = this.#getModelVersion(this.dataModelInfo, params.dataCommons);
         const newSubmission = DataSubmission.createSubmission(
@@ -242,7 +247,7 @@ class Submission {
             if( conditionDCPOC || conditionORGOwner || conditionSubmitter || conditionAdmin){
                 // Store the timestamp for the inactive submission purpose
                 if (conditionSubmitter) {
-                    await this.submissionCollection.update({_id: aSubmission?._id, accessedAt: getCurrentTime(), inactiveReminder: false});
+                    await this.submissionCollection.update({_id: aSubmission?._id, accessedAt: getCurrentTime(), [INACTIVE_REMINDER]: false, [FINAL_INACTIVE_REMINDER]: false});
                 }
                 return aSubmission
             }
@@ -306,27 +311,53 @@ class Submission {
     }
 
     async remindInactiveSubmission() {
-        const inactiveDuration = this.emailParams.remindSubmissionDay;
-        const remindCondition = {
-            accessedAt: {
-                $lt: subtractDaysFromNow(inactiveDuration),
-            },
-            status: {$in: [NEW, IN_PROGRESS, REJECTED, WITHDRAWN]},
-            inactiveReminder: {$ne: true}
-        };
-        const submissions = await this.submissionCollection.aggregate([{$match: remindCondition}]);
-        if (submissions?.length > 0) {
-            await Promise.all(submissions.map(async (aSubmission) => {
+        const inactiveSubmissions = await this.#getInactiveSubmissions(this.emailParams.remindSubmissionDay, INACTIVE_REMINDER);
+        if (inactiveSubmissions?.length > 0) {
+            await Promise.all(inactiveSubmissions.map(async (aSubmission) => {
                 await sendEmails.remindInactiveSubmission(this.emailParams, aSubmission, this.userService, this.organizationService, this.notificationService, this.tier);
             }));
-            const submissionIDs = submissions.map(submission => submission._id);
+            const submissionIDs = inactiveSubmissions.map(submission => submission._id);
             const query = {_id: {$in: submissionIDs}};
-            const updatedReminder = await this.submissionCollection.updateMany(query, {inactiveReminder: true});
+            const updatedReminder = await this.submissionCollection.updateMany(query, {[INACTIVE_REMINDER]: true});
             if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
                 console.error("The email reminder flag intended to notify the inactive submission user is not being stored");
             }
         }
+        // The system sends an email reminder a day before the data submission expires
+        const finalInactiveSubmissions = await this.#getInactiveSubmissions(this.emailParams.finalRemindSubmissionDay - 1, FINAL_INACTIVE_REMINDER)
+        if (finalInactiveSubmissions?.length > 0) {
+            await Promise.all(finalInactiveSubmissions.map(async (aSubmission) => {
+                // send only if the initial notification sent before
+                if (aSubmission?.[INACTIVE_REMINDER]) {
+                    await sendEmails.finalRemindInactiveSubmission(this.emailParams, aSubmission, this.userService, this.organizationService, this.notificationService, this.tier);
+                }
+            }));
+            const submissionIDs = finalInactiveSubmissions
+                .filter(submission => submission?.[INACTIVE_REMINDER])
+                .map(submission => submission._id);
+            const query = {_id: {$in: submissionIDs}};
+            const updatedReminder = await this.submissionCollection.updateMany(query, {[FINAL_INACTIVE_REMINDER]: true});
+            if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
+                console.error("The email reminder flag intended to notify the inactive submission user (FINAL) is not being stored");
+            }
+        }
+
     }
+
+    async #getInactiveSubmissions(inactiveDays, inactiveFlagField) {
+        const remindCondition = {
+            accessedAt: {
+                $lt: subtractDaysFromNow(inactiveDays),
+            },
+            status: {
+                $in: [NEW, IN_PROGRESS, REJECTED, WITHDRAWN]
+            },
+            // Tracks whether the notification has already been sent
+            [inactiveFlagField]: {$ne: true}
+        };
+        return await this.submissionCollection.aggregate([{$match: remindCondition}]);
+    }
+
     async #isValidReleaseAction(action, submissionID, studyID, crossSubmissionStatus) {
         if (action?.toLowerCase() === ACTIONS.RELEASE.toLowerCase()) {
             const submissions = await this.submissionCollection.aggregate([{"$match": {_id: {"$ne": submissionID}, studyID: studyID}}]);
@@ -403,8 +434,8 @@ class Submission {
     }
     /**
      * 
-     * @param {*} params as object {} contains submission ID
-     * @param {*} context 
+     * @param {*} bucket as object {} contains submission ID
+     * @param {*} rootPath
      * @returns fileList []
      */
     async getLogFiles(bucket, rootPath){
@@ -702,7 +733,7 @@ class Submission {
             return 0;
         });
         returnVal.total = s3Files.length;
-        returnVal.IDPropName = "File Name",
+        returnVal.IDPropName = "File Name";
         returnVal.nodes = (params.first > 0) ? s3Files.slice(params.offset, params.offset + params.first) : s3Files;
         returnVal.properties = ["File Name", "File Size", "Orphaned", "Uploaded Date/Time"] 
         return returnVal;
@@ -916,7 +947,7 @@ class Submission {
                     if (result === true) {
                         await this.dataRecordService.deleteMetadataByFilter({"submissionID": sub._id});
                         await this.batchService.deleteBatchByFilter({"submissionID": sub._id});
-                        await this.submissionCollection.updateOne({"_id": sub._id}, {"status" : "Deleted", "updatedAt": new Date()});
+                        await this.submissionCollection.updateOne({"_id": sub._id}, {"status" : DELETED, "updatedAt": new Date()});
                         console.debug(`Successfully deleted inactive submissions: ${sub._id}.`);
                     }
                 } catch (e) {
@@ -1087,6 +1118,7 @@ String.prototype.format = function(placeholders) {
  * @param {*} userService 
  * @param {*} organizationService
  * @param {*} notificationService
+ * @param {*} tier
  */
 async function submissionActionNotification(userInfo, action, aSubmission, userService, organizationService, notificationService, tier) {
     switch(action) {
@@ -1123,19 +1155,20 @@ const completeSubmissionEmailInfo = async (userInfo, aSubmission, userService, o
         await userService.getAdmin(),
         await userService.getUserByID(aSubmission?.submitterID),
         await userService.getPOCs(),
-        await organizationService.getOrganizationByID(aSubmission?.organization?._id)
+        await organizationService.getOrganizationByID(aSubmission?.organization?._id),
+        await userService.getFederalMonitors(aSubmission?.studyID)
     ];
 
     const results = await Promise.all(promises);
     const orgOwnerEmails = getUserEmails(results[0] || []);
     const adminEmails = getUserEmails(results[1] || []);
     const POCEmails = getUserEmails(results[3] || []);
-
+    const fedMonitorEmails = getUserEmails(results[5] || []);
     const aOrganization = results[4] || {};
     const curatorEmails = getUserEmails([{email: aOrganization?.conciergeEmail}]);
 
     // CCs for POCs, org owner, admins, curators
-    const ccEmails = new Set([...POCEmails, ...orgOwnerEmails, ...adminEmails, ...curatorEmails]).toArray();
+    const ccEmails = new Set([...POCEmails, ...orgOwnerEmails, ...adminEmails, ...curatorEmails, ...fedMonitorEmails]).toArray();
     const aSubmitter = results[2];
     return [ccEmails, aSubmitter, aOrganization];
 }
@@ -1146,16 +1179,17 @@ const releaseSubmissionEmailInfo = async (userInfo, aSubmission, userService, or
         await userService.getAdmin(),
         await userService.getUserByID(aSubmission?.submitterID),
         await userService.getPOCs(),
-        await organizationService.getOrganizationByID(aSubmission?.organization?._id)
+        await organizationService.getOrganizationByID(aSubmission?.organization?._id),
+        await userService.getFederalMonitors(aSubmission?.studyID)
     ];
 
     const results = await Promise.all(promises);
     const orgOwnerEmails = getUserEmails(results[0] || []);
     const adminEmails = getUserEmails(results[1] || []);
     const submitterEmails = getUserEmails([results[2] || {}]);
-
+    const fedMonitorEmails = getUserEmails(results[5] || []);
     // CCs for Submitter, org owner, admins
-    const ccEmails = new Set([...submitterEmails, ...orgOwnerEmails, ...adminEmails]).toArray();
+    const ccEmails = new Set([...submitterEmails, ...orgOwnerEmails, ...adminEmails, ...fedMonitorEmails]).toArray();
     // To POC role users
     const POCs = results[3] || [];
     const aOrganization = results[4] || {};
@@ -1166,7 +1200,7 @@ const inactiveSubmissionEmailInfo = async (aSubmission, userService, organizatio
     const promises = [
         await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
         await organizationService.getOrganizationByID(aSubmission?.organization?._id),
-        await userService.getFederalMonitors()
+        await userService.getFederalMonitors(aSubmission?.studyID)
     ];
     const results = await Promise.all(promises);
     const orgOwnerEmails = getUserEmails(results[0] || []);
@@ -1180,14 +1214,16 @@ const cancelOrRejectSubmissionEmailInfo = async (aSubmission, userService, organ
     const promises = [
         await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
         await organizationService.getOrganizationByID(aSubmission?.organization?._id),
-        await userService.getAdmin()
+        await userService.getAdmin(),
+        await userService.getFederalMonitors(aSubmission?.studyID)
     ];
     const results = await Promise.all(promises);
     const orgOwnerEmails = getUserEmails(results[0] || []);
     const aOrganization = results[1] || {};
     const curatorEmails = getUserEmails([{email: aOrganization?.conciergeEmail}]);
     const adminEmails = getUserEmails(results[2] || []);
-    const ccEmails = new Set([...orgOwnerEmails, ...curatorEmails, ...adminEmails]).toArray();
+    const fedMonitorEmails = getUserEmails(results[3] || []);
+    const ccEmails = new Set([...orgOwnerEmails, ...curatorEmails, ...adminEmails, ...fedMonitorEmails]).toArray();
     return [ccEmails, aOrganization];
 }
 
@@ -1199,6 +1235,7 @@ const sendEmails = {
             await userService.getOrgOwner(aSubmission?.organization?._id),
             await organizationService.getOrganizationByID(aSubmitter?.organization?.orgID),
             await userService.getAdmin(),
+            await userService.getFederalMonitors(aSubmission?.studyID)
         ];
         let results;
         await Promise.all(promises).then(async function(returns) {
@@ -1209,7 +1246,7 @@ const sendEmails = {
         const orgOwnerEmails = getUserEmails(results[0] || []);
         const adminEmails = getUserEmails(results[2] || []);
         const curatorEmails = getUserEmails([{email: aOrganization?.conciergeEmail}] || []);
-
+        const fedMonitorEmails = getUserEmails(results[3] || []);
 
         // CCs for org owner, Data Curator (or admins if not yet assigned exists)
         let ccEmailsVar 
@@ -1218,7 +1255,7 @@ const sendEmails = {
         }else{
             ccEmailsVar = curatorEmails
         }
-        const ccEmails = [...orgOwnerEmails, ...ccEmailsVar];
+        const ccEmails = [...orgOwnerEmails, ...ccEmailsVar, ...fedMonitorEmails];
         await notificationService.submitDataSubmissionNotification(aSubmitter?.email, ccEmails, {
             firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
             }, {
@@ -1272,12 +1309,14 @@ const sendEmails = {
         }
         const promises = [
             await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
-            await userService.getUserByID(aSubmission?.submitterID)
+            await userService.getUserByID(aSubmission?.submitterID),
+            await userService.getFederalMonitors(aSubmission?.studyID)
         ];
         const results = await Promise.all(promises);
         const orgOwnerEmails = getUserEmails(results[0] || []);
         const submitterEmails = getUserEmails([results[1]] || []);
-        const ccEmails = new Set([...orgOwnerEmails, ...submitterEmails]).toArray();
+        const fedMonitorEmails = getUserEmails(results[2] || []);
+        const ccEmails = new Set([...orgOwnerEmails, ...submitterEmails, ...fedMonitorEmails]).toArray();
         await notificationsService.withdrawSubmissionNotification(aCurator?.email, ccEmails, {
             firstName: `${aCurator.firstName} ${aCurator?.lastName || ''}`
         }, {
@@ -1340,6 +1379,22 @@ const sendEmails = {
             title: aSubmission?.name,
             studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
             days: emailParams.remindSubmissionDay || NA,
+            url: emailParams.url || NA
+        }, tier);
+    },
+    finalRemindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService, tier) => {
+        const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
+        if (!aSubmitter) {
+            console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
+            return;
+        }
+        const [ccEmails, aOrganization] = await inactiveSubmissionEmailInfo(aSubmission, userService, organizationService);
+        await notificationService.finalInactiveSubmissionNotification(aSubmitter?.email, ccEmails, {
+            firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
+        }, {
+            title: aSubmission?.name,
+            studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+            days: emailParams.finalRemindSubmissionDay || NA,
             url: emailParams.url || NA
         }, tier);
     }
@@ -1435,6 +1490,9 @@ function listConditions(userID, userRole, userDataCommons, userOrganization, use
 function validateCreateSubmissionParams (params, allowedDataCommons, intention, dataType, userInfo) {
     if (!params.name || params?.name?.trim().length === 0 || !params.studyID || !params.dataCommons) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
+    }
+    if (params?.name?.length > CONSTRAINTS.NAME_MAX_LENGTH) {
+        throw new Error(replaceErrorString(ERROR.CREATE_SUBMISSION_INVALID_NAME, `${CONSTRAINTS.NAME_MAX_LENGTH}`));
     }
     if (!allowedDataCommons.has(params.dataCommons)) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_DATA_COMMONS);

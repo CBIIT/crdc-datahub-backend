@@ -14,6 +14,12 @@
   <body>
     <p>Dear {{ firstName }},</p>
     <p>{{ message }}</p>
+    {{#if additionalMsg}}
+      {{#each additionalMsg}}
+        <p>{{{ this }}}</p>
+      {{/each}}
+    {{/if}}
+
       {{#if users}}
       <ul>
         {{#each users}}
@@ -21,6 +27,7 @@
         {{/each}}
       </ul>
       {{/if}}
+
     <p>Sincerely,</p>
     <p>CRDC Data Hub Admin Team</p>
   </body>

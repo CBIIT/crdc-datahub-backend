@@ -51,5 +51,8 @@ module.exports = Object.freeze({
     DATA_TYPE: {
         METADATA_ONLY: "Metadata Only",
         METADATA_AND_DATA_FILES: "Metadata and Data Files"
+    },
+    CONSTRAINTS: {
+        NAME_MAX_LENGTH: 25
     }
 });

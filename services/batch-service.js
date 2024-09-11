@@ -7,6 +7,7 @@ const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mon
 const {SUBMISSIONS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const LOAD_METADATA = "Load Metadata";
+const OMIT_DCF_PREFIX = 'omit-DCF-prefix';
 class BatchService {
     constructor(s3Service, batchCollection, sqsLoaderQueue, awsService, prodURL, dataModelInfo) {
         this.s3Service = s3Service;
@@ -29,9 +30,11 @@ class BatchService {
                 }
             }));
         } else {
+            // The prefix "dg.4DFC" added if "omit-dcf-prefix" is null or set to false in the data model
+            const isOmitPrefix = Boolean(this.dataModelInfo?.[aSubmission?.dataCommons]?.[OMIT_DCF_PREFIX]);
             params.files.forEach((file) => {
                 if (file.fileName) {
-                    newBatch.addDataFile(file.fileName, file.size, this.prodURL, aSubmission?.studyID);
+                    newBatch.addDataFile(file.fileName, file.size, this.prodURL, aSubmission?.studyID, isOmitPrefix);
                 }
             });
         }
