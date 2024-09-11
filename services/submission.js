@@ -1,5 +1,6 @@
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
-    REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, EXPORT, INTENTION, DATA_TYPE, DELETED, DATA_FILE
+    REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, EXPORT, INTENTION, DATA_TYPE, DELETED, DATA_FILE,
+    CONSTRAINTS
 } = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
@@ -80,6 +81,9 @@ class Submission {
         const approvedStudy = aUserOrganization.studies.find((study) => study?._id === params.studyID);
         if (!approvedStudy) {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
+        }
+        if (approvedStudy.controlledAccess && !params.dbGaPID?.trim()?.length) {
+            throw new Error(ERROR.MISSING_CREATE_SUBMISSION_DBGAPID);
         }
         const modelVersion = this.#getModelVersion(this.dataModelInfo, params.dataCommons);
         const newSubmission = DataSubmission.createSubmission(
@@ -1439,6 +1443,9 @@ function listConditions(userID, userRole, userDataCommons, userOrganization, use
 function validateCreateSubmissionParams (params, allowedDataCommons, intention, dataType, userInfo) {
     if (!params.name || params?.name?.trim().length === 0 || !params.studyID || !params.dataCommons) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
+    }
+    if (params?.name?.length > CONSTRAINTS.NAME_MAX_LENGTH) {
+        throw new Error(replaceErrorString(ERROR.CREATE_SUBMISSION_INVALID_NAME, `${CONSTRAINTS.NAME_MAX_LENGTH}`));
     }
     if (!allowedDataCommons.has(params.dataCommons)) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_DATA_COMMONS);
