@@ -6,6 +6,7 @@ const {USER} = require("../crdc-datahub-database-drivers/constants/user-constant
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {SUBMISSIONS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
+const {replaceErrorString} = require("../utility/string-util");
 const LOAD_METADATA = "Load Metadata";
 const OMIT_DCF_PREFIX = 'omit-DCF-prefix';
 class BatchService {
@@ -53,7 +54,15 @@ class BatchService {
         const skippedFiles = files.filter(f=>f.skipped === true);
         const skippedCount = skippedFiles.length
         const isAllSkipped = skippedCount === files.length;
-        
+
+        // The user is trying to update a batch with files that weren't uploaded.
+        const batchFileNames = new Set(aBatch.files.map(batchFile => batchFile.fileName));
+        const noUploadedFiles = Array.from(uploadFiles.keys())
+            .filter(fileName => !batchFileNames.has(fileName));
+        if (noUploadedFiles.length > 0) {
+            throw new Error(replaceErrorString(ERROR.NO_UPLOADED_FILES, `'${noUploadedFiles.join(", ")}'`));
+        }
+
         if (!isAllSkipped) {
             let updatedFiles = [];
             for (const aFile of aBatch.files) {
