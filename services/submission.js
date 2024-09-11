@@ -14,7 +14,6 @@ const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-
 const {SubmissionActionEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const {verifyBatch} = require("../verifier/batch-verifier");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
-const { API_TOKEN } = require("../constants/application-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {AWSService} = require("../services/aws-request");
 // const {write2file} = require("../utility/io-util") //keep the line for future testing.
@@ -435,8 +434,8 @@ class Submission {
     }
     /**
      * 
-     * @param {*} params as object {} contains submission ID
-     * @param {*} context 
+     * @param {*} bucket as object {} contains submission ID
+     * @param {*} rootPath
      * @returns fileList []
      */
     async getLogFiles(bucket, rootPath){
@@ -734,7 +733,7 @@ class Submission {
             return 0;
         });
         returnVal.total = s3Files.length;
-        returnVal.IDPropName = "File Name",
+        returnVal.IDPropName = "File Name";
         returnVal.nodes = (params.first > 0) ? s3Files.slice(params.offset, params.offset + params.first) : s3Files;
         returnVal.properties = ["File Name", "File Size", "Orphaned", "Uploaded Date/Time"] 
         return returnVal;
@@ -1079,6 +1078,7 @@ String.prototype.format = function(placeholders) {
  * @param {*} userService 
  * @param {*} organizationService
  * @param {*} notificationService
+ * @param {*} tier
  */
 async function submissionActionNotification(userInfo, action, aSubmission, userService, organizationService, notificationService, tier) {
     switch(action) {
@@ -1115,19 +1115,20 @@ const completeSubmissionEmailInfo = async (userInfo, aSubmission, userService, o
         await userService.getAdmin(),
         await userService.getUserByID(aSubmission?.submitterID),
         await userService.getPOCs(),
-        await organizationService.getOrganizationByID(aSubmission?.organization?._id)
+        await organizationService.getOrganizationByID(aSubmission?.organization?._id),
+        await userService.getFederalMonitors(aSubmission?.studyID)
     ];
 
     const results = await Promise.all(promises);
     const orgOwnerEmails = getUserEmails(results[0] || []);
     const adminEmails = getUserEmails(results[1] || []);
     const POCEmails = getUserEmails(results[3] || []);
-
+    const fedMonitorEmails = getUserEmails(results[5] || []);
     const aOrganization = results[4] || {};
     const curatorEmails = getUserEmails([{email: aOrganization?.conciergeEmail}]);
 
     // CCs for POCs, org owner, admins, curators
-    const ccEmails = new Set([...POCEmails, ...orgOwnerEmails, ...adminEmails, ...curatorEmails]).toArray();
+    const ccEmails = new Set([...POCEmails, ...orgOwnerEmails, ...adminEmails, ...curatorEmails, ...fedMonitorEmails]).toArray();
     const aSubmitter = results[2];
     return [ccEmails, aSubmitter, aOrganization];
 }
@@ -1138,16 +1139,17 @@ const releaseSubmissionEmailInfo = async (userInfo, aSubmission, userService, or
         await userService.getAdmin(),
         await userService.getUserByID(aSubmission?.submitterID),
         await userService.getPOCs(),
-        await organizationService.getOrganizationByID(aSubmission?.organization?._id)
+        await organizationService.getOrganizationByID(aSubmission?.organization?._id),
+        await userService.getFederalMonitors(aSubmission?.studyID)
     ];
 
     const results = await Promise.all(promises);
     const orgOwnerEmails = getUserEmails(results[0] || []);
     const adminEmails = getUserEmails(results[1] || []);
     const submitterEmails = getUserEmails([results[2] || {}]);
-
+    const fedMonitorEmails = getUserEmails(results[5] || []);
     // CCs for Submitter, org owner, admins
-    const ccEmails = new Set([...submitterEmails, ...orgOwnerEmails, ...adminEmails]).toArray();
+    const ccEmails = new Set([...submitterEmails, ...orgOwnerEmails, ...adminEmails, ...fedMonitorEmails]).toArray();
     // To POC role users
     const POCs = results[3] || [];
     const aOrganization = results[4] || {};
@@ -1158,7 +1160,7 @@ const inactiveSubmissionEmailInfo = async (aSubmission, userService, organizatio
     const promises = [
         await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
         await organizationService.getOrganizationByID(aSubmission?.organization?._id),
-        await userService.getFederalMonitors()
+        await userService.getFederalMonitors(aSubmission?.studyID)
     ];
     const results = await Promise.all(promises);
     const orgOwnerEmails = getUserEmails(results[0] || []);
@@ -1172,14 +1174,16 @@ const cancelOrRejectSubmissionEmailInfo = async (aSubmission, userService, organ
     const promises = [
         await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
         await organizationService.getOrganizationByID(aSubmission?.organization?._id),
-        await userService.getAdmin()
+        await userService.getAdmin(),
+        await userService.getFederalMonitors(aSubmission?.studyID)
     ];
     const results = await Promise.all(promises);
     const orgOwnerEmails = getUserEmails(results[0] || []);
     const aOrganization = results[1] || {};
     const curatorEmails = getUserEmails([{email: aOrganization?.conciergeEmail}]);
     const adminEmails = getUserEmails(results[2] || []);
-    const ccEmails = new Set([...orgOwnerEmails, ...curatorEmails, ...adminEmails]).toArray();
+    const fedMonitorEmails = getUserEmails(results[3] || []);
+    const ccEmails = new Set([...orgOwnerEmails, ...curatorEmails, ...adminEmails, ...fedMonitorEmails]).toArray();
     return [ccEmails, aOrganization];
 }
 
@@ -1191,6 +1195,7 @@ const sendEmails = {
             await userService.getOrgOwner(aSubmission?.organization?._id),
             await organizationService.getOrganizationByID(aSubmitter?.organization?.orgID),
             await userService.getAdmin(),
+            await userService.getFederalMonitors(aSubmission?.studyID)
         ];
         let results;
         await Promise.all(promises).then(async function(returns) {
@@ -1201,7 +1206,7 @@ const sendEmails = {
         const orgOwnerEmails = getUserEmails(results[0] || []);
         const adminEmails = getUserEmails(results[2] || []);
         const curatorEmails = getUserEmails([{email: aOrganization?.conciergeEmail}] || []);
-
+        const fedMonitorEmails = getUserEmails(results[3] || []);
 
         // CCs for org owner, Data Curator (or admins if not yet assigned exists)
         let ccEmailsVar 
@@ -1210,7 +1215,7 @@ const sendEmails = {
         }else{
             ccEmailsVar = curatorEmails
         }
-        const ccEmails = [...orgOwnerEmails, ...ccEmailsVar];
+        const ccEmails = [...orgOwnerEmails, ...ccEmailsVar, ...fedMonitorEmails];
         await notificationService.submitDataSubmissionNotification(aSubmitter?.email, ccEmails, {
             firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
             }, {
@@ -1264,12 +1269,14 @@ const sendEmails = {
         }
         const promises = [
             await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
-            await userService.getUserByID(aSubmission?.submitterID)
+            await userService.getUserByID(aSubmission?.submitterID),
+            await userService.getFederalMonitors(aSubmission?.studyID)
         ];
         const results = await Promise.all(promises);
         const orgOwnerEmails = getUserEmails(results[0] || []);
         const submitterEmails = getUserEmails([results[1]] || []);
-        const ccEmails = new Set([...orgOwnerEmails, ...submitterEmails]).toArray();
+        const fedMonitorEmails = getUserEmails(results[2] || []);
+        const ccEmails = new Set([...orgOwnerEmails, ...submitterEmails, ...fedMonitorEmails]).toArray();
         await notificationsService.withdrawSubmissionNotification(aCurator?.email, ccEmails, {
             firstName: `${aCurator.firstName} ${aCurator?.lastName || ''}`
         }, {
