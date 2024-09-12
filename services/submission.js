@@ -311,12 +311,42 @@ class Submission {
     }
 
     async remindInactiveSubmission() {
-        const inactiveSubmissions = await this.#getInactiveSubmissions(this.emailParams.remindSubmissionDay, INACTIVE_REMINDER);
-        if (inactiveSubmissions?.length > 0) {
-            await Promise.all(inactiveSubmissions.map(async (aSubmission) => {
-                await sendEmails.remindInactiveSubmission(this.emailParams, aSubmission, this.userService, this.organizationService, this.notificationService, this.tier);
-            }));
-            const submissionIDs = inactiveSubmissions.map(submission => submission._id);
+        // Map over inactiveDays to create an array of tuples [day, promise]
+        const inactiveSubmissionPromises = [];
+        for(const day of this.emailParams.remindSubmissionDay) {
+            inactiveSubmissionPromises.push([day, await this.#getInactiveSubmissions(day, INACTIVE_REMINDER)]);
+        }
+        const inactiveSubmissionResult = await Promise.all(inactiveSubmissionPromises);
+        const inactiveSubmissionMapByDays = inactiveSubmissionResult.reduce((acc, [key, value]) => {
+            acc[key] = value;
+            return acc;
+        }, {});
+        const sortedKeys = Object.keys(inactiveSubmissionMapByDays).sort((a, b) => b - a);
+        let uniqueSet = new Set();  // Set to track used _id values
+        sortedKeys.forEach((key) => {
+            // Filter out _id values that have already been used
+            inactiveSubmissionMapByDays[key] = inactiveSubmissionMapByDays[key].filter(obj => {
+                if (!uniqueSet.has(obj._id)) {
+                    uniqueSet.add(obj._id);
+                    return true;  // Keep this object
+                }
+                return false;  // Remove this object as it's already been used
+            });
+        });
+
+        if (uniqueSet.size > 0) {
+            const emailPromises = [];
+            let submissionIDs = [];
+            for (const [day, aSubmissionArray] of Object.entries(inactiveSubmissionMapByDays)) {
+                // TODO day is not working
+                for (const aSubmission of aSubmissionArray) {
+                    emailPromises.push(
+                        await sendEmails.remindInactiveSubmission(this.emailParams, aSubmission, this.userService, this.organizationService, this.notificationService, day, this.tier)
+                    );
+                    submissionIDs.push(aSubmission?._id);
+                }
+            }
+            await Promise.all(emailPromises);
             const query = {_id: {$in: submissionIDs}};
             const updatedReminder = await this.submissionCollection.updateMany(query, {[INACTIVE_REMINDER]: true});
             if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
@@ -1366,7 +1396,7 @@ const sendEmails = {
             conciergeName: aOrganization?.conciergeName || NA
         }, tier);
     },
-    remindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService, tier) => {
+    remindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService, day, tier) => {
         const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
         if (!aSubmitter) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
@@ -1378,7 +1408,7 @@ const sendEmails = {
         }, {
             title: aSubmission?.name,
             studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
-            days: emailParams.remindSubmissionDay || NA,
+            days: day || NA,
             url: emailParams.url || NA
         }, tier);
     },
