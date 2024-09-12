@@ -19,6 +19,8 @@ type Application {
     ORCID: String
     # questionnaire data as JSON string
     questionnaireData: String
+    PI: String
+    openAccess: Boolean
 }
 
 type Event {
@@ -36,6 +38,8 @@ input AppInput {
     studyName: String!
     controlledAccess: Boolean!
     ORCID: String
+    PI: String
+    openAccess: Boolean
 }
 
 type Applicant {
@@ -183,6 +187,8 @@ type ApprovedStudy {
     dbGaPID: String # aka. phs number
     controlledAccess: Boolean
     ORCID: String
+    PI: String
+    openAccess: Boolean
 }
 
 type ListLogFiles {
