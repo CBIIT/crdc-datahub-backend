@@ -525,17 +525,20 @@ const saveApprovedStudies = async (approvedStudiesService, organizationService, 
         console.error(ERROR.APPLICATION_CONTROLLED_ACCESS_NOT_FOUND, ` id=${aApplication?._id}`);
     }
     const savedApprovedStudy = await approvedStudiesService.storeApprovedStudies(
-        aApplication?.studyName, studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name, controlledAccess, aApplication?.ORCID
+        aApplication?.studyName, studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name, controlledAccess, aApplication?.ORCID,
+        aApplication?.PI, aApplication?.openAccess
     );
 
-    const orgApprovedStudies = [savedApprovedStudy]?.map((study) => ({
-        _id: study?._id,
-        studyName: study?.studyName,
-        studyAbbreviation: study?.studyAbbreviation,
-        controlledAccess: study?.controlledAccess,
-        ORCID: study?.ORCID,
-    }));
-    await organizationService.storeApprovedStudies(aApplication?.organization?._id, orgApprovedStudies);
+    const orgApprovedStudy = savedApprovedStudy ? {
+        _id: savedApprovedStudy?._id,
+        studyName: savedApprovedStudy?.studyName,
+        studyAbbreviation: savedApprovedStudy?.studyAbbreviation,
+        controlledAccess: savedApprovedStudy?.controlledAccess,
+        ORCID: savedApprovedStudy?.ORCID,
+        PI: savedApprovedStudy?.PI,
+        openAccess: savedApprovedStudy?.openAccess
+    } : null;
+    await organizationService.storeApprovedStudies(aApplication?.organization?._id, orgApprovedStudy);
 }
 
 module.exports = {
