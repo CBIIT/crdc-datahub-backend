@@ -177,7 +177,7 @@ class Submission {
         const aSubmission = await findByID(this.submissionCollection, aBatch.submissionID);
         // submission owner & submitter's Org Owner
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
-        const res = await this.batchService.updateBatch(aBatch, params?.files, userInfo);
+        const res = await this.batchService.updateBatch(aBatch, params?.files);
         // new status is ready for the validation
         if (res.status === BATCH.STATUSES.UPLOADED) {
             const updateSubmission = {
