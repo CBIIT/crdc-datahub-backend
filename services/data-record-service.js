@@ -199,14 +199,16 @@ class DataRecordService {
                     if (!result.success)
                         fileValidationErrors.push(result.message);
                 }
-            }
-            const msg = Message.createFileSubmissionMessage("Validate Submission Files", submissionID, validationID);
-            const result= await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.fileQueueName, submissionID);
-            if (!result.success)
-                fileValidationErrors.push(result.message);
 
-            if (fileValidationErrors.length > 0)
-                errorMessages.push(ERRORS.FAILED_VALIDATE_FILE, ...fileValidationErrors)
+                const msg = Message.createFileSubmissionMessage("Validate Submission Files", submissionID, validationID);
+                const result= await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.fileQueueName, submissionID);
+                if (!result.success)
+                    fileValidationErrors.push(result.message);
+
+                if (fileValidationErrors.length > 0)
+                    errorMessages.push(ERRORS.FAILED_VALIDATE_FILE, ...fileValidationErrors)
+            }
+
         }
         return (errorMessages.length > 0) ? ValidationHandler.handle(errorMessages) : ValidationHandler.success();
     }
