@@ -34,12 +34,13 @@ const NODE_RELATION_TYPES = [NODE_RELATION_TYPE_PARENT, NODE_RELATION_TYPE_CHILD
 
 const FILE = "file";
 class DataRecordService {
-    constructor(dataRecordsCollection, fileQueueName, metadataQueueName, awsService, s3Service) {
+    constructor(dataRecordsCollection, dataRecordArchiveCollection, fileQueueName, metadataQueueName, awsService, s3Service) {
         this.dataRecordsCollection = dataRecordsCollection;
         this.fileQueueName = fileQueueName;
         this.metadataQueueName = metadataQueueName;
         this.awsService = awsService;
         this.s3Service = s3Service;
+        this.dataRecordArchiveCollection = dataRecordArchiveCollection;
     }
 
     async submissionStats(aSubmission) {
@@ -620,6 +621,18 @@ class DataRecordService {
 
     async deleteMetadataByFilter(filter){
         return await this.dataRecordsCollection.deleteMany(filter);
+    }
+
+    async archiveMetadataByFilter(filter){
+        const dataArray = await this.dataRecordsCollection.aggregate([{"$match":filter}]);
+        if (dataArray.length === 0) return null
+        const promiseArray = [
+            await this.dataRecordArchiveCollection.insertMany(dataArray), // Insert documents into destination
+            await this.deleteMetadataByFilter(filter)      // Delete documents from source
+        ];
+        // Step 2: Execute all promises in parallel
+        return await Promise.all(promiseArray);
+        
     }
 
     async submissionNodes(submissionID, nodeType, first, offset, orderBy, sortDirection, query=null) {

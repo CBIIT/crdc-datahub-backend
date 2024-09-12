@@ -886,10 +886,49 @@ class Submission {
     }
 
     /**
-     * deleteInactiveSubmission
+     * archiveCompletedSubmissions
+     * description: overnight job to set completed submission after retention with "archived = true", archive related data and delete s3 files
+     */
+    async archiveCompletedSubmissions(){
+        var target_retention_date = new Date();
+        target_retention_date.setDate(target_retention_date.getDate() - config.completed_submission_days);
+        const query = [{"$match": {"status": COMPLETED, "updatedAt": { "$lte": target_retention_date}}}];
+        try {
+            const archive_subs = await this.submissionCollection.aggregate(query);
+            if (!archive_subs || archive_subs.length === 0) {
+                console.debug("No completed submissions need to be archived.")
+                return "No completed submissions need to be archived";
+            }
+           
+            let failed_delete_subs = []
+            //archive related data and delete files in s3
+            for (const sub of archive_subs) {
+                try {
+                    const result = await this.s3Service.deleteDirectory(sub.bucketName, sub.rootPath);
+                    if (result === true) {
+                        await this.dataRecordService.archiveMetadataByFilter({"submissionID": sub._id});
+                        await this.batchService.deleteBatchByFilter({"submissionID": sub._id});
+                        await this.submissionCollection.updateOne({"_id": sub._id}, {"archived": true, "updatedAt": new Date()});
+                        console.debug(`Successfully archive completed submissions: ${sub._id}.`);
+                    }
+                } catch (e) {
+                    console.error(`Failed to delete files under archived completed submission: ${sub._id} with error: ${e.message}.`);
+                    failed_delete_subs.push(sub._id);
+                }
+            }
+            return (failed_delete_subs.length === 0 )? "successful!" : `Failed to delete files archived completed submission submissions: ${failed_delete_subs.toString()}.  please contact admin.`;
+        }
+        catch (e){
+            console.error("Failed to archive completed submission(s) with error:" + e.message);
+            return "failed!";
+        }
+    }
+
+     /**
+     * archiveCompletedSubmissions
      * description: overnight job to set inactive submission status to "Deleted", delete related data and files
      */
-    async deleteInactiveSubmissions(){
+     async deleteInactiveSubmissions(){
         //get target inactive date, current date - config.inactive_submission_days (default 120 days)
         var target_inactive_date = new Date();
         target_inactive_date.setDate(target_inactive_date.getDate() - config.inactive_submission_days);
@@ -923,6 +962,7 @@ class Submission {
             return "failed!";
         }
     }
+
 
     async deleteDataRecords(params, context) {
         verifySession(context)
