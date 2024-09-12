@@ -1476,7 +1476,7 @@ function listConditions(userID, userRole, userDataCommons, userOrganization, use
     }
     // if user role is Federal Monitor, only can access his studies.
     if (userRole === ROLES.FEDERAL_MONITOR) {
-        conditions = {...conditions, "studyID": {$in: userStudies}};
+        conditions = {...conditions, "studyID": {$in: (userStudies || [])}};
         return [{"$match": conditions}];
     }
 
