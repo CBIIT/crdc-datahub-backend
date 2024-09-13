@@ -225,15 +225,16 @@ class DataRecordService {
                 submissionID: submissionID
             }
         });
-        // Lookup Batch data
-        dataRecordQCResultsPipeline.push({
-            $lookup: {
-                from: "batch",
-                localField: "latestBatchID",
-                foreignField: "_id",
-                as: "batch",
-            }
-        });
+        // Filter by Batch IDs
+        if (!!batchIDs && batchIDs.length > 0) {
+            dataRecordQCResultsPipeline.push({
+                $match: {
+                    batchID: {
+                        $in: batchIDs
+                    }
+                }
+            });
+        }
         // Collect all validation results
         dataRecordQCResultsPipeline.push({
             $set: {
@@ -296,9 +297,7 @@ class DataRecordService {
                 type: "$results.type",
                 validationType: "$results.validation_type",
                 batchID: "$latestBatchID",
-                displayID: {
-                    $first: "$batch.displayID",
-                },
+                displayID: "$latestBatchDisplayID",
                 submittedID: "$results.submittedID",
                 uploadedDate: "$updatedAt",
                 validatedDate: "$validatedAt",
@@ -409,16 +408,7 @@ class DataRecordService {
                }
             });
         }
-        // Filter by Batch IDs
-        if (!!batchIDs && batchIDs.length > 0) {
-            dataRecordQCResultsPipeline.push({
-                $match: {
-                    batchID: {
-                        $in: batchIDs
-                    }
-                }
-            });
-        }
+
 
         // Create count pipeline
         let countPipeline = [...dataRecordQCResultsPipeline];
@@ -465,15 +455,16 @@ class DataRecordService {
                 submissionID: submissionID
             }
         });
-        // Lookup Batch data
-        dataRecordQCResultsPipeline.push({
-            $lookup: {
-                from: "batch",
-                localField: "latestBatchID",
-                foreignField: "_id",
-                as: "batch",
-            }
-        });
+        // Filter by Batch IDs
+        if (!!batchIDs && batchIDs.length > 0) {
+            dataRecordQCResultsPipeline.push({
+                $match: {
+                    batchID: {
+                        $in: batchIDs
+                    }
+                }
+            });
+        }
         // Collect all validation results
         dataRecordQCResultsPipeline.push({
             $set: {
@@ -520,9 +511,7 @@ class DataRecordService {
                     type: "$results.type",
                     validationType: "$results.validation_type",
                     batchID: "$latestBatchID",
-                    displayID: {
-                        $first: "$batch.displayID",
-                    },
+                    displayID: "$latestBatchDisplayID",
                     submittedID: "$results.submittedID",
                     uploadedDate: "$updatedAt",
                     validatedDate: "$validatedAt",
@@ -552,16 +541,6 @@ class DataRecordService {
                 $match: {
                     type: {
                         $in: nodeTypes
-                    }
-                }
-            });
-        }
-        // Filter by Batch IDs
-        if (!!batchIDs && batchIDs.length > 0) {
-            dataRecordQCResultsPipeline.push({
-                $match: {
-                    batchID: {
-                        $in: batchIDs
                     }
                 }
             });
