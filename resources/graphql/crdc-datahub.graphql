@@ -101,6 +101,7 @@ type Submission {
     controlledAccess: Boolean
     ORCID: String
     deletingData: Boolean
+    archived: Boolean
 }
 
 # not being used currently
