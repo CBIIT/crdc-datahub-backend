@@ -314,7 +314,8 @@ class Submission {
         // Map over inactiveDays to create an array of tuples [day, promise]
         const inactiveSubmissionPromises = [];
         for(const day of this.emailParams.remindSubmissionDay) {
-            inactiveSubmissionPromises.push([day, await this.#getInactiveSubmissions(day, INACTIVE_REMINDER)]);
+            const pastInactiveDays = this.emailParams.finalRemindSubmissionDay - day;
+            inactiveSubmissionPromises.push([pastInactiveDays, await this.#getInactiveSubmissions(pastInactiveDays, INACTIVE_REMINDER)]);
         }
         const inactiveSubmissionResult = await Promise.all(inactiveSubmissionPromises);
         const inactiveSubmissionMapByDays = inactiveSubmissionResult.reduce((acc, [key, value]) => {
@@ -338,11 +339,11 @@ class Submission {
             const emailPromises = [];
             let submissionIDs = [];
             for (const [day, aSubmissionArray] of Object.entries(inactiveSubmissionMapByDays)) {
-                // TODO day is not working
                 for (const aSubmission of aSubmissionArray) {
-                    emailPromises.push(
-                        await sendEmails.remindInactiveSubmission(this.emailParams, aSubmission, this.userService, this.organizationService, this.notificationService, day, this.tier)
-                    );
+                    const emailPromise = (async (currentDay) => {
+                        await sendEmails.remindInactiveSubmission(this.emailParams, aSubmission, this.userService, this.organizationService, this.notificationService, currentDay, this.tier);
+                    })(day);
+                    emailPromises.push(emailPromise);
                     submissionIDs.push(aSubmission?._id);
                 }
             }
@@ -368,7 +369,7 @@ class Submission {
             const query = {_id: {$in: submissionIDs}};
             const updatedReminder = await this.submissionCollection.updateMany(query, {[FINAL_INACTIVE_REMINDER]: true});
             if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
-                console.error("The email reminder flag intended to notify the inactive submission user (FINAL) is not being stored");
+                console.error("The email reminder flag intended to notify the inactive submission user (FINAL) is not being stored", `submissionIDs: ${submissionIDs.join(', ')}`);
             }
         }
 
