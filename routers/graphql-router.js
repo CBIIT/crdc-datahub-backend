@@ -35,6 +35,7 @@ const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_N
 const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
 const AuthenticationService = require("../services/authentication-service");
 const {apiAuthorization, extractAPINames, PUBLIC} = require("./api-authorization");
+const { create } = require('connect-mongo');
 const public_api_list = extractAPINames(schema, PUBLIC)
 
 let root;
@@ -98,6 +99,8 @@ dbConnector.connect().then(async () => {
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
         deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
         listApprovedStudies: approvedStudiesService.listApprovedStudiesAPI.bind(approvedStudiesService),
+        createApprovedStudy: approvedStudiesService.addApprovedStudyAPI.bind(approvedStudiesService),
+        updateApprovedStudy: approvedStudiesService.editApprovedStudyAPI.bind(approvedStudiesService),
         listApprovedStudiesOfMyOrganization: approvedStudiesService.listApprovedStudiesOfMyOrganizationAPI.bind(approvedStudiesService),
         createBatch: submissionService.createBatch.bind(submissionService),
         updateBatch: submissionService.updateBatch.bind(submissionService),

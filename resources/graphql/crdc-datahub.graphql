@@ -186,9 +186,15 @@ type ApprovedStudy {
     studyAbbreviation: String # must be unique
     dbGaPID: String # aka. phs number
     controlledAccess: Boolean
-    ORCID: String
-    PI: String
     openAccess: Boolean
+    PI: String
+    ORCID: String
+    createdAt: Date
+}
+
+type ApprovedStudyList {
+    total: Int
+    studies: [ApprovedStudy]
 }
 
 type ListLogFiles {
@@ -476,7 +482,15 @@ type Query {
     listApprovedStudiesOfMyOrganization: [ApprovedStudy]
 
     # Admin only
-    listApprovedStudies: [ApprovedStudy]
+    listApprovedStudies(
+        controlledAccess: String!, #value in ["All", "Controlled", "Open"]
+        study: String!, #partial match against study name or abbreviation
+        dbGaPID: String, #filter by study's dbGaPID
+        first: Int = 10, #number of records to be returned, return all records if -1 is sent (also default value)
+        offset: Int = 0, #number of records to be skipped before returning data
+        orderBy: String = "updatedAt", #property name to be used for sorting 
+        sortDirection: String = "DESC" #["DESC", "ASC"]
+    ): ApprovedStudyList
 
     "Result depends on user's permission"
     listSubmissions(
@@ -653,4 +667,20 @@ type Mutation {
       dataCommons: [String], # Applies to Data Commons POC role only. Empty for other roles.
       studies: [String] #approved study IDs optional. It will be saved into user's study list
     ): User
+
+    createApprovedStudy(
+        name: String!,  #study name
+        acronym: String, #acronym of the study, optional
+        controlledAccess: String,  # value in ["All", "Controlled", "Open"]
+        dbGaPID: String, # required only Controlled
+        ORCID: String #optional in format of 0000-1234-2345-3456
+    ): ApprovedStudy
+
+    updateApprovedStudy(
+        name: String!,  #study name
+        acronym: String, #acronym of the study, optional
+        controlledAccess: String,  # value in ["All", "Controlled", "Open"]
+        dbGaPID: String, # required only Controlled
+        ORCID: String #optional in format of 0000-1234-2345-3456
+    ): ApprovedStudy
 }
