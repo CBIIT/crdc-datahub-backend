@@ -483,12 +483,12 @@ type Query {
 
     # Admin only
     listApprovedStudies(
-        controlledAccess: String!, #value in ["All", "Controlled", "Open"]
-        study: String!, #partial match against study name or abbreviation
+        controlledAccess: String = "All", #value in ["All", "Controlled", "Open"]
+        study: String, #partial match against study name or abbreviation
         dbGaPID: String, #filter by study's dbGaPID
         first: Int = 10, #number of records to be returned, return all records if -1 is sent (also default value)
         offset: Int = 0, #number of records to be skipped before returning data
-        orderBy: String = "updatedAt", #property name to be used for sorting 
+        orderBy: String = "studyName", #property name to be used for sorting 
         sortDirection: String = "DESC" #["DESC", "ASC"]
     ): ApprovedStudyList
 
@@ -671,16 +671,21 @@ type Mutation {
     createApprovedStudy(
         name: String!,  #study name
         acronym: String, #acronym of the study, optional
-        controlledAccess: String,  # value in ["All", "Controlled", "Open"]
+        controlledAccess: Boolean!,
+        openAccess: Boolean, #optional 
         dbGaPID: String, # required only Controlled
-        ORCID: String #optional in format of 0000-1234-2345-3456
+        ORCID: String, #optional in format of 0000-1234-2345-3456
+        PI: String #optional 
     ): ApprovedStudy
 
     updateApprovedStudy(
+        studyID: ID!
         name: String!,  #study name
         acronym: String, #acronym of the study, optional
-        controlledAccess: String,  # value in ["All", "Controlled", "Open"]
+        controlledAccess: Boolean!,
+        openAccess: Boolean, #optional 
         dbGaPID: String, # required only Controlled
-        ORCID: String #optional in format of 0000-1234-2345-3456
+        ORCID: String, #optional in format of 0000-1234-2345-3456
+        PI: String #optional 
     ): ApprovedStudy
 }

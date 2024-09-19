@@ -1,10 +1,13 @@
+const {v4} = require("uuid");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ERROR = require("../constants/error-constants");
 const { verifySession } = require('../verifier/user-info-verifier');
 const {ApprovedStudies} = require("../crdc-datahub-database-drivers/domain/approved-studies");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
-const { pipeline } = require("nodemailer/lib/xoauth2");
-const CONTROLLED_ACCESS_OPTIONS = ["All", "Open", "Controlled"];
+const CONTROLLED_ACCESS_ALL = "All";
+const CONTROLLED_ACCESS_OPEN = "Open";
+const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
+const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN, CONTROLLED_ACCESS_CONTROLLED];
 class ApprovedStudiesService {
 
     constructor(approvedStudiesCollection, organizationService) {
@@ -98,10 +101,7 @@ class ApprovedStudiesService {
     }
 
     /**
-     * List Approved Studies API Interface.
-     *
-     * Note:
-     * - This is an ADMIN only operation.
+     * List Approved Studies API Interface
      *
      * @api
      * @param {Object} params Endpoint parameters
@@ -125,19 +125,20 @@ class ApprovedStudiesService {
         let pipelines = [];
         // set matches
         let matches = {};
-        matches.studyName = {$regex: study};
-        // matches.studyAbbreviation = {$regex: study};
+        if (study)
+            matches.$or = [{studyName: {$regex: study}}, {studyAbbreviation: {$regex: study}}];
         if (!controlledAccess) {
-            controlledAccess = "All";
-        }
-        else {
             if (!CONTROLLED_ACCESS_OPTIONS.includes(controlledAccess)) {
                 throw new Error(ERROR.INVALID_CONTROLLED_ACCESS);
             }
-            matches.controlledAccess = controlledAccess;
+            if (controlledAccess !== CONTROLLED_ACCESS_ALL)
+            {
+                matches.controlledAccess = (controlledAccess === CONTROLLED_ACCESS_CONTROLLED);
+            }
         }
+       
         if (dbGaPID) {
-            matches.dbGaPID = {$regex: dbGaPID};
+            matches.dbGaPID = dbGaPID;
         }
         pipelines.push({$match: matches});
         // set sort
@@ -202,46 +203,35 @@ class ApprovedStudiesService {
             name,
             acronym,
             controlledAccess,
+            openAccess, 
             dbGaPID,
-            ORCID
+            ORCID, 
+            PI
         } = params;
         if (!name) {
             throw new Error(ERROR.MISSING_STUDY_NAME);
         }
-        if (!acronym) {
-            throw new Error(ERROR.MISSING_STUDY_ACRONYM);
-        }
-        if (!controlledAccess) {
-            controlledAccess = "All";
-        }
-        else {
-            if (!CONTROLLED_ACCESS_OPTIONS.includes(controlledAccess)) {
-                throw new Error(ERROR.INVALID_CONTROLLED_ACCESS);
-            }
-        }
-
-        if (controlledAccess === "Controlled" && !dbGaPID){
+        const controlledAccessVal = (controlledAccess !== true)? false: true;
+        if (controlledAccess === true && !dbGaPID){
             throw new Error(ERROR.MISSING_DB_GAP_ID);
         }
         if (ORCID && !this.#validateIdentifier(ORCID)) {
             throw new Error(ERROR.INVALID_ORCID);
         }
         const current_date = new Date();
-        let newStudy = {studyName: name, acronym: acronym, controlledAccess: controlledAccess, dbGaPID: dbGaPID, ORCID: ORCID, createdAt: current_date, updatedAt: current_date};
-        // const result = await this.approvedStudiesCollection.insert(newStudy);
-        return new Promise((resolve, reject) => {
-            this.approvedStudiesCollection.insert({ newStudy }, (err, res) => {
-            if (err) {
-              console.log('error', err);
-              reject(null);
-            } else {
-              resolve(res.ops[0]);
-            }
-          });
-        });
+        let newStudy = {_id: v4(), studyName: name, studyAbbreviation: acronym, controlledAccess: controlledAccessVal, openAccess: openAccess, dbGaPID: dbGaPID, ORCID: ORCID, PI: PI, createdAt: current_date, updatedAt: current_date};
+        const result = await this.approvedStudiesCollection.insert(newStudy);
+        if (!result?.acknowledged) {
+            throw new Error(ERROR.FAILED_APPROVED_STUDIES_INSERTION);
+        }
+        return newStudy;
     }
     /**
-     * editApprovedStudyAPI
+     * Edit Approved Study API
+     * 
+     * Note:
+     * - This is an ADMIN only operation.
+     *
      * @param {*} params 
      * @param {*} context 
      * @returns 
@@ -256,41 +246,50 @@ class ApprovedStudiesService {
             name,
             acronym,
             controlledAccess,
+            openAccess,
             dbGaPID,
-            ORCID
+            ORCID, 
+            PI
         } = params;
+        let updateStudy = await this.approvedStudiesCollection.find(studyID);
+        if (!updateStudy || updateStudy.length === 0) {
+            throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
+        }
+        updateStudy = updateStudy[0];
         if (!name) {
             throw new Error(ERROR.MISSING_STUDY_NAME);
         }
-        if (!controlledAccess) {
-            controlledAccess = "All";
-        }
-        else {
-            if (!CONTROLLED_ACCESS_OPTIONS.includes(controlledAccess)) {
-                throw new Error(ERROR.INVALID_CONTROLLED_ACCESS);
-            }
-        }
-
-        if (controlledAccess === "Controlled" && !dbGaPID){
+        const controlledAccessVal = (controlledAccess !== true)? false: true;
+        
+        if (controlledAccess === true && !dbGaPID){
             throw new Error(ERROR.MISSING_DB_GAP_ID);
         }
-
         if (ORCID && !this.#validateIdentifier(ORCID)) {
             throw new Error(ERROR.INVALID_ORCID);
+        }     
+        updateStudy.studyName = name;
+        updateStudy.controlledAccess = controlledAccessVal;
+        if (acronym !== undefined) {
+            updateStudy.studyAbbreviation = acronym;
         }
-        const current_date = new Date();
-        let updateStudy = {_id: studyID, studyName: name, acronym: acronym, controlledAccess: controlledAccess, dbGaPID: dbGaPID, ORCID: ORCID, updatedAt: current_date};
-        // const result = await this.approvedStudiesCollection.insert(newStudy);
-        return new Promise((resolve, reject) => {
-            this.approvedStudiesCollection.update({updateStudy}, (err, res) => {
-            if (err) {
-              console.log('error', err);
-              reject(null);
-            } else {
-              resolve(res.ops[0]);
-            }
-          });
-        });
+        if(openAccess !== undefined){
+            updateStudy.openAccess = openAccess;
+        }
+        if (dbGaPID !== undefined) {
+            updateStudy.dbGaPID = dbGaPID;
+        }
+        if (ORCID !== undefined) {
+            updateStudy.ORCID = ORCID;
+        }
+        if (PI !== undefined) {
+            updateStudy.PI = PI;
+        }
+        updateStudy.updatedAt = new Date();
+        const result = await this.approvedStudiesCollection.update(updateStudy);
+        if (!result?.acknowledged) {
+            throw new Error(ERROR.FAILED_APPROVED_STUDY_UPDATE);
+        }
+        return updateStudy;  
     }
     /**
      * Validate the identifier format.
