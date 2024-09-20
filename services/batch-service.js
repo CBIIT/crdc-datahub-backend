@@ -46,7 +46,9 @@ class BatchService {
         }
         return newBatch;
     }
-    async updateBatch(aBatch, files) {
+    // files is parameter
+    // a batch is stored in the database
+    async updateBatch(aBatch, files, uploadedFileSet) {
         const uploadFiles = new Map(files
             .filter(aFile => (aFile?.fileName) && aFile?.fileName.trim().length > 0)
             .map(file => [file?.fileName, file]));
@@ -56,9 +58,8 @@ class BatchService {
         const isAllSkipped = skippedCount === files.length;
 
         // The user is trying to update a batch with files that weren't uploaded.
-        const batchFileNames = new Set(aBatch.files.map(batchFile => batchFile.fileName));
-        const noUploadedFiles = Array.from(uploadFiles.keys())
-            .filter(fileName => !batchFileNames.has(fileName));
+        const noUploadedFiles = Array.from(uploadedFileSet.keys())
+            .filter(fileName => !uploadedFileSet.has(fileName));
         if (noUploadedFiles.length > 0) {
             throw new Error(replaceErrorString(ERROR.NO_UPLOADED_FILES, `'${noUploadedFiles.join(", ")}'`));
         }
@@ -74,7 +75,7 @@ class BatchService {
                     continue;
                 }
                 aFile.updatedAt = getCurrentTime();
-                if (aUploadFile?.succeeded) {
+                if (aUploadFile?.succeeded && uploadedFileSet.has(aFile.fileName)) {
                     aFile.status = FILE.UPLOAD_STATUSES.UPLOADED;
                     succeededFiles.push(aFile);
                 }

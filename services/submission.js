@@ -177,7 +177,16 @@ class Submission {
         const aSubmission = await findByID(this.submissionCollection, aBatch.submissionID);
         // submission owner & submitter's Org Owner
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
-        const res = await this.batchService.updateBatch(aBatch, params?.files);
+
+
+        // search files in s3 bucket
+        // submission's root path should be matched, otherwise the other file node count return wrong
+        const s3SubmissionFiles= await this.s3Service.listFile(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}`);
+        const uploadedS3Files = s3SubmissionFiles?.Contents
+            .filter((f)=> f && f.Key !== `${aSubmission.rootPath}/${FILE}/`)
+            .map((f)=> f.Key.replace(`${aSubmission.rootPath}/${FILE}/`, ''));
+
+        const res = await this.batchService.updateBatch(aBatch, params?.files, new Set(uploadedS3Files));
         // new status is ready for the validation
         if (res.status === BATCH.STATUSES.UPLOADED) {
             const updateSubmission = {
