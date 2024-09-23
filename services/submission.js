@@ -1022,6 +1022,19 @@ class Submission {
         return success;
     }
 
+    async listPotentialCollaborators(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyRole([ROLES.ADMIN, ROLES.CURATOR, ROLES.ORG_OWNER, ROLES.SUBMITTER]);
+
+        const aSubmission = await findByID(this.submissionCollection, params?.submissionID);
+        if(!aSubmission){
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
+        }
+        const submitterIDs = await this.submissionCollection.distinct("submitterID", { studyID: aSubmission?.studyID });
+        return this.userService.getUsersByIDs(submitterIDs);
+    }
+
     async #isValidPermission(userInfo, aSubmission) {
         const promises = [
             await this.userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
