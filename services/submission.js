@@ -847,6 +847,64 @@ class Submission {
         return configString;
     }
 
+    /**
+     * API: addSubmissionCollaborator
+     * @param {*} params 
+     * @param {*} context 
+     * @returns 
+     */
+    async addSubmissionCollaborator(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyRole([ ROLES.ORG_OWNER, ROLES.SUBMITTER]);
+        const {
+            submissionID,
+            collaboratorID
+        } = params;
+        const aSubmission = await findByID(this.submissionCollection, submissionID);
+        if (!aSubmission) {
+            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+        }
+        //find if the submission including duplicate collabrator
+        const temp = aSubmission.collaborators.find(c => c._id=== collaboratorID);
+        if (temp) {
+            throw new Error(ERROR.DUPLICATE_SUBMISSION_COLLABORATOR);
+        }
+        //find a submitter with the collaborator ID
+        const collaborator = await findByID(this.userService.userCollection, collaboratorID);
+        if (!collaborator) {
+            throw new Error(ERROR.COLLABORATOR_NOT_EXIST);
+        }
+        if (collaborator.role !== ROLES.SUBMITTER) {
+            throw new Error(ERROR.INVALID_COLLABORATOR_ROLE_SUBMITTER);
+        }
+        // check if the collaborator has submissions with the same study.
+        const search_conditions = {
+            studyName: aSubmission.studyName,
+            submissionID: collaboratorID
+        }
+        const studies = await this.submissionCollection.aggregate([{$match: search_conditions}]);
+        if (!studies || studies.length === 0 )
+        {
+            throw new Error(ERROR.INVALID_COLLABORATOR_STUDY);
+        }
+        const new_collaborator = {
+            collaboratorID: collaboratorID,
+            collaboratorName: collaborator.name,
+            Organization: collaborator.organization,
+            permission: "Read Only"
+        }
+
+        aSubmission.collaborators = (aSubmission.collaborators)? aSubmission.collaborators : [];
+        aSubmission.collaborators.push(new_collaborator);  
+        aSubmission.updatedAt = new Date(); 
+        const result = await this.submissionCollection.update( aSubmission);
+        if (result?.modifiedCount === 1) {
+            return ValidationHandler.success();
+        }
+        throw new Error(ERROR.FAILED_ADD_SUBMISSION_COLLABORATOR);
+    }
+
     #replaceFileNodeProps(aSubmission, configString){
         const modelFileNodeInfos = Object.values(this.dataModelInfo?.[aSubmission.dataCommons]?.[DATA_MODEL_SEMANTICS]?.[DATA_MODEL_FILE_NODES]);
         const omit_DCF_prefix = this.dataModelInfo?.[aSubmission.dataCommons]?.['omit-DCF-prefix'];

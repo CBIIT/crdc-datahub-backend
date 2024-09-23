@@ -102,6 +102,7 @@ type Submission {
     ORCID: String
     deletingData: Boolean
     archived: Boolean
+    collaborators: [Collaborator]
 }
 
 # not being used currently
@@ -460,6 +461,13 @@ type CDE {
     PermissibleValues: [String],
     createdAt: Date,
     updatedAt: Date
+}
+
+type Collaborator {
+    collaboratorID: ID,
+    collaboratorName: String,
+    Organization: OrgInfo,
+    permission: String # hard code to "Read Only" (for future use)
 }
 
 type Query {

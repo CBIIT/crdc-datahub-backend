@@ -131,7 +131,12 @@ const ERROR = {
         TITLE: "Data file not found",
         CONTENTS: "Data file $item$ not found"
     },
-    NO_UPLOADED_FILES: "You are attempting to update files that do not exist in the batch. Please check the file: $item$."
+    NO_UPLOADED_FILES: "You are attempting to update files that do not exist in the batch. Please check the file: $item$.",
+    DUPLICATE_SUBMISSION_COLLABORATOR: "Duplicate collaborator found in the submission.",
+    COLLABORATOR_NOT_EXIST: "collaborator does not exist",
+    INVALID_COLLABORATOR_ROLE_SUBMITTER: "Invalid collaborator role for the submitter",
+    INVALID_COLLABORATOR_STUDY: "No matched collaborator study.",
+    FAILED_ADD_SUBMISSION_COLLABORATOR: "Failed to add submission collaborator",
 }
 
 module.exports = ERROR;
