@@ -905,6 +905,43 @@ class Submission {
         throw new Error(ERROR.FAILED_ADD_SUBMISSION_COLLABORATOR);
     }
 
+    /**
+     * API: removeSubmissionCollaborator
+     * @param {*} params 
+     * @param {*} context 
+     * @returns 
+     */
+    async removeSubmissionCollaborator(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyRole([ ROLES.ORG_OWNER, ROLES.SUBMITTER]);
+        const {
+            submissionID,
+            collaboratorID
+        } = params;
+        const aSubmission = await findByID(this.submissionCollection, submissionID);
+        if (!aSubmission) {
+            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+        }
+        //find if the submission including duplicate collabrator
+        const temp = aSubmission.collaborators.find(c => c._id=== collaboratorID);
+        if (temp) {
+            throw new Error(ERROR.DUPLICATE_SUBMISSION_COLLABORATOR);
+        }
+    
+        aSubmission.collaborators = (aSubmission.collaborators)? aSubmission.collaborators : [];
+        if (aSubmission.collaborators.length === 0) {
+            throw new Error(ERROR.INVALID_SUBMISSION_COLLABORATOR);
+        }
+        aSubmission.collaborators = aSubmission.collaborators.filter(c=>c.collaboratorID != collaboratorID);  
+        aSubmission.updatedAt = new Date(); 
+        const result = await this.submissionCollection.update( aSubmission);
+        if (result?.modifiedCount === 1) {
+            return ValidationHandler.success();
+        }
+        throw new Error(ERROR.FAILED_ADD_SUBMISSION_COLLABORATOR);
+    }
+
     #replaceFileNodeProps(aSubmission, configString){
         const modelFileNodeInfos = Object.values(this.dataModelInfo?.[aSubmission.dataCommons]?.[DATA_MODEL_SEMANTICS]?.[DATA_MODEL_FILE_NODES]);
         const omit_DCF_prefix = this.dataModelInfo?.[aSubmission.dataCommons]?.['omit-DCF-prefix'];
