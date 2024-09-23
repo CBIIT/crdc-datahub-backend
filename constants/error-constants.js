@@ -131,7 +131,14 @@ const ERROR = {
         TITLE: "Data file not found",
         CONTENTS: "Data file $item$ not found"
     },
-    NO_UPLOADED_FILES: "You are attempting to update files that do not exist in the batch. Please check the file: $item$."
+    NO_UPLOADED_FILES: "You are attempting to update files that do not exist in the batch. Please check the file: $item$.",
+    MISSING_STUDY_NAME: "Study name is required.",
+    INVALID_CONTROLLED_ACCESS: "Invalid controlled access value.",
+    MISSING_DB_GAP_ID: "dbGaP ID is required when access is controlled.",
+    INVALID_ORCID: "Invalid ORCID format.",
+    FAILED_APPROVED_STUDY_INSERTION: "Failed to create the approved study.",
+    FAILED_APPROVED_STUDY_UPDATE: "Failed to update the approved study.",
+    APPROVED_STUDY_NOT_FOUND: "Approved study not found.",
 }
 
 module.exports = ERROR;
