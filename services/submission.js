@@ -1279,7 +1279,7 @@ const sendEmails = {
         const curatorEmails = getUserEmails(results[4] || []);
         // CCs for org owner, Data Curator (or admins if not yet assigned exists)
         const ccEmailsVar = !aOrganization?.conciergeEmail ? adminEmails : curatorEmails;
-        const ccEmails = new Set([...orgOwnerEmails, ...ccEmailsVar, ...fedMonitorEmails, ...curatorEmails]);
+        const ccEmails = new Set([...orgOwnerEmails, ...ccEmailsVar, ...fedMonitorEmails, ...curatorEmails]).toArray();
         await notificationService.submitDataSubmissionNotification(aSubmitter?.email, ccEmails, {
             firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
             }, {
