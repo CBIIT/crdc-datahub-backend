@@ -1187,7 +1187,8 @@ const completeSubmissionEmailInfo = async (userInfo, aSubmission, userService, o
         await userService.getUserByID(aSubmission?.submitterID),
         await userService.getPOCs(),
         await organizationService.getOrganizationByID(aSubmission?.organization?._id),
-        await userService.getFederalMonitors(aSubmission?.studyID)
+        await userService.getFederalMonitors(aSubmission?.studyID),
+        await userService.getCurators(aSubmission?.dataCommons)
     ];
 
     const results = await Promise.all(promises);
@@ -1196,8 +1197,7 @@ const completeSubmissionEmailInfo = async (userInfo, aSubmission, userService, o
     const POCEmails = getUserEmails(results[3] || []);
     const fedMonitorEmails = getUserEmails(results[5] || []);
     const aOrganization = results[4] || {};
-    const curatorEmails = getUserEmails([{email: aOrganization?.conciergeEmail}]);
-
+    const curatorEmails = getUserEmails(results[6] || []);
     // CCs for POCs, org owner, admins, curators
     const ccEmails = new Set([...POCEmails, ...orgOwnerEmails, ...adminEmails, ...curatorEmails, ...fedMonitorEmails]).toArray();
     const aSubmitter = results[2];
@@ -1246,14 +1246,15 @@ const cancelOrRejectSubmissionEmailInfo = async (aSubmission, userService, organ
         await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
         await organizationService.getOrganizationByID(aSubmission?.organization?._id),
         await userService.getAdmin(),
-        await userService.getFederalMonitors(aSubmission?.studyID)
+        await userService.getFederalMonitors(aSubmission?.studyID),
+        await userService.getCurators(aSubmission?.dataCommons)
     ];
     const results = await Promise.all(promises);
     const orgOwnerEmails = getUserEmails(results[0] || []);
     const aOrganization = results[1] || {};
-    const curatorEmails = getUserEmails([{email: aOrganization?.conciergeEmail}]);
     const adminEmails = getUserEmails(results[2] || []);
     const fedMonitorEmails = getUserEmails(results[3] || []);
+    const curatorEmails = getUserEmails(results[4] || []);
     const ccEmails = new Set([...orgOwnerEmails, ...curatorEmails, ...adminEmails, ...fedMonitorEmails]).toArray();
     return [ccEmails, aOrganization];
 }
@@ -1266,27 +1267,19 @@ const sendEmails = {
             await userService.getOrgOwner(aSubmission?.organization?._id),
             await organizationService.getOrganizationByID(aSubmitter?.organization?.orgID),
             await userService.getAdmin(),
-            await userService.getFederalMonitors(aSubmission?.studyID)
+            await userService.getFederalMonitors(aSubmission?.studyID),
+            await userService.getCurators(aSubmission?.dataCommons)
         ];
-        let results;
-        await Promise.all(promises).then(async function(returns) {
-            results = returns;
-        });
+        const results = await Promise.all(promises);
         const aOrganization = results[1] || {};
 
         const orgOwnerEmails = getUserEmails(results[0] || []);
         const adminEmails = getUserEmails(results[2] || []);
-        const curatorEmails = getUserEmails([{email: aOrganization?.conciergeEmail}] || []);
         const fedMonitorEmails = getUserEmails(results[3] || []);
-
+        const curatorEmails = getUserEmails(results[4] || []);
         // CCs for org owner, Data Curator (or admins if not yet assigned exists)
-        let ccEmailsVar 
-        if(!aOrganization?.conciergeEmail){
-            ccEmailsVar = adminEmails
-        }else{
-            ccEmailsVar = curatorEmails
-        }
-        const ccEmails = [...orgOwnerEmails, ...ccEmailsVar, ...fedMonitorEmails];
+        const ccEmailsVar = !aOrganization?.conciergeEmail ? adminEmails : curatorEmails;
+        const ccEmails = new Set([...orgOwnerEmails, ...ccEmailsVar, ...fedMonitorEmails, ...curatorEmails]);
         await notificationService.submitDataSubmissionNotification(aSubmitter?.email, ccEmails, {
             firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
             }, {
