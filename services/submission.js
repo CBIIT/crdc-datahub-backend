@@ -215,44 +215,50 @@ class Submission {
         const aSubmission = await findByID(this.submissionCollection, params._id);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
-        }else{
-            if (aSubmission?.studyID) {
-                // if user role is Federal Monitor, only can access his studies.
-                if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
-                    throw new Error(ERROR.INVALID_ROLE_STUDY);
-                }
-                const submissions = await this.submissionCollection.aggregate([
-                    {"$match": {$and: [
-                        {studyID: aSubmission.studyID},
-                        {status: {$in: [IN_PROGRESS, SUBMITTED, RELEASED, REJECTED, WITHDRAWN]}},
-                        {_id: { $not: { $eq: params._id}}}]}}]);
-                const otherSubmissions = {
-                    [IN_PROGRESS]: [],
-                    [SUBMITTED]: [],
-                    [RELEASED]: [],
-                    [REJECTED]: [],
-                    [WITHDRAWN]: [],
-                };
-                submissions.forEach((submission) => {
-                    otherSubmissions[submission.status].push(submission._id);
-                });
-                aSubmission.otherSubmissions = JSON.stringify(otherSubmissions);
-            }
-            // view condition
-            const conditionDCPOC = (context?.userInfo?.role === ROLES.DC_POC )&& (context?.userInfo?.dataCommons.includes(aSubmission?.dataCommons));
-            const conditionORGOwner = (context?.userInfo?.role === ROLES.ORG_OWNER )&& (context?.userInfo?.organization?.orgID === aSubmission?.organization?._id);
-            const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
-            const conditionAdmin = [ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN, USER.ROLES.FEDERAL_MONITOR].includes(context?.userInfo?.role );
-            //  role based access control
-            if( conditionDCPOC || conditionORGOwner || conditionSubmitter || conditionAdmin){
-                // Store the timestamp for the inactive submission purpose
-                if (conditionSubmitter) {
-                    await this.submissionCollection.update({_id: aSubmission?._id, accessedAt: getCurrentTime(), [INACTIVE_REMINDER]: false, [FINAL_INACTIVE_REMINDER]: false});
-                }
-                return aSubmission
-            }
-            throw new Error(ERROR.INVALID_ROLE);
         }
+
+        if (aSubmission?.studyID) {
+            // if user role is Federal Monitor, only can access his studies.
+            if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
+                throw new Error(ERROR.INVALID_ROLE_STUDY);
+            }
+            const submissions = await this.submissionCollection.aggregate([
+                {"$match": {$and: [
+                    {studyID: aSubmission.studyID},
+                    {status: {$in: [IN_PROGRESS, SUBMITTED, RELEASED, REJECTED, WITHDRAWN]}},
+                    {_id: { $not: { $eq: params._id}}}]}}]);
+            const otherSubmissions = {
+                [IN_PROGRESS]: [],
+                [SUBMITTED]: [],
+                [RELEASED]: [],
+                [REJECTED]: [],
+                [WITHDRAWN]: [],
+            };
+            submissions.forEach((submission) => {
+                otherSubmissions[submission.status].push(submission._id);
+            });
+            aSubmission.otherSubmissions = JSON.stringify(otherSubmissions);
+        }
+
+        // dynamically count records in dataRecords
+        if (!aSubmission?.archived) {
+            aSubmission.nodeCount = await this.dataRecordService.countNodesBySubmissionID(aSubmission?._id);
+        }
+
+        // view condition
+        const conditionDCPOC = (context?.userInfo?.role === ROLES.DC_POC )&& (context?.userInfo?.dataCommons.includes(aSubmission?.dataCommons));
+        const conditionORGOwner = (context?.userInfo?.role === ROLES.ORG_OWNER )&& (context?.userInfo?.organization?.orgID === aSubmission?.organization?._id);
+        const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
+        const conditionAdmin = [ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN, USER.ROLES.FEDERAL_MONITOR].includes(context?.userInfo?.role );
+        //  role based access control
+        if (conditionDCPOC || conditionORGOwner || conditionSubmitter || conditionAdmin) {
+            // Store the timestamp for the inactive submission purpose
+            if (conditionSubmitter) {
+                await this.submissionCollection.update({_id: aSubmission?._id, accessedAt: getCurrentTime(), [INACTIVE_REMINDER]: false, [FINAL_INACTIVE_REMINDER]: false});
+            }
+            return aSubmission
+        }
+        throw new Error(ERROR.INVALID_ROLE);
     }
     /**
      * API: submissionAction

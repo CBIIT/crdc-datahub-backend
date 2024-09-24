@@ -799,7 +799,7 @@ class DataRecordService {
     async listSubmissionNodeTypes(submissionID){
         if (!submissionID){
             return []
-        };
+        }
         const filter = {
             submissionID: submissionID
         };
@@ -815,6 +815,15 @@ class DataRecordService {
             })
         });
         return results;
+    }
+
+    async countNodesBySubmissionID(submissionID) {
+        const countNodes = await this.dataRecordsCollection.aggregate([
+            { $match: { submissionID } },              // Filter by submissionID
+            { $group: { _id: "$_id" } },          // Group by distinct nodeType
+            { $count: "count" }        // Count the distinct nodeType values
+        ]);
+        return countNodes.length > 0 ? countNodes[0].count : 0;
     }
 }
 
