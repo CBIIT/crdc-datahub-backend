@@ -468,6 +468,13 @@ type CDE {
     updatedAt: Date
 }
 
+type Collaborator {
+  collaboratorID: ID
+  collaboratorName: String
+  Organization: OrgInfo
+  permission: String # hard code to "Read Only" (for future use)
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -601,6 +608,8 @@ type Query {
     retrieveCDEs  (
         CDEInfo: [CDEInput!]!
     ) : [CDE] @public
+
+    collaborators: [Collaborator]
 }
 type Mutation {
     "User initiated operations"
