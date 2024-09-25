@@ -1605,6 +1605,7 @@ class DataSubmission {
         this._id = v4();
         this.name = name;
         this.submitterID = userInfo._id;
+        this.collaborators = [];
         this.submitterName = formatName(userInfo);
         this.organization = {
             _id: userInfo?.organization?.orgID,
