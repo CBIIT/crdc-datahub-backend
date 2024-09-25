@@ -1031,8 +1031,10 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        const submitterIDs = await this.submissionCollection.distinct("submitterID", { studyID: aSubmission?.studyID });
-        return this.userService.getUsersByIDs(submitterIDs);
+        const organizationIDs = await this.organizationService.findByStudyID(aSubmission?.studyID);
+        const users = await this.userService.getUsersByOrganizationIDs(organizationIDs);
+        return users
+            .filter(u=> u._id !== aSubmission?.submitterID);
     }
 
     async #isValidPermission(userInfo, aSubmission) {
