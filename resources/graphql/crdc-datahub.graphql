@@ -102,6 +102,7 @@ type Submission {
     ORCID: String
     deletingData: Boolean
     archived: Boolean
+    nodeCount: Int
     collaborators: [Collaborator]
 }
 
