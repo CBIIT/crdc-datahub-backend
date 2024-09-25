@@ -60,6 +60,8 @@ type ListApplications {
 
 type ListSubmissions {
     total: Int
+    dataCommons: [String],
+    submitterNames: [String],
     submissions: [Submission]
 }
 
@@ -495,6 +497,10 @@ type Query {
 
     "Result depends on user's permission"
     listSubmissions(
+        name: String,
+        dbGaPID: String,
+        dataCommons: String,
+        submitterName: String,
         organization: String,
         status: String,
         first: Int = 10,
