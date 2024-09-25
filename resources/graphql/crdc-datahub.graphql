@@ -102,6 +102,7 @@ type Submission {
     ORCID: String
     deletingData: Boolean
     archived: Boolean
+    collaborators: [Collaborator]
 }
 
 # not being used currently
@@ -468,6 +469,13 @@ type CDE {
     updatedAt: Date
 }
 
+type Collaborator {
+  collaboratorID: ID
+  collaboratorName: String
+  Organization: OrgInfo
+  permission: String # ["Can View", "Can Edit"]
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -601,6 +609,8 @@ type Query {
     retrieveCDEs  (
         CDEInfo: [CDEInput!]!
     ) : [CDE] @public
+
+    collaborators: [Collaborator]
 }
 type Mutation {
     "User initiated operations"
