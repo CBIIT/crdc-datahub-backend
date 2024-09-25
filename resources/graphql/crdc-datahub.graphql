@@ -601,6 +601,7 @@ type Query {
     retrieveCDEs  (
         CDEInfo: [CDEInput!]!
     ) : [CDE] @public
+    listPotentialCollaborators(submissionID: String!): [User]
 }
 type Mutation {
     "User initiated operations"
