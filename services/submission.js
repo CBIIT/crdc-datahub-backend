@@ -101,8 +101,12 @@ class Submission {
         if (context.userInfo.role === ROLES.USER) {
             return {submissions: [], total: 0};
         }
-        let pipeline = listConditions(context.userInfo._id, context.userInfo?.role, context.userInfo.dataCommons, context.userInfo?.organization, context.userInfo.studies, params);
-        if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
+        const conditions = listConditions(context.userInfo._id, context.userInfo?.role, context.userInfo.dataCommons, context.userInfo?.organization, context.userInfo.studies, params);
+        const pipeline = [{"$match": conditions}];
+
+        if (params.orderBy) {
+            pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
+        }
 
         const pagination = [];
         if (params.offset) pagination.push({"$skip": params.offset});
@@ -112,13 +116,17 @@ class Submission {
         }
         const promises = [
             await this.submissionCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline),
-            await this.submissionCollection.aggregate(pipeline)
+            await this.submissionCollection.aggregate(pipeline.concat([{ $group: { _id: "$_id" } }, { $count: "count" }])),
+            await this.submissionCollection.distinct("dataCommons", conditions),
+            await this.submissionCollection.distinct("submitterName", conditions)
         ];
         
         return await Promise.all(promises).then(function(results) {
             return {
                 submissions: results[0] || [],
-                total: results[1]?.length || 0
+                total: results[1]?.length > 0 ? results[1][0]?.count : 0,
+                dataCommons: results[2] || [],
+                submitterNames: results[3] || []
             }
         });
     }
@@ -1477,44 +1485,41 @@ const isPermittedUser = (aTargetUser, userInfo) => {
 
 
 function listConditions(userID, userRole, userDataCommons, userOrganization, userStudies, params){
-    const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
-        REJECTED, WITHDRAWN, DELETED]}};
-    // Default conditions are:
-    // Make sure application has valid status
-    let conditions = {...validApplicationStatus};
-    // Filter on organization and status
-    if (params.organization && params.organization !== ALL_FILTER) {
-        conditions = {...conditions, "organization._id": params.organization};
-    }
-    if (params.status && params.status !== ALL_FILTER) {
-        conditions = {...conditions, status: params.status};
-    }
-    // List all applications if Fed Lead / Admin / Data Concierge / Data Curator
-    const listAllApplicationRoles = [ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.CURATOR];
-    if (listAllApplicationRoles.includes(userRole)) {
-        return [{"$match": conditions}];
-    }
-    // If data commons POC, return all data submissions associated with their data commons
-    if (userRole === ROLES.DC_POC) {
-        conditions = {...conditions, "dataCommons": {$in: userDataCommons}};
-        return [{"$match": conditions}];
-    }
-     // If org owner, add condition to return all data submissions associated with their organization
-    if (userRole === ROLES.ORG_OWNER && userOrganization?.orgName) {
-        conditions = {...conditions, "organization.name": userOrganization.orgName};
-        return [{"$match": conditions}];
-    }
-    // if user role is Federal Monitor, only can access his studies.
-    if (userRole === ROLES.FEDERAL_MONITOR) {
-        conditions = {...conditions, "studyID": {$in: (userStudies || [])}};
-        return [{"$match": conditions}];
-    }
+    const validSubmissionStatus = [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
+        REJECTED, WITHDRAWN, DELETED];
 
-    // Add condition so submitters will only see their data submissions
-    // User's cant make submissions, so they will always have no submissions 
-    // search by applicant's user id
-    conditions = {...conditions, "submitterID": userID};
-    return [{"$match": conditions}];
+    const statusCondition = validSubmissionStatus.includes(params.status) && params.status !== ALL_FILTER ?
+        { status: params.status } : { status: { $in: validSubmissionStatus } };
+    const organizationCondition = params.organization && params.organization !== ALL_FILTER ?
+        { "organization._id": params.organization } : {};
+
+    const nameCondition = params?.name ? {name: { $regex: params.name?.trim(), $options: "i" }} : {};
+    const dbGaPIDCondition = params?.dbGaPID ? {dbGaPID: { $regex: params.dbGaPID?.trim(), $options: "i" }} : {};
+    const dataCommonsCondition = params?.dataCommons ? {dataCommons: params?.dataCommons?.trim()} : {};
+    const submitterNameCondition = params?.submitterName ? {submitterName: params?.submitterName?.trim()} : {};
+
+    const baseConditions = { ...statusCondition, ...organizationCondition, ...nameCondition,
+        ...dbGaPIDCondition, ...dataCommonsCondition, ...submitterNameCondition };
+    return (() => {
+        switch (userRole) {
+            case ROLES.ADMIN:
+            case ROLES.FEDERAL_LEAD:
+            case ROLES.CURATOR:
+                // List all submissions
+                return baseConditions;
+            case ROLES.DC_POC:
+                return {...baseConditions, dataCommons: {$in: userDataCommons}};
+            case ROLES.ORG_OWNER:
+                if (userOrganization?.orgName) {
+                    return {...baseConditions, "organization.name": userOrganization.orgName};
+                }
+                return baseConditions;
+            case ROLES.FEDERAL_MONITOR:
+                return {...baseConditions, studyID: {$in: userStudies || []}};
+            default:
+                return {...baseConditions, submitterID: userID};
+        }
+    })();
 }
 
 function validateCreateSubmissionParams (params, allowedDataCommons, intention, dataType, userInfo) {
