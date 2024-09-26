@@ -1,6 +1,6 @@
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
     REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, EXPORT, INTENTION, DATA_TYPE, DELETED, DATA_FILE,
-    CONSTRAINTS
+    CONSTRAINTS, COLLABORATOR_PERMISSIONS
 } = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
@@ -859,7 +859,8 @@ class Submission {
             .verifyRole([ ROLES.ORG_OWNER, ROLES.SUBMITTER]);
         const {
             submissionID,
-            collaboratorID
+            collaboratorID, 
+            permission
         } = params;
         const aSubmission = await findByID(this.submissionCollection, submissionID);
         if (!aSubmission) {
@@ -870,7 +871,7 @@ class Submission {
         }
         if (!aSubmission.collaborators) 
             aSubmission.collaborators = [];
-        //find if the submission including duplicate collaborator
+        //find if the submission including existing collaborator
         if (aSubmission.collaborators.find(c => c._id === collaboratorID)) {
             throw new Error(ERROR.EXISTING_SUBMISSION_COLLABORATOR);
         }
@@ -892,11 +893,15 @@ class Submission {
         {
             throw new Error(ERROR.INVALID_COLLABORATOR_STUDY);
         }
+        // validate collaborator permission
+        if (!Object.values(COLLABORATOR_PERMISSIONS).includes(permission)) {
+            throw new Error(ERROR.INVALID_COLLABORATOR_PERMISSION);
+        }
         const new_collaborator = {
             collaboratorID: collaboratorID,
             collaboratorName: collaborator.firstName + " " + collaborator.lastName,
             Organization: collaborator.organization,
-            permission: "Read Only"
+            permission: permission
         }
         aSubmission.collaborators.push(new_collaborator);  
         aSubmission.updatedAt = new Date(); 

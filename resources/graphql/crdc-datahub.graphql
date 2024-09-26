@@ -665,7 +665,8 @@ type Mutation {
 
     addSubmissionCollaborator (
         submissionID: ID!,
-        collaboratorID: ID!
+        collaboratorID: ID!, 
+        permission: String! #Valid values in ["Can View", "Can Edit"].
     ): Submission
     
     removeSubmissionCollaborator (
