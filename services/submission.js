@@ -865,10 +865,14 @@ class Submission {
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
-        //find if the submission including duplicate collabrator
-        const temp = aSubmission.collaborators.find(c => c._id=== collaboratorID);
-        if (temp) {
-            throw new Error(ERROR.DUPLICATE_SUBMISSION_COLLABORATOR);
+        if (!aSubmission.studyID) {
+            throw new Error(ERROR.INVALID_SUBMISSION_STUDY);
+        }
+        if (!aSubmission.collaborators) 
+            aSubmission.collaborators = [];
+        //find if the submission including duplicate collaborator
+        if (aSubmission.collaborators.find(c => c._id === collaboratorID)) {
+            throw new Error(ERROR.EXISTING_SUBMISSION_COLLABORATOR);
         }
         //find a submitter with the collaborator ID
         const collaborator = await findByID(this.userService.userCollection, collaboratorID);
@@ -880,29 +884,28 @@ class Submission {
         }
         // check if the collaborator has submissions with the same study.
         const search_conditions = {
-            studyName: aSubmission.studyName,
-            submissionID: collaboratorID
+            studyID: aSubmission.studyID,
+            submitterID: collaboratorID
         }
-        const studies = await this.submissionCollection.aggregate([{$match: search_conditions}]);
-        if (!studies || studies.length === 0 )
+        const collaborator_subs = await this.submissionCollection.aggregate([{$match: search_conditions}]);
+        if (!collaborator_subs || collaborator_subs.length === 0 )
         {
             throw new Error(ERROR.INVALID_COLLABORATOR_STUDY);
         }
         const new_collaborator = {
             collaboratorID: collaboratorID,
-            collaboratorName: collaborator.name,
+            collaboratorName: collaborator.firstName + " " + collaborator.lastName,
             Organization: collaborator.organization,
             permission: "Read Only"
         }
-
-        aSubmission.collaborators = (aSubmission.collaborators)? aSubmission.collaborators : [];
         aSubmission.collaborators.push(new_collaborator);  
         aSubmission.updatedAt = new Date(); 
         const result = await this.submissionCollection.update( aSubmission);
         if (result?.modifiedCount === 1) {
-            return ValidationHandler.success();
+            return aSubmission
         }
-        throw new Error(ERROR.FAILED_ADD_SUBMISSION_COLLABORATOR);
+        else
+            throw new Error(ERROR.FAILED_ADD_SUBMISSION_COLLABORATOR);
     }
 
     /**
@@ -923,23 +926,19 @@ class Submission {
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
-        //find if the submission including duplicate collabrator
-        const temp = aSubmission.collaborators.find(c => c._id=== collaboratorID);
-        if (temp) {
-            throw new Error(ERROR.DUPLICATE_SUBMISSION_COLLABORATOR);
-        }
-    
-        aSubmission.collaborators = (aSubmission.collaborators)? aSubmission.collaborators : [];
-        if (aSubmission.collaborators.length === 0) {
+        //find if the submission including the collaborator
+        if (!aSubmission.collaborators || !aSubmission.collaborators.find(c => c.collaboratorID === collaboratorID)) {
             throw new Error(ERROR.INVALID_SUBMISSION_COLLABORATOR);
         }
-        aSubmission.collaborators = aSubmission.collaborators.filter(c=>c.collaboratorID != collaboratorID);  
+        //remove the collaborator from the submission
+        aSubmission.collaborators = aSubmission.collaborators.filter(c=>c.collaboratorID !== collaboratorID);  
         aSubmission.updatedAt = new Date(); 
         const result = await this.submissionCollection.update( aSubmission);
         if (result?.modifiedCount === 1) {
-            return ValidationHandler.success();
+            return aSubmission;
         }
-        throw new Error(ERROR.FAILED_ADD_SUBMISSION_COLLABORATOR);
+        else
+            throw new Error(ERROR.FAILED_REMOVE_SUBMISSION_COLLABORATOR);
     }
 
     #replaceFileNodeProps(aSubmission, configString){

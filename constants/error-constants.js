@@ -132,11 +132,14 @@ const ERROR = {
         CONTENTS: "Data file $item$ not found"
     },
     NO_UPLOADED_FILES: "You are attempting to update files that do not exist in the batch. Please check the file: $item$.",
-    DUPLICATE_SUBMISSION_COLLABORATOR: "Duplicate collaborator found in the submission.",
+    EXISTING_SUBMISSION_COLLABORATOR: "The collaborator exists in the submission already.",
     COLLABORATOR_NOT_EXIST: "collaborator does not exist",
     INVALID_COLLABORATOR_ROLE_SUBMITTER: "Invalid collaborator role for the submitter",
     INVALID_COLLABORATOR_STUDY: "No matched collaborator study.",
     FAILED_ADD_SUBMISSION_COLLABORATOR: "Failed to add submission collaborator",
+    FAILED_REMOVE_SUBMISSION_COLLABORATOR: "Failed to remove submission collaborator",
+    INVALID_SUBMISSION_COLLABORATOR: "Invalid submission collaborator",
+    INVALID_SUBMISSION_STUDY: "Invalid submission, missing studyID",
 }
 
 module.exports = ERROR;

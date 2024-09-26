@@ -662,4 +662,15 @@ type Mutation {
       dataCommons: [String], # Applies to Data Commons POC role only. Empty for other roles.
       studies: [String] #approved study IDs optional. It will be saved into user's study list
     ): User
+
+    addSubmissionCollaborator (
+        submissionID: ID!,
+        collaboratorID: ID!
+    ): Submission
+    
+    removeSubmissionCollaborator (
+        submissionID: ID!,
+        collaboratorID: ID!
+    ): Submission
+    
 }
