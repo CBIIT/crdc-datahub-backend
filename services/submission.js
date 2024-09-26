@@ -1225,7 +1225,8 @@ const releaseSubmissionEmailInfo = async (userInfo, aSubmission, userService, or
         await userService.getUserByID(aSubmission?.submitterID),
         await userService.getPOCs(),
         await organizationService.getOrganizationByID(aSubmission?.organization?._id),
-        await userService.getFederalMonitors(aSubmission?.studyID)
+        await userService.getFederalMonitors(aSubmission?.studyID),
+        await userService.getCurators(aSubmission?.dataCommons)
     ];
 
     const results = await Promise.all(promises);
@@ -1233,8 +1234,9 @@ const releaseSubmissionEmailInfo = async (userInfo, aSubmission, userService, or
     const adminEmails = getUserEmails(results[1] || []);
     const submitterEmails = getUserEmails([results[2] || {}]);
     const fedMonitorEmails = getUserEmails(results[5] || []);
+    const curatorEmails = getUserEmails(results[6] || []);
     // CCs for Submitter, org owner, admins
-    const ccEmails = new Set([...submitterEmails, ...orgOwnerEmails, ...adminEmails, ...fedMonitorEmails]).toArray();
+    const ccEmails = new Set([...submitterEmails, ...orgOwnerEmails, ...adminEmails, ...fedMonitorEmails, ...curatorEmails]).toArray();
     // To POC role users
     const POCs = results[3] || [];
     const aOrganization = results[4] || {};
@@ -1245,13 +1247,15 @@ const inactiveSubmissionEmailInfo = async (aSubmission, userService, organizatio
     const promises = [
         await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
         await organizationService.getOrganizationByID(aSubmission?.organization?._id),
-        await userService.getFederalMonitors(aSubmission?.studyID)
+        await userService.getFederalMonitors(aSubmission?.studyID),
+        await userService.getCurators(aSubmission?.dataCommons)
     ];
     const results = await Promise.all(promises);
     const orgOwnerEmails = getUserEmails(results[0] || []);
     const fedMonitorEmails = getUserEmails(results[2] || []);
     const aOrganization = results[1] || {};
-    const ccEmails = new Set([...orgOwnerEmails, ...fedMonitorEmails]).toArray();
+    const curatorEmails = getUserEmails(results[3] || []);
+    const ccEmails = new Set([...orgOwnerEmails, ...fedMonitorEmails, ...curatorEmails]).toArray();
     return [ccEmails, aOrganization];
 }
 
@@ -1297,8 +1301,8 @@ const sendEmails = {
         await notificationService.submitDataSubmissionNotification(aSubmitter?.email, ccEmails, {
             firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
             }, {
-            idandname: `${aSubmission?.name} (ID: ${aSubmission?._id})`,
-            dataconcierge: `${aSubmission?.conciergeName || 'NA'} at ${aSubmission?.conciergeEmail||'NA'}.`
+                idandname: `${aSubmission?.name} (ID: ${aSubmission?._id})`,
+                dataconcierge: `${aSubmission?.conciergeName || 'NA'} at ${aSubmission?.conciergeEmail||'NA'}.`
             },tier
             
         );
@@ -1348,13 +1352,16 @@ const sendEmails = {
         const promises = [
             await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
             await userService.getUserByID(aSubmission?.submitterID),
-            await userService.getFederalMonitors(aSubmission?.studyID)
+            await userService.getFederalMonitors(aSubmission?.studyID),
+            await userService.getCurators(aSubmission?.dataCommons)
         ];
         const results = await Promise.all(promises);
         const orgOwnerEmails = getUserEmails(results[0] || []);
         const submitterEmails = getUserEmails([results[1]] || []);
         const fedMonitorEmails = getUserEmails(results[2] || []);
-        const ccEmails = new Set([...orgOwnerEmails, ...submitterEmails, ...fedMonitorEmails]).toArray();
+        const curatorEmails = getUserEmails(results[3] || [])?.filter((i) => i !== aCurator?.email);
+
+        const ccEmails = new Set([...orgOwnerEmails, ...submitterEmails, ...fedMonitorEmails, ...curatorEmails]).toArray();
         await notificationsService.withdrawSubmissionNotification(aCurator?.email, ccEmails, {
             firstName: `${aCurator.firstName} ${aCurator?.lastName || ''}`
         }, {
