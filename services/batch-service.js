@@ -10,13 +10,13 @@ const {replaceErrorString} = require("../utility/string-util");
 const LOAD_METADATA = "Load Metadata";
 const OMIT_DCF_PREFIX = 'omit-DCF-prefix';
 class BatchService {
-    constructor(s3Service, batchCollection, sqsLoaderQueue, awsService, prodURL, dataModelInfo) {
+    constructor(s3Service, batchCollection, sqsLoaderQueue, awsService, prodURL, fetchDataModelInfo) {
         this.s3Service = s3Service;
         this.batchCollection = batchCollection;
         this.sqsLoaderQueue = sqsLoaderQueue;
         this.awsService = awsService;
         this.prodURL = prodURL;
-        this.dataModelInfo = dataModelInfo;
+        this.fetchDataModelInfo = fetchDataModelInfo;
     }
 
     async createBatch(params, aSubmission) {
@@ -32,7 +32,8 @@ class BatchService {
             }));
         } else {
             // The prefix "dg.4DFC" added if "omit-dcf-prefix" is null or set to false in the data model
-            const isOmitPrefix = Boolean(this.dataModelInfo?.[aSubmission?.dataCommons]?.[OMIT_DCF_PREFIX]);
+            const dataModelInfo = await this.fetchDataModelInfo();
+            const isOmitPrefix = Boolean(dataModelInfo?.[aSubmission?.dataCommons]?.[OMIT_DCF_PREFIX]);
             params.files.forEach((file) => {
                 if (file.fileName) {
                     newBatch.addDataFile(file.fileName, file.size, this.prodURL, aSubmission?.studyID, isOmitPrefix);

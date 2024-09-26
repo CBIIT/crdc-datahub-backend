@@ -63,9 +63,8 @@ dbConnector.connect().then(async () => {
     const fetchDataModelInfo = async () => {
         return utilityService.fetchJsonFromUrl(config.model_url)
     };
-    const dataModelInfo = await utilityService.fetchJsonFromUrl(config.model_url);
 
-    const batchService = new BatchService(s3Service, batchCollection, config.sqs_loader_queue, awsService, config.prod_url, dataModelInfo);
+    const batchService = new BatchService(s3Service, batchCollection, config.sqs_loader_queue, awsService, config.prod_url, fetchDataModelInfo);
     const institutionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, INSTITUTION_COLLECTION);
     const institutionService = new InstitutionService(institutionCollection);
 
