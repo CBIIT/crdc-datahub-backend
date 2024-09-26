@@ -47,7 +47,7 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, dataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList, validationCollection, sqsLoaderQueue) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList, validationCollection, sqsLoaderQueue) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -56,7 +56,7 @@ class Submission {
         this.notificationService = notificationService;
         this.dataRecordService = dataRecordService;
         this.tier = tier;
-        this.dataModelInfo = dataModelInfo;
+        this.fetchDataModelInfo = fetchDataModelInfo;
         this.awsService = awsService;
         this.metadataQueueName = metadataQueueName;
         this.s3Service = s3Service;
@@ -83,7 +83,8 @@ class Submission {
         if (approvedStudy.controlledAccess && !params.dbGaPID?.trim()?.length) {
             throw new Error(ERROR.MISSING_CREATE_SUBMISSION_DBGAPID);
         }
-        const modelVersion = this.#getModelVersion(this.dataModelInfo, params.dataCommons);
+        const latestDataModel = await this.fetchDataModelInfo();
+        const modelVersion = this.#getModelVersion(latestDataModel, params.dataCommons);
         const newSubmission = DataSubmission.createSubmission(
             params.name, context.userInfo, params.dataCommons, params.studyID, params.dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy);
         const res = await this.submissionCollection.insert(newSubmission);
@@ -731,7 +732,8 @@ class Submission {
         //insert params values into the string
         configString = configString.format(parameters);
         //insert data model file node properties into the string
-        configString = this.#replaceFileNodeProps(aSubmission, configString);
+        const latestDataModel = await this.fetchDataModelInfo();
+        configString = this.#replaceFileNodeProps(aSubmission, configString, latestDataModel);
         //insert token into the string
         configString = await this.#replaceToken(context, configString);
         /** test code: write yaml string to file for verification of output **/
@@ -740,9 +742,9 @@ class Submission {
         return configString;
     }
 
-    #replaceFileNodeProps(aSubmission, configString){
-        const modelFileNodeInfos = Object.values(this.dataModelInfo?.[aSubmission.dataCommons]?.[DATA_MODEL_SEMANTICS]?.[DATA_MODEL_FILE_NODES]);
-        const omit_DCF_prefix = this.dataModelInfo?.[aSubmission.dataCommons]?.['omit-DCF-prefix'];
+    #replaceFileNodeProps(aSubmission, configString, dataModelInfo){
+        const modelFileNodeInfos = Object.values(dataModelInfo?.[aSubmission.dataCommons]?.[DATA_MODEL_SEMANTICS]?.[DATA_MODEL_FILE_NODES]);
+        const omit_DCF_prefix = dataModelInfo?.[aSubmission.dataCommons]?.['omit-DCF-prefix'];
         if (modelFileNodeInfos.length > 0){
             let modelFileNodeInfo = modelFileNodeInfos[0];
             modelFileNodeInfo['omit-DCF-prefix'] = (!omit_DCF_prefix)?false:omit_DCF_prefix;
