@@ -60,6 +60,9 @@ dbConnector.connect().then(async () => {
     const awsService = new AWSService(submissionCollection, userService);
 
     const utilityService = new UtilityService();
+    const fetchDataModelInfo = async () => {
+        return utilityService.fetchJsonFromUrl(config.model_url)
+    };
     const dataModelInfo = await utilityService.fetchJsonFromUrl(config.model_url);
 
     const batchService = new BatchService(s3Service, batchCollection, config.sqs_loader_queue, awsService, config.prod_url, dataModelInfo);
@@ -71,7 +74,7 @@ dbConnector.connect().then(async () => {
     const dataRecordService = new DataRecordService(dataRecordCollection, dataRecordArchiveCollection, config.file_queue, config.metadata_queue, awsService, s3Service);
 
     const validationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, VALIDATION_COLLECTION);
-    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, dataModelInfo, awsService, config.export_queue, s3Service, emailParams, config.dataCommonsList, validationCollection, config.sqs_loader_queue);
+    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, fetchDataModelInfo, awsService, config.export_queue, s3Service, emailParams, config.dataCommonsList, validationCollection, config.sqs_loader_queue);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.tier, institutionService);
 
     const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
