@@ -60,6 +60,8 @@ type ListApplications {
 
 type ListSubmissions {
     total: Int
+    dataCommons: [String],
+    submitterNames: [String],
     submissions: [Submission]
 }
 
@@ -102,6 +104,8 @@ type Submission {
     ORCID: String
     deletingData: Boolean
     archived: Boolean
+    nodeCount: Int
+    collaborators: [Collaborator]
 }
 
 # not being used currently
@@ -468,6 +472,13 @@ type CDE {
     updatedAt: Date
 }
 
+type Collaborator {
+  collaboratorID: ID
+  collaboratorName: String
+  Organization: OrgInfo
+  permission: String # ["Can View", "Can Edit"]
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -495,6 +506,10 @@ type Query {
 
     "Result depends on user's permission"
     listSubmissions(
+        name: String,
+        dbGaPID: String,
+        dataCommons: String,
+        submitterName: String,
         organization: String,
         status: String,
         first: Int = 10,
@@ -601,7 +616,10 @@ type Query {
     retrieveCDEs  (
         CDEInfo: [CDEInput!]!
     ) : [CDE] @public
+
     listPotentialCollaborators(submissionID: String!): [User]
+    
+    collaborators: [Collaborator]
 }
 type Mutation {
     "User initiated operations"

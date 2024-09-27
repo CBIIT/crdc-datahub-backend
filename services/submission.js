@@ -48,7 +48,7 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, dataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList, validationCollection, sqsLoaderQueue) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList, validationCollection, sqsLoaderQueue) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -57,7 +57,7 @@ class Submission {
         this.notificationService = notificationService;
         this.dataRecordService = dataRecordService;
         this.tier = tier;
-        this.dataModelInfo = dataModelInfo;
+        this.fetchDataModelInfo = fetchDataModelInfo;
         this.awsService = awsService;
         this.metadataQueueName = metadataQueueName;
         this.s3Service = s3Service;
@@ -84,7 +84,8 @@ class Submission {
         if (approvedStudy.controlledAccess && !params.dbGaPID?.trim()?.length) {
             throw new Error(ERROR.MISSING_CREATE_SUBMISSION_DBGAPID);
         }
-        const modelVersion = this.#getModelVersion(this.dataModelInfo, params.dataCommons);
+        const latestDataModel = await this.fetchDataModelInfo();
+        const modelVersion = this.#getModelVersion(latestDataModel, params.dataCommons);
         const newSubmission = DataSubmission.createSubmission(
             params.name, context.userInfo, params.dataCommons, params.studyID, params.dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy);
         const res = await this.submissionCollection.insert(newSubmission);
@@ -101,8 +102,12 @@ class Submission {
         if (context.userInfo.role === ROLES.USER) {
             return {submissions: [], total: 0};
         }
-        let pipeline = listConditions(context.userInfo._id, context.userInfo?.role, context.userInfo.dataCommons, context.userInfo?.organization, context.userInfo.studies, params);
-        if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
+        const conditions = listConditions(context.userInfo._id, context.userInfo?.role, context.userInfo.dataCommons, context.userInfo?.organization, context.userInfo.studies, params);
+        const pipeline = [{"$match": conditions}];
+
+        if (params.orderBy) {
+            pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
+        }
 
         const pagination = [];
         if (params.offset) pagination.push({"$skip": params.offset});
@@ -112,13 +117,17 @@ class Submission {
         }
         const promises = [
             await this.submissionCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline),
-            await this.submissionCollection.aggregate(pipeline)
+            await this.submissionCollection.aggregate(pipeline.concat([{ $group: { _id: "$_id" } }, { $count: "count" }])),
+            await this.submissionCollection.distinct("dataCommons", conditions),
+            await this.submissionCollection.distinct("submitterName", conditions)
         ];
         
         return await Promise.all(promises).then(function(results) {
             return {
                 submissions: results[0] || [],
-                total: results[1]?.length || 0
+                total: results[1]?.length > 0 ? results[1][0]?.count : 0,
+                dataCommons: results[2] || [],
+                submitterNames: results[3] || []
             }
         });
     }
@@ -215,44 +224,50 @@ class Submission {
         const aSubmission = await findByID(this.submissionCollection, params._id);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
-        }else{
-            if (aSubmission?.studyID) {
-                // if user role is Federal Monitor, only can access his studies.
-                if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
-                    throw new Error(ERROR.INVALID_ROLE_STUDY);
-                }
-                const submissions = await this.submissionCollection.aggregate([
-                    {"$match": {$and: [
-                        {studyID: aSubmission.studyID},
-                        {status: {$in: [IN_PROGRESS, SUBMITTED, RELEASED, REJECTED, WITHDRAWN]}},
-                        {_id: { $not: { $eq: params._id}}}]}}]);
-                const otherSubmissions = {
-                    [IN_PROGRESS]: [],
-                    [SUBMITTED]: [],
-                    [RELEASED]: [],
-                    [REJECTED]: [],
-                    [WITHDRAWN]: [],
-                };
-                submissions.forEach((submission) => {
-                    otherSubmissions[submission.status].push(submission._id);
-                });
-                aSubmission.otherSubmissions = JSON.stringify(otherSubmissions);
-            }
-            // view condition
-            const conditionDCPOC = (context?.userInfo?.role === ROLES.DC_POC )&& (context?.userInfo?.dataCommons.includes(aSubmission?.dataCommons));
-            const conditionORGOwner = (context?.userInfo?.role === ROLES.ORG_OWNER )&& (context?.userInfo?.organization?.orgID === aSubmission?.organization?._id);
-            const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
-            const conditionAdmin = [ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN, USER.ROLES.FEDERAL_MONITOR].includes(context?.userInfo?.role );
-            //  role based access control
-            if( conditionDCPOC || conditionORGOwner || conditionSubmitter || conditionAdmin){
-                // Store the timestamp for the inactive submission purpose
-                if (conditionSubmitter) {
-                    await this.submissionCollection.update({_id: aSubmission?._id, accessedAt: getCurrentTime(), [INACTIVE_REMINDER]: false, [FINAL_INACTIVE_REMINDER]: false});
-                }
-                return aSubmission
-            }
-            throw new Error(ERROR.INVALID_ROLE);
         }
+
+        if (aSubmission?.studyID) {
+            // if user role is Federal Monitor, only can access his studies.
+            if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
+                throw new Error(ERROR.INVALID_ROLE_STUDY);
+            }
+            const submissions = await this.submissionCollection.aggregate([
+                {"$match": {$and: [
+                    {studyID: aSubmission.studyID},
+                    {status: {$in: [IN_PROGRESS, SUBMITTED, RELEASED, REJECTED, WITHDRAWN]}},
+                    {_id: { $not: { $eq: params._id}}}]}}]);
+            const otherSubmissions = {
+                [IN_PROGRESS]: [],
+                [SUBMITTED]: [],
+                [RELEASED]: [],
+                [REJECTED]: [],
+                [WITHDRAWN]: [],
+            };
+            submissions.forEach((submission) => {
+                otherSubmissions[submission.status].push(submission._id);
+            });
+            aSubmission.otherSubmissions = JSON.stringify(otherSubmissions);
+        }
+
+        // dynamically count records in dataRecords
+        if (!aSubmission?.archived) {
+            aSubmission.nodeCount = await this.dataRecordService.countNodesBySubmissionID(aSubmission?._id);
+        }
+
+        // view condition
+        const conditionDCPOC = (context?.userInfo?.role === ROLES.DC_POC )&& (context?.userInfo?.dataCommons.includes(aSubmission?.dataCommons));
+        const conditionORGOwner = (context?.userInfo?.role === ROLES.ORG_OWNER )&& (context?.userInfo?.organization?.orgID === aSubmission?.organization?._id);
+        const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
+        const conditionAdmin = [ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN, USER.ROLES.FEDERAL_MONITOR].includes(context?.userInfo?.role );
+        //  role based access control
+        if (conditionDCPOC || conditionORGOwner || conditionSubmitter || conditionAdmin) {
+            // Store the timestamp for the inactive submission purpose
+            if (conditionSubmitter) {
+                await this.submissionCollection.update({_id: aSubmission?._id, accessedAt: getCurrentTime(), [INACTIVE_REMINDER]: false, [FINAL_INACTIVE_REMINDER]: false});
+            }
+            return aSubmission
+        }
+        throw new Error(ERROR.INVALID_ROLE);
     }
     /**
      * API: submissionAction
@@ -838,7 +853,8 @@ class Submission {
         //insert params values into the string
         configString = configString.format(parameters);
         //insert data model file node properties into the string
-        configString = this.#replaceFileNodeProps(aSubmission, configString);
+        const latestDataModel = await this.fetchDataModelInfo();
+        configString = this.#replaceFileNodeProps(aSubmission, configString, latestDataModel);
         //insert token into the string
         configString = await this.#replaceToken(context, configString);
         /** test code: write yaml string to file for verification of output **/
@@ -847,9 +863,9 @@ class Submission {
         return configString;
     }
 
-    #replaceFileNodeProps(aSubmission, configString){
-        const modelFileNodeInfos = Object.values(this.dataModelInfo?.[aSubmission.dataCommons]?.[DATA_MODEL_SEMANTICS]?.[DATA_MODEL_FILE_NODES]);
-        const omit_DCF_prefix = this.dataModelInfo?.[aSubmission.dataCommons]?.['omit-DCF-prefix'];
+    #replaceFileNodeProps(aSubmission, configString, dataModelInfo){
+        const modelFileNodeInfos = Object.values(dataModelInfo?.[aSubmission.dataCommons]?.[DATA_MODEL_SEMANTICS]?.[DATA_MODEL_FILE_NODES]);
+        const omit_DCF_prefix = dataModelInfo?.[aSubmission.dataCommons]?.['omit-DCF-prefix'];
         if (modelFileNodeInfos.length > 0){
             let modelFileNodeInfo = modelFileNodeInfos[0];
             modelFileNodeInfo['omit-DCF-prefix'] = (!omit_DCF_prefix)?false:omit_DCF_prefix;
@@ -1071,7 +1087,7 @@ class Submission {
             ]);
         const userRole = context.userInfo?.role;
         let submission = null;
-        if ([ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.CURATOR].includes(userRole)){
+        if ([ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.FEDERAL_MONITOR].includes(userRole)){
             return true;
         }
         if ([ROLES.ORG_OWNER, ROLES.SUBMITTER, ROLES.DC_POC].includes(userRole)){
@@ -1226,7 +1242,8 @@ const releaseSubmissionEmailInfo = async (userInfo, aSubmission, userService, or
         await userService.getUserByID(aSubmission?.submitterID),
         await userService.getPOCs(),
         await organizationService.getOrganizationByID(aSubmission?.organization?._id),
-        await userService.getFederalMonitors(aSubmission?.studyID)
+        await userService.getFederalMonitors(aSubmission?.studyID),
+        await userService.getCurators(aSubmission?.dataCommons)
     ];
 
     const results = await Promise.all(promises);
@@ -1234,8 +1251,9 @@ const releaseSubmissionEmailInfo = async (userInfo, aSubmission, userService, or
     const adminEmails = getUserEmails(results[1] || []);
     const submitterEmails = getUserEmails([results[2] || {}]);
     const fedMonitorEmails = getUserEmails(results[5] || []);
+    const curatorEmails = getUserEmails(results[6] || []);
     // CCs for Submitter, org owner, admins
-    const ccEmails = new Set([...submitterEmails, ...orgOwnerEmails, ...adminEmails, ...fedMonitorEmails]).toArray();
+    const ccEmails = new Set([...submitterEmails, ...orgOwnerEmails, ...adminEmails, ...fedMonitorEmails, ...curatorEmails]).toArray();
     // To POC role users
     const POCs = results[3] || [];
     const aOrganization = results[4] || {};
@@ -1246,13 +1264,15 @@ const inactiveSubmissionEmailInfo = async (aSubmission, userService, organizatio
     const promises = [
         await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
         await organizationService.getOrganizationByID(aSubmission?.organization?._id),
-        await userService.getFederalMonitors(aSubmission?.studyID)
+        await userService.getFederalMonitors(aSubmission?.studyID),
+        await userService.getCurators(aSubmission?.dataCommons)
     ];
     const results = await Promise.all(promises);
     const orgOwnerEmails = getUserEmails(results[0] || []);
     const fedMonitorEmails = getUserEmails(results[2] || []);
     const aOrganization = results[1] || {};
-    const ccEmails = new Set([...orgOwnerEmails, ...fedMonitorEmails]).toArray();
+    const curatorEmails = getUserEmails(results[3] || []);
+    const ccEmails = new Set([...orgOwnerEmails, ...fedMonitorEmails, ...curatorEmails]).toArray();
     return [ccEmails, aOrganization];
 }
 
@@ -1294,12 +1314,12 @@ const sendEmails = {
         const curatorEmails = getUserEmails(results[4] || []);
         // CCs for org owner, Data Curator (or admins if not yet assigned exists)
         const ccEmailsVar = !aOrganization?.conciergeEmail ? adminEmails : curatorEmails;
-        const ccEmails = new Set([...orgOwnerEmails, ...ccEmailsVar, ...fedMonitorEmails, ...curatorEmails]);
+        const ccEmails = new Set([...orgOwnerEmails, ...ccEmailsVar, ...fedMonitorEmails, ...curatorEmails]).toArray();
         await notificationService.submitDataSubmissionNotification(aSubmitter?.email, ccEmails, {
             firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
             }, {
-            idandname: `${aSubmission?.name} (ID: ${aSubmission?._id})`,
-            dataconcierge: `${aSubmission?.conciergeName || 'NA'} at ${aSubmission?.conciergeEmail||'NA'}.`
+                idandname: `${aSubmission?.name} (ID: ${aSubmission?._id})`,
+                dataconcierge: `${aSubmission?.conciergeName || 'NA'} at ${aSubmission?.conciergeEmail||'NA'}.`
             },tier
             
         );
@@ -1349,13 +1369,16 @@ const sendEmails = {
         const promises = [
             await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
             await userService.getUserByID(aSubmission?.submitterID),
-            await userService.getFederalMonitors(aSubmission?.studyID)
+            await userService.getFederalMonitors(aSubmission?.studyID),
+            await userService.getCurators(aSubmission?.dataCommons)
         ];
         const results = await Promise.all(promises);
         const orgOwnerEmails = getUserEmails(results[0] || []);
         const submitterEmails = getUserEmails([results[1]] || []);
         const fedMonitorEmails = getUserEmails(results[2] || []);
-        const ccEmails = new Set([...orgOwnerEmails, ...submitterEmails, ...fedMonitorEmails]).toArray();
+        const curatorEmails = getUserEmails(results[3] || [])?.filter((i) => i !== aCurator?.email);
+
+        const ccEmails = new Set([...orgOwnerEmails, ...submitterEmails, ...fedMonitorEmails, ...curatorEmails]).toArray();
         await notificationsService.withdrawSubmissionNotification(aCurator?.email, ccEmails, {
             firstName: `${aCurator.firstName} ${aCurator?.lastName || ''}`
         }, {
@@ -1486,44 +1509,41 @@ const isPermittedUser = (aTargetUser, userInfo) => {
 
 
 function listConditions(userID, userRole, userDataCommons, userOrganization, userStudies, params){
-    const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
-        REJECTED, WITHDRAWN, DELETED]}};
-    // Default conditions are:
-    // Make sure application has valid status
-    let conditions = {...validApplicationStatus};
-    // Filter on organization and status
-    if (params.organization && params.organization !== ALL_FILTER) {
-        conditions = {...conditions, "organization._id": params.organization};
-    }
-    if (params.status && params.status !== ALL_FILTER) {
-        conditions = {...conditions, status: params.status};
-    }
-    // List all applications if Fed Lead / Admin / Data Concierge / Data Curator
-    const listAllApplicationRoles = [ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.CURATOR];
-    if (listAllApplicationRoles.includes(userRole)) {
-        return [{"$match": conditions}];
-    }
-    // If data commons POC, return all data submissions associated with their data commons
-    if (userRole === ROLES.DC_POC) {
-        conditions = {...conditions, "dataCommons": {$in: userDataCommons}};
-        return [{"$match": conditions}];
-    }
-     // If org owner, add condition to return all data submissions associated with their organization
-    if (userRole === ROLES.ORG_OWNER && userOrganization?.orgName) {
-        conditions = {...conditions, "organization.name": userOrganization.orgName};
-        return [{"$match": conditions}];
-    }
-    // if user role is Federal Monitor, only can access his studies.
-    if (userRole === ROLES.FEDERAL_MONITOR) {
-        conditions = {...conditions, "studyID": {$in: (userStudies || [])}};
-        return [{"$match": conditions}];
-    }
+    const validSubmissionStatus = [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
+        REJECTED, WITHDRAWN, DELETED];
 
-    // Add condition so submitters will only see their data submissions
-    // User's cant make submissions, so they will always have no submissions 
-    // search by applicant's user id
-    conditions = {...conditions, "submitterID": userID};
-    return [{"$match": conditions}];
+    const statusCondition = validSubmissionStatus.includes(params.status) && params.status !== ALL_FILTER ?
+        { status: params.status } : { status: { $in: validSubmissionStatus } };
+    const organizationCondition = params.organization && params.organization !== ALL_FILTER ?
+        { "organization._id": params.organization } : {};
+
+    const nameCondition = params?.name ? {name: { $regex: params.name?.trim(), $options: "i" }} : {};
+    const dbGaPIDCondition = params?.dbGaPID ? {dbGaPID: { $regex: params.dbGaPID?.trim(), $options: "i" }} : {};
+    const dataCommonsCondition = params?.dataCommons ? {dataCommons: params?.dataCommons?.trim()} : {};
+    const submitterNameCondition = params?.submitterName ? {submitterName: params?.submitterName?.trim()} : {};
+
+    const baseConditions = { ...statusCondition, ...organizationCondition, ...nameCondition,
+        ...dbGaPIDCondition, ...dataCommonsCondition, ...submitterNameCondition };
+    return (() => {
+        switch (userRole) {
+            case ROLES.ADMIN:
+            case ROLES.FEDERAL_LEAD:
+            case ROLES.CURATOR:
+                // List all submissions
+                return baseConditions;
+            case ROLES.DC_POC:
+                return {...baseConditions, dataCommons: {$in: userDataCommons}};
+            case ROLES.ORG_OWNER:
+                if (userOrganization?.orgName) {
+                    return {...baseConditions, "organization.name": userOrganization.orgName};
+                }
+                return baseConditions;
+            case ROLES.FEDERAL_MONITOR:
+                return {...baseConditions, studyID: {$in: userStudies || []}};
+            default:
+                return {...baseConditions, submitterID: userID};
+        }
+    })();
 }
 
 function validateCreateSubmissionParams (params, allowedDataCommons, intention, dataType, userInfo) {
@@ -1614,6 +1634,7 @@ class DataSubmission {
         this._id = v4();
         this.name = name;
         this.submitterID = userInfo._id;
+        this.collaborators = [];
         this.submitterName = formatName(userInfo);
         this.organization = {
             _id: userInfo?.organization?.orgID,
