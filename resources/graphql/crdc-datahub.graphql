@@ -617,6 +617,8 @@ type Query {
         CDEInfo: [CDEInput!]!
     ) : [CDE] @public
 
+    listPotentialCollaborators(submissionID: String!): [User]
+    
     collaborators: [Collaborator]
 }
 type Mutation {
