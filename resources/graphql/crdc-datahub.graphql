@@ -470,6 +470,11 @@ type Collaborator {
     permission: String # hard code to "Read Only" (for future use)
 }
 
+input CollaboratorInput {
+   collaboratorID: ID! 
+   permission: String! # ["Can View" and "Can Edit"] 
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -663,15 +668,8 @@ type Mutation {
       studies: [String] #approved study IDs optional. It will be saved into user's study list
     ): User
 
-    addSubmissionCollaborator (
+    editSubmissionCollaborators (
         submissionID: ID!,
-        collaboratorID: ID!, 
-        permission: String! #Valid values in ["Can View", "Can Edit"].
+        collaborators: [CollaboratorInput]
     ): Submission
-    
-    removeSubmissionCollaborator (
-        submissionID: ID!,
-        collaboratorID: ID!
-    ): Submission
-    
 }

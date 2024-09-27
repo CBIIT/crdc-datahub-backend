@@ -848,19 +848,18 @@ class Submission {
     }
 
     /**
-     * API: addSubmissionCollaborator
+     * API: editSubmissionCollaborators
      * @param {*} params 
      * @param {*} context 
      * @returns 
      */
-    async addSubmissionCollaborator(params, context) {
+    async editSubmissionCollaborators(params, context) {
         verifySession(context)
             .verifyInitialized()
             .verifyRole([ ROLES.ORG_OWNER, ROLES.SUBMITTER]);
         const {
             submissionID,
-            collaboratorID, 
-            permission
+            collaborators, 
         } = params;
         const aSubmission = await findByID(this.submissionCollection, submissionID);
         if (!aSubmission) {
@@ -871,39 +870,36 @@ class Submission {
         }
         if (!aSubmission.collaborators) 
             aSubmission.collaborators = [];
-        //find if the submission including existing collaborator
-        if (aSubmission.collaborators.find(c => c._id === collaboratorID)) {
-            throw new Error(ERROR.EXISTING_SUBMISSION_COLLABORATOR);
+        // validate collaborators one by one.
+        for (const collaborator of collaborators) {
+            //find if the submission including existing collaborator
+            if (!aSubmission.collaborators.find(c => c.collaboratorID === collaborator.collaboratorID)) {
+                //find a submitter with the collaborator ID
+                const collaborator = await findByID(this.userService.userCollection, collaboratorID);
+                if (!collaborator) {
+                    throw new Error(ERROR.COLLABORATOR_NOT_EXIST);
+                }
+                if (collaborator.role !== ROLES.SUBMITTER) {
+                    throw new Error(ERROR.INVALID_COLLABORATOR_ROLE_SUBMITTER);
+                }
+                 // check if the collaborator has submissions with the same study.
+                const search_conditions = {
+                    studyID: aSubmission.studyID,
+                    submitterID: collaborator.collaboratorID
+                }
+                const collaborator_subs = await this.submissionCollection.aggregate([{$match: search_conditions}]);
+                if (!collaborator_subs || collaborator_subs.length === 0 )
+                {
+                    throw new Error(ERROR.INVALID_COLLABORATOR_STUDY);
+                }
+                // validate collaborator permission
+                if (!Object.values(COLLABORATOR_PERMISSIONS).includes(collaborator.permission)) {
+                    throw new Error(ERROR.INVALID_COLLABORATOR_PERMISSION);
+                }
+            }
         }
-        //find a submitter with the collaborator ID
-        const collaborator = await findByID(this.userService.userCollection, collaboratorID);
-        if (!collaborator) {
-            throw new Error(ERROR.COLLABORATOR_NOT_EXIST);
-        }
-        if (collaborator.role !== ROLES.SUBMITTER) {
-            throw new Error(ERROR.INVALID_COLLABORATOR_ROLE_SUBMITTER);
-        }
-        // check if the collaborator has submissions with the same study.
-        const search_conditions = {
-            studyID: aSubmission.studyID,
-            submitterID: collaboratorID
-        }
-        const collaborator_subs = await this.submissionCollection.aggregate([{$match: search_conditions}]);
-        if (!collaborator_subs || collaborator_subs.length === 0 )
-        {
-            throw new Error(ERROR.INVALID_COLLABORATOR_STUDY);
-        }
-        // validate collaborator permission
-        if (!Object.values(COLLABORATOR_PERMISSIONS).includes(permission)) {
-            throw new Error(ERROR.INVALID_COLLABORATOR_PERMISSION);
-        }
-        const new_collaborator = {
-            collaboratorID: collaboratorID,
-            collaboratorName: collaborator.firstName + " " + collaborator.lastName,
-            Organization: collaborator.organization,
-            permission: permission
-        }
-        aSubmission.collaborators.push(new_collaborator);  
+        // if passed validation
+        aSubmission.collaborators = collaborators;  
         aSubmission.updatedAt = new Date(); 
         const result = await this.submissionCollection.update( aSubmission);
         if (result?.modifiedCount === 1) {

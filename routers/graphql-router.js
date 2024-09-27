@@ -134,8 +134,7 @@ dbConnector.connect().then(async () => {
         deleteDataRecords: submissionService.deleteDataRecords.bind(submissionService),
         getDashboardURL: dashboardService.getDashboardURL.bind(dashboardService),
         retrieveCDEs: cdeService.getCDEs.bind(cdeService),
-        addSubmissionCollaborator: submissionService.addSubmissionCollaborator.bind(submissionService),
-        removeSubmissionCollaborator: submissionService.removeSubmissionCollaborator.bind(submissionService)
+        editSubmissionCollaborators: submissionService.editSubmissionCollaborators.bind(submissionService),
     };
 });
 
