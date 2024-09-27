@@ -126,8 +126,8 @@ class ApprovedStudiesService {
         // set matches
         let matches = {};
         if (study)
-            matches.$or = [{studyName: {$regex: study}}, {studyAbbreviation: {$regex: study}}];
-        if (!controlledAccess) {
+            matches.$or = [{studyName: {$regex: study, $options: 'i'}}, {studyAbbreviation: {$regex: study, $options: 'i'}}];
+        if (controlledAccess) {
             if (!CONTROLLED_ACCESS_OPTIONS.includes(controlledAccess)) {
                 throw new Error(ERROR.INVALID_CONTROLLED_ACCESS);
             }
@@ -138,7 +138,7 @@ class ApprovedStudiesService {
         }
        
         if (dbGaPID) {
-            matches.dbGaPID = dbGaPID;
+            matches.dbGaPID = {$regex: dbGaPID, $options: 'i'};
         }
         pipelines.push({$match: matches});
         // set sort
