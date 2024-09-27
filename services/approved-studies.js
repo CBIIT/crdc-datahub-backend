@@ -127,7 +127,7 @@ class ApprovedStudiesService {
         let matches = {};
         if (study)
             matches.$or = [{studyName: {$regex: study}}, {studyAbbreviation: {$regex: study}}];
-        if (!controlledAccess) {
+        if (controlledAccess) {
             if (!CONTROLLED_ACCESS_OPTIONS.includes(controlledAccess)) {
                 throw new Error(ERROR.INVALID_CONTROLLED_ACCESS);
             }
@@ -138,7 +138,7 @@ class ApprovedStudiesService {
         }
        
         if (dbGaPID) {
-            matches.dbGaPID = dbGaPID;
+            matches.dbGaPID = {$regex: dbGaPID};
         }
         pipelines.push({$match: matches});
         // set sort

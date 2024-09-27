@@ -501,7 +501,7 @@ type Query {
         first: Int = 10, #number of records to be returned, return all records if -1 is sent (also default value)
         offset: Int = 0, #number of records to be skipped before returning data
         orderBy: String = "studyName", #property name to be used for sorting 
-        sortDirection: String = "DESC" #["DESC", "ASC"]
+        sortDirection: String = "ASC" #["DESC", "ASC"]
     ): ApprovedStudyList
 
     "Result depends on user's permission"
