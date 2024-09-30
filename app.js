@@ -108,8 +108,10 @@ cronJob.schedule(config.schedule_job, async () => {
         await runDeactivateInactiveUsers(userService, notificationsService);
         console.log("Running a scheduled background task to remind inactive application at " + getCurrentTime());
         await dataInterface.remindApplicationSubmission();
-        console.log("Running a scheduled job to delete inactive data submission and related data ann files at " + getCurrentTime());
         const subInterface = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, null, null, null, null, s3Service )
+        console.log("Running a scheduled background task to remind inactive submission at " + getCurrentTime());
+        await submissionService.remindInactiveSubmission();
+        console.log("Running a scheduled job to delete inactive data submission and related data ann files at " + getCurrentTime());
         await subInterface.deleteInactiveSubmissions()
         await dbConnector.disconnect();
     });
