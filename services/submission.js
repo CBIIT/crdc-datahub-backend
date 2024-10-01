@@ -565,7 +565,9 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
         const userInfo = context.userInfo;
-        const isPermitted = (this.userService.isAdmin(userInfo.role) || userInfo.role === ROLES.CURATOR) 
+        const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
+        const isCollaborator = collaboratorUserIDs.includes(userInfo._id);
+        const isPermitted = (this.userService.isAdmin(userInfo.role) || userInfo.role === ROLES.CURATOR || isCollaborator)
         if (!isPermitted) {
             throw new Error(ERROR.INVALID_EXPORT_METADATA);
         }
@@ -1053,16 +1055,33 @@ class Submission {
             .filter(u=> u._id !== aSubmission?.submitterID);
     }
 
+    async verifySubmitter(submissionID, context) {
+        const aSubmission = await findByID(this.submissionCollection, submissionID);
+        if (!aSubmission) {
+            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+        }
+
+        const userInfo = context?.userInfo;
+        const orgOwners = await this.userService.getOrgOwnerByOrgName(aSubmission?.organization?.name) || [];
+        const isOrgOwners = orgOwners.some((aUser) => isPermittedUser(aUser, userInfo));
+        const isSubmitter = aSubmission?.submitterID === userInfo?._id;
+        const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
+        const isCollaborator = collaboratorUserIDs.includes(userInfo?._id);
+
+        const isPermitted = isOrgOwners || isSubmitter || isCollaborator;
+        if (!isPermitted) {
+            throw new Error(`${ERROR.INVALID_SUBMITTER}, ${submissionID}!`)
+        }
+    }
+
     async #isValidPermission(userInfo, aSubmission) {
-        const promises = [
-            await this.userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
-            await this.userService.getUserByID(aSubmission?.submitterID)
-        ];
-        const results = await Promise.all(promises);
-        const isOrgOwners = (results[0] || []).some((aUser) => isPermittedUser(aUser, userInfo));
-        const isSubmitter = isPermittedUser(results[1], userInfo);
+        const orgOwners = await this.userService.getOrgOwnerByOrgName(aSubmission?.organization?.name) || [];
+        const isOrgOwners = orgOwners.some((aUser) => isPermittedUser(aUser, userInfo));
+        const isSubmitter = aSubmission?.submitterID === userInfo?._id;
         const isDataCurator = ROLES.CURATOR === userInfo?.role;
-        return this.userService.isAdmin(userInfo?.role) || isOrgOwners || isSubmitter || isDataCurator
+        const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
+        const isCollaborator = collaboratorUserIDs.includes(userInfo?._id);
+        return this.userService.isAdmin(userInfo?.role) || isOrgOwners || isSubmitter || isDataCurator || isCollaborator;
     }
 
     async #requestDeleteDataRecords(message, queueName, deDuplicationId, submissionID) {
@@ -1491,8 +1510,10 @@ const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
     if (!aSubmission) {
         throw new Error(ERROR.SUBMISSION_NOT_EXIST);
     }
-    const aUser = await userService.getUserByID(aSubmission?.submitterID);
-    if (isPermittedUser(aUser, userInfo)) {
+    const isSubmitter = aSubmission?.submitterID === userInfo?._id;
+    const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
+    const isCollaborator = collaboratorUserIDs.includes(userInfo?._id);
+    if (isSubmitter || isCollaborator) {
         return;
     }
     // verify submission's organization owner by an organization name
