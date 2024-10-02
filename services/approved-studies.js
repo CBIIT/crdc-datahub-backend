@@ -35,6 +35,48 @@ class ApprovedStudiesService {
     }
 
     /**
+     * Get an Approved Study by ID API Interface.
+     * 
+     * @api
+     * @note This is an ADMIN only operation.
+     * @param {{ _id: string }} params Endpoint parameters
+     * @param {{ cookie: Object, userInfo: Object }} context the request context
+     * @returns {Promise<Object>} The requested ApprovedStudy
+     * @throws {Error} If the study is not found
+     */
+    async getApprovedStudyAPI(params, context) {
+        verifySession(context)
+          .verifyInitialized()
+          .verifyRole([USER.ROLES.ADMIN]);
+
+        return this.getApprovedStudy(params);
+    }
+
+
+    /**
+     * Fetch an approved study by ID.
+     * 
+     * @note This does not perform any RBAC checks. 
+     * @see {@link getApprovedStudyAPI} for the API interface.
+     * @param {{ _id: string }} params The endpoint parameters
+     * @returns {Promise<Object>} The requested ApprovedStudy
+     * @throws {Error} If the study is not found or the ID is invalid
+     */
+    async getApprovedStudy({ _id }) {
+        if (!_id || typeof _id !== "string") {
+            throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
+        }
+
+        const study = await this.approvedStudiesCollection.find(_id);
+        if (!study || !study.length) {
+            throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
+        }
+
+        return study[0];
+    }
+
+
+    /**
      * List Approved Studies API Interface.
      *
      * Note:
