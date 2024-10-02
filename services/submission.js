@@ -207,6 +207,11 @@ class Submission {
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
+
+        if (!this.#isViewablePermission(context, aSubmission)) {
+            throw new Error(ERROR.INVALID_ROLE);
+        }
+
         // if user role is Federal Monitor, only can access his studies.
         if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
             throw new Error(ERROR.INVALID_ROLE_STUDY);
@@ -251,15 +256,8 @@ class Submission {
             aSubmission.nodeCount = await this.dataRecordService.countNodesBySubmissionID(aSubmission?._id);
         }
 
-        // view condition
-        const collaboratorIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getViewableCollaboratorIDs();
-        const conditionCollaborator = collaboratorIDs.includes(context?.userInfo?._id);
-        const conditionDCPOC = (context?.userInfo?.role === ROLES.DC_POC)&& (context?.userInfo?.dataCommons.includes(aSubmission?.dataCommons));
-        const conditionORGOwner = (context?.userInfo?.role === ROLES.ORG_OWNER )&& (context?.userInfo?.organization?.orgID === aSubmission?.organization?._id);
         const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
-        const conditionAdmin = [ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN, USER.ROLES.FEDERAL_MONITOR].includes(context?.userInfo?.role);
-        //  role based access control
-        if (conditionDCPOC || conditionORGOwner || conditionSubmitter || conditionAdmin || conditionCollaborator) {
+        if (this.#isViewablePermission(context, aSubmission)) {
             // Store the timestamp for the inactive submission purpose
             if (conditionSubmitter) {
                 await this.submissionCollection.update({_id: aSubmission?._id, accessedAt: getCurrentTime(), [INACTIVE_REMINDER]: false, [FINAL_INACTIVE_REMINDER]: false});
@@ -268,6 +266,17 @@ class Submission {
         }
         throw new Error(ERROR.INVALID_ROLE);
     }
+
+    #isViewablePermission(context, aSubmission) {
+        const collaboratorIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getViewableCollaboratorIDs();
+        const conditionCollaborator = collaboratorIDs.includes(context?.userInfo?._id);
+        const conditionDCPOC = (context?.userInfo?.role === ROLES.DC_POC)&& (context?.userInfo?.dataCommons.includes(aSubmission?.dataCommons));
+        const conditionORGOwner = (context?.userInfo?.role === ROLES.ORG_OWNER) && (context?.userInfo?.organization?.orgID === aSubmission?.organization?._id);
+        const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
+        const conditionAdmin = [ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN, USER.ROLES.FEDERAL_MONITOR].includes(context?.userInfo?.role);
+        return conditionDCPOC || conditionORGOwner || conditionSubmitter || conditionAdmin || conditionCollaborator;
+    }
+
     /**
      * API: submissionAction
      * @param {*} params 
@@ -611,11 +620,19 @@ class Submission {
     }
 
     async listSubmissionNodeTypes(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.DC_POC, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN, ROLES.FEDERAL_MONITOR]);
         const submissionID = params?._id;
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
+
+        if (!this.#isViewablePermission(context, aSubmission)) {
+            throw new Error(ERROR.INVALID_ROLE);
+        }
+
         // if user role is Federal Monitor, only can access his studies.
         if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
             throw new Error(ERROR.INVALID_ROLE_STUDY);
@@ -633,7 +650,8 @@ class Submission {
      */
     async listSubmissionNodes(params, context) {
         verifySession(context)
-            .verifyInitialized();
+            .verifyInitialized()
+            .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.DC_POC, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN, ROLES.FEDERAL_MONITOR]);
         const {
             submissionID, 
             nodeType, 
@@ -648,6 +666,11 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
+
+        if (this.#isViewablePermission(context, aSubmission)) {
+            throw new Error(ERROR.INVALID_ROLE);
+        }
+
         // if user role is Federal Monitor, only can access his studies.
         if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
             throw new Error(ERROR.INVALID_ROLE_STUDY);
@@ -795,11 +818,18 @@ class Submission {
      */
     async getNodeDetail(params, context){
         verifySession(context)
-            .verifyInitialized();
+            .verifyInitialized()
+            .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.DC_POC, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN, ROLES.FEDERAL_MONITOR]);
+
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
+
+        if (!this.#isViewablePermission(context, aSubmission)) {
+            throw new Error(ERROR.INVALID_ROLE);
+        }
+
          // if user role is Federal Monitor, only can access his studies.
          if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
             throw new Error(ERROR.INVALID_ROLE_STUDY);
@@ -814,11 +844,17 @@ class Submission {
      */
     async getRelatedNodes(params, context){
         verifySession(context)
-            .verifyInitialized();
+            .verifyInitialized()
+            .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.DC_POC, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN, ROLES.FEDERAL_MONITOR]);
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
+
+        if (!this.#isViewablePermission(context, aSubmission)) {
+            throw new Error(ERROR.INVALID_ROLE);
+        }
+
         // if user role is Federal Monitor, only can access his studies.
         if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
             throw new Error(ERROR.INVALID_ROLE_STUDY);
