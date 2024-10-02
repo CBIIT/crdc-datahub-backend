@@ -103,6 +103,7 @@ dbConnector.connect().then(async () => {
         listApprovedStudies: approvedStudiesService.listApprovedStudiesAPI.bind(approvedStudiesService),
         createApprovedStudy: approvedStudiesService.addApprovedStudyAPI.bind(approvedStudiesService),
         updateApprovedStudy: approvedStudiesService.editApprovedStudyAPI.bind(approvedStudiesService),
+        getApprovedStudy: approvedStudiesService.getApprovedStudyAPI.bind(approvedStudiesService),
         listApprovedStudiesOfMyOrganization: approvedStudiesService.listApprovedStudiesOfMyOrganizationAPI.bind(approvedStudiesService),
         createBatch: submissionService.createBatch.bind(submissionService),
         updateBatch: submissionService.updateBatch.bind(submissionService),

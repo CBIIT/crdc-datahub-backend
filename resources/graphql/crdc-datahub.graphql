@@ -503,6 +503,8 @@ type Query {
         orderBy: String = "studyName", #property name to be used for sorting 
         sortDirection: String = "ASC" #["DESC", "ASC"]
     ): ApprovedStudyList
+    
+    getApprovedStudy(_id: ID!): ApprovedStudy
 
     "Result depends on user's permission"
     listSubmissions(
