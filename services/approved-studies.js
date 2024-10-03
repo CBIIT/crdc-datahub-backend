@@ -75,26 +75,6 @@ class ApprovedStudiesService {
         return study[0];
     }
 
-
-    /**
-     * List Approved Studies API Interface.
-     *
-     * Note:
-     * - This is an ADMIN only operation.
-     *
-     * @api
-     * @param {Object} params Endpoint parameters
-     * @param {{ cookie: Object, userInfo: Object }} context request context
-     * @returns {Promise<Object[]>} An array of ApprovedStudies
-     */
-    async listApprovedStudiesAPI(params, context) {
-        verifySession(context)
-          .verifyInitialized()
-          .verifyRole([USER.ROLES.ADMIN]);
-
-        return this.listApprovedStudies({});
-    }
-
     /**
      * List Approved Studies of My Org API Interface.
      *
@@ -123,9 +103,8 @@ class ApprovedStudiesService {
         }
 
         const filters = {
-            // NOTE: `studyAbbreviation` is a unique constraint
-            studyAbbreviation: {
-                $in: organization.studies?.filter((s) => !!s.studyAbbreviation).map((s) => s.studyAbbreviation)
+            _id: {
+                $in: organization.studies?.filter((s) => s?._id).map((s) => s?._id)
             }
         };
         return this.listApprovedStudies(filters);
@@ -145,6 +124,8 @@ class ApprovedStudiesService {
     /**
      * List Approved Studies API Interface
      *
+     * - This is an ADMIN only operation.
+     *
      * @api
      * @param {Object} params Endpoint parameters
      * @param {{ cookie: Object, userInfo: Object }} context request context
@@ -152,7 +133,8 @@ class ApprovedStudiesService {
      */
     async listApprovedStudiesAPI(params, context) {
         verifySession(context)
-          .verifyInitialized();
+            .verifyInitialized()
+            .verifyRole([USER.ROLES.ADMIN]);
         
         const {
             controlledAccess,
