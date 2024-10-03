@@ -130,8 +130,8 @@ class Submission {
             pagination.push({"$limit": params.first});
         }
         const promises = [
-            await this.submissionCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline),
-            await this.submissionCollection.aggregate(pipeline.concat([{ $group: { _id: "$_id" } }, { $count: "count" }])),
+            await this.submissionCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline, { allowDiskUse: true }),
+            await this.submissionCollection.aggregate(pipeline.concat([{ $group: { _id: "$_id" } }, { $count: "count" }]), { allowDiskUse: true }),
             await this.submissionCollection.distinct("dataCommons", conditions),
             await this.submissionCollection.distinct("submitterName", conditions)
         ];
