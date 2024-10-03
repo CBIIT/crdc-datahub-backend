@@ -1,5 +1,5 @@
 const {isCaseInsensitiveEqual, isElementInArray, isElementInArrayCaseInsensitive, parseArrToStr,
-    replaceMessageVariables, extractAndJoinFields
+    replaceMessageVariables, extractAndJoinFields, replaceErrorString
 } = require("../../utility/string-util");
 const {parseJsonString} = require("../../crdc-datahub-database-drivers/utility/string-utility");
 describe('Util Test', () => {
@@ -168,5 +168,19 @@ describe('Util Test', () => {
     test('Should handle parsing of null', () => {
         const jsonString = 'null';
         expect(parseJsonString(jsonString)).toBeNull();
+    });
+
+    test('replaces all occurrences of $item$ with the specified replacement text', () => {
+        const originalString = "This is a duplicate study name. The $item$ study already exists in the system. Another $item$ is found.";
+        const replacement = "'replaced name'";
+        const expectedString = `This is a duplicate study name. The ${replacement} study already exists in the system. Another ${replacement} is found.`;
+        const result = replaceErrorString(originalString, replacement);
+        expect(result).toBe(expectedString);
+    });
+
+    test('null or undefined', () => {
+        const originalString = "This is a duplicate study name. The $item$ study already exists in the system. Another $item$ is found.";
+        const result = replaceErrorString(originalString);
+        expect(result).toBe(originalString);
     });
 });

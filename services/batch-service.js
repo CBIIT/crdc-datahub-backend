@@ -1,38 +1,40 @@
 const {Batch} = require("../domain/batch");
 const {BATCH, FILE} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const ERROR = require("../constants/error-constants");
-const {NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED, REJECTED, WITHDRAWN, VALIDATION} = require("../constants/submission-constants");
+const {NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED, REJECTED, WITHDRAWN, VALIDATION, INTENTION} = require("../constants/submission-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {SUBMISSIONS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const LOAD_METADATA = "Load Metadata";
+const OMIT_DCF_PREFIX = 'omit-DCF-prefix';
 class BatchService {
-    constructor(s3Service, batchCollection, bucketName, sqsLoaderQueue, awsService) {
+    constructor(s3Service, batchCollection, sqsLoaderQueue, awsService, prodURL, dataModelInfo) {
         this.s3Service = s3Service;
         this.batchCollection = batchCollection;
-        this.bucketName = bucketName;
         this.sqsLoaderQueue = sqsLoaderQueue;
         this.awsService = awsService;
+        this.prodURL = prodURL;
+        this.dataModelInfo = dataModelInfo;
     }
 
-    async createBatch(params, rootPath) {
-        const prefix = createPrefix(params, rootPath);
-        const metadataIntention = params?.metadataIntention && params.type === BATCH.TYPE.METADATA ? params.metadataIntention : null;
-        await this.#getBatchDisplayID(params.submissionID);
+    async createBatch(params, aSubmission) {
+        const prefix = createPrefix(params, aSubmission?.rootPath);
         const newDisplayID = await this.#getBatchDisplayID(params.submissionID);
-        const newBatch = Batch.createNewBatch(params.submissionID, newDisplayID, this.bucketName, prefix, params.type.toLowerCase(), metadataIntention);
+        const newBatch = Batch.createNewBatch(params.submissionID, newDisplayID, aSubmission?.bucketName, prefix, params.type.toLowerCase());
         if (BATCH.TYPE.METADATA === params.type.toLowerCase()) {
             await Promise.all(params.files.map(async (file) => {
                 if (file.fileName) {
-                    const signedURL = await this.s3Service.createPreSignedURL(this.bucketName, newBatch.filePrefix, file.fileName);
+                    const signedURL = await this.s3Service.createPreSignedURL(aSubmission?.bucketName, newBatch.filePrefix, file.fileName);
                     newBatch.addMetadataFile(file.fileName, file.size, signedURL);
                 }
             }));
         } else {
+            // The prefix "dg.4DFC" added if "omit-dcf-prefix" is null or set to false in the data model
+            const isOmitPrefix = Boolean(this.dataModelInfo?.[aSubmission?.dataCommons]?.[OMIT_DCF_PREFIX]);
             params.files.forEach((file) => {
                 if (file.fileName) {
-                    newBatch.addDataFile(file.fileName, file.size);
+                    newBatch.addDataFile(file.fileName, file.size, this.prodURL, aSubmission?.studyID, isOmitPrefix);
                 }
             });
         }
@@ -108,6 +110,10 @@ class BatchService {
             }
         });
     }
+    
+    async deleteBatchByFilter(filter) {
+        return await this.batchCollection.deleteMany(filter);
+    }
 
     async findByID(id) {
         const aBatch = await this.batchCollection.find(id);
@@ -119,6 +125,25 @@ class BatchService {
         const batches = await this.batchCollection.aggregate(pipeline);
         const totalDocs = batches.pop();
         return totalDocs?.total + 1 || 1;
+    }
+    /**
+     * getLastFileBatchID
+     * @param {*} submissionID 
+     * @param {*} fileName 
+     * @returns int
+     */
+    async getLastFileBatchID(submissionID, fileName){
+        const pipeline = [
+            {$match: {submissionID: submissionID, type: "data file", "files.fileName": fileName, status: "Uploaded"}},
+            {$project: {
+                _id: 0,
+                batchID: "$displayID"
+            }},
+            {$sort: {displayID: -1}},
+            {$limit: 1}
+        ];
+        const batches = await this.batchCollection.aggregate(pipeline);
+        return (batches && batches.length > 0)? batches[0].batchID : null;
     }
 }
 const listBatchConditions = (userID, userRole, aUserOrganization, submissionID, userDataCommonsNames) => {

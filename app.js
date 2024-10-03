@@ -11,9 +11,12 @@ const statusRouter = require("./routers/status-endpoints-router");
 const graphqlRouter = require("./routers/graphql-router");
 const {MongoDBCollection} = require("./crdc-datahub-database-drivers/mongodb-collection");
 const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, LOG_COLLECTION, APPROVED_STUDIES_COLLECTION,
-    ORGANIZATION_COLLECTION, SUBMISSIONS_COLLECTION
+    ORGANIZATION_COLLECTION, SUBMISSIONS_COLLECTION, BATCH_COLLECTION, DATA_RECORDS_COLLECTION, VALIDATION_COLLECTION
 } = require("./crdc-datahub-database-drivers/database-constants");
 const {Application} = require("./services/application");
+const {Submission} = require("./services/submission");
+const {DataRecordService} = require("./services/data-record-service");
+const {S3Service} = require("./crdc-datahub-database-drivers/services/s3-service");
 const {MongoQueries} = require("./crdc-datahub-database-drivers/mongo-queries");
 const {DatabaseConnector} = require("./crdc-datahub-database-drivers/database-connector");
 const {getCurrentTime, subtractDaysFromNow} = require("./crdc-datahub-database-drivers/utility/time-utility");
@@ -25,6 +28,10 @@ const {ApprovedStudiesService} = require("./services/approved-studies");
 const {USER} = require("./crdc-datahub-database-drivers/constants/user-constants");
 const {Organization} = require("./crdc-datahub-database-drivers/services/organization");
 const {LOGIN, REACTIVATE_USER} = require("./crdc-datahub-database-drivers/constants/event-constants");
+const {BatchService} = require("./services/batch-service");
+const {AWSService} = require("./services/aws-request");
+const {UtilityService} = require("./services/utility");
+const authenticationMiddleware = require("./middleware/authentication-middleware");
 // print environment variables to log
 console.info(config);
 
@@ -49,6 +56,16 @@ app.use("/", statusRouter);
 // create session
 app.use(createSession(config.session_secret, config.session_timeout, config.mongo_db_connection_string));
 
+// authentication middleware
+app.use(async (req, res, next) => {
+    try{
+        await authenticationMiddleware(req, res, next);
+    }
+    catch(error){
+        next(error);
+    }
+});
+
 // add graphql endpoint
 app.use("/api/graphql", graphqlRouter);
 
@@ -61,7 +78,7 @@ cronJob.schedule(config.schedule_job, async () => {
         const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
         const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
         const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days,
-            submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk};
+            submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk, remindSubmissionDay: config.inactive_submission_days_notify};
         const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
         const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
         const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection);
@@ -71,13 +88,29 @@ cronJob.schedule(config.schedule_job, async () => {
         const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
         const userService = new User(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.tier);
 
-        const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.tier);
+        const s3Service = new S3Service();
+        const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
+        const awsService = new AWSService(submissionCollection, userService);
+        const batchService = new BatchService(s3Service, batchCollection, config.sqs_loader_queue, awsService);
+
+        const dataRecordCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_COLLECTION);
+        const dataRecordService = new DataRecordService(dataRecordCollection, config.file_queue, config.metadata_queue, awsService);
+
+        const utilityService = new UtilityService();
+        const dataModelInfo = await utilityService.fetchJsonFromUrl(config.model_url);
+        const validationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, VALIDATION_COLLECTION);
+        const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, dataModelInfo, awsService, config.export_queue, s3Service, emailParams, config.dataCommonsList, validationCollection);
+        const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.tier, emailParams);
+
         console.log("Running a scheduled background task to delete inactive application at " + getCurrentTime());
         await dataInterface.deleteInactiveApplications();
         console.log("Running a scheduled job to disable user(s) because of no activities at " + getCurrentTime());
         await runDeactivateInactiveUsers(userService, notificationsService);
         console.log("Running a scheduled background task to remind inactive application at " + getCurrentTime());
         await dataInterface.remindApplicationSubmission();
+        console.log("Running a scheduled job to delete inactive data submission and related data ann files at " + getCurrentTime());
+        const subInterface = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, null, null, null, null, s3Service )
+        await subInterface.deleteInactiveSubmissions()
         await dbConnector.disconnect();
     });
 });

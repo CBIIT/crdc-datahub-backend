@@ -1,3 +1,5 @@
+
+
 function isCaseInsensitiveEqual(source, target) {
     if (!target || !source) return false;
     return source.toLowerCase() === target.toLowerCase();
@@ -12,6 +14,11 @@ function isElementInArrayCaseInsensitive(array, target) {
     if (!array || !target) return false;
     return array.some((element) => element.toLowerCase() === target.toLowerCase());
 }
+
+const replaceErrorString = (original, replacement, pattern = /\$item\$/g) => {
+   return (!original || !replacement) ? original : original.replace(pattern, replacement);
+}
+
 
 const getUniqueArr = (arr) => {return (arr) ? arr.filter((v, i, a) => a.indexOf(v) === i) : []};
 
@@ -31,7 +38,8 @@ const isUndefined = (p) => {
 const replaceMessageVariables = (input, messageVariables) => {
     for (let key in messageVariables){
         // message variable must start with $
-        input = input.replace(`$${key}`, messageVariables[key]);
+        const regex = new RegExp(`\\$${key}`, 'g');
+        input = input.replace(regex, messageVariables[key]);
     }
     return input;
 }
@@ -79,5 +87,6 @@ module.exports = {
     parseArrToStr,
     replaceMessageVariables,
     extractAndJoinFields,
-    toPascalCase
+    toPascalCase,
+    replaceErrorString
 }

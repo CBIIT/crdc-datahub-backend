@@ -12,7 +12,9 @@ type Application {
     organization: Organization
     # sort fields
     programName: String
+    studyName: String
     studyAbbreviation: String
+    controlledAccess: Boolean
     # questionnaire data as JSON string
     questionnaireData: String
 }
@@ -29,6 +31,8 @@ input AppInput {
     programName: String
     studyAbbreviation: String
     questionnaireData: String
+    studyName: String!
+    controlledAccess: Boolean!
 }
 
 type Applicant {
@@ -64,9 +68,10 @@ type Submission {
     dbGaPID: String # aka. phs number
     bucketName: String # populated from organization
     rootPath: String # append "/<submission ID>" to organization's rootPath
-    status: String # [New, In Progress, Submitted, Released, Canceled, Transferred, Completed, Archived]
+    status: String # [New, In Progress, Submitted, Released, Canceled, Transferred, Completed, Archived, Deleted]
     metadataValidationStatus: String # [New, Validating, Passed, Error, Warning], new successfully uploaded batch will set it to "New"
     fileValidationStatus: String # [New, Validating, Passed, Error, Warning], new successfully uploaded batch will set it to "New"
+    crossSubmissionStatus: String # [New, Validating, Passed, Error, Warning]
     fileErrors: [QCResult] # holds submission level file errors, e.g., extra files in S3 folder
     fileWarnings: [QCResult] # holds submission level file warnings
     history: [Event]
@@ -75,7 +80,28 @@ type Submission {
     errors: [ErrorMessage] # store validation errors
     createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
     updatedAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
-    
+    intention: String # [New/Update, Delete]
+    otherSubmissions: String
+    dataType: String # [Metadata Only, Metadata and Data Files]
+    accessedAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    inactiveReminder: Boolean
+    validationStarted: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    validationEnded: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    validationType: [String] # String [metadata, file, cross-submission, data file]
+    validationScope: String
+    studyID: String
+    controlledAccess: Boolean
+    deletingData: Boolean
+}
+
+# not being used currently
+type Validation {
+    _id: ID
+    submissionID: String
+    type: [String]
+    scope: String
+    started:  Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    status: String
 }
 
 type Batch {
@@ -83,7 +109,6 @@ type Batch {
     submissionID: ID # parent
     displayID: Int
     type: String # [metadata, file]
-    metadataIntention: String # [New, Update, Delete], Update is meant for "Update or insert", metadata only! file batches are always treated as Update
     fileCount: Int # calculated by BE
     files: [FileInfo]
     status: String # [Uploading, Uploaded, Upload Failed, Loaded, Rejected] Loaded and Rejected are for metadata batch only
@@ -114,7 +139,6 @@ type NewBatch {
     bucketName: String # S3 bucket of the submission, for file batch / CLI use
     filePrefix: String # prefix/path within S3 bucket, for file batch / CLI use
     type: String # [metadata, file]
-    metadataIntention: String # [New, Update, Delete], Update is meant for "Update or insert", metadata only! file batches are always treated as Update
     fileCount: Int
     files: [FileURL] # only available for metadata batch
     status: String # [Uploading, Uploaded, Upload Failed, Loaded, Rejected]
@@ -123,6 +147,7 @@ type NewBatch {
 }
 
 type FileURL {
+    fileID: String
     fileName: String
     signedURL: String
 }
@@ -151,6 +176,7 @@ type ApprovedStudy {
     studyName: String
     studyAbbreviation: String # must be unique
     dbGaPID: String # aka. phs number
+    controlledAccess: Boolean
 }
 
 type ListLogFiles {
@@ -173,7 +199,6 @@ type User {
   email: String
   organization: OrgInfo # Organization
   dataCommons: [String] # Applies to Data Commons POC role only. Empty for other roles.
-  tokens: [String]
   createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
   updateAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
 }
@@ -193,6 +218,7 @@ type OrgInfo {
   orgName: String
 #  orgRole: String # [Owner, Submitter, Concierge], Concierge can only be assign to a Curator
 #  orgStatus: String # [Active, Inactive, Disabled]
+  status: String
   createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
   updateAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
 }
@@ -222,8 +248,7 @@ input UpdateUserInput {
 }
 
 input ApprovedStudyInput {
-  studyName: String!
-  studyAbbreviation: String!
+  studyID: String!
 }
 
 type SubmissionStats {
@@ -259,9 +284,35 @@ type QCResult{
     warnings: [ErrorMessage]
 }
 
+type CrossValidationResults {
+    total: Int
+    results: [CrossValidationResult]
+}
+
+type CrossValidationResult{
+    submissionID: ID
+    type: String
+    validationType: String #[metadata, file]
+    batchID: String
+    displayID: Int
+    submittedID: String
+    severity: String # [Error, Warning]
+    uploadedDate: Date # batch.updatedAt
+    validatedDate: Date
+    errors: [ErrorMessage]
+    warnings: [ErrorMessage]
+    conflictingSubmission: ID
+}
+
 type ErrorMessage {
     title: String
     description: String
+}
+
+type CrossValidationMessage {
+    title: String
+    description: String
+    conflictingSubmissions: [ID]
 }
 
 type DataRecord {
@@ -284,6 +335,8 @@ type DataRecord {
 #    rawData: RawData
     s3FileInfo: S3FileInfo # only for "file" types, should be null for other nodes
     CRDC_ID: String
+    additionalErrors: [CrossValidationMessage]
+    latestBatchID: ID
 }
 
 type S3FileInfo {
@@ -338,6 +391,48 @@ type AsyncProcessResult {
     message: String
 }
 
+type SubmissionNodes {
+    total: Int, #total nodes of a given nodeType and data submission
+    IDPropName: String,
+    properties: [String], #all properties of a node including parents 
+    nodes: [Node]
+}
+
+type Node {
+    submissionID: String,
+    nodeType: String,
+    nodeID: String,
+    status: String,
+    createdAt: Date,
+    updatedAt: Date,
+    validatedAt: Date,
+    orginalFileName: String,
+    lineNumber: Int,
+    props: String #a stringified JSON string contains all properties of the node, including parent mapping properties like program.prorgam_acronym
+}
+type Related_Node {
+    nodeType: String,
+    total: Int
+}
+type NodeDetail_Result {
+    submissionID: String,
+    nodeType: String,
+    nodeID: String,
+    IDPropName: String,
+    parents: [Related_Node], # array of Related node contains nodeType and counts
+    children: [Related_Node] # array of Related node contains nodeType and counts
+}
+
+type institution {
+    _id: ID,
+    name: String
+}
+
+type Dashboard {
+    url: String
+    expiresIn: Int
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -379,6 +474,17 @@ type Query {
         sortDirection: String = "DESC"
     ): QCResults
 
+    submissionCrossValidationResults(
+        submissionID: ID!,
+        nodeTypes: [String],
+        batchIDs: [ID],
+        severities: String, # All, Error, Warning
+        first: Int = 10,
+        offset: Int = 0
+        orderBy: String = "validatedDate",
+        sortDirection: String = "DESC"
+    ): CrossValidationResults
+
     listSubmissionNodeTypes(_id: ID!): [String]
 
     listBatches(submissionID: ID!,
@@ -407,8 +513,48 @@ type Query {
     "Admin only operations"
     listOrganizations: [UserOrganization]
     getOrganization(orgID: ID!): UserOrganization
-}
 
+    getSubmissionNodes(
+        submissionID: String!, 
+        nodeType: String!,
+        status: String = "All", # ["All", "New", "Error", "Passed", "Warning"]
+        nodeID: String,
+        first: Int = 10,
+        offset: Int = 0,
+        orderBy: String = "nodeID",
+        sortDirection: String = "ASC"
+    ): SubmissionNodes
+
+    retrieveCLIConfig(
+        submissionID: String!,
+        apiURL: String!,
+        dataFolder: String = "/Users/my_name/my_files",
+        manifest: String = "/Users/my_name/my_manifest.tsv"
+    ): String
+
+    listInstitutions: [String]
+
+    getNodeDetail(
+        submissionID: String!, # submissionID in dataRecords collection
+        nodeType: String!,
+        nodeID: String!  # nodeID in dataRecords collection
+    ): NodeDetail_Result
+
+    getRelatedNodes(
+        submissionID: String!,
+        nodeType: String!,
+        nodeID: String!,
+        relationship: String!, #["parent", "child"]
+        relatedNodeType: String!,
+        first: Int = 10,
+        offset: Int = 0,
+        orderBy: String = "nodeID",
+        sortDirection: String = "ASC"
+    ): SubmissionNodes
+
+    getDashboardURL(type: String!): Dashboard
+
+}
 type Mutation {
     "User initiated operations"
     saveApplication(application: AppInput!): Application
@@ -417,7 +563,7 @@ type Mutation {
 
     "Fed lead initiated operations"
     reviewApplication (_id: ID!): Application # same as getApplication but will set Application to "In Review" state
-    approveApplication (_id: ID!, wholeProgram: Boolean, comment: String): Application
+    approveApplication (_id: ID!, wholeProgram: Boolean, comment: String, institutions: [String]): Application
     rejectApplication (_id: ID!, comment: String!): Application
     inquireApplication (_id: ID!, comment: String!): Application
 
@@ -425,14 +571,18 @@ type Mutation {
     deleteApplication (_id: ID!): Application
 
     "Submitter or Org Owner"
-    createSubmission (studyAbbreviation: String!, dbGaPID: String, dataCommons: String!, name: String!): Submission
+    createSubmission (studyID: String!, dbGaPID: String, dataCommons: String!, name: String!, intention: String!, dataType: String!): Submission
     submissionAction (
         submissionID: ID!,
         # in [Submit, Release, Withdraw, Reject, Complete, Cancel, Archive]
         action: String!
         comment: String
     ): Submission
-    createBatch (submissionID: ID!, type: String, metadataIntention: String, files: [FileInput]): NewBatch
+
+    deleteOrphanedFile(_id: ID!, fileName: String!): DataValidation
+    deleteAllOrphanedFiles(_id: ID!): DataValidation
+    deleteDataRecords(submissionID: String!, nodeType: String!, nodeIDs: [String!]): DataValidation
+    createBatch (submissionID: ID!, type: String, files: [FileInput]): NewBatch
     updateBatch (batchID: ID!, files: [UploadResult]): Batch
     createTempCredentials (submissionID: ID!): TempCredentials
     validateSubmission(

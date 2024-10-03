@@ -1,4 +1,5 @@
 require('dotenv').config();
+const {readFile2Text} = require("./utility/io-util")
 
 let config = {
     //info variables
@@ -7,6 +8,7 @@ let config = {
     inactive_user_days : process.env.INACTIVE_USER_DAYS || 60,
     remind_application_days: process.env.REMIND_APPLICATION_DAYS || 30,
     inactive_application_days : process.env.INACTIVE_APPLICATION_DAYS || 45,
+    inactive_submission_days_notify: process.env.INACTIVE_SUBMISSION_DAYS_NOTIFY || 60,
     //Mongo DB
     mongo_db_user: process.env.MONGO_DB_USER,
     mongo_db_password: process.env.MONGO_DB_PASSWORD,
@@ -29,6 +31,7 @@ let config = {
     submission_doc_url: process.env.SUBMISSION_DOC_URL || "",
     submission_helpdesk: "CRDCSubmissions@nih.gov",
     submission_system_portal: "https://datacommons.cancer.gov/",
+    prod_url: process.env.PROD_URL || "https://hub.datacommons.cancer.gov/",
     submission_bucket: process.env.SUBMISSION_BUCKET, 
     //aws sts assume role
     role_arn: process.env.ROLE_ARN,
@@ -41,9 +44,14 @@ let config = {
     file_queue: process.env.FILE_QUEUE,
     export_queue: process.env.EXPORTER_QUEUE,
     //CRDC Review Committee Emails, separated by ","
-     committee_emails: process.env.REVIEW_COMMITTEE_EMAIL ? process.env.REVIEW_COMMITTEE_EMAIL.split(',') : ["CRDCSubmisison@nih.gov"],
-    model_url: getModelUrl()
-
+    committee_emails: process.env.REVIEW_COMMITTEE_EMAIL ? process.env.REVIEW_COMMITTEE_EMAIL.split(',') : ["CRDCSubmisison@nih.gov"],
+    model_url: getModelUrl(),
+    //uploader configuration file template
+    uploaderCLIConfigs: readUploaderCLIConfigTemplate(),
+    dataCommonsList: process.env.DATA_COMMONS_LIST ? JSON.parse(process.env.DATA_COMMONS_LIST) : ["CDS", "ICDC", "CTDC"],
+    inactive_submission_days: process.env.INACTIVE_SUBMISSION_DAYS_DELETE || 120,
+    dashboardSessionTimeout: process.env.DASHBOARD_SESSION_TIMEOUT || 3600, // 60 minutes by default
+    dashboardUserID: process.env.DASHBOARD_USER_ID
 };
 config.mongo_db_connection_string = `mongodb://${config.mongo_db_user}:${config.mongo_db_password}@${config.mongo_db_host}:${process.env.MONGO_DB_PORT}`;
 
@@ -63,6 +71,15 @@ function getTransportConfig() {
         )
     };
 }
+
+function readUploaderCLIConfigTemplate(){
+    const uploaderConfigTemplate = 'resources/yaml/data_file_upload_config.yaml';
+    configString = readFile2Text(uploaderConfigTemplate);
+    if (!configString){
+        throw "Can't find uploader CLI config template at " + uploaderConfigTemplate + "!";
+    }
+    return configString;
+}
 function getModelUrl() {
     // if MODEL_URL exists, it overrides
     if (process.env.MODEL_URL) {
@@ -70,7 +87,7 @@ function getModelUrl() {
     }
     const tier = extractTierName();
     // By default url
-    const modelUrl = ['https://raw.githubusercontent.com/CBIIT/crdc-datahub-models/', 'master', '/content.json']
+    const modelUrl = ['https://raw.githubusercontent.com/CBIIT/crdc-datahub-models/', tier || 'master', '/cache/content.json']
     if (tier?.length > 0) {
         modelUrl[1] = tier.toLowerCase();
     }

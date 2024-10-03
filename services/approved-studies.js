@@ -10,12 +10,23 @@ class ApprovedStudiesService {
         this.organizationService = organizationService;
     }
 
-    async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName) {
-        const approvedStudies = ApprovedStudies.createApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName);
-        const res = await this.approvedStudiesCollection.findOneAndUpdate({ studyName, studyAbbreviation},approvedStudies);
-        if (!res?.ok) {
+    async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess) {
+        const approvedStudies = ApprovedStudies.createApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess);
+        const res = await this.approvedStudiesCollection.findOneAndUpdate({ studyName }, approvedStudies, {returnDocument: 'after', upsert: true});
+        if (!res?.value) {
             console.error(ERROR.APPROVED_STUDIES_INSERTION + ` studyName: ${studyName}`);
         }
+        return res.value;
+    }
+
+    /**
+     * List Approved Studies by a studyName API.
+     * @api
+     * @param {string} - studyName
+     * @returns {Promise<Object[]>} An array of ApprovedStudies
+     */
+    async findByStudyName(studyName) {
+        return await this.approvedStudiesCollection.aggregate([{ "$match": {studyName}}]);
     }
 
     /**

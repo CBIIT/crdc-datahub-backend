@@ -1,0 +1,29 @@
+Config:
+    #API endpoint URL, required
+    api-url: {apiURL}
+    #API token string, required
+    token: {token}
+    #submission ID, required
+    submission: {submissionID}
+    #upload type,  valid value in [data file, metadata], required
+    type: data file
+    #folder that contains either data files (type = file) or metadata (TSV/TXT) files (type = metadata), required
+    data: {dataFolder}
+    #path to manifest file, conditional required when type = file
+    manifest: {manifest}
+    # file name header name in the manifest file. For example, "file_name" is the header name for CDS.
+    name-field: {name-field}
+    # Property name for Key/ID property of file node. For example, "file_id" is the Key/ID property of file node in CDS.
+    id-field: {id-field}
+    # Whether to omit DCF prefix when generating file IDs. For example, false means include DCF prefix when generating file IDs.
+    omit-DCF-prefix: {omit-DCF-prefix}
+    # file size header name in the manifest file. For example, "file_size" is the header name for CDS.
+    size-field: {size-field}
+    # file md5 header name in the manifest file. For example, "md5sum" is the header name for CDS.
+    md5-field: {md5-field}
+    #file uploading retries
+    retries: 3
+    # if overwrite existed file
+    overwrite: false
+    # if only run file validation without uploading
+    dryrun: false
