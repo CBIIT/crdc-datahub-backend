@@ -28,6 +28,7 @@ const {isUndefined, replaceErrorString} = require("../utility/string-util");
 const {NODE_RELATION_TYPES} = require("./data-record-service");
 const {QCResult, QCResultError} = require("../domain/qc-result");
 const {verifyToken} = require("../verifier/token-verifier");
+const {DATA_RECORDS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const FILE = "file";
 
 const UPLOAD_TYPES = ['file','metadata'];
@@ -103,7 +104,17 @@ class Submission {
             return {submissions: [], total: 0};
         }
         const conditions = await listConditions(this.submissionCollection, context.userInfo._id, context.userInfo?.role, context.userInfo.dataCommons, context.userInfo?.organization, context.userInfo.studies, params);
-        const pipeline = [{"$match": conditions}];
+        const pipeline = [
+            {"$match": conditions},
+            {"$lookup": {
+                "from": DATA_RECORDS_COLLECTION, // join Data Records Collection
+                "localField": "_id", // Field from the 'Submission' collection
+                "foreignField": "submissionID", // Field from the 'dataRecords' collection
+                "as": "dataRecords" // Output array name
+            }},
+            {"$addFields": {"nodeCount": { "$size": "$dataRecords"}}},
+            {"$project": {"dataRecords": 0}}
+        ];
 
         if (params.orderBy) {
             pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
