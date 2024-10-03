@@ -110,7 +110,10 @@ class Submission {
                 "from": DATA_RECORDS_COLLECTION, // join Data Records Collection
                 "localField": "_id", // Field from the 'Submission' collection
                 "foreignField": "submissionID", // Field from the 'dataRecords' collection
-                "as": "dataRecords" // Output array name
+                "as": "dataRecords", // Output array name
+                "pipeline": [
+                    { $project: {_id: 1}}
+                ]
             }},
             {"$addFields": {"nodeCount": { "$size": "$dataRecords"}}},
             {"$project": {"dataRecords": 0}}
