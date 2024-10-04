@@ -254,7 +254,11 @@ class Submission {
 
         // dynamically count records in dataRecords
         if (!aSubmission?.archived) {
-            aSubmission.nodeCount = await this.dataRecordService.countNodesBySubmissionID(aSubmission?._id);
+          const submissionNodeCount = await this.dataRecordService.countNodesBySubmissionID(aSubmission?._id);
+          if (aSubmission.nodeCount !== submissionNodeCount) {
+              await this.submissionCollection.update({_id: aSubmission?._id, updatedAt: getCurrentTime(), nodeCount: submissionNodeCount});
+              aSubmission.nodeCount = submissionNodeCount;
+          }
         }
 
         const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
