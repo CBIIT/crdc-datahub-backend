@@ -225,6 +225,7 @@ class Submission {
         if (!this.#isViewablePermission(context, aSubmission)) {
             throw new Error(ERROR.INVALID_ROLE);
         }
+        params.collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getViewableCollaboratorIDs();
 
         // if user role is Federal Monitor, only can access his studies.
         if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {

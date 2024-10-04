@@ -101,7 +101,7 @@ class BatchService {
     }
 
     async listBatches(params, context) {
-        let pipeline = listBatchConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization, params.submissionID, context.userInfo?.dataCommons);
+        let pipeline = listBatchConditions(context.userInfo._id, params?.collaboratorUserIDs, context.userInfo?.role, context.userInfo?.organization, params.submissionID, context.userInfo?.dataCommons);
         const pagination = [
             {"$sort": { [params.orderBy]: getSortDirection(params.sortDirection)}}, // default by displayID & Desc
             {"$skip": params.offset},
@@ -156,7 +156,7 @@ class BatchService {
         return (batches && batches.length > 0)? batches[0].batchID : null;
     }
 }
-const listBatchConditions = (userID, userRole, aUserOrganization, submissionID, userDataCommonsNames) => {
+const listBatchConditions = (userID, collaboratorUserIDs, userRole, aUserOrganization, submissionID, userDataCommonsNames) => {
     const submissionJoin = [
         {"$lookup": {
             from: SUBMISSIONS_COLLECTION,
@@ -171,7 +171,7 @@ const listBatchConditions = (userID, userRole, aUserOrganization, submissionID, 
 
     const validStatusAndSubmissionID = {"submissionID": submissionID, "batch.status": {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED, REJECTED, WITHDRAWN]}};
     const listAllSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR, USER.ROLES.FEDERAL_MONITOR];
-    if (listAllSubmissionRoles.includes(userRole)) {
+    if (listAllSubmissionRoles.includes(userRole) || collaboratorUserIDs.length > 0) {
         return [...submissionJoin, {"$match": {...validStatusAndSubmissionID}}];
     }
 
