@@ -348,7 +348,12 @@ class Submission {
             const submissionIDs = finalInactiveSubmissions
                 .map(submission => submission._id);
             const query = {_id: {$in: submissionIDs}};
-            const updatedReminder = await this.submissionCollection.updateMany(query, {[INACTIVE_REMINDER]: true, [FINAL_INACTIVE_REMINDER]: true});
+            // Disable all reminders to ensure no notifications are sent.
+            const everyReminderDays = this.emailParams.remindSubmissionDay.reduce((acc, day) => {
+                acc[`${INACTIVE_REMINDER}_${day}`] = true;
+                return acc;
+            }, {[`${FINAL_INACTIVE_REMINDER}`]: true});
+            const updatedReminder = await this.submissionCollection.updateMany(query, everyReminderDays);
             if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
                 console.error("The email reminder flag intended to notify the inactive submission user (FINAL) is not being stored", `submissionIDs: ${submissionIDs.join(', ')}`);
             }
@@ -357,13 +362,14 @@ class Submission {
         const inactiveSubmissionPromises = [];
         for (const day of this.emailParams.remindSubmissionDay) {
             const pastInactiveDays = this.emailParams.finalRemindSubmissionDay - day;
-            inactiveSubmissionPromises.push([pastInactiveDays, await this.#getInactiveSubmissions(pastInactiveDays, INACTIVE_REMINDER)]);
+            inactiveSubmissionPromises.push([pastInactiveDays, await this.#getInactiveSubmissions(pastInactiveDays, `${INACTIVE_REMINDER}_${day}`)]);
         }
         const inactiveSubmissionResult = await Promise.all(inactiveSubmissionPromises);
         const inactiveSubmissionMapByDays = inactiveSubmissionResult.reduce((acc, [key, value]) => {
             acc[key] = value;
             return acc;
         }, {});
+        // For Sorting, the oldest submission about to expire submission will be sent at once.
         const sortedKeys = Object.keys(inactiveSubmissionMapByDays).sort((a, b) => b - a);
         let uniqueSet = new Set();  // Set to track used _id values
         sortedKeys.forEach((key) => {
@@ -379,7 +385,7 @@ class Submission {
 
         if (uniqueSet.size > 0) {
             const emailPromises = [];
-            let submissionIDs = [];
+            let inactiveSubmissions = [];
             for (const [pastDays, aSubmissionArray] of Object.entries(inactiveSubmissionMapByDays)) {
                 for (const aSubmission of aSubmissionArray) {
                     const emailPromise = (async (pastDays) => {
@@ -388,14 +394,26 @@ class Submission {
                         await sendEmails.remindInactiveSubmission(this.emailParams, aSubmission, this.userService, this.organizationService, this.notificationService, expiredDays, pastDays, this.tier);
                     })(pastDays);
                     emailPromises.push(emailPromise);
-                    submissionIDs.push(aSubmission?._id);
+                    inactiveSubmissions.push([aSubmission?._id, pastDays]);
                 }
             }
             await Promise.all(emailPromises);
-            const query = {_id: {$in: submissionIDs}};
-            const updatedReminder = await this.submissionCollection.updateMany(query, {[INACTIVE_REMINDER]: true});
-            if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
-                console.error("The email reminder flag intended to notify the inactive submission user is not being stored");
+            const submissionReminderDays = this.emailParams.remindSubmissionDay;
+            for (const inactiveSubmission of inactiveSubmissions) {
+                const submissionID = inactiveSubmission[0];
+                const pastDays = inactiveSubmission[1];
+                const expiredDays = this.emailParams.finalRemindSubmissionDay - pastDays;
+                const reminderDays = submissionReminderDays.filter((d) => expiredDays < d || expiredDays === d);
+                // The submissions with the closest expiration dates will be flagged as true; no sent any notification anymore
+                // A notification will be sent at each interval. ex) 7, 30, 60 days before expiration
+                const reminderFilter = reminderDays.reduce((acc, day) => {
+                    acc[`${INACTIVE_REMINDER}_${day}`] = true;
+                    return acc;
+                }, {});
+                const updatedReminder = await this.submissionCollection.update({_id: submissionID, ...reminderFilter});
+                if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
+                    console.error("The email reminder flag intended to notify the inactive submission user is not being stored", submissionID);
+                }
             }
         }
     }
