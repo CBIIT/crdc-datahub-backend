@@ -106,6 +106,9 @@ type Submission {
     archived: Boolean
     nodeCount: Int
     collaborators: [Collaborator]
+    inactiveReminder_7: Boolean
+    inactiveReminder_30: Boolean
+    inactiveReminder_60: Boolean
 }
 
 # not being used currently
