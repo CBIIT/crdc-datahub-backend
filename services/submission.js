@@ -104,20 +104,7 @@ class Submission {
             return {submissions: [], total: 0};
         }
         const conditions = await listConditions(this.submissionCollection, context.userInfo._id, context.userInfo?.role, context.userInfo.dataCommons, context.userInfo?.organization, context.userInfo.studies, params);
-        const pipeline = [
-            {"$match": conditions},
-            {"$lookup": {
-                "from": DATA_RECORDS_COLLECTION, // join Data Records Collection
-                "localField": "_id", // Field from the 'Submission' collection
-                "foreignField": "submissionID", // Field from the 'dataRecords' collection
-                "as": "dataRecords", // Output array name
-                "pipeline": [
-                    { $project: {_id: 1}}
-                ]
-            }},
-            {"$addFields": {"nodeCount": { "$size": "$dataRecords"}}},
-            {"$project": {"dataRecords": 0}}
-        ];
+        const pipeline = [{"$match": conditions}];
 
         if (params.orderBy) {
             pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
