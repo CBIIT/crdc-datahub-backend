@@ -212,6 +212,7 @@ class Submission {
         if (!this.#isViewablePermission(context, aSubmission)) {
             throw new Error(ERROR.INVALID_ROLE);
         }
+        params.collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getViewableCollaboratorIDs();
 
         // if user role is Federal Monitor, only can access his studies.
         if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
@@ -642,7 +643,7 @@ class Submission {
             .verifyInitialized()
             .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.DC_POC, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN, ROLES.FEDERAL_MONITOR]);
         const submissionID = params?._id;
-        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        const aSubmission = await findByID(this.submissionCollection, submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
@@ -681,11 +682,11 @@ class Submission {
             sortDirection} = params;
         //check if submission exists
         const aSubmission = await findByID(this.submissionCollection, submissionID);
-        if(!aSubmission){
+        if (!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        if (this.#isViewablePermission(context, aSubmission)) {
+        if (!this.#isViewablePermission(context, aSubmission)) {
             throw new Error(ERROR.INVALID_ROLE);
         }
 
