@@ -559,8 +559,6 @@ type Query {
         sortDirection: String = "DESC" # ["DESC", "ASC"]
     ): ListBatches
 
-    getBatch(batchID: ID!): Batch
-
     #upload log queries
     listLogs (submissionID: ID!) : ListLogFiles
 
