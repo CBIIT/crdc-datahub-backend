@@ -28,7 +28,6 @@ const {isUndefined, replaceErrorString} = require("../utility/string-util");
 const {NODE_RELATION_TYPES} = require("./data-record-service");
 const {QCResult, QCResultError} = require("../domain/qc-result");
 const {verifyToken} = require("../verifier/token-verifier");
-const {DATA_RECORDS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const FILE = "file";
 
 const UPLOAD_TYPES = ['file','metadata'];
@@ -266,7 +265,11 @@ class Submission {
         if (this.#isViewablePermission(context, aSubmission)) {
             // Store the timestamp for the inactive submission purpose
             if (conditionSubmitter) {
-                await this.submissionCollection.update({_id: aSubmission?._id, accessedAt: getCurrentTime(), [INACTIVE_REMINDER]: false, [FINAL_INACTIVE_REMINDER]: false});
+                const everyReminderDays = this.#getEveryReminderQuery(this.emailParams.remindSubmissionDay, false);
+                const updateSubmission = await this.submissionCollection.findOneAndUpdate({_id: aSubmission?._id},
+                    {accessedAt: getCurrentTime(), ...everyReminderDays},
+                    {returnDocument: 'after'});
+                return updateSubmission.value;
             }
             return aSubmission
         }
@@ -350,10 +353,7 @@ class Submission {
                 .map(submission => submission._id);
             const query = {_id: {$in: submissionIDs}};
             // Disable all reminders to ensure no notifications are sent.
-            const everyReminderDays = this.emailParams.remindSubmissionDay.reduce((acc, day) => {
-                acc[`${INACTIVE_REMINDER}_${day}`] = true;
-                return acc;
-            }, {[`${FINAL_INACTIVE_REMINDER}`]: true});
+            const everyReminderDays = this.#getEveryReminderQuery(this.emailParams.remindSubmissionDay, true);
             const updatedReminder = await this.submissionCollection.updateMany(query, everyReminderDays);
             if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
                 console.error("The email reminder flag intended to notify the inactive submission user (FINAL) is not being stored", `submissionIDs: ${submissionIDs.join(', ')}`);
@@ -1211,6 +1211,14 @@ class Submission {
             throw new Error(ERROR.FAILED_RECORD_VALIDATION_PROPERTY);
         }
         return updated.value;
+    }
+
+    // Generates a query for the status of all email notification reminder.
+    #getEveryReminderQuery(remindSubmissionDay, status) {
+        return remindSubmissionDay.reduce((acc, day) => {
+            acc[`${INACTIVE_REMINDER}_${day}`] = status;
+            return acc;
+        }, {[`${FINAL_INACTIVE_REMINDER}`]: status});
     }
 }
 
