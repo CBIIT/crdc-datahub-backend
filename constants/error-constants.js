@@ -139,6 +139,7 @@ const ERROR = {
     FAILED_APPROVED_STUDY_INSERTION: "Failed to create the approved study.",
     FAILED_APPROVED_STUDY_UPDATE: "Failed to update the approved study.",
     APPROVED_STUDY_NOT_FOUND: "Approved study not found.",
-}
+    DUPLICATE_STUDY_NAME: "Error saving this study. This study name already exists.",
+}   
 
 module.exports = ERROR;
