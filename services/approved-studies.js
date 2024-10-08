@@ -243,10 +243,7 @@ class ApprovedStudiesService {
             throw new Error(ERROR.INVALID_ORCID);
         }
         // check if name is unique
-        const existingStudy = await this.approvedStudiesCollection.aggregate([{ "$match": {studyName: name}}]);
-        if (existingStudy.length > 0) {
-            throw new Error(ERROR.DUPLICATE_STUDY_NAME);
-        }
+        await this.#validateStudyName(name)
         const current_date = new Date();
         let newStudy = {_id: v4(), studyName: name, studyAbbreviation: acronym, controlledAccess: controlledAccessVal, openAccess: openAccess, dbGaPID: dbGaPID, ORCID: ORCID, PI: PI, createdAt: current_date, updatedAt: current_date};
         const result = await this.approvedStudiesCollection.insert(newStudy);
