@@ -211,6 +211,7 @@ class Submission {
         if (!this.#isViewablePermission(context, aSubmission)) {
             throw new Error(ERROR.INVALID_ROLE);
         }
+        params.collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getViewableCollaboratorIDs();
 
         // if user role is Federal Monitor, only can access his studies.
         if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
@@ -253,14 +254,22 @@ class Submission {
 
         // dynamically count records in dataRecords
         if (!aSubmission?.archived) {
-            aSubmission.nodeCount = await this.dataRecordService.countNodesBySubmissionID(aSubmission?._id);
+          const submissionNodeCount = await this.dataRecordService.countNodesBySubmissionID(aSubmission?._id);
+          if (aSubmission.nodeCount !== submissionNodeCount) {
+              await this.submissionCollection.update({_id: aSubmission?._id, updatedAt: getCurrentTime(), nodeCount: submissionNodeCount});
+              aSubmission.nodeCount = submissionNodeCount;
+          }
         }
 
         const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
         if (this.#isViewablePermission(context, aSubmission)) {
             // Store the timestamp for the inactive submission purpose
             if (conditionSubmitter) {
-                await this.submissionCollection.update({_id: aSubmission?._id, accessedAt: getCurrentTime(), [INACTIVE_REMINDER]: false, [FINAL_INACTIVE_REMINDER]: false});
+                const everyReminderDays = this.#getEveryReminderQuery(this.emailParams.remindSubmissionDay, false);
+                const updateSubmission = await this.submissionCollection.findOneAndUpdate({_id: aSubmission?._id},
+                    {accessedAt: getCurrentTime(), ...everyReminderDays},
+                    {returnDocument: 'after'});
+                return updateSubmission.value;
             }
             return aSubmission
         }
@@ -334,17 +343,34 @@ class Submission {
     }
 
     async remindInactiveSubmission() {
+        // The system sends an email reminder a day before the data submission expires
+        const finalInactiveSubmissions = await this.#getInactiveSubmissions(this.emailParams.finalRemindSubmissionDay - 1, FINAL_INACTIVE_REMINDER)
+        if (finalInactiveSubmissions?.length > 0) {
+            await Promise.all(finalInactiveSubmissions.map(async (aSubmission) => {
+                await sendEmails.finalRemindInactiveSubmission(this.emailParams, aSubmission, this.userService, this.organizationService, this.notificationService, this.tier);
+            }));
+            const submissionIDs = finalInactiveSubmissions
+                .map(submission => submission._id);
+            const query = {_id: {$in: submissionIDs}};
+            // Disable all reminders to ensure no notifications are sent.
+            const everyReminderDays = this.#getEveryReminderQuery(this.emailParams.remindSubmissionDay, true);
+            const updatedReminder = await this.submissionCollection.updateMany(query, everyReminderDays);
+            if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
+                console.error("The email reminder flag intended to notify the inactive submission user (FINAL) is not being stored", `submissionIDs: ${submissionIDs.join(', ')}`);
+            }
+        }
         // Map over inactiveDays to create an array of tuples [day, promise]
         const inactiveSubmissionPromises = [];
-        for(const day of this.emailParams.remindSubmissionDay) {
+        for (const day of this.emailParams.remindSubmissionDay) {
             const pastInactiveDays = this.emailParams.finalRemindSubmissionDay - day;
-            inactiveSubmissionPromises.push([pastInactiveDays, await this.#getInactiveSubmissions(pastInactiveDays, INACTIVE_REMINDER)]);
+            inactiveSubmissionPromises.push([pastInactiveDays, await this.#getInactiveSubmissions(pastInactiveDays, `${INACTIVE_REMINDER}_${day}`)]);
         }
         const inactiveSubmissionResult = await Promise.all(inactiveSubmissionPromises);
         const inactiveSubmissionMapByDays = inactiveSubmissionResult.reduce((acc, [key, value]) => {
             acc[key] = value;
             return acc;
         }, {});
+        // For Sorting, the oldest submission about to expire submission will be sent at once.
         const sortedKeys = Object.keys(inactiveSubmissionMapByDays).sort((a, b) => b - a);
         let uniqueSet = new Set();  // Set to track used _id values
         sortedKeys.forEach((key) => {
@@ -360,42 +386,37 @@ class Submission {
 
         if (uniqueSet.size > 0) {
             const emailPromises = [];
-            let submissionIDs = [];
-            for (const [day, aSubmissionArray] of Object.entries(inactiveSubmissionMapByDays)) {
+            let inactiveSubmissions = [];
+            for (const [pastDays, aSubmissionArray] of Object.entries(inactiveSubmissionMapByDays)) {
                 for (const aSubmission of aSubmissionArray) {
-                    const emailPromise = (async (currentDay) => {
-                        await sendEmails.remindInactiveSubmission(this.emailParams, aSubmission, this.userService, this.organizationService, this.notificationService, currentDay, this.tier);
-                    })(day);
+                    const emailPromise = (async (pastDays) => {
+                        // by default, final reminder 120 days
+                        const expiredDays = this.emailParams.finalRemindSubmissionDay - pastDays;
+                        await sendEmails.remindInactiveSubmission(this.emailParams, aSubmission, this.userService, this.organizationService, this.notificationService, expiredDays, pastDays, this.tier);
+                    })(pastDays);
                     emailPromises.push(emailPromise);
-                    submissionIDs.push(aSubmission?._id);
+                    inactiveSubmissions.push([aSubmission?._id, pastDays]);
                 }
             }
             await Promise.all(emailPromises);
-            const query = {_id: {$in: submissionIDs}};
-            const updatedReminder = await this.submissionCollection.updateMany(query, {[INACTIVE_REMINDER]: true});
-            if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
-                console.error("The email reminder flag intended to notify the inactive submission user is not being stored");
-            }
-        }
-        // The system sends an email reminder a day before the data submission expires
-        const finalInactiveSubmissions = await this.#getInactiveSubmissions(this.emailParams.finalRemindSubmissionDay - 1, FINAL_INACTIVE_REMINDER)
-        if (finalInactiveSubmissions?.length > 0) {
-            await Promise.all(finalInactiveSubmissions.map(async (aSubmission) => {
-                // send only if the initial notification sent before
-                if (aSubmission?.[INACTIVE_REMINDER]) {
-                    await sendEmails.finalRemindInactiveSubmission(this.emailParams, aSubmission, this.userService, this.organizationService, this.notificationService, this.tier);
+            const submissionReminderDays = this.emailParams.remindSubmissionDay;
+            for (const inactiveSubmission of inactiveSubmissions) {
+                const submissionID = inactiveSubmission[0];
+                const pastDays = inactiveSubmission[1];
+                const expiredDays = this.emailParams.finalRemindSubmissionDay - pastDays;
+                const reminderDays = submissionReminderDays.filter((d) => expiredDays < d || expiredDays === d);
+                // The submissions with the closest expiration dates will be flagged as true; no sent any notification anymore
+                // A notification will be sent at each interval. ex) 7, 30, 60 days before expiration
+                const reminderFilter = reminderDays.reduce((acc, day) => {
+                    acc[`${INACTIVE_REMINDER}_${day}`] = true;
+                    return acc;
+                }, {});
+                const updatedReminder = await this.submissionCollection.update({_id: submissionID, ...reminderFilter});
+                if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
+                    console.error("The email reminder flag intended to notify the inactive submission user is not being stored", submissionID);
                 }
-            }));
-            const submissionIDs = finalInactiveSubmissions
-                .filter(submission => submission?.[INACTIVE_REMINDER])
-                .map(submission => submission._id);
-            const query = {_id: {$in: submissionIDs}};
-            const updatedReminder = await this.submissionCollection.updateMany(query, {[FINAL_INACTIVE_REMINDER]: true});
-            if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
-                console.error("The email reminder flag intended to notify the inactive submission user (FINAL) is not being stored", `submissionIDs: ${submissionIDs.join(', ')}`);
             }
         }
-
     }
 
     async #getInactiveSubmissions(inactiveDays, inactiveFlagField) {
@@ -624,7 +645,7 @@ class Submission {
             .verifyInitialized()
             .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.DC_POC, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN, ROLES.FEDERAL_MONITOR]);
         const submissionID = params?._id;
-        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        const aSubmission = await findByID(this.submissionCollection, submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
@@ -663,11 +684,11 @@ class Submission {
             sortDirection} = params;
         //check if submission exists
         const aSubmission = await findByID(this.submissionCollection, submissionID);
-        if(!aSubmission){
+        if (!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        if (this.#isViewablePermission(context, aSubmission)) {
+        if (!this.#isViewablePermission(context, aSubmission)) {
             throw new Error(ERROR.INVALID_ROLE);
         }
 
@@ -1210,6 +1231,14 @@ class Submission {
         }
         return updated.value;
     }
+
+    // Generates a query for the status of all email notification reminder.
+    #getEveryReminderQuery(remindSubmissionDay, status) {
+        return remindSubmissionDay.reduce((acc, day) => {
+            acc[`${INACTIVE_REMINDER}_${day}`] = status;
+            return acc;
+        }, {[`${FINAL_INACTIVE_REMINDER}`]: status});
+    }
 }
 
 const updateSubmissionStatus = async (submissionCollection, aSubmission, userInfo, newStatus) => {
@@ -1486,7 +1515,7 @@ const sendEmails = {
             conciergeName: aOrganization?.conciergeName || NA
         }, tier);
     },
-    remindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService, day, tier) => {
+    remindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService, expiredDays, pastDays, tier) => {
         const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
         if (!aSubmitter) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
@@ -1497,8 +1526,9 @@ const sendEmails = {
             firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
         }, {
             title: aSubmission?.name,
+            expiredDays: expiredDays || NA,
             studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
-            days: day || NA,
+            pastDays: pastDays || NA,
             url: emailParams.url || NA
         }, tier);
     },

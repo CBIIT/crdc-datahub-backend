@@ -106,6 +106,9 @@ type Submission {
     archived: Boolean
     nodeCount: Int
     collaborators: [Collaborator]
+    inactiveReminder_7: Boolean
+    inactiveReminder_30: Boolean
+    inactiveReminder_60: Boolean
 }
 
 # not being used currently
@@ -503,6 +506,8 @@ type Query {
         orderBy: String = "studyName", #property name to be used for sorting 
         sortDirection: String = "ASC" #["DESC", "ASC"]
     ): ApprovedStudyList
+    
+    getApprovedStudy(_id: ID!): ApprovedStudy
 
     "Result depends on user's permission"
     listSubmissions(
