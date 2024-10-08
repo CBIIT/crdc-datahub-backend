@@ -279,11 +279,12 @@ class Submission {
     #isViewablePermission(context, aSubmission) {
         const collaboratorIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getViewableCollaboratorIDs();
         const conditionCollaborator = collaboratorIDs.includes(context?.userInfo?._id);
-        const conditionDCPOC = (context?.userInfo?.role === ROLES.DC_POC)&& (context?.userInfo?.dataCommons.includes(aSubmission?.dataCommons));
+        const conditionDCPOC = (context?.userInfo?.role === ROLES.DC_POC) && (context?.userInfo?.dataCommons.includes(aSubmission?.dataCommons));
+        const conditionCurator = (context?.userInfo?.role === ROLES.CURATOR) && (context?.userInfo?.dataCommons.includes(aSubmission?.dataCommons));
         const conditionORGOwner = (context?.userInfo?.role === ROLES.ORG_OWNER) && (context?.userInfo?.organization?.orgID === aSubmission?.organization?._id);
         const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
-        const conditionAdmin = [ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN, USER.ROLES.FEDERAL_MONITOR].includes(context?.userInfo?.role);
-        return conditionDCPOC || conditionORGOwner || conditionSubmitter || conditionAdmin || conditionCollaborator;
+        const conditionAdmin = [ROLES.FEDERAL_LEAD, ROLES.ADMIN, USER.ROLES.FEDERAL_MONITOR].includes(context?.userInfo?.role);
+        return conditionDCPOC || conditionCurator || conditionORGOwner || conditionSubmitter || conditionAdmin || conditionCollaborator;
     }
 
     /**
@@ -310,7 +311,7 @@ class Submission {
         //verify if the action is valid based on current submission status
         verifier.isValidAction(params?.comment);
         //verify if user's role is valid for the action
-        const newStatus = verifier.inRoles(userInfo);
+        const newStatus = verifier.inRoles(userInfo, submission);
         verifier.isValidSubmitAction(userInfo?.role, submission, params?.comment);
         await this.#isValidReleaseAction(action, submission?._id, submission?.studyID, submission?.crossSubmissionStatus);
         //update submission
@@ -601,7 +602,8 @@ class Submission {
         const userInfo = context.userInfo;
         const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
         const isCollaborator = collaboratorUserIDs.includes(userInfo._id);
-        const isPermitted = (this.userService.isAdmin(userInfo.role) || userInfo.role === ROLES.CURATOR || isCollaborator)
+        const isPermitted = (this.userService.isAdmin(userInfo.role) ||
+            (userInfo.role === ROLES.CURATOR && userInfo?.dataCommons.include(aSubmission?.dataCommons)) || isCollaborator)
         if (!isPermitted) {
             throw new Error(ERROR.INVALID_EXPORT_METADATA);
         }
@@ -1139,7 +1141,7 @@ class Submission {
         const orgOwners = await this.userService.getOrgOwnerByOrgName(aSubmission?.organization?.name) || [];
         const isOrgOwners = orgOwners.some((aUser) => isPermittedUser(aUser, userInfo));
         const isSubmitter = aSubmission?.submitterID === userInfo?._id;
-        const isDataCurator = ROLES.CURATOR === userInfo?.role;
+        const isDataCurator = ROLES.CURATOR === userInfo?.role && userInfo?.dataCommons.include(aSubmission?.dataCommons);
         const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
         const isCollaborator = collaboratorUserIDs.includes(userInfo?._id);
         return this.userService.isAdmin(userInfo?.role) || isOrgOwners || isSubmitter || isDataCurator || isCollaborator;
@@ -1155,7 +1157,7 @@ class Submission {
         }
     }
 
-    async #verifyQCResultsReadPermissions(context, aSubmission, submissionID){
+    async #verifyQCResultsReadPermissions(context, aSubmission){
         verifySession(context)
             .verifyInitialized()
             .verifyRole([
@@ -1166,19 +1168,17 @@ class Submission {
                 ROLES.FEDERAL_MONITOR  // can access submissions with own studies.
             ]);
         const userRole = context.userInfo?.role;
-        let submission = null;
         if ([ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.FEDERAL_MONITOR].includes(userRole)){
             return true;
         }
-        if ([ROLES.ORG_OWNER, ROLES.SUBMITTER, ROLES.DC_POC].includes(userRole)){
-            submission = (await this.submissionCollection.find(submissionID)).pop();
-        }
+
         const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getViewableCollaboratorIDs();
         const isCollaborator = collaboratorUserIDs.includes(context.userInfo._id);
-        return !!submission && (
-            (userRole === ROLES.ORG_OWNER && context.userInfo?.organization?.orgID === submission?.organization?._id) ||
-            (userRole === ROLES.SUBMITTER && context.userInfo._id === submission?.submitterID) ||
-            (userRole === ROLES.DC_POC && context.userInfo?.dataCommons.includes(submission?.dataCommons)) ||
+        return !!aSubmission && (
+            (userRole === ROLES.ORG_OWNER && context.userInfo?.organization?.orgID === aSubmission?.organization?._id) ||
+            (userRole === ROLES.SUBMITTER && context.userInfo._id === aSubmission?.submitterID) ||
+            (userRole === ROLES.DC_POC && context.userInfo?.dataCommons.includes(aSubmission?.dataCommons)) ||
+            (ROLES.CURATOR === userRole && context.userInfo?.dataCommons.include(aSubmission?.dataCommons)) ||
             isCollaborator
         );
     }
@@ -1622,9 +1622,9 @@ async function listConditions(submissionCollection, userID, userRole, userDataCo
         switch (userRole) {
             case ROLES.ADMIN:
             case ROLES.FEDERAL_LEAD:
-            case ROLES.CURATOR:
                 // List all submissions
                 return baseConditions;
+            case ROLES.CURATOR:
             case ROLES.DC_POC:
                 return {...baseConditions, dataCommons: {$in: userDataCommons}};
             case ROLES.ORG_OWNER:
@@ -1679,14 +1679,15 @@ function validateListSubmissionsParams (params) {
 
 const isSubmissionPermitted = (aSubmission, userInfo) => {
     const userRole = userInfo?.role;
-    const allSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR, USER.ROLES.FEDERAL_MONITOR];
+    const allSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.FEDERAL_MONITOR];
     const isOrgOwner = userRole === USER.ROLES.ORG_OWNER && userInfo?.organization?.orgID === aSubmission?.organization?._id;
     const isSubmitter = userRole === USER.ROLES.SUBMITTER && userInfo?._id === aSubmission?.submitterID;
     const isPOC = userRole === USER.ROLES.DC_POC && userInfo?.dataCommons.includes(aSubmission?.dataCommons);
+    const isCurator = userRole === USER.ROLES.CURATOR && userInfo?.dataCommons.includes(aSubmission?.dataCommons);
     const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getViewableCollaboratorIDs();
     const isCollaborator = collaboratorUserIDs.includes(userInfo?._id);
 
-    if (allSubmissionRoles.includes(userRole) || isOrgOwner || isSubmitter || isPOC || isCollaborator) {
+    if (allSubmissionRoles.includes(userRole) || isOrgOwner || isSubmitter || isPOC || isCurator || isCollaborator) {
         return;
     }
     throw new Error(ERROR.INVALID_STATS_SUBMISSION_PERMISSION);

@@ -157,7 +157,14 @@ class ApprovedStudiesService {
             }
             if (controlledAccess !== CONTROLLED_ACCESS_ALL)
             {
-                matches.controlledAccess = (controlledAccess === CONTROLLED_ACCESS_CONTROLLED);
+                if (controlledAccess === CONTROLLED_ACCESS_CONTROLLED)
+                {
+                    matches.controlledAccess = true;
+                }
+                else
+                {
+                    matches.openAccess = true;
+                }
             }
         }
        
@@ -242,6 +249,8 @@ class ApprovedStudiesService {
         if (ORCID && !this.#validateIdentifier(ORCID)) {
             throw new Error(ERROR.INVALID_ORCID);
         }
+        // check if name is unique
+        await this.#validateStudyName(name)
         const current_date = new Date();
         let newStudy = {_id: v4(), studyName: name, studyAbbreviation: acronym, controlledAccess: controlledAccessVal, openAccess: openAccess, dbGaPID: dbGaPID, ORCID: ORCID, PI: PI, createdAt: current_date, updatedAt: current_date};
         const result = await this.approvedStudiesCollection.insert(newStudy);
@@ -290,7 +299,7 @@ class ApprovedStudiesService {
         }
         if (ORCID && !this.#validateIdentifier(ORCID)) {
             throw new Error(ERROR.INVALID_ORCID);
-        }     
+        }  
         updateStudy.studyName = name;
         updateStudy.controlledAccess = controlledAccessVal;
         if (acronym !== undefined) {
@@ -321,8 +330,16 @@ class ApprovedStudiesService {
      * @returns {boolean}
      */
     #validateIdentifier(id) {
-        const regex = /^\d{4}-\d{4}-\d{4}-\d{4}$/;
+        const regex = /^(\d{4}-){3}\d{3}(\d|X)$/;
         return regex.test(id);
+    }
+
+    async #validateStudyName(name) {
+        const existingStudy = await this.approvedStudiesCollection.aggregate([{ "$match": {studyName: name}}]);
+        if (existingStudy.length > 0) {
+            throw new Error(ERROR.DUPLICATE_STUDY_NAME);
+        } 
+        return true;  
     }
 }
 

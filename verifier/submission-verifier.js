@@ -74,10 +74,17 @@ class SubmissionActionVerifier {
             return this.action === ACTIONS.SUBMIT && ROLES.ADMIN === role && isError && (!comment || comment?.trim()?.length === 0);
     }
 
-    inRoles(userInfo){
+    inRoles(userInfo, aSubmission){
         const role = userInfo?.role;
-        if(this.actionMap.roles.indexOf(role) < 0)
+        const roleIndex = this.actionMap.roles.indexOf(role);
+        if (roleIndex < 0)
             throw new Error(`Invalid user role for the action: ${this.action}!`);
+
+        if (roleIndex >= 0 && role === ROLES.CURATOR) {
+            if (!userInfo?.dataCommons || !userInfo?.dataCommons?.includes(aSubmission?.dataCommons)) {
+                throw new Error(`Invalid user role for the action: ${this.action}!`);
+            }
+        }
         return this.newStatus;
     }
     // Private Function
