@@ -294,7 +294,8 @@ class Submission {
      */
     async submissionAction(params, context){
         verifySession(context)
-            .verifyInitialized();
+            .verifyInitialized()
+            .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.DC_POC, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN, ROLES.FEDERAL_MONITOR]);
         const userInfo = context.userInfo;
         const submissionID = params?.submissionID;
         const action = params?.action;
@@ -302,6 +303,9 @@ class Submission {
         const verifier = verifySubmissionAction(submissionID, action);
         //verify if a submission can be find by submissionID.
         let submission = await verifier.exists(this.submissionCollection);
+        if (!await this.#isValidPermission(userInfo, submission)) {
+            throw new Error(ERROR.INVALID_ROLE);
+        }
         let fromStatus = submission.status;
         //verify if the action is valid based on current submission status
         verifier.isValidAction(params?.comment);
