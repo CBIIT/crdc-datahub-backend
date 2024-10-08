@@ -35,6 +35,7 @@ const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_N
 const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
 const AuthenticationService = require("../services/authentication-service");
 const {apiAuthorization, extractAPINames, PUBLIC} = require("./api-authorization");
+const { create } = require('connect-mongo');
 const public_api_list = extractAPINames(schema, PUBLIC)
 
 let root;
@@ -59,9 +60,11 @@ dbConnector.connect().then(async () => {
     const awsService = new AWSService(submissionCollection, userService);
 
     const utilityService = new UtilityService();
-    const dataModelInfo = await utilityService.fetchJsonFromUrl(config.model_url);
+    const fetchDataModelInfo = async () => {
+        return utilityService.fetchJsonFromUrl(config.model_url)
+    };
 
-    const batchService = new BatchService(s3Service, batchCollection, config.sqs_loader_queue, awsService, config.prod_url, dataModelInfo);
+    const batchService = new BatchService(s3Service, batchCollection, config.sqs_loader_queue, awsService, config.prod_url, fetchDataModelInfo);
     const institutionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, INSTITUTION_COLLECTION);
     const institutionService = new InstitutionService(institutionCollection);
 
@@ -70,7 +73,7 @@ dbConnector.connect().then(async () => {
     const dataRecordService = new DataRecordService(dataRecordCollection, dataRecordArchiveCollection, config.file_queue, config.metadata_queue, awsService, s3Service);
 
     const validationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, VALIDATION_COLLECTION);
-    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, dataModelInfo, awsService, config.export_queue, s3Service, emailParams, config.dataCommonsList, validationCollection, config.sqs_loader_queue);
+    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, fetchDataModelInfo, awsService, config.export_queue, s3Service, emailParams, config.dataCommonsList, validationCollection, config.sqs_loader_queue);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.tier, institutionService);
 
     const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
@@ -98,6 +101,8 @@ dbConnector.connect().then(async () => {
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
         deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
         listApprovedStudies: approvedStudiesService.listApprovedStudiesAPI.bind(approvedStudiesService),
+        createApprovedStudy: approvedStudiesService.addApprovedStudyAPI.bind(approvedStudiesService),
+        updateApprovedStudy: approvedStudiesService.editApprovedStudyAPI.bind(approvedStudiesService),
         listApprovedStudiesOfMyOrganization: approvedStudiesService.listApprovedStudiesOfMyOrganizationAPI.bind(approvedStudiesService),
         createBatch: submissionService.createBatch.bind(submissionService),
         updateBatch: submissionService.updateBatch.bind(submissionService),
@@ -118,6 +123,7 @@ dbConnector.connect().then(async () => {
         getNodeDetail: submissionService.getNodeDetail.bind(submissionService),
         getRelatedNodes: submissionService.getRelatedNodes.bind(submissionService),
         retrieveCLIConfig: submissionService.getUploaderCLIConfigs.bind(submissionService),
+        listPotentialCollaborators: submissionService.listPotentialCollaborators.bind(submissionService),
         listInstitutions: institutionService.listInstitutions.bind(institutionService),
         // AuthZ
         getMyUser : userInitializationService.getMyUser.bind(userInitializationService),

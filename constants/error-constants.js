@@ -132,6 +132,13 @@ const ERROR = {
         CONTENTS: "Data file $item$ not found"
     },
     NO_UPLOADED_FILES: "You are attempting to update files that do not exist in the batch. Please check the file: $item$.",
+    MISSING_STUDY_NAME: "Study name is required.",
+    INVALID_CONTROLLED_ACCESS: "Invalid controlled access value.",
+    MISSING_DB_GAP_ID: "dbGaP ID is required when access is controlled.",
+    INVALID_ORCID: "Invalid ORCID format.",
+    FAILED_APPROVED_STUDY_INSERTION: "Failed to create the approved study.",
+    FAILED_APPROVED_STUDY_UPDATE: "Failed to update the approved study.",
+    APPROVED_STUDY_NOT_FOUND: "Approved study not found.",
     EXISTING_SUBMISSION_COLLABORATOR: "The collaborator exists in the submission already.",
     COLLABORATOR_NOT_EXIST: "collaborator does not exist",
     INVALID_COLLABORATOR_ROLE_SUBMITTER: "Invalid collaborator role for the submitter",

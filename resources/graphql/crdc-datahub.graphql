@@ -60,6 +60,8 @@ type ListApplications {
 
 type ListSubmissions {
     total: Int
+    dataCommons: [String],
+    submitterNames: [String],
     submissions: [Submission]
 }
 
@@ -102,6 +104,7 @@ type Submission {
     ORCID: String
     deletingData: Boolean
     archived: Boolean
+    nodeCount: Int
     collaborators: [Collaborator]
 }
 
@@ -188,9 +191,15 @@ type ApprovedStudy {
     studyAbbreviation: String # must be unique
     dbGaPID: String # aka. phs number
     controlledAccess: Boolean
-    ORCID: String
-    PI: String
     openAccess: Boolean
+    PI: String
+    ORCID: String
+    createdAt: Date
+}
+
+type ApprovedStudyList {
+    total: Int
+    studies: [ApprovedStudy]
 }
 
 type ListLogFiles {
@@ -490,10 +499,22 @@ type Query {
     listApprovedStudiesOfMyOrganization: [ApprovedStudy]
 
     # Admin only
-    listApprovedStudies: [ApprovedStudy]
+    listApprovedStudies(
+        controlledAccess: String = "All", #value in ["All", "Controlled", "Open"]
+        study: String, #partial match against study name or abbreviation
+        dbGaPID: String, #filter by study's dbGaPID
+        first: Int = 10, #number of records to be returned, return all records if -1 is sent (also default value)
+        offset: Int = 0, #number of records to be skipped before returning data
+        orderBy: String = "studyName", #property name to be used for sorting 
+        sortDirection: String = "DESC" #["DESC", "ASC"]
+    ): ApprovedStudyList
 
     "Result depends on user's permission"
     listSubmissions(
+        name: String,
+        dbGaPID: String,
+        dataCommons: String,
+        submitterName: String,
         organization: String,
         status: String,
         first: Int = 10,
@@ -600,6 +621,10 @@ type Query {
     retrieveCDEs  (
         CDEInfo: [CDEInput!]!
     ) : [CDE] @public
+
+    listPotentialCollaborators(submissionID: String!): [User]
+    
+    collaborators: [Collaborator]
 }
 type Mutation {
     "User initiated operations"
@@ -672,4 +697,25 @@ type Mutation {
         submissionID: ID!,
         collaborators: [CollaboratorInput]
     ): Submission
+
+    createApprovedStudy(
+        name: String!,  #study name
+        acronym: String, #acronym of the study, optional
+        controlledAccess: Boolean!,
+        openAccess: Boolean, #optional 
+        dbGaPID: String, # required only Controlled
+        ORCID: String, #optional in format of 0000-1234-2345-3456
+        PI: String #optional 
+    ): ApprovedStudy
+
+    updateApprovedStudy(
+        studyID: ID!
+        name: String!,  #study name
+        acronym: String, #acronym of the study, optional
+        controlledAccess: Boolean!,
+        openAccess: Boolean, #optional 
+        dbGaPID: String, # required only Controlled
+        ORCID: String, #optional in format of 0000-1234-2345-3456
+        PI: String #optional 
+    ): ApprovedStudy
 }

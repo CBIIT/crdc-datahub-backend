@@ -1,8 +1,13 @@
+const {v4} = require("uuid");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ERROR = require("../constants/error-constants");
 const { verifySession } = require('../verifier/user-info-verifier');
 const {ApprovedStudies} = require("../crdc-datahub-database-drivers/domain/approved-studies");
-
+const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
+const CONTROLLED_ACCESS_ALL = "All";
+const CONTROLLED_ACCESS_OPEN = "Open";
+const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
+const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN, CONTROLLED_ACCESS_CONTROLLED];
 class ApprovedStudiesService {
 
     constructor(approvedStudiesCollection, organizationService) {
@@ -93,6 +98,207 @@ class ApprovedStudiesService {
      */
     async listApprovedStudies(filters = {}) {
         return await this.approvedStudiesCollection.aggregate([{ "$match": filters }]);
+    }
+
+    /**
+     * List Approved Studies API Interface
+     *
+     * @api
+     * @param {Object} params Endpoint parameters
+     * @param {{ cookie: Object, userInfo: Object }} context request context
+     * @returns {Promise<Object[]>} An array of ApprovedStudies
+     */
+    async listApprovedStudiesAPI(params, context) {
+        verifySession(context)
+          .verifyInitialized();
+        
+        const {
+            controlledAccess,
+            study,
+            dbGaPID,
+            first,
+            offset,
+            orderBy,
+            sortDirection
+        } = params;
+
+        let pipelines = [];
+        // set matches
+        let matches = {};
+        if (study)
+            matches.$or = [{studyName: {$regex: study}}, {studyAbbreviation: {$regex: study}}];
+        if (!controlledAccess) {
+            if (!CONTROLLED_ACCESS_OPTIONS.includes(controlledAccess)) {
+                throw new Error(ERROR.INVALID_CONTROLLED_ACCESS);
+            }
+            if (controlledAccess !== CONTROLLED_ACCESS_ALL)
+            {
+                matches.controlledAccess = (controlledAccess === CONTROLLED_ACCESS_CONTROLLED);
+            }
+        }
+       
+        if (dbGaPID) {
+            matches.dbGaPID = dbGaPID;
+        }
+        pipelines.push({$match: matches});
+        // set sort
+        let page_pipeline = [];
+        let sortFields = {
+            [orderBy]: getSortDirection(sortDirection),
+        };
+        if (orderBy !== "studyName"){
+            sortFields["studyName"] = 1
+        }
+        page_pipeline.push({
+            $sort: sortFields
+        });
+        // if -1, returns all data of given node & ignore offset
+        if (first !== -1) {
+            page_pipeline.push({
+                $skip: offset
+            });
+            page_pipeline.push({
+                $limit: first
+            });
+        }
+
+        pipelines.push({
+            $facet: {
+                total: [{
+                    $count: "total"
+                }],
+                results: page_pipeline
+            }
+        });
+        pipelines.push({
+            $set: {
+                total: {
+                    $first: "$total.total",
+                }
+            }
+        });
+
+        let dataRecords = await this.approvedStudiesCollection.aggregate(pipelines);
+        dataRecords = dataRecords.length > 0 ? dataRecords[0] : {}
+        return {total: dataRecords?.total || 0,
+            studies: dataRecords?.results || []}
+    }
+
+    /**
+     * Add Approved Study API Interface.
+     *
+     * Note:
+     * - This is an ADMIN only operation.
+     *
+     * @api
+     * @param {Object} params Endpoint parameters
+     * @param {{ cookie: Object, userInfo: Object }} context request context
+     * @returns {Promise<Object>} The newly created ApprovedStudy
+     */
+    async addApprovedStudyAPI(params, context) {
+        verifySession(context)
+          .verifyInitialized()
+          .verifyRole([USER.ROLES.ADMIN]);
+        const {
+            name,
+            acronym,
+            controlledAccess,
+            openAccess, 
+            dbGaPID,
+            ORCID, 
+            PI
+        } = params;
+        if (!name) {
+            throw new Error(ERROR.MISSING_STUDY_NAME);
+        }
+        const controlledAccessVal = (controlledAccess !== true)? false: true;
+        if (controlledAccess === true && !dbGaPID){
+            throw new Error(ERROR.MISSING_DB_GAP_ID);
+        }
+        if (ORCID && !this.#validateIdentifier(ORCID)) {
+            throw new Error(ERROR.INVALID_ORCID);
+        }
+        const current_date = new Date();
+        let newStudy = {_id: v4(), studyName: name, studyAbbreviation: acronym, controlledAccess: controlledAccessVal, openAccess: openAccess, dbGaPID: dbGaPID, ORCID: ORCID, PI: PI, createdAt: current_date, updatedAt: current_date};
+        const result = await this.approvedStudiesCollection.insert(newStudy);
+        if (!result?.acknowledged) {
+            throw new Error(ERROR.FAILED_APPROVED_STUDIES_INSERTION);
+        }
+        return newStudy;
+    }
+    /**
+     * Edit Approved Study API
+     * 
+     * Note:
+     * - This is an ADMIN only operation.
+     *
+     * @param {*} params 
+     * @param {*} context 
+     * @returns 
+     */
+    async editApprovedStudyAPI(params, context) {
+        verifySession(context)
+          .verifyInitialized()
+          .verifyRole([USER.ROLES.ADMIN]);
+
+        const {
+            studyID,
+            name,
+            acronym,
+            controlledAccess,
+            openAccess,
+            dbGaPID,
+            ORCID, 
+            PI
+        } = params;
+        let updateStudy = await this.approvedStudiesCollection.find(studyID);
+        if (!updateStudy || updateStudy.length === 0) {
+            throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
+        }
+        updateStudy = updateStudy[0];
+        if (!name) {
+            throw new Error(ERROR.MISSING_STUDY_NAME);
+        }
+        const controlledAccessVal = (controlledAccess !== true)? false: true;
+        
+        if (controlledAccess === true && !dbGaPID){
+            throw new Error(ERROR.MISSING_DB_GAP_ID);
+        }
+        if (ORCID && !this.#validateIdentifier(ORCID)) {
+            throw new Error(ERROR.INVALID_ORCID);
+        }     
+        updateStudy.studyName = name;
+        updateStudy.controlledAccess = controlledAccessVal;
+        if (acronym !== undefined) {
+            updateStudy.studyAbbreviation = acronym;
+        }
+        if(openAccess !== undefined){
+            updateStudy.openAccess = openAccess;
+        }
+        if (dbGaPID !== undefined) {
+            updateStudy.dbGaPID = dbGaPID;
+        }
+        if (ORCID !== undefined) {
+            updateStudy.ORCID = ORCID;
+        }
+        if (PI !== undefined) {
+            updateStudy.PI = PI;
+        }
+        updateStudy.updatedAt = new Date();
+        const result = await this.approvedStudiesCollection.update(updateStudy);
+        if (!result?.acknowledged) {
+            throw new Error(ERROR.FAILED_APPROVED_STUDY_UPDATE);
+        }
+        return updateStudy;  
+    }
+    /**
+     * Validate the identifier format.
+     * @param {string} id
+     * @returns {boolean}
+     */
+    #validateIdentifier(id) {
+        const regex = /^\d{4}-\d{4}-\d{4}-\d{4}$/;
+        return regex.test(id);
     }
 }
 
