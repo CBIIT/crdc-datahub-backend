@@ -875,11 +875,11 @@ class Submission {
             //find if the submission including existing collaborator
             if (!aSubmission.collaborators.find(c => c.collaboratorID === collaborator.collaboratorID)) {
                 //find a submitter with the collaborator ID
-                const collaborator = await findByID(this.userService.userCollection, collaboratorID);
-                if (!collaborator) {
+                const user = await findByID(this.userService.userCollection, collaborator.collaboratorID);
+                if (!user) {
                     throw new Error(ERROR.COLLABORATOR_NOT_EXIST);
                 }
-                if (collaborator.role !== ROLES.SUBMITTER) {
+                if (user.role !== ROLES.SUBMITTER) {
                     throw new Error(ERROR.INVALID_COLLABORATOR_ROLE_SUBMITTER);
                 }
                  // check if the collaborator has submissions with the same study.
