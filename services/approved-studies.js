@@ -157,7 +157,14 @@ class ApprovedStudiesService {
             }
             if (controlledAccess !== CONTROLLED_ACCESS_ALL)
             {
-                matches.controlledAccess = (controlledAccess === CONTROLLED_ACCESS_CONTROLLED);
+                if (controlledAccess === CONTROLLED_ACCESS_CONTROLLED)
+                {
+                    matches.controlledAccess = true;
+                }
+                else
+                {
+                    matches.openAccess = true;
+                }
             }
         }
        
