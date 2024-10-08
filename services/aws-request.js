@@ -1,7 +1,6 @@
 const AWS = require('aws-sdk');
 require('aws-sdk/lib/maintenance_mode_message').suppress = true;
-const {v4} = require('uuid')
-const {verifySubmitter} = require("../verifier/user-info-verifier");
+const {v4} = require('uuid');
 const path = require("path");
 const config = require('../config');
 const ERROR = require("../constants/error-constants");
@@ -25,20 +24,19 @@ class AWSService {
     }
     /**
      * createTempCredentials
-     * @param {*} context 
-     * @param {*} submissionID 
-     * @return {
+     * @param {*} submissionID
+     * @return {Promise<Object>} {
             accessKeyId: String
             secretAccessKey: String
             sessionToken: String
         }
      */
-    async createTempCredentials(params, context) {
-        //1. verify token and decode token to get user info
-        const userInfo = context?.userInfo;
-        //verify submitter
-        const submission = await verifySubmitter(userInfo, params?.submissionID, this.submissions, this.userService);
-        //2. create temp credential
+    async createTempCredentials(submissionID) {
+        const submission = (await this.submissions.find(submissionID) || []).pop();
+        if(!submission.rootPath)
+            throw new Error(`${ERROR.VERIFY.EMPTY_ROOT_PATH}, ${submissionID}!`);
+
+        // create temp credential
         // Initialize an STS object
         const sts = new AWS.STS();
         const timestamp = (new Date()).getTime();
@@ -118,6 +116,9 @@ class AWSService {
      * sends a message to AWS SQS queue.
      *
      * @param {Object} messageBody - The message body to be sent.
+     * @param groupID
+     * @param deDuplicationId
+     * @param queueName
      * @returns {Promise} - Resolves with the data from SQS if successful, rejects with an error otherwise.
      */
     async sendSQSMessage(messageBody,groupID, deDuplicationId, queueName) {
