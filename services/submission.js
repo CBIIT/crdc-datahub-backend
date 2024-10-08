@@ -102,9 +102,12 @@ class Submission {
         if (context.userInfo.role === ROLES.USER) {
             return {submissions: [], total: 0};
         }
-        const conditions = await listConditions(this.submissionCollection, context.userInfo._id, context.userInfo?.role, context.userInfo.dataCommons, context.userInfo?.organization, context.userInfo.studies, params);
-        const pipeline = [{"$match": conditions}];
-
+        const conditions = await listConditions(this.submissionCollection, context.userInfo._id, context.userInfo?.role,
+            context.userInfo.dataCommons, context.userInfo?.organization, context.userInfo.studies, params);
+        const submitterNameFilter = (params?.submitterName && params?.submitterName !== "All") ? {submitterName: params?.submitterName?.trim()} : {};
+        // node: Aggregation of Submitter name should not be filtered by a submitterName
+        const submissionListConditions = {...conditions, ...(submitterNameFilter)};
+        const pipeline = [{"$match": submissionListConditions}];
         if (params.orderBy) {
             pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
         }
@@ -118,7 +121,8 @@ class Submission {
         const promises = [
             await this.submissionCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline),
             await this.submissionCollection.aggregate(pipeline.concat([{ $group: { _id: "$_id" } }, { $count: "count" }])),
-            await this.submissionCollection.distinct("dataCommons", conditions),
+            await this.submissionCollection.distinct("dataCommons", submissionListConditions),
+            // note: Submitter name filter is omitted
             await this.submissionCollection.distinct("submitterName", conditions)
         ];
         
@@ -1588,11 +1592,10 @@ async function listConditions(submissionCollection, userID, userRole, userDataCo
 
     const nameCondition = params?.name ? {name: { $regex: params.name?.trim(), $options: "i" }} : {};
     const dbGaPIDCondition = params?.dbGaPID ? {dbGaPID: { $regex: params.dbGaPID?.trim(), $options: "i" }} : {};
-    const dataCommonsCondition = params?.dataCommons ? {dataCommons: params?.dataCommons?.trim()} : {};
-    const submitterNameCondition = params?.submitterName ? {submitterName: params?.submitterName?.trim()} : {};
+    const dataCommonsCondition = (params?.dataCommons && params?.dataCommons !== ALL_FILTER) ? {dataCommons: params?.dataCommons?.trim()} : {};
 
     const baseConditions = { ...statusCondition, ...organizationCondition, ...nameCondition,
-        ...dbGaPIDCondition, ...dataCommonsCondition, ...submitterNameCondition };
+        ...dbGaPIDCondition, ...dataCommonsCondition };
     return (async () => {
         switch (userRole) {
             case ROLES.ADMIN:
