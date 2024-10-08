@@ -307,7 +307,7 @@ class Submission {
         //verify if the action is valid based on current submission status
         verifier.isValidAction(params?.comment);
         //verify if user's role is valid for the action
-        const newStatus = verifier.inRoles(userInfo);
+        const newStatus = verifier.inRoles(userInfo, submission);
         verifier.isValidSubmitAction(userInfo?.role, submission, params?.comment);
         await this.#isValidReleaseAction(action, submission?._id, submission?.studyID, submission?.crossSubmissionStatus);
         //update submission
