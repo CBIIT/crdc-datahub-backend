@@ -102,12 +102,18 @@ class Submission {
         if (context.userInfo.role === ROLES.USER) {
             return {submissions: [], total: 0};
         }
-        const conditions = await listConditions(this.submissionCollection, context.userInfo._id, context.userInfo?.role,
-            context.userInfo.dataCommons, context.userInfo?.organization, context.userInfo.studies, params);
-        const submitterNameFilter = (params?.submitterName && params?.submitterName !== "All") ? {submitterName: params?.submitterName?.trim()} : {};
-        // node: Aggregation of Submitter name should not be filtered by a submitterName
-        const submissionListConditions = {...conditions, ...(submitterNameFilter)};
-        const pipeline = [{"$match": submissionListConditions}];
+
+        const filterConditions = [
+            // default filter for listing submissions
+            await this.#listConditions(context?.userInfo, params.status, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName),
+            // no filter for dataCommons aggregation
+            await this.#listConditions(context?.userInfo, ALL_FILTER, ALL_FILTER, null, null, ALL_FILTER, ALL_FILTER),
+            // note: Aggregation of Submitter name should not be filtered by a submitterName
+            await this.#listConditions(context?.userInfo, params?.status, params.organization, params.name, params.dbGaPID, params.dataCommons, ALL_FILTER),
+        ]
+
+        const [listConditions, dataCommonsCondition, submitterNameCondition] = await Promise.all(filterConditions);
+        const pipeline = [{"$match": listConditions}];
         if (params.orderBy) {
             pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
         }
@@ -121,9 +127,9 @@ class Submission {
         const promises = [
             await this.submissionCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline),
             await this.submissionCollection.aggregate(pipeline.concat([{ $group: { _id: "$_id" } }, { $count: "count" }])),
-            await this.submissionCollection.distinct("dataCommons", submissionListConditions),
+            await this.submissionCollection.distinct("dataCommons", dataCommonsCondition),
             // note: Submitter name filter is omitted
-            await this.submissionCollection.distinct("submitterName", conditions)
+            await this.submissionCollection.distinct("submitterName", submitterNameCondition)
         ];
         
         return await Promise.all(promises).then(function(results) {
@@ -1247,6 +1253,48 @@ class Submission {
             return acc;
         }, {[`${FINAL_INACTIVE_REMINDER}`]: status});
     }
+
+    #listConditions(userInfo, status, organizationID, submissionName, dbGaPID, dataCommonsParams, submitterName){
+        const {_id, role, dataCommons, organization, studies} = userInfo;
+        const validSubmissionStatus = [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
+            REJECTED, WITHDRAWN, DELETED];
+
+        const statusCondition = validSubmissionStatus.includes(status) && status !== ALL_FILTER ?
+            { status: status } : { status: { $in: validSubmissionStatus } };
+        const organizationCondition = organizationID && organizationID !== ALL_FILTER ?
+            { "organization._id": organizationID } : {};
+
+        const nameCondition = submissionName ? {name: { $regex: submissionName?.trim(), $options: "i" }} : {};
+        const dbGaPIDCondition = dbGaPID ? {dbGaPID: { $regex: dbGaPID?.trim(), $options: "i" }} : {};
+        const dataCommonsCondition = (dataCommonsParams && dataCommonsParams !== ALL_FILTER) ? {dataCommons: dataCommonsParams?.trim()} : {};
+        const submitterNameCondition = (submitterName && submitterName !== ALL_FILTER) ? {submitterName: submitterName?.trim()} : {};
+
+        const baseConditions = { ...statusCondition, ...organizationCondition, ...nameCondition,
+            ...dbGaPIDCondition, ...dataCommonsCondition, ...submitterNameCondition };
+        return (async () => {
+            switch (role) {
+                case ROLES.ADMIN:
+                case ROLES.FEDERAL_LEAD:
+                    // List all submissions
+                    return baseConditions;
+                case ROLES.CURATOR:
+                case ROLES.DC_POC:
+                    return {...baseConditions, dataCommons: {$in: dataCommons}};
+                case ROLES.ORG_OWNER:
+                    if (organization?.orgName) {
+                        return {...baseConditions, "organization.name": organization.orgName};
+                    }
+                    return baseConditions;
+                case ROLES.FEDERAL_MONITOR:
+                    return {...baseConditions, studyID: {$in: studies || []}};
+                default:
+                    const submitterCondition = {...baseConditions, submitterID: _id};
+                    const collaboratorUserIDs = await this.submissionCollection.distinct("collaborators.collaboratorID", submitterCondition);
+                    return {...baseConditions, "$or": [{"submitterID": _id}, {"submitterID": {"$in": collaboratorUserIDs}}]};
+            }
+        })();
+    }
+
 }
 
 const updateSubmissionStatus = async (submissionCollection, aSubmission, userInfo, newStatus) => {
@@ -1602,47 +1650,6 @@ const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
 
 const isPermittedUser = (aTargetUser, userInfo) => {
     return aTargetUser?.email === userInfo.email && aTargetUser?.IDP === userInfo.IDP
-}
-
-
-
-async function listConditions(submissionCollection, userID, userRole, userDataCommons, userOrganization, userStudies, params){
-    const validSubmissionStatus = [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
-        REJECTED, WITHDRAWN, DELETED];
-
-    const statusCondition = validSubmissionStatus.includes(params.status) && params.status !== ALL_FILTER ?
-        { status: params.status } : { status: { $in: validSubmissionStatus } };
-    const organizationCondition = params.organization && params.organization !== ALL_FILTER ?
-        { "organization._id": params.organization } : {};
-
-    const nameCondition = params?.name ? {name: { $regex: params.name?.trim(), $options: "i" }} : {};
-    const dbGaPIDCondition = params?.dbGaPID ? {dbGaPID: { $regex: params.dbGaPID?.trim(), $options: "i" }} : {};
-    const dataCommonsCondition = (params?.dataCommons && params?.dataCommons !== ALL_FILTER) ? {dataCommons: params?.dataCommons?.trim()} : {};
-
-    const baseConditions = { ...statusCondition, ...organizationCondition, ...nameCondition,
-        ...dbGaPIDCondition, ...dataCommonsCondition };
-    return (async () => {
-        switch (userRole) {
-            case ROLES.ADMIN:
-            case ROLES.FEDERAL_LEAD:
-                // List all submissions
-                return baseConditions;
-            case ROLES.CURATOR:
-            case ROLES.DC_POC:
-                return {...baseConditions, dataCommons: {$in: userDataCommons}};
-            case ROLES.ORG_OWNER:
-                if (userOrganization?.orgName) {
-                    return {...baseConditions, "organization.name": userOrganization.orgName};
-                }
-                return baseConditions;
-            case ROLES.FEDERAL_MONITOR:
-                return {...baseConditions, studyID: {$in: userStudies || []}};
-            default:
-                const submitterCondition = {...baseConditions, submitterID: userID};
-                const collaboratorUserIDs = await submissionCollection.distinct("collaborators.collaboratorID", submitterCondition);
-                return {...baseConditions, "$or": [{"submitterID": userID}, {"submitterID": {"$in": collaboratorUserIDs}}]};
-        }
-    })();
 }
 
 function validateCreateSubmissionParams (params, allowedDataCommons, intention, dataType, userInfo) {
