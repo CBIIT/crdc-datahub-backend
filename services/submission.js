@@ -597,7 +597,7 @@ class Submission {
         }
         const userInfo = context.userInfo;
         const isPermitted = (this.userService.isAdmin(userInfo.role) ||
-            (userInfo.role === ROLES.CURATOR && userInfo?.dataCommons.include(aSubmission?.dataCommons)))
+            (userInfo.role === ROLES.CURATOR && userInfo?.dataCommons.includes(aSubmission?.dataCommons)))
         if (!isPermitted) {
             throw new Error(ERROR.INVALID_EXPORT_METADATA);
         }
@@ -1120,7 +1120,7 @@ class Submission {
         const results = await Promise.all(promises);
         const isOrgOwners = (results[0] || []).some((aUser) => isPermittedUser(aUser, userInfo));
         const isSubmitter = isPermittedUser(results[1], userInfo);
-        const isDataCurator = ROLES.CURATOR === userInfo?.role && userInfo?.dataCommons.include(aSubmission?.dataCommons);
+        const isDataCurator = ROLES.CURATOR === userInfo?.role && userInfo?.dataCommons.includes(aSubmission?.dataCommons);
         return this.userService.isAdmin(userInfo?.role) || isOrgOwners || isSubmitter || isDataCurator
     }
 
@@ -1155,7 +1155,7 @@ class Submission {
             (userRole === ROLES.ORG_OWNER && context.userInfo?.organization?.orgID === aSubmission?.organization?._id) ||
             (userRole === ROLES.SUBMITTER && context.userInfo._id === aSubmission?.submitterID) ||
             (userRole === ROLES.DC_POC && context.userInfo?.dataCommons.includes(aSubmission?.dataCommons)) ||
-            (ROLES.CURATOR === userRole && context.userInfo?.dataCommons.include(aSubmission?.dataCommons)) ||
+            (ROLES.CURATOR === userRole && context.userInfo?.dataCommons.includes(aSubmission?.dataCommons)) ||
             isCollaborator
         );
     }
