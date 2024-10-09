@@ -607,7 +607,7 @@ class Submission {
         const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
         const isCollaborator = collaboratorUserIDs.includes(userInfo._id);
         const isPermitted = (this.userService.isAdmin(userInfo.role) ||
-            (userInfo.role === ROLES.CURATOR && userInfo?.dataCommons.include(aSubmission?.dataCommons)) || isCollaborator)
+            (userInfo.role === ROLES.CURATOR && userInfo?.dataCommons.includes(aSubmission?.dataCommons)) || isCollaborator)
         if (!isPermitted) {
             throw new Error(ERROR.INVALID_EXPORT_METADATA);
         }
@@ -1145,7 +1145,7 @@ class Submission {
         const orgOwners = await this.userService.getOrgOwnerByOrgName(aSubmission?.organization?.name) || [];
         const isOrgOwners = orgOwners.some((aUser) => isPermittedUser(aUser, userInfo));
         const isSubmitter = aSubmission?.submitterID === userInfo?._id;
-        const isDataCurator = ROLES.CURATOR === userInfo?.role && userInfo?.dataCommons.include(aSubmission?.dataCommons);
+        const isDataCurator = ROLES.CURATOR === userInfo?.role && userInfo?.dataCommons.includes(aSubmission?.dataCommons);
         const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
         const isCollaborator = collaboratorUserIDs.includes(userInfo?._id);
         return this.userService.isAdmin(userInfo?.role) || isOrgOwners || isSubmitter || isDataCurator || isCollaborator;
@@ -1182,7 +1182,7 @@ class Submission {
             (userRole === ROLES.ORG_OWNER && context.userInfo?.organization?.orgID === aSubmission?.organization?._id) ||
             (userRole === ROLES.SUBMITTER && context.userInfo._id === aSubmission?.submitterID) ||
             (userRole === ROLES.DC_POC && context.userInfo?.dataCommons.includes(aSubmission?.dataCommons)) ||
-            (ROLES.CURATOR === userRole && context.userInfo?.dataCommons.include(aSubmission?.dataCommons)) ||
+            (ROLES.CURATOR === userRole && context.userInfo?.dataCommons.includes(aSubmission?.dataCommons)) ||
             isCollaborator
         );
     }
