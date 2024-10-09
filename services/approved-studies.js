@@ -300,6 +300,9 @@ class ApprovedStudiesService {
         if (ORCID && !this.#validateIdentifier(ORCID)) {
             throw new Error(ERROR.INVALID_ORCID);
         }  
+        // check if name is unique
+        if (name !== updateStudy.studyName)
+            await this.#validateStudyName(name)
         updateStudy.studyName = name;
         updateStudy.controlledAccess = controlledAccessVal;
         if (acronym !== undefined) {
