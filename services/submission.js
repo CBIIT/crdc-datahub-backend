@@ -102,9 +102,12 @@ class Submission {
         if (context.userInfo.role === ROLES.USER) {
             return {submissions: [], total: 0};
         }
-        const conditions = await listConditions(this.submissionCollection, context.userInfo._id, context.userInfo?.role, context.userInfo.dataCommons, context.userInfo?.organization, context.userInfo.studies, params);
-        const pipeline = [{"$match": conditions}];
-
+        const conditions = await listConditions(this.submissionCollection, context.userInfo._id, context.userInfo?.role,
+            context.userInfo.dataCommons, context.userInfo?.organization, context.userInfo.studies, params);
+        const submitterNameFilter = (params?.submitterName && params?.submitterName !== "All") ? {submitterName: params?.submitterName?.trim()} : {};
+        // node: Aggregation of Submitter name should not be filtered by a submitterName
+        const submissionListConditions = {...conditions, ...(submitterNameFilter)};
+        const pipeline = [{"$match": submissionListConditions}];
         if (params.orderBy) {
             pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
         }
@@ -118,7 +121,8 @@ class Submission {
         const promises = [
             await this.submissionCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline),
             await this.submissionCollection.aggregate(pipeline.concat([{ $group: { _id: "$_id" } }, { $count: "count" }])),
-            await this.submissionCollection.distinct("dataCommons", conditions),
+            await this.submissionCollection.distinct("dataCommons", submissionListConditions),
+            // note: Submitter name filter is omitted
             await this.submissionCollection.distinct("submitterName", conditions)
         ];
         
@@ -295,7 +299,8 @@ class Submission {
      */
     async submissionAction(params, context){
         verifySession(context)
-            .verifyInitialized();
+            .verifyInitialized()
+            .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.DC_POC, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN, ROLES.FEDERAL_MONITOR]);
         const userInfo = context.userInfo;
         const submissionID = params?.submissionID;
         const action = params?.action;
@@ -303,6 +308,9 @@ class Submission {
         const verifier = verifySubmissionAction(submissionID, action);
         //verify if a submission can be find by submissionID.
         let submission = await verifier.exists(this.submissionCollection);
+        if (!await this.#isValidPermission(userInfo, submission)) {
+            throw new Error(ERROR.INVALID_ROLE);
+        }
         let fromStatus = submission.status;
         //verify if the action is valid based on current submission status
         verifier.isValidAction(params?.comment);
@@ -596,8 +604,10 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
         const userInfo = context.userInfo;
+        const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
+        const isCollaborator = collaboratorUserIDs.includes(userInfo._id);
         const isPermitted = (this.userService.isAdmin(userInfo.role) ||
-            (userInfo.role === ROLES.CURATOR && userInfo?.dataCommons.includes(aSubmission?.dataCommons)))
+            (userInfo.role === ROLES.CURATOR && userInfo?.dataCommons.include(aSubmission?.dataCommons)) || isCollaborator)
         if (!isPermitted) {
             throw new Error(ERROR.INVALID_EXPORT_METADATA);
         }
@@ -1037,7 +1047,7 @@ class Submission {
      async deleteInactiveSubmissions(){
         //get target inactive date, current date - config.inactive_submission_days (default 120 days)
         var target_inactive_date = new Date();
-        target_inactive_date.setDate(target_inactive_date.getDate() - config.inactive_submission_days);
+        target_inactive_date.setDate(target_inactive_date.getDate() - config.inactive_submission_days - 1);
         const query = [{"$match": {"status": {"$in":[IN_PROGRESS, NEW, REJECTED, WITHDRAWN]}, "accessedAt": {"$exists": true, "$ne": null, "$lte": target_inactive_date}}}];
         try {
             const inactive_subs = await this.submissionCollection.aggregate(query);
@@ -1112,16 +1122,33 @@ class Submission {
             .filter(u=> u._id !== aSubmission?.submitterID);
     }
 
+    async verifySubmitter(submissionID, context) {
+        const aSubmission = await findByID(this.submissionCollection, submissionID);
+        if (!aSubmission) {
+            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+        }
+
+        const userInfo = context?.userInfo;
+        const orgOwners = await this.userService.getOrgOwnerByOrgName(aSubmission?.organization?.name) || [];
+        const isOrgOwners = orgOwners.some((aUser) => isPermittedUser(aUser, userInfo));
+        const isSubmitter = aSubmission?.submitterID === userInfo?._id;
+        const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
+        const isCollaborator = collaboratorUserIDs.includes(userInfo?._id);
+
+        const isPermitted = isOrgOwners || isSubmitter || isCollaborator;
+        if (!isPermitted) {
+            throw new Error(`${ERROR.INVALID_SUBMITTER}, ${submissionID}!`)
+        }
+    }
+
     async #isValidPermission(userInfo, aSubmission) {
-        const promises = [
-            await this.userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
-            await this.userService.getUserByID(aSubmission?.submitterID)
-        ];
-        const results = await Promise.all(promises);
-        const isOrgOwners = (results[0] || []).some((aUser) => isPermittedUser(aUser, userInfo));
-        const isSubmitter = isPermittedUser(results[1], userInfo);
-        const isDataCurator = ROLES.CURATOR === userInfo?.role && userInfo?.dataCommons.includes(aSubmission?.dataCommons);
-        return this.userService.isAdmin(userInfo?.role) || isOrgOwners || isSubmitter || isDataCurator
+        const orgOwners = await this.userService.getOrgOwnerByOrgName(aSubmission?.organization?.name) || [];
+        const isOrgOwners = orgOwners.some((aUser) => isPermittedUser(aUser, userInfo));
+        const isSubmitter = aSubmission?.submitterID === userInfo?._id;
+        const isDataCurator = ROLES.CURATOR === userInfo?.role && userInfo?.dataCommons.include(aSubmission?.dataCommons);
+        const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
+        const isCollaborator = collaboratorUserIDs.includes(userInfo?._id);
+        return this.userService.isAdmin(userInfo?.role) || isOrgOwners || isSubmitter || isDataCurator || isCollaborator;
     }
 
     async #requestDeleteDataRecords(message, queueName, deDuplicationId, submissionID) {
@@ -1155,7 +1182,7 @@ class Submission {
             (userRole === ROLES.ORG_OWNER && context.userInfo?.organization?.orgID === aSubmission?.organization?._id) ||
             (userRole === ROLES.SUBMITTER && context.userInfo._id === aSubmission?.submitterID) ||
             (userRole === ROLES.DC_POC && context.userInfo?.dataCommons.includes(aSubmission?.dataCommons)) ||
-            (ROLES.CURATOR === userRole && context.userInfo?.dataCommons.includes(aSubmission?.dataCommons)) ||
+            (ROLES.CURATOR === userRole && context.userInfo?.dataCommons.include(aSubmission?.dataCommons)) ||
             isCollaborator
         );
     }
@@ -1557,8 +1584,10 @@ const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
     if (!aSubmission) {
         throw new Error(ERROR.SUBMISSION_NOT_EXIST);
     }
-    const aUser = await userService.getUserByID(aSubmission?.submitterID);
-    if (isPermittedUser(aUser, userInfo)) {
+    const isSubmitter = aSubmission?.submitterID === userInfo?._id;
+    const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
+    const isCollaborator = collaboratorUserIDs.includes(userInfo?._id);
+    if (isSubmitter || isCollaborator) {
         return;
     }
     // verify submission's organization owner by an organization name
@@ -1588,11 +1617,10 @@ async function listConditions(submissionCollection, userID, userRole, userDataCo
 
     const nameCondition = params?.name ? {name: { $regex: params.name?.trim(), $options: "i" }} : {};
     const dbGaPIDCondition = params?.dbGaPID ? {dbGaPID: { $regex: params.dbGaPID?.trim(), $options: "i" }} : {};
-    const dataCommonsCondition = params?.dataCommons ? {dataCommons: params?.dataCommons?.trim()} : {};
-    const submitterNameCondition = params?.submitterName ? {submitterName: params?.submitterName?.trim()} : {};
+    const dataCommonsCondition = (params?.dataCommons && params?.dataCommons !== ALL_FILTER) ? {dataCommons: params?.dataCommons?.trim()} : {};
 
     const baseConditions = { ...statusCondition, ...organizationCondition, ...nameCondition,
-        ...dbGaPIDCondition, ...dataCommonsCondition, ...submitterNameCondition };
+        ...dbGaPIDCondition, ...dataCommonsCondition };
     return (async () => {
         switch (userRole) {
             case ROLES.ADMIN:
