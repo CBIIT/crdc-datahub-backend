@@ -1722,7 +1722,7 @@ function validateCreateSubmissionParams (params, allowedDataCommons, intention, 
         throw new Error(replaceErrorString(ERROR.CREATE_SUBMISSION_INVALID_NAME, `${CONSTRAINTS.NAME_MAX_LENGTH}`));
     }
     if (!allowedDataCommons.has(params.dataCommons)) {
-        throw new Error(ERROR.CREATE_SUBMISSION_INVALID_DATA_COMMONS);
+        throw new Error(replaceErrorString(ERROR.CREATE_SUBMISSION_INVALID_DATA_COMMONS, `'${params.dataCommons}'`));
     }
 
     if (!userInfo.organization) {

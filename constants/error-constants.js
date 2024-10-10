@@ -59,7 +59,7 @@ const ERROR = {
     CREATE_SUBMISSION_INVALID_DATA_TYPE: "submission data type is invalid",
     CREATE_SUBMISSION_INVALID_DELETE_INTENTION: "when intention is Delete, only 'Metadata Only' is allowed",
     UPDATE_SUBMISSION_ERROR:"An error occurred while attempting to update the submission in the database",
-    CREATE_SUBMISSION_INVALID_DATA_COMMONS: "Invalid Data Commons for creating a submission",
+    CREATE_SUBMISSION_INVALID_DATA_COMMONS: "Requested data commons $item$ is not supported",
     CREATE_SUBMISSION_NO_MATCHING_STUDY: "The study provided does not match an approved study within the user's organization",
     MISSING_CREATE_SUBMISSION_DBGAPID: "Submission dbGaPID is required for creating a data submission with a controlled access study.",
     // List Submissions
