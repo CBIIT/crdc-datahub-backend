@@ -476,10 +476,15 @@ type CDE {
 }
 
 type Collaborator {
-  collaboratorID: ID
-  collaboratorName: String
-  Organization: OrgInfo
-  permission: String # ["Can View", "Can Edit"]
+    collaboratorID: ID,
+    collaboratorName: String,
+    Organization: OrgInfo,
+    permission: String # hard code to "Read Only" (for future use)
+}
+
+input CollaboratorInput {
+   collaboratorID: ID! 
+   permission: String! # ["Can View" and "Can Edit"] 
 }
 
 type Query {
@@ -690,6 +695,11 @@ type Mutation {
       dataCommons: [String], # Applies to Data Commons POC role only. Empty for other roles.
       studies: [String] #approved study IDs optional. It will be saved into user's study list
     ): User
+
+    editSubmissionCollaborators (
+        submissionID: ID!,
+        collaborators: [CollaboratorInput]
+    ): Submission
 
     createApprovedStudy(
         name: String!,  #study name

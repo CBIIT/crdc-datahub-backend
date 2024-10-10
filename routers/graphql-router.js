@@ -146,7 +146,8 @@ dbConnector.connect().then(async () => {
         createOrganization : organizationService.createOrganizationAPI.bind(organizationService),
         deleteDataRecords: submissionService.deleteDataRecords.bind(submissionService),
         getDashboardURL: dashboardService.getDashboardURL.bind(dashboardService),
-        retrieveCDEs : cdeService.getCDEs.bind(cdeService)
+        retrieveCDEs: cdeService.getCDEs.bind(cdeService),
+        editSubmissionCollaborators: submissionService.editSubmissionCollaborators.bind(submissionService),
     };
 });
 

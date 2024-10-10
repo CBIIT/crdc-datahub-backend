@@ -139,7 +139,16 @@ const ERROR = {
     FAILED_APPROVED_STUDY_INSERTION: "Failed to create the approved study.",
     FAILED_APPROVED_STUDY_UPDATE: "Failed to update the approved study.",
     APPROVED_STUDY_NOT_FOUND: "Approved study not found.",
+    EXISTING_SUBMISSION_COLLABORATOR: "The collaborator exists in the submission already.",
+    COLLABORATOR_NOT_EXIST: "collaborator does not exist",
+    INVALID_COLLABORATOR_ROLE_SUBMITTER: "Invalid collaborator role for the submitter",
+    INVALID_COLLABORATOR_STUDY: "No matched collaborator study.",
+    FAILED_ADD_SUBMISSION_COLLABORATOR: "Failed to add submission collaborator",
+    FAILED_REMOVE_SUBMISSION_COLLABORATOR: "Failed to remove submission collaborator",
+    INVALID_SUBMISSION_COLLABORATOR: "Invalid submission collaborator",
+    INVALID_SUBMISSION_STUDY: "Invalid submission, missing studyID",
+    INVALID_COLLABORATOR_PERMISSION: "Invalid collaborator permission, must be 'Can View' or 'Can Edit'",
     DUPLICATE_STUDY_NAME: "Error saving this study. This study name already exists.",
-}   
+} 
 
 module.exports = ERROR;
