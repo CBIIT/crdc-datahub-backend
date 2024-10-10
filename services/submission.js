@@ -926,39 +926,6 @@ class Submission {
     }
 
     /**
-     * API: removeSubmissionCollaborator
-     * @param {*} params 
-     * @param {*} context 
-     * @returns 
-     */
-    async removeSubmissionCollaborator(params, context) {
-        verifySession(context)
-            .verifyInitialized()
-            .verifyRole([ ROLES.ORG_OWNER, ROLES.SUBMITTER]);
-        const {
-            submissionID,
-            collaboratorID
-        } = params;
-        const aSubmission = await findByID(this.submissionCollection, submissionID);
-        if (!aSubmission) {
-            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
-        }
-        //find if the submission including the collaborator
-        if (!aSubmission.collaborators || !aSubmission.collaborators.find(c => c.collaboratorID === collaboratorID)) {
-            throw new Error(ERROR.INVALID_SUBMISSION_COLLABORATOR);
-        }
-        //remove the collaborator from the submission
-        aSubmission.collaborators = aSubmission.collaborators.filter(c=>c.collaboratorID !== collaboratorID);  
-        aSubmission.updatedAt = new Date(); 
-        const result = await this.submissionCollection.update( aSubmission);
-        if (result?.modifiedCount === 1) {
-            return aSubmission;
-        }
-        else
-            throw new Error(ERROR.FAILED_REMOVE_SUBMISSION_COLLABORATOR);
-    }
-
-    /**
      * API: editSubmissionCollaborators
      * @param {*} params 
      * @param {*} context 
