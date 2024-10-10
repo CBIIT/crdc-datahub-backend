@@ -35,9 +35,8 @@ const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_N
 const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
 const AuthenticationService = require("../services/authentication-service");
 const {apiAuthorization, extractAPINames, PUBLIC} = require("./api-authorization");
-const { create } = require('connect-mongo');
 const public_api_list = extractAPINames(schema, PUBLIC)
-
+const INACTIVE_SUBMISSION_DAYS = "Inactive_Submission_Notify_Days";
 let root;
 let authenticationService, userInitializationService;
 dbConnector.connect().then(async () => {
@@ -46,8 +45,7 @@ dbConnector.connect().then(async () => {
     const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
     const emailService = new EmailService(config.email_transport, config.emails_enabled);
     const notificationsService = new NotifyUser(emailService);
-    const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days,
-        submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk, remindSubmissionDay: config.inactive_submission_days_notify};
+
     const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
     const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
@@ -73,11 +71,16 @@ dbConnector.connect().then(async () => {
     const dataRecordService = new DataRecordService(dataRecordCollection, dataRecordArchiveCollection, config.file_queue, config.metadata_queue, awsService, s3Service);
 
     const validationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, VALIDATION_COLLECTION);
-    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, fetchDataModelInfo, awsService, config.export_queue, s3Service, emailParams, config.dataCommonsList, validationCollection, config.sqs_loader_queue);
-    const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.tier, institutionService);
 
     const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
     const configurationService = new ConfigurationService(configurationCollection)
+    const inactiveSubmissionConf = await configurationService.findByType(INACTIVE_SUBMISSION_DAYS);
+    const inactiveSubmissionsTimeout = Array.isArray(inactiveSubmissionConf?.timeout) && inactiveSubmissionConf?.timeout?.length > 0 ? inactiveSubmissionConf?.timeout : [7, 30, 60];
+    const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days,
+        submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk, remindSubmissionDay: inactiveSubmissionsTimeout};
+
+    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, fetchDataModelInfo, awsService, config.export_queue, s3Service, emailParams, config.dataCommonsList, validationCollection, config.sqs_loader_queue);
+    const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.tier, institutionService);
 
     const dashboardService = new DashboardService(userService, awsService, configurationService, {sessionTimeout: config.dashboardSessionTimeout});
     userInitializationService = new UserInitializationService(userCollection, organizationCollection);
@@ -103,6 +106,7 @@ dbConnector.connect().then(async () => {
         listApprovedStudies: approvedStudiesService.listApprovedStudiesAPI.bind(approvedStudiesService),
         createApprovedStudy: approvedStudiesService.addApprovedStudyAPI.bind(approvedStudiesService),
         updateApprovedStudy: approvedStudiesService.editApprovedStudyAPI.bind(approvedStudiesService),
+        getApprovedStudy: approvedStudiesService.getApprovedStudyAPI.bind(approvedStudiesService),
         listApprovedStudiesOfMyOrganization: approvedStudiesService.listApprovedStudiesOfMyOrganizationAPI.bind(approvedStudiesService),
         createBatch: submissionService.createBatch.bind(submissionService),
         updateBatch: submissionService.updateBatch.bind(submissionService),
@@ -110,7 +114,10 @@ dbConnector.connect().then(async () => {
         createSubmission: submissionService.createSubmission.bind(submissionService),
         listSubmissions:  submissionService.listSubmissions.bind(submissionService),
         getSubmission:  submissionService.getSubmission.bind(submissionService),
-        createTempCredentials: awsService.createTempCredentials.bind(awsService),
+        createTempCredentials: async (params, context)=> {
+            await submissionService.verifySubmitter(params?.submissionID, context);
+            return awsService.createTempCredentials(params?.submissionID);
+        },
         submissionAction: submissionService.submissionAction.bind(submissionService),
         listLogs: submissionService.listLogs.bind(submissionService),
         validateSubmission: submissionService.validateSubmission.bind(submissionService),

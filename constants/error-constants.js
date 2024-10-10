@@ -148,6 +148,7 @@ const ERROR = {
     INVALID_SUBMISSION_COLLABORATOR: "Invalid submission collaborator",
     INVALID_SUBMISSION_STUDY: "Invalid submission, missing studyID",
     INVALID_COLLABORATOR_PERMISSION: "Invalid collaborator permission, must be 'Can View' or 'Can Edit'",
-}
+    DUPLICATE_STUDY_NAME: "Error saving this study. This study name already exists.",
+} 
 
 module.exports = ERROR;

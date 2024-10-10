@@ -106,6 +106,9 @@ type Submission {
     archived: Boolean
     nodeCount: Int
     collaborators: [Collaborator]
+    inactiveReminder_7: Boolean
+    inactiveReminder_30: Boolean
+    inactiveReminder_60: Boolean
 }
 
 # not being used currently
@@ -506,8 +509,10 @@ type Query {
         first: Int = 10, #number of records to be returned, return all records if -1 is sent (also default value)
         offset: Int = 0, #number of records to be skipped before returning data
         orderBy: String = "studyName", #property name to be used for sorting 
-        sortDirection: String = "DESC" #["DESC", "ASC"]
+        sortDirection: String = "ASC" #["DESC", "ASC"]
     ): ApprovedStudyList
+    
+    getApprovedStudy(_id: ID!): ApprovedStudy
 
     "Result depends on user's permission"
     listSubmissions(
@@ -558,8 +563,6 @@ type Query {
         orderBy: String = "updatedAt",
         sortDirection: String = "DESC" # ["DESC", "ASC"]
     ): ListBatches
-
-    getBatch(batchID: ID!): Batch
 
     #upload log queries
     listLogs (submissionID: ID!) : ListLogFiles

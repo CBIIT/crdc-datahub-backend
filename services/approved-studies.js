@@ -35,22 +35,44 @@ class ApprovedStudiesService {
     }
 
     /**
-     * List Approved Studies API Interface.
-     *
-     * Note:
-     * - This is an ADMIN only operation.
-     *
+     * Get an Approved Study by ID API Interface.
+     * 
      * @api
-     * @param {Object} params Endpoint parameters
-     * @param {{ cookie: Object, userInfo: Object }} context request context
-     * @returns {Promise<Object[]>} An array of ApprovedStudies
+     * @note This is an ADMIN only operation.
+     * @param {{ _id: string }} params Endpoint parameters
+     * @param {{ cookie: Object, userInfo: Object }} context the request context
+     * @returns {Promise<Object>} The requested ApprovedStudy
+     * @throws {Error} If the study is not found
      */
-    async listApprovedStudiesAPI(params, context) {
+    async getApprovedStudyAPI(params, context) {
         verifySession(context)
           .verifyInitialized()
           .verifyRole([USER.ROLES.ADMIN]);
 
-        return this.listApprovedStudies({});
+        return this.getApprovedStudy(params);
+    }
+
+
+    /**
+     * Fetch an approved study by ID.
+     * 
+     * @note This does not perform any RBAC checks. 
+     * @see {@link getApprovedStudyAPI} for the API interface.
+     * @param {{ _id: string }} params The endpoint parameters
+     * @returns {Promise<Object>} The requested ApprovedStudy
+     * @throws {Error} If the study is not found or the ID is invalid
+     */
+    async getApprovedStudy({ _id }) {
+        if (!_id || typeof _id !== "string") {
+            throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
+        }
+
+        const study = await this.approvedStudiesCollection.find(_id);
+        if (!study || !study.length) {
+            throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
+        }
+
+        return study[0];
     }
 
     /**
@@ -81,9 +103,8 @@ class ApprovedStudiesService {
         }
 
         const filters = {
-            // NOTE: `studyAbbreviation` is a unique constraint
-            studyAbbreviation: {
-                $in: organization.studies?.filter((s) => !!s.studyAbbreviation).map((s) => s.studyAbbreviation)
+            _id: {
+                $in: organization.studies?.filter((s) => s?._id).map((s) => s?._id)
             }
         };
         return this.listApprovedStudies(filters);
@@ -103,6 +124,8 @@ class ApprovedStudiesService {
     /**
      * List Approved Studies API Interface
      *
+     * - This is an ADMIN only operation.
+     *
      * @api
      * @param {Object} params Endpoint parameters
      * @param {{ cookie: Object, userInfo: Object }} context request context
@@ -110,7 +133,8 @@ class ApprovedStudiesService {
      */
     async listApprovedStudiesAPI(params, context) {
         verifySession(context)
-          .verifyInitialized();
+            .verifyInitialized()
+            .verifyRole([USER.ROLES.ADMIN]);
         
         const {
             controlledAccess,
@@ -126,19 +150,26 @@ class ApprovedStudiesService {
         // set matches
         let matches = {};
         if (study)
-            matches.$or = [{studyName: {$regex: study}}, {studyAbbreviation: {$regex: study}}];
-        if (!controlledAccess) {
+            matches.$or = [{studyName: {$regex: study, $options: 'i'}}, {studyAbbreviation: {$regex: study, $options: 'i'}}];
+        if (controlledAccess) {
             if (!CONTROLLED_ACCESS_OPTIONS.includes(controlledAccess)) {
                 throw new Error(ERROR.INVALID_CONTROLLED_ACCESS);
             }
             if (controlledAccess !== CONTROLLED_ACCESS_ALL)
             {
-                matches.controlledAccess = (controlledAccess === CONTROLLED_ACCESS_CONTROLLED);
+                if (controlledAccess === CONTROLLED_ACCESS_CONTROLLED)
+                {
+                    matches.controlledAccess = true;
+                }
+                else
+                {
+                    matches.openAccess = true;
+                }
             }
         }
        
         if (dbGaPID) {
-            matches.dbGaPID = dbGaPID;
+            matches.dbGaPID = {$regex: dbGaPID, $options: 'i'};
         }
         pipelines.push({$match: matches});
         // set sort
@@ -218,6 +249,8 @@ class ApprovedStudiesService {
         if (ORCID && !this.#validateIdentifier(ORCID)) {
             throw new Error(ERROR.INVALID_ORCID);
         }
+        // check if name is unique
+        await this.#validateStudyName(name)
         const current_date = new Date();
         let newStudy = {_id: v4(), studyName: name, studyAbbreviation: acronym, controlledAccess: controlledAccessVal, openAccess: openAccess, dbGaPID: dbGaPID, ORCID: ORCID, PI: PI, createdAt: current_date, updatedAt: current_date};
         const result = await this.approvedStudiesCollection.insert(newStudy);
@@ -266,7 +299,10 @@ class ApprovedStudiesService {
         }
         if (ORCID && !this.#validateIdentifier(ORCID)) {
             throw new Error(ERROR.INVALID_ORCID);
-        }     
+        }  
+        // check if name is unique
+        if (name !== updateStudy.studyName)
+            await this.#validateStudyName(name)
         updateStudy.studyName = name;
         updateStudy.controlledAccess = controlledAccessVal;
         if (acronym !== undefined) {
@@ -297,8 +333,16 @@ class ApprovedStudiesService {
      * @returns {boolean}
      */
     #validateIdentifier(id) {
-        const regex = /^\d{4}-\d{4}-\d{4}-\d{4}$/;
+        const regex = /^(\d{4}-){3}\d{3}(\d|X)$/;
         return regex.test(id);
+    }
+
+    async #validateStudyName(name) {
+        const existingStudy = await this.approvedStudiesCollection.aggregate([{ "$match": {studyName: name}}]);
+        if (existingStudy.length > 0) {
+            throw new Error(ERROR.DUPLICATE_STUDY_NAME);
+        } 
+        return true;  
     }
 }
 
