@@ -29,6 +29,7 @@ let config = {
     // temp url for email
     submission_doc_url: process.env.SUBMISSION_DOC_URL || "",
     submission_helpdesk: "CRDCSubmissions@nih.gov",
+    techSupportEmail: process.env.TECH_SUPPORT_EMAIL || "NCICRDCTechSupport@mail.nih.gov",
     submission_system_portal: "https://datacommons.cancer.gov/",
     prod_url: process.env.PROD_URL || "https://hub.datacommons.cancer.gov/",
     submission_bucket: process.env.SUBMISSION_BUCKET, 
