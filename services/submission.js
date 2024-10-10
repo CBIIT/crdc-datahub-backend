@@ -1421,7 +1421,7 @@ const completeSubmissionEmailInfo = async (userInfo, aSubmission, userService, o
         await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
         await userService.getAdmin(),
         await userService.getUserByID(aSubmission?.submitterID),
-        await userService.getPOCs(),
+        await userService.getPOCs(aSubmission?.dataCommons),
         await organizationService.getOrganizationByID(aSubmission?.organization?._id),
         await userService.getFederalMonitors(aSubmission?.studyID),
         await userService.getCurators(aSubmission?.dataCommons)
@@ -1445,7 +1445,7 @@ const releaseSubmissionEmailInfo = async (userInfo, aSubmission, userService, or
         await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
         await userService.getAdmin(),
         await userService.getUserByID(aSubmission?.submitterID),
-        await userService.getPOCs(),
+        await userService.getPOCs(aSubmission?.dataCommons),
         await organizationService.getOrganizationByID(aSubmission?.organization?._id),
         await userService.getFederalMonitors(aSubmission?.studyID),
         await userService.getCurators(aSubmission?.dataCommons)
@@ -1602,8 +1602,10 @@ const sendEmails = {
             return;
         }
         // could be multiple POCs
-        const notificationPromises = POCs.map(aUser =>
-            notificationsService.releaseDataSubmissionNotification(aUser?.email, ccEmails, {
+        const notificationPromises = POCs.map((aUser, index) =>
+            notificationsService.releaseDataSubmissionNotification(
+                aUser?.email,
+                index === 0 ? ccEmails: [], {
                 firstName: `${aSubmission?.dataCommons} team`
             },{
                 Tier: tier,
