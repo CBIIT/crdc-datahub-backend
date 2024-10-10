@@ -1424,7 +1424,7 @@ const completeSubmissionEmailInfo = async (userInfo, aSubmission, userService, o
         await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
         await userService.getAdmin(),
         await userService.getUserByID(aSubmission?.submitterID),
-        await userService.getPOCs(),
+        await userService.getPOCs(aSubmission?.dataCommons),
         await organizationService.getOrganizationByID(aSubmission?.organization?._id),
         await userService.getFederalMonitors(aSubmission?.studyID),
         await userService.getCurators(aSubmission?.dataCommons)
@@ -1448,7 +1448,7 @@ const releaseSubmissionEmailInfo = async (userInfo, aSubmission, userService, or
         await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
         await userService.getAdmin(),
         await userService.getUserByID(aSubmission?.submitterID),
-        await userService.getPOCs(),
+        await userService.getPOCs(aSubmission?.dataCommons),
         await organizationService.getOrganizationByID(aSubmission?.organization?._id),
         await userService.getFederalMonitors(aSubmission?.studyID),
         await userService.getCurators(aSubmission?.dataCommons)
