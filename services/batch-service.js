@@ -22,7 +22,7 @@ class BatchService {
     async createBatch(params, aSubmission) {
         const prefix = createPrefix(params, aSubmission?.rootPath);
         const newDisplayID = await this.#getBatchDisplayID(params.submissionID);
-        const newBatch = Batch.createNewBatch(params.submissionID, newDisplayID, aSubmission?.bucketName, prefix, params.type.toLowerCase());
+        const newBatch = Batch.createNewBatch(params.submissionID, newDisplayID, aSubmission?.bucketName, prefix, params.type.toLowerCase(), aSubmission.submitterID, aSubmission.submitterName);
         if (BATCH.TYPE.METADATA === params.type.toLowerCase()) {
             await Promise.all(params.files.map(async (file) => {
                 if (file.fileName) {

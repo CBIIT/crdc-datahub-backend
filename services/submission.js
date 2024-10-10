@@ -1821,8 +1821,6 @@ class Collaborators {
     }
 }
 
-
-
 module.exports = {
     Submission
 };
