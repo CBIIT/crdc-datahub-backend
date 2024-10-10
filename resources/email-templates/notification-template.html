@@ -28,6 +28,14 @@
       </ul>
       {{/if}}
 
+    {{#if additionalInfo}}
+    <p>
+    {{#each additionalInfo}}
+      {{#if this.[0]}}<span><strong>{{{ this.[0] }}}:</strong></span>{{/if}}
+      {{#if this.[1]}}<span> {{{ this.[1] }}}</span>{{/if}}<br>
+    {{/each}}
+    </p>
+    {{/if}}
     <p>Sincerely,</p>
     <p>CRDC Data Hub Admin Team</p>
   </body>

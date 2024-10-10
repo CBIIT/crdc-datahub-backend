@@ -42,6 +42,9 @@ const DELETE_METADATA = "Delete Metadata";
 const INACTIVE_REMINDER = "inactiveReminder";
 const FINAL_INACTIVE_REMINDER = "finalInactiveReminder";
 
+const SUBMISSION_ID = "Submission ID";
+const DATA_SUBMISSION_TYPE = "Data Submission Type";
+const DESTINATION_LOCATION = "Destination Location";
 // Set to array
 Set.prototype.toArray = function() {
     return Array.from(this);
@@ -352,7 +355,7 @@ class Submission {
         const logEvent = SubmissionActionEvent.create(userInfo._id, userInfo.email, userInfo.IDP, submission._id, action, fromStatus, newStatus);
         await Promise.all([
             this.logCollection.insert(logEvent),
-            submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService, this.tier)
+            submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService, this.emailParams, this.tier)
         ].concat(completePromise));
         return submission;
     }
@@ -1387,13 +1390,13 @@ String.prototype.format = function(placeholders) {
  * @param {*} notificationService
  * @param {*} tier
  */
-async function submissionActionNotification(userInfo, action, aSubmission, userService, organizationService, notificationService, tier) {
+async function submissionActionNotification(userInfo, action, aSubmission, userService, organizationService, notificationService, emailParams, tier) {
     switch(action) {
         case ACTIONS.SUBMIT:
             await sendEmails.submitSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
             break;
         case ACTIONS.RELEASE:
-            await sendEmails.releaseSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            await sendEmails.releaseSubmission(emailParams, userInfo, aSubmission, userService, organizationService, notificationService, tier);
             break;
         case ACTIONS.WITHDRAW:
             await sendEmails.withdrawSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
@@ -1421,7 +1424,7 @@ const completeSubmissionEmailInfo = async (userInfo, aSubmission, userService, o
         await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
         await userService.getAdmin(),
         await userService.getUserByID(aSubmission?.submitterID),
-        await userService.getPOCs(),
+        await userService.getPOCs(aSubmission?.dataCommons),
         await organizationService.getOrganizationByID(aSubmission?.organization?._id),
         await userService.getFederalMonitors(aSubmission?.studyID),
         await userService.getCurators(aSubmission?.dataCommons)
@@ -1445,7 +1448,7 @@ const releaseSubmissionEmailInfo = async (userInfo, aSubmission, userService, or
         await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
         await userService.getAdmin(),
         await userService.getUserByID(aSubmission?.submitterID),
-        await userService.getPOCs(),
+        await userService.getPOCs(aSubmission?.dataCommons),
         await organizationService.getOrganizationByID(aSubmission?.organization?._id),
         await userService.getFederalMonitors(aSubmission?.studyID),
         await userService.getCurators(aSubmission?.dataCommons)
@@ -1456,13 +1459,13 @@ const releaseSubmissionEmailInfo = async (userInfo, aSubmission, userService, or
     const adminEmails = getUserEmails(results[1] || []);
     const submitterEmails = getUserEmails([results[2] || {}]);
     const fedMonitorEmails = getUserEmails(results[5] || []);
-    const curatorEmails = getUserEmails(results[6] || []);
-    // CCs for Submitter, org owner, admins
-    const ccEmails = new Set([...submitterEmails, ...orgOwnerEmails, ...adminEmails, ...fedMonitorEmails, ...curatorEmails]).toArray();
-    // To POC role users
+    // CCs for Submitter, org owner, admins, fed monitors
+    const ccEmails = new Set([...submitterEmails, ...orgOwnerEmails, ...adminEmails, ...fedMonitorEmails]).toArray();
     const POCs = results[3] || [];
+    const curators = results[6] || [];
+    const toEmails = getUserEmails([...POCs, ...curators] || []);
     const aOrganization = results[4] || {};
-    return [ccEmails, POCs, aOrganization];
+    return [ccEmails, toEmails, aOrganization];
 }
 
 const inactiveSubmissionEmailInfo = async (aSubmission, userService, organizationService) => {
@@ -1595,27 +1598,27 @@ const sendEmails = {
             withdrawnByEmail: `${userInfo?.email}`
         }, tier);
     },
-    releaseSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, tier) => {
-        const [ccEmails, POCs, aOrganization] = await releaseSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
-        if (POCs.length === 0) {
+    releaseSubmission: async (emailParams, userInfo, aSubmission, userService, organizationService, notificationsService, tier) => {
+        const [ccEmails, toEmails, aOrganization] = await releaseSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
+        if (toEmails.length === 0) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
             return;
         }
-        // could be multiple POCs
-        const notificationPromises = POCs.map(aUser =>
-            notificationsService.releaseDataSubmissionNotification(aUser?.email, ccEmails, {
-                firstName: `${aSubmission?.dataCommons} team`
-            },{
-                Tier: tier,
-                dataCommonName: `${aSubmission?.dataCommons}`
-            }, {
-                idandname: `${aSubmission?.name} (id: ${aSubmission?._id})`,
-                // only one study
-                projectName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
-                dataconcierge: `${aSubmission?.conciergeName || NA} at ${aSubmission?.conciergeEmail || NA}`,
-            })
-        );
-        await Promise.all(notificationPromises);
+        const additionalInfo = [
+            [SUBMISSION_ID, aSubmission?._id],
+            [DATA_SUBMISSION_TYPE, aSubmission?.intention],
+            [DESTINATION_LOCATION, `${aSubmission?.bucketName} at ${aSubmission?.rootPath}`]];
+        await notificationsService.releaseDataSubmissionNotification(toEmails, ccEmails, {
+            firstName: `${aSubmission?.dataCommons} team`,
+            additionalInfo: additionalInfo
+        },{
+            dataCommonName: aSubmission?.dataCommons
+        }, {
+            submissionName: aSubmission?.name,
+            // only one study
+            studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+            techSupportEmail: emailParams.techSupportEmail || NA
+        }, tier)
     },
     rejectSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService, tier) => {
         const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
