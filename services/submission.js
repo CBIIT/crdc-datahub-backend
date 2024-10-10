@@ -11,7 +11,7 @@ const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mon
 const {formatName} = require("../utility/format-name");
 const ERROR = require("../constants/error-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
-const {SubmissionActionEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
+const {SubmissionActionEvent, DeleteRecordEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const {verifyBatch} = require("../verifier/batch-verifier");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
@@ -1026,11 +1026,11 @@ class Submission {
         return configString.format({token: tokenDict.tokens[0]})
     }
 
-    async #deleteDataFiles(fileNames, aSubmission) {
+    async #getBucketDataFiles(fileNames, aSubmission) {
         const filePromises = fileNames
             .map(fileName =>
-            this.s3Service.listFile(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}/${fileName}`)
-        );
+                this.s3Service.listFile(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}/${fileName}`)
+            );
         const fileResults = await Promise.all(filePromises);
         const existingFiles = new Map();
         fileResults.forEach((file) => {
@@ -1041,21 +1041,28 @@ class Submission {
                 existingFiles.set(fileName, aFileContent?.Key);
             }
         });
-        // check file existence in the bucket
-        if (existingFiles.size === 0) {
-            return ValidationHandler.handle(ERROR.DELETE_NO_DATA_FILE_EXISTS);
-        }
+        return existingFiles;
+    }
+
+    async #deleteDataFiles(existingFiles, aSubmission) {
         // Set a flag when initiating the deletion of S3 files.
         await this.submissionCollection.update({_id: aSubmission?._id, updatedAt: getCurrentTime(), deletingData: true});
-        const promises = Array.from(existingFiles.values()).map(fileKey => this.s3Service.deleteFile(aSubmission?.bucketName, fileKey));
+        const existingFilesArr = Array.from(existingFiles.values());
+        const promises = existingFilesArr.map(fileKey => this.s3Service.deleteFile(aSubmission?.bucketName, fileKey));
         const res = await Promise.allSettled(promises);
         const notDeletedErrorFiles = [];
+        const deletedFiles = [];
+
         res.forEach((result, index) => {
             if (result.status === 'rejected') {
                 const fileKey = Array.from(existingFiles.values())[index];
                 console.error(`Failed to delete; submission ID: ${aSubmission?._id} file name: ${fileKey} error: ${result?.reason}`);
                 const fileName = Array.from(existingFiles.keys())[index];
                 notDeletedErrorFiles.push(fileName);
+            }
+            // AWS API does not return the name of the deleted file.
+            if (result.status === 'fulfilled' && existingFilesArr[index]) {
+                deletedFiles.push(existingFilesArr[index]);
             }
         });
 
@@ -1064,9 +1071,8 @@ class Submission {
             const deletedFile = existingFiles.get(fileError?.submittedID);
             return notDeletedErrorFiles.includes(fileError.submittedID) || !deletedFile;
         }) || [];
-
         await this.submissionCollection.update({_id: aSubmission?._id, updatedAt: getCurrentTime(), fileErrors : errors, deletingData: false});
-        return ValidationHandler.success(`${res.filter(result => result.status === 'fulfilled').length} extra files deleted`);
+        return deletedFiles;
     }
 
     /**
@@ -1162,7 +1168,15 @@ class Submission {
         }
 
         if (params?.nodeType === VALIDATION.TYPES.DATA_FILE) {
-            return await this.#deleteDataFiles(params.nodeIDs, aSubmission);
+            const existingFiles = await this.#getBucketDataFiles(params.nodeIDs, aSubmission);
+            if (existingFiles.size === 0) {
+                return ValidationHandler.handle(ERROR.DELETE_NO_DATA_FILE_EXISTS);
+            }
+            const deletedFiles = await this.#deleteDataFiles(existingFiles, aSubmission);
+            if (deletedFiles.length > 0) {
+                await this.#logDataRecord(context?.userInfo, aSubmission._id, VALIDATION.TYPES.DATA_FILE, deletedFiles);
+            }
+            return ValidationHandler.success(`${deletedFiles.length} extra files deleted`)
         }
 
         const msg = {type: DELETE_METADATA, submissionID: params.submissionID, nodeType: params.nodeType, nodeIDs: params.nodeIDs}
@@ -1171,6 +1185,10 @@ class Submission {
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
             console.error(ERROR.FAILED_UPDATE_DELETE_STATUS, aSubmission?._id);
             throw new Error(ERROR.FAILED_UPDATE_DELETE_STATUS);
+        }
+
+        if (Boolean(success?.success)) {
+            await this.#logDataRecord(context?.userInfo, aSubmission._id, params.nodeType, params.nodeIDs);
         }
         return success;
     }
@@ -1207,6 +1225,12 @@ class Submission {
         if (!isPermitted) {
             throw new Error(`${ERROR.INVALID_SUBMITTER}, ${submissionID}!`)
         }
+    }
+
+    async #logDataRecord(userInfo, submissionID, nodeType, nodeIDs) {
+        const userName = `${userInfo?.lastName ? userInfo?.lastName + ',' : ''} ${userInfo?.firstName || NA}`;
+        const logEvent = DeleteRecordEvent.create(userInfo._id, userInfo.email, userName, submissionID, nodeType, nodeIDs);
+        this.logCollection.insert(logEvent);
     }
 
     async #isValidPermission(userInfo, aSubmission) {
