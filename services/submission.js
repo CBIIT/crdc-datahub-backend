@@ -925,68 +925,6 @@ class Submission {
             throw new Error(ERROR.FAILED_ADD_SUBMISSION_COLLABORATOR);
     }
 
-    /**
-     * API: editSubmissionCollaborators
-     * @param {*} params 
-     * @param {*} context 
-     * @returns 
-     */
-    async editSubmissionCollaborators(params, context) {
-        verifySession(context)
-            .verifyInitialized()
-            .verifyRole([ ROLES.ORG_OWNER, ROLES.SUBMITTER]);
-        const {
-            submissionID,
-            collaborators, 
-        } = params;
-        const aSubmission = await findByID(this.submissionCollection, submissionID);
-        if (!aSubmission) {
-            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
-        }
-        if (!aSubmission.studyID) {
-            throw new Error(ERROR.INVALID_SUBMISSION_STUDY);
-        }
-        if (!aSubmission.collaborators) 
-            aSubmission.collaborators = [];
-        // validate collaborators one by one.
-        for (const collaborator of collaborators) {
-            //find if the submission including existing collaborator
-            if (!aSubmission.collaborators.find(c => c.collaboratorID === collaborator.collaboratorID)) {
-                //find a submitter with the collaborator ID
-                const user = await findByID(this.userService.userCollection, collaborator.collaboratorID);
-                if (!user) {
-                    throw new Error(ERROR.COLLABORATOR_NOT_EXIST);
-                }
-                if (user.role !== ROLES.SUBMITTER) {
-                    throw new Error(ERROR.INVALID_COLLABORATOR_ROLE_SUBMITTER);
-                }
-                 // check if the collaborator has submissions with the same study.
-                const search_conditions = {
-                    studyID: aSubmission.studyID,
-                    submitterID: collaborator.collaboratorID
-                }
-                const collaborator_subs = await this.submissionCollection.aggregate([{$match: search_conditions}]);
-                if (!collaborator_subs || collaborator_subs.length === 0 )
-                {
-                    throw new Error(ERROR.INVALID_COLLABORATOR_STUDY);
-                }
-                // validate collaborator permission
-                if (!Object.values(COLLABORATOR_PERMISSIONS).includes(collaborator.permission)) {
-                    throw new Error(ERROR.INVALID_COLLABORATOR_PERMISSION);
-                }
-            }
-        }
-        // if passed validation
-        aSubmission.collaborators = collaborators;  
-        aSubmission.updatedAt = new Date(); 
-        const result = await this.submissionCollection.update( aSubmission);
-        if (result?.modifiedCount === 1) {
-            return aSubmission
-        }
-        else
-            throw new Error(ERROR.FAILED_ADD_SUBMISSION_COLLABORATOR);
-    }
-
     #replaceFileNodeProps(aSubmission, configString, dataModelInfo){
         const modelFileNodeInfos = Object.values(dataModelInfo?.[aSubmission.dataCommons]?.[DATA_MODEL_SEMANTICS]?.[DATA_MODEL_FILE_NODES]);
         const omit_DCF_prefix = dataModelInfo?.[aSubmission.dataCommons]?.['omit-DCF-prefix'];
