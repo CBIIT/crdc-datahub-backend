@@ -3,7 +3,7 @@ const fs = require('fs');
 const {createEmailTemplate} = require("../lib/create-email-template");
 const {replaceMessageVariables} = require("../utility/string-util");
 const config = require("../config");
-
+const NOTIFICATION_USER_HTML_TEMPLATE = "notification-template-user.html";
 class NotifyUser {
 
     constructor(emailService) {
@@ -95,6 +95,23 @@ class NotifyUser {
             );
         });
     }
+
+    async userRoleChangeNotification(email, emailCCs, template_params, messageVariables, tier) {
+        const message = replaceMessageVariables(this.email_constants.USER_ROLE_CHANGE_CONTENT_TOP, messageVariables);
+        const subject = this.email_constants.USER_ROLE_CHANGE_SUBJECT;
+        return await this.send(async () => {
+            await this.emailService.sendNotification(
+                this.email_constants.NOTIFICATION_SENDER,
+                isTierAdded(tier) ? `${tier} ${subject}` : subject,
+                await createEmailTemplate(NOTIFICATION_USER_HTML_TEMPLATE, {
+                    message, ...template_params
+                }),
+                email,
+                emailCCs
+            );
+        });
+    }
+
 
     async inactiveUserNotification(email, template_params, messageVariables, tier) {
         const message = replaceMessageVariables(this.email_constants.INACTIVE_USER_CONTENT, messageVariables);

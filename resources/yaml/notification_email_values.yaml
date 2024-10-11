@@ -38,3 +38,7 @@ INACTIVE_SUBMISSION_CONTENT: "Your data submission, ( $title ), for the $studyNa
 FINAL_INACTIVE_SUBMISSION_SUBJECT: "FINAL NOTICE: Your Data Submission Will Be Deleted in 24 Hours"
 FINAL_INACTIVE_SUBMISSION_CONTENT: "This is a final reminder regarding your data submission, $title, for the $studyName study. It has not been accessed for $days days. If you intend to complete this submission, please log in to $url and resume your work."
 FINAL_INACTIVE_SUBMISSION_ADDITIONAL_CONTENT: ["If no action is taken within the next 24 hours, your data submission will be permanently deleted.", "Thank you for your prompt attention to this matter."]
+USER_ROLE_CHANGE_SUBJECT: "Your User Account Has Been Updated"
+USER_ROLE_CHANGE_CONTENT_TOP: "Your account on the CRDC Submission Portal has been updated. Please find the details of your updated account information below:"
+USER_ROLE_CHANGE_CONTENT_BOTTOM: "Your account on the CRDC Submission Portal has been updated. Please find the details of your updated account information below:"
+
