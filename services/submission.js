@@ -237,11 +237,15 @@ class Submission {
         verifySession(context)
             .verifyInitialized()
             .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.DC_POC, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN, ROLES.FEDERAL_MONITOR]);
-        const aSubmission = await findByID(this.submissionCollection, params._id);
+        let aSubmission = await findByID(this.submissionCollection, params._id);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-
+        // add userName in each history
+        for (const history of aSubmission.history) {
+            const user = await this.userService.getUserByID(history.userID);
+            history.userName = user.firstName + " " + user.lastName;
+        }
         if (aSubmission?.studyID) {
             // if user role is Federal Monitor, only can access his studies.
             if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
@@ -282,7 +286,12 @@ class Submission {
                 const updateSubmission = await this.submissionCollection.findOneAndUpdate({_id: aSubmission?._id},
                     {accessedAt: getCurrentTime(), ...everyReminderDays},
                     {returnDocument: 'after'});
-                return updateSubmission.value;
+                aSubmission = updateSubmission.value;
+            }
+            // add userName in each history
+            for (const history of aSubmission.history) {
+                const user = await this.userService.getUserByID(history.userID);
+                history.userName = user.firstName + " " + user.lastName;
             }
             return aSubmission
         }
