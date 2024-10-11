@@ -1026,7 +1026,7 @@ class Submission {
         return configString.format({token: tokenDict.tokens[0]})
     }
 
-    async #getBucketDataFiles(fileNames, aSubmission) {
+    async #getExistingDataFiles(fileNames, aSubmission) {
         const filePromises = fileNames
             .map(fileName =>
                 this.s3Service.listFile(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}/${fileName}`)
@@ -1062,7 +1062,9 @@ class Submission {
             }
             // AWS API does not return the name of the deleted file.
             if (result.status === 'fulfilled' && existingFilesArr[index]) {
-                deletedFiles.push(existingFilesArr[index]);
+                const pathFileName = existingFilesArr[index];
+                const fileName = pathFileName.substring(existingFilesArr[index].lastIndexOf('/') + 1);
+                deletedFiles.push(fileName);
             }
         });
 
@@ -1168,7 +1170,7 @@ class Submission {
         }
 
         if (params?.nodeType === VALIDATION.TYPES.DATA_FILE) {
-            const existingFiles = await this.#getBucketDataFiles(params.nodeIDs, aSubmission);
+            const existingFiles = await this.#getExistingDataFiles(params.nodeIDs, aSubmission);
             if (existingFiles.size === 0) {
                 return ValidationHandler.handle(ERROR.DELETE_NO_DATA_FILE_EXISTS);
             }
@@ -1230,7 +1232,7 @@ class Submission {
     async #logDataRecord(userInfo, submissionID, nodeType, nodeIDs) {
         const userName = `${userInfo?.lastName ? userInfo?.lastName + ',' : ''} ${userInfo?.firstName || NA}`;
         const logEvent = DeleteRecordEvent.create(userInfo._id, userInfo.email, userName, submissionID, nodeType, nodeIDs);
-        this.logCollection.insert(logEvent);
+        await this.logCollection.insert(logEvent);
     }
 
     async #isValidPermission(userInfo, aSubmission) {
