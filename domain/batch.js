@@ -3,7 +3,7 @@ const {v4, v5} = require("uuid");
 const {BATCH, FILE} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const DCF_PREFIX = "dg.4DFC";
 class Batch {
-    constructor(submissionID, displayID, bucketName, filePrefix, type, status) {
+    constructor(submissionID, displayID, bucketName, filePrefix, type, status, submitterID, submitterName) {
         this._id = v4();
         this.bucketName = bucketName;
         this.submissionID = submissionID;
@@ -20,6 +20,8 @@ class Batch {
             filePrefix += `/${this.createdAt?.getTime()}`;
         }
         this.filePrefix = filePrefix;
+        this.submitterID = submitterID;
+        this.submitterName = submitterName;
     }
 
     addDataFile(name, size, url, studyID, isOmitPrefix){
@@ -45,9 +47,9 @@ class Batch {
         this.fileCount += 1;
     }
 
-    static createNewBatch(submissionID, displayID, bucketName, filePrefix, type) {
+    static createNewBatch(submissionID, displayID, bucketName, filePrefix, type, submitterID, submitterName) {
         const status = BATCH.STATUSES.UPLOADING;
-        return new Batch(submissionID, displayID, bucketName, filePrefix, type, status);
+        return new Batch(submissionID, displayID, bucketName, filePrefix, type, status, submitterID, submitterName);
     }
 }
 
