@@ -149,6 +149,9 @@ const ERROR = {
     INVALID_SUBMISSION_STUDY: "Invalid submission, missing studyID",
     INVALID_COLLABORATOR_PERMISSION: "Invalid collaborator permission, must be 'Can View' or 'Can Edit'",
     DUPLICATE_STUDY_NAME: "Error saving this study. This study name already exists.",
+    // User
+    ORGANIZATION_NOT_FOUND: "The provided organization ID is not matched in the record",
+    INVALID_REQUEST_ROLE: "Invalid user role is requested: $item$"
 } 
 
 module.exports = ERROR;

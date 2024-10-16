@@ -35,6 +35,7 @@ const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_N
 const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
 const AuthenticationService = require("../services/authentication-service");
 const {apiAuthorization, extractAPINames, PUBLIC} = require("./api-authorization");
+const {UserService} = require("../services/user");
 const public_api_list = extractAPINames(schema, PUBLIC)
 const INACTIVE_SUBMISSION_DAYS = "Inactive_Submission_Notify_Days";
 let root;
@@ -52,7 +53,9 @@ dbConnector.connect().then(async () => {
     const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection, approvedStudiesCollection);
     const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, organizationService);
 
-    const userService = new User(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, config.tier, organizationService);
+    const userService = new User(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.tier, organizationService);
+    // TODO move userService
+    const userBEService = new UserService(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.tier, organizationService);
     const s3Service = new S3Service();
     const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
     const awsService = new AWSService(submissionCollection, userService);
@@ -148,6 +151,7 @@ dbConnector.connect().then(async () => {
         getDashboardURL: dashboardService.getDashboardURL.bind(dashboardService),
         retrieveCDEs: cdeService.getCDEs.bind(cdeService),
         editSubmissionCollaborators: submissionService.editSubmissionCollaborators.bind(submissionService),
+        requestAccess: userService.requestAccess.bind(userService)
     };
 });
 

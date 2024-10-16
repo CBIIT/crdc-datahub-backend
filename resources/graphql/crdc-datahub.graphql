@@ -726,4 +726,10 @@ type Mutation {
         ORCID: String, #optional in format of 0000-1234-2345-3456
         PI: String #optional 
     ): ApprovedStudy
+
+    requestAccess(
+        role: ID!
+        organization: String!, # organizationID
+        additionalInfo: String,
+    ): AsyncProcessResult
 }
