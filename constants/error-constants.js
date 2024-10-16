@@ -152,6 +152,6 @@ const ERROR = {
     // User
     ORGANIZATION_NOT_FOUND: "The provided organization ID does not exist in the organization record",
     INVALID_REQUEST_ROLE: "Invalid user role is requested: $item$"
-} 
+}
 
 module.exports = ERROR;
