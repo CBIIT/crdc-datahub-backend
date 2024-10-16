@@ -295,6 +295,9 @@ class NotifyUser {
                 CCs
             );
         });
+
+
+
     }
 
     async inactiveSubmissionNotification(email, CCs, template_params, messageVariables, tier) {
