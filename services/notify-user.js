@@ -3,7 +3,14 @@ const fs = require('fs');
 const {createEmailTemplate} = require("../lib/create-email-template");
 const {replaceMessageVariables} = require("../utility/string-util");
 const config = require("../config");
-
+const NOTIFICATION_USER_HTML_TEMPLATE = "notification-template-user.html";
+const USER_NAME = "User Name"
+const ACCOUNT_TYPE = "Account Type";
+const ACCOUNT_EMAIL = "Account Email";
+const REQUESTED_ROLE = "Requested Role";
+const ADDITIONAL_INFO = "Additional Info";
+const AFFILIATED_ORGANIZATION = "Affiliated Organization";
+const CRDC_PORTAL_ADMIN = "CRDC Submission Portal Admins";
 class NotifyUser {
 
     constructor(emailService) {
@@ -95,6 +102,34 @@ class NotifyUser {
             );
         });
     }
+
+
+    // async userRoleChangeNotification(email, emailCCs, templateParams, messageVariables, tier) {
+    //     const topMessage = replaceMessageVariables(this.email_constants.USER_ROLE_CHANGE_CONTENT_TOP, messageVariables);
+    //     const bottomMessage = replaceMessageVariables(this.email_constants.USER_ROLE_CHANGE_CONTENT_BOTTOM, messageVariables);
+    //     const subject = this.email_constants.USER_ROLE_CHANGE_SUBJECT;
+    //     const additionalInfo = [
+    //         [ACCOUNT_TYPE, templateParams.accountType?.toUpperCase()],
+    //         [ACCOUNT_EMAIL, templateParams.email],
+    //         ...(templateParams.role) ? [[ROLE, templateParams.role]] : [],
+    //         ...(templateParams.org) ? [[AFFILIATED_ORGANIZATION, templateParams.org]] : [],
+    //         ...(templateParams.dataCommons) ? [[DATA_COMMONS, templateParams.dataCommons]] : [],
+    //         ...(templateParams.studies) ? [[STUDIES, templateParams.studies]] : [],
+    //     ];
+    //     return await this.send(async () => {
+    //         await this.emailService.sendNotification(
+    //             this.email_constants.NOTIFICATION_SENDER,
+    //             isTierAdded(tier) ? `${tier} ${subject}` : subject,
+    //             await createEmailTemplate(NOTIFICATION_USER_HTML_TEMPLATE, {
+    //                 topMessage, bottomMessage, ...{firstName: CRDC_PORTAL_USER, ...templateParams, additionalInfo}
+    //             }),
+    //             email,
+    //             emailCCs
+    //         );
+    //     });
+    // }
+
+
 
     async inactiveUserNotification(email, template_params, messageVariables, tier) {
         const message = replaceMessageVariables(this.email_constants.INACTIVE_USER_CONTENT, messageVariables);
@@ -254,6 +289,9 @@ class NotifyUser {
                 CCs
             );
         });
+
+
+
     }
 
     async inactiveSubmissionNotification(email, CCs, template_params, messageVariables, tier) {
@@ -265,6 +303,30 @@ class NotifyUser {
                 isTierAdded(tier) ? `${tier} ${subject}` : subject,
                 await createEmailTemplate("notification-template.html", {
                     message, ...template_params
+                }),
+                email,
+                CCs
+            );
+        });
+    }
+
+    async requestUserAccessNotification(email, CCs, templateParams, tier) {
+        const topMessage = replaceMessageVariables(this.email_constants.USER_REQUEST_ACCESS_CONTENT, {});
+        const subject = this.email_constants.USER_REQUEST_ACCESS_SUBJECT;
+        const additionalInfo = [
+            [USER_NAME, templateParams.userName],
+            [ACCOUNT_TYPE, templateParams.accountType?.toUpperCase()],
+            [ACCOUNT_EMAIL, templateParams.email],
+            ...(templateParams.role) ? [[REQUESTED_ROLE, templateParams.role]] : [],
+            ...(templateParams.org) ? [[AFFILIATED_ORGANIZATION, templateParams.org]] : [],
+            ...(templateParams.additionalInfo) ? [[ADDITIONAL_INFO, templateParams.additionalInfo]] : []
+        ];
+        return await this.send(async () => {
+            await this.emailService.sendNotification(
+                this.email_constants.NOTIFICATION_SENDER,
+                isTierAdded(tier) ? `${tier} ${subject}` : subject,
+                await createEmailTemplate(NOTIFICATION_USER_HTML_TEMPLATE, {
+                    topMessage, ...{firstName: CRDC_PORTAL_ADMIN, ...templateParams, additionalInfo}
                 }),
                 email,
                 CCs
