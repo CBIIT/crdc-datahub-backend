@@ -150,7 +150,7 @@ const ERROR = {
     INVALID_COLLABORATOR_PERMISSION: "Invalid collaborator permission, must be 'Can View' or 'Can Edit'",
     DUPLICATE_STUDY_NAME: "Error saving this study. This study name already exists.",
     // User
-    ORGANIZATION_NOT_FOUND: "The provided organization ID is not matched in the record",
+    ORGANIZATION_NOT_FOUND: "The provided organization ID does not exist in the organization record",
     INVALID_REQUEST_ROLE: "Invalid user role is requested: $item$"
 } 
 

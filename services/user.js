@@ -21,7 +21,7 @@ class UserService {
             .verifyInitialized()
             .verifyRole([USER.ROLES.USER, USER.ROLES.ORG_OWNER, USER.ROLES.SUBMITTER]);
 
-        if (Object.values(USER.ROLES).includes(params.role)) {
+        if (!Object.values(USER.ROLES).includes(params.role)) {
             return new Error(replaceErrorString(ERROR.INVALID_REQUEST_ROLE, params?.role));
         }
 
@@ -55,7 +55,7 @@ class UserService {
     }
 
     async #getOrgByID(orgID) {
-        return await this.organizationCollection.find(orgID);
+        return (await this.organizationCollection.find(orgID))?.pop();
     }
 
     async getAdmin() {
