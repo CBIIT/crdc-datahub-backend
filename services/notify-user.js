@@ -10,6 +10,7 @@ const ROLE = "Role";
 const AFFILIATED_ORGANIZATION = "Affiliated Organization";
 const DATA_COMMONS = "Data Commons";
 const STUDIES = "Studies";
+const CRDC_PORTAL_USER = "CRDC Submission Portal User";
 class NotifyUser {
 
     constructor(emailService) {
@@ -119,7 +120,7 @@ class NotifyUser {
                 this.email_constants.NOTIFICATION_SENDER,
                 isTierAdded(tier) ? `${tier} ${subject}` : subject,
                 await createEmailTemplate(NOTIFICATION_USER_HTML_TEMPLATE, {
-                    topMessage, bottomMessage, ...{...templateParams, additionalInfo}
+                    topMessage, bottomMessage, ...{firstName: CRDC_PORTAL_USER, ...templateParams, additionalInfo}
                 }),
                 email,
                 emailCCs
