@@ -21,7 +21,7 @@ class EmailService {
         cc = this.asArray(cc);
         bcc = this.asArray(bcc);
 
-        return await this.sendMail({ from, to: ["iheaven0129@gmail.com"], cc, bcc, subject, html });
+        return await this.sendMail({ from, to, cc, bcc, subject, html });
     }
 
     async sendMail(params) {
