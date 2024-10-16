@@ -48,7 +48,7 @@ class UserService {
             }
             ,this.tier);
 
-        if (res) {
+        if (res?.accepted?.length > 0) {
             return ValidationHandler.success()
         }
         return ValidationHandler.handle(ERROR.DELETE_NO_DATA_FILE_EXISTS);
