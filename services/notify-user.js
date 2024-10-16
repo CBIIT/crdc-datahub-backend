@@ -325,11 +325,14 @@ class NotifyUser {
             ...(templateParams.additionalInfo) ? [[ADDITIONAL_INFO, templateParams.additionalInfo]] : []
         ];
         return await this.send(async () => {
-            await this.emailService.sendNotification(
+            return await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
                 isTierAdded(tier) ? `${tier} ${subject}` : subject,
                 await createEmailTemplate(NOTIFICATION_USER_HTML_TEMPLATE, {
-                    topMessage, ...{firstName: CRDC_PORTAL_ADMIN, ...templateParams, additionalInfo}
+                    topMessage, ...{
+                        firstName: CRDC_PORTAL_ADMIN,
+                        senderName: CRDC_PORTAL_TEAM,
+                        ...templateParams, additionalInfo}
                 }),
                 email,
                 CCs
