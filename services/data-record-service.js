@@ -50,7 +50,7 @@ class DataRecordService {
             this.dataRecordsCollection.aggregate([
                 { "$match": {submissionID: aSubmission?._id, "s3FileInfo.status": {$in: validNodeStatus}}}]),
             // submission's root path should be matched, otherwise the other file node count return wrong
-            await this.s3Service.listFileInDir(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}`)
+            await this.s3Service.listFileInDir(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}/`)
         ]);
         const [groupByNodeType, fileRecords, s3SubmissionFiles] = res;
         const statusPipeline = { "$group": { _id: "$status", count: { $sum: 1 }}};
