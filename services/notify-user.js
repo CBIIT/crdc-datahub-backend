@@ -3,7 +3,15 @@ const fs = require('fs');
 const {createEmailTemplate} = require("../lib/create-email-template");
 const {replaceMessageVariables} = require("../utility/string-util");
 const config = require("../config");
-
+const NOTIFICATION_USER_HTML_TEMPLATE = "notification-template-user.html";
+const ACCOUNT_TYPE = "Account Type";
+const ACCOUNT_EMAIL = "Account Email";
+const ROLE = "Role";
+const AFFILIATED_ORGANIZATION = "Affiliated Organization";
+const DATA_COMMONS = "Data Commons";
+const STUDIES = "Studies";
+const CRDC_PORTAL_USER = "CRDC Submission Portal User";
+const CRDC_PORTAL_TEAM ="CRDC Submission Portal Team";
 class NotifyUser {
 
     constructor(emailService) {
@@ -95,6 +103,35 @@ class NotifyUser {
             );
         });
     }
+
+    async userRoleChangeNotification(email, emailCCs, templateParams, messageVariables, tier) {
+        const topMessage = replaceMessageVariables(this.email_constants.USER_ROLE_CHANGE_CONTENT_TOP, messageVariables);
+        const bottomMessage = replaceMessageVariables(this.email_constants.USER_ROLE_CHANGE_CONTENT_BOTTOM, messageVariables);
+        const subject = this.email_constants.USER_ROLE_CHANGE_SUBJECT;
+        const additionalInfo = [
+            [ACCOUNT_TYPE, templateParams.accountType?.toUpperCase()],
+            [ACCOUNT_EMAIL, templateParams.email],
+            ...(templateParams.role) ? [[ROLE, templateParams.role]] : [],
+            ...(templateParams.org) ? [[AFFILIATED_ORGANIZATION, templateParams.org]] : [],
+            ...(templateParams.dataCommons) ? [[DATA_COMMONS, templateParams.dataCommons]] : [],
+            ...(templateParams.studies) ? [[STUDIES, templateParams.studies]] : [],
+        ];
+        return await this.send(async () => {
+            await this.emailService.sendNotification(
+                this.email_constants.NOTIFICATION_SENDER,
+                isTierAdded(tier) ? `${tier} ${subject}` : subject,
+                await createEmailTemplate(NOTIFICATION_USER_HTML_TEMPLATE, {
+                    topMessage, bottomMessage, ...{
+                        firstName: CRDC_PORTAL_USER,
+                        senderName: CRDC_PORTAL_TEAM,
+                        ...templateParams, additionalInfo}
+                }),
+                email,
+                emailCCs
+            );
+        });
+    }
+
 
     async inactiveUserNotification(email, template_params, messageVariables, tier) {
         const message = replaceMessageVariables(this.email_constants.INACTIVE_USER_CONTENT, messageVariables);
