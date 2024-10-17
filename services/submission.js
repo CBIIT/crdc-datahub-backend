@@ -790,10 +790,10 @@ class Submission {
             nodes: []
         };
         //2) populate s3Files and sorting and paging 3) retrieve file node info from dataRecords
-        if (!listedObjects || !listedObjects.Contents || listedObjects.Contents.length === 0) 
+        if (!listedObjects || listedObjects.length === 0)
             return returnVal;
         // populate s3Files list and 
-        for (let file of listedObjects.Contents) {
+        for (let file of listedObjects) {
             //don't retrieve logs
             if (file.Key.endsWith('/log'))
                 break
