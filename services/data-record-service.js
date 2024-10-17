@@ -8,7 +8,7 @@ const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-consta
 const {QCResultError} = require("../domain/qc-result");
 const {replaceErrorString} = require("../utility/string-util");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
-
+const BATCH_SIZE = 300;
 const ERROR = "Error";
 const WARNING = "Warning";
 const NODE_VIEW = {
@@ -190,25 +190,32 @@ class DataRecordService {
         }
         const isFile = types.some(t => (t?.toLowerCase() === VALIDATION.TYPES.DATA_FILE || t?.toLowerCase() === VALIDATION.TYPES.FILE));
         if (isFile) {
-            let fileValidationErrors = [];
             const fileNodes = await getFileNodes(this.dataRecordsCollection, submissionID, scope);
             if (fileNodes && fileNodes.length > 0) {
-                for (const aFile of fileNodes) {
-                    const msg = Message.createFileNodeMessage("Validate File", aFile._id, validationID);
-                    const result = await sendSQSMessageWrapper(this.awsService, msg, aFile._id, this.fileQueueName, submissionID);
-                    if (!result.success)
-                        fileValidationErrors.push(result.message);
-                }
+                const fileValidationErrors = await this.#sendBatchSQSMessage(fileNodes, validationID, submissionID);
+                if (fileValidationErrors.length > 0)
+                    errorMessages.push(ERRORS.FAILED_VALIDATE_FILE, ...fileValidationErrors)
             }
-            const msg = Message.createFileSubmissionMessage("Validate Submission Files", submissionID, validationID);
-            const result= await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.fileQueueName, submissionID);
-            if (!result.success)
-                fileValidationErrors.push(result.message);
-
-            if (fileValidationErrors.length > 0)
-                errorMessages.push(ERRORS.FAILED_VALIDATE_FILE, ...fileValidationErrors)
         }
         return (errorMessages.length > 0) ? ValidationHandler.handle(errorMessages) : ValidationHandler.success();
+    }
+
+    async #sendBatchSQSMessage(fileNodes, validationID, submissionID) {
+        let fileValidationErrors = [];
+        for (let i = 0; i < fileNodes.length; i += BATCH_SIZE) {
+            const batch = fileNodes.slice(i, i + BATCH_SIZE);
+            const validationPromises = batch.map(async (aFile) => {
+                const msg = Message.createFileNodeMessage("Validate File", aFile._id, validationID);
+                const result = await sendSQSMessageWrapper(this.awsService, msg, aFile._id, this.fileQueueName, submissionID);
+                if (!result.success) {
+                    return result.message;
+                }
+                return null;
+            });
+            const batchErrors = (await Promise.all(validationPromises)).filter(error => error !== null);
+            fileValidationErrors = fileValidationErrors.concat(batchErrors);
+        }
+        return fileValidationErrors;
     }
 
     async exportMetadata(submissionID) {
