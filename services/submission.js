@@ -1219,7 +1219,7 @@ class Submission {
         const organizationIDs = await this.organizationService.findByStudyID(aSubmission?.studyID);
         const users = await this.userService.getUsersByOrganizationIDs(organizationIDs);
         return users
-            .filter(u=> u._id !== aSubmission?.submitterID);
+            .filter(u=> u._id !== aSubmission?.submitterID && u.role === ROLES.SUBMITTER);
     }
 
     async verifySubmitter(submissionID, context) {
