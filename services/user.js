@@ -21,7 +21,7 @@ class UserService {
             .verifyInitialized()
             .verifyRole([USER.ROLES.USER, USER.ROLES.ORG_OWNER, USER.ROLES.SUBMITTER]);
 
-        if (!Object.values(USER.ROLES).includes(params.role)) {
+        if (![USER.ROLES.SUBMITTER, USER.ROLES.ORG_OWNER].includes(params.role)) {
             return new Error(replaceErrorString(ERROR.INVALID_REQUEST_ROLE, params?.role));
         }
 
@@ -44,6 +44,7 @@ class UserService {
                 accountType: userInfo?.IDP,
                 email: userInfo?.email,
                 role: params?.role,
+                org: org.name,
                 additionalInfo: params?.additionalInfo?.trim()
             }
             ,this.tier);
