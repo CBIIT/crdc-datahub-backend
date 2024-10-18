@@ -1,6 +1,9 @@
-function verifyReadPermissions(userInfo, submission) {
+const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
+const ROLES = USER_CONSTANTS.USER.ROLES;
+
+function verifyValidationResultsReadPermissions(userInfo, submission) {
     // User information
-    const userID = userInfo._id;
+    const userID = userInfo?._id;
     const userRole = userInfo?.role;
     const userOrgID = userInfo?.organization?.orgID;
     const userDataCommons = userInfo?.dataCommons;
@@ -8,6 +11,7 @@ function verifyReadPermissions(userInfo, submission) {
     const submitterID = submission?.submitterID;
     const submissionDataCommons = submission?.dataCommons;
     const submissionOrgID = submission?.organization?._id;
+    const submissionCollaborators = submission?.collaborators || [];
     // Roles with unconditional access
     if ([ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.CURATOR].includes(userRole)){
         return true;
@@ -26,9 +30,9 @@ function verifyReadPermissions(userInfo, submission) {
         return true;
     }
     // Check if the user is a collaborator for the submission
-    for (const collaborator in submission.collaborators){
+    for (const collaborator of submissionCollaborators){
         const collaboratorID = collaborator?.collaboratorID;
-        if (!!collaboratorID && collaboratorID === userInfo._id){
+        if (!!collaboratorID && collaboratorID === userID){
             return true;
         }
     }
@@ -36,5 +40,5 @@ function verifyReadPermissions(userInfo, submission) {
 }
 
 module.exports = {
-    verifyReadPermissions
+    verifyValidationResultsReadPermissions
 }
