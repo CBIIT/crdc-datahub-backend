@@ -644,7 +644,7 @@ class Submission {
         }
         // Check if the user has permission to read this data
         const userInfo = context.userInfo;
-        if (!verifyValidationResultsReadPermissions(userInfo, aSubmission)) {
+        if (!verifyValidationResultsReadPermissions(userInfo, submission)) {
             // A different error message is required if a Federal Monitor is unauthorized
             if (userInfo.role === ROLES.FEDERAL_MONITOR){
                 throw new Error(ERROR.INVALID_ROLE_STUDY);
