@@ -28,6 +28,7 @@ const {isUndefined, replaceErrorString} = require("../utility/string-util");
 const {NODE_RELATION_TYPES} = require("./data-record-service");
 const {QCResult, QCResultError} = require("../domain/qc-result");
 const {verifyToken} = require("../verifier/token-verifier");
+const {verifyValidationResultsReadPermissions} = require("../verifier/permissions-verifier");
 const FILE = "file";
 
 const UPLOAD_TYPES = ['file','metadata'];
@@ -636,19 +637,20 @@ class Submission {
     }
     
     async submissionQCResults(params, context) {
-        const aSubmission = await findByID(this.submissionCollection, params._id);
-        if(!aSubmission){
+        // Check if the submission exists
+        const submission = await findByID(this.submissionCollection, params._id);
+        if(!submission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
-
-        if (!(await this.#verifyQCResultsReadPermissions(context, aSubmission, params?._id))){
+        // Check if the user has permission to read this data
+        const userInfo = context.userInfo;
+        if (!verifyValidationResultsReadPermissions(userInfo, submission)) {
+            // A different error message is required if a Federal Monitor is unauthorized
+            if (userInfo.role === ROLES.FEDERAL_MONITOR){
+                throw new Error(ERROR.INVALID_ROLE_STUDY);
+            }
             throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS);
         }
-        // if user role is Federal Monitor, only can access his studies.
-        if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
-            throw new Error(ERROR.INVALID_ROLE_STUDY);
-        }
-
         return this.dataRecordService.submissionQCResults(params._id, params.nodeTypes, params.batchIDs, params.severities, params.first, params.offset, params.orderBy, params.sortDirection);
     }
 
@@ -682,12 +684,13 @@ class Submission {
             throw new Error(ERROR.INVALID_ROLE);
         }
 
-        // if user role is Federal Monitor, only can access his studies.
-        if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
-            throw new Error(ERROR.INVALID_ROLE_STUDY);
-        }
-        if (!(await this.#verifyQCResultsReadPermissions(context, aSubmission, submissionID))){
-            throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_NODE_TYPES);
+        const userInfo = context.userInfo;
+        if (!verifyValidationResultsReadPermissions(userInfo, aSubmission)) {
+            // A different error message is required if a Federal Monitor is unauthorized
+            if (userInfo.role === ROLES.FEDERAL_MONITOR){
+                throw new Error(ERROR.INVALID_ROLE_STUDY);
+            }
+            throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS);
         }
         return this.dataRecordService.listSubmissionNodeTypes(submissionID)
     }
@@ -1265,32 +1268,6 @@ class Submission {
             console.error(ERRORS.FAILED_REQUEST_DELETE_RECORDS, `submissionID:${submissionID}`, `queue-name:${queueName}`, `error:${e}`);
             return ValidationHandler.handle(`queue-name: ${queueName}. ` + e);
         }
-    }
-
-    async #verifyQCResultsReadPermissions(context, aSubmission){
-        verifySession(context)
-            .verifyInitialized()
-            .verifyRole([
-                ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.CURATOR, // can see submission details for all submissions
-                ROLES.ORG_OWNER, // can see submission details for submissions associated with his/her own organization
-                ROLES.SUBMITTER, // can see submission details for his/her own submissions
-                ROLES.DC_POC, // can see submission details for submissions associated with his/her Data Commons
-                ROLES.FEDERAL_MONITOR  // can access submissions with own studies.
-            ]);
-        const userRole = context.userInfo?.role;
-        if ([ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.FEDERAL_MONITOR].includes(userRole)){
-            return true;
-        }
-
-        const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getViewableCollaboratorIDs();
-        const isCollaborator = collaboratorUserIDs.includes(context.userInfo._id);
-        return !!aSubmission && (
-            (userRole === ROLES.ORG_OWNER && context.userInfo?.organization?.orgID === aSubmission?.organization?._id) ||
-            (userRole === ROLES.SUBMITTER && context.userInfo._id === aSubmission?.submitterID) ||
-            (userRole === ROLES.DC_POC && context.userInfo?.dataCommons.includes(aSubmission?.dataCommons)) ||
-            (ROLES.CURATOR === userRole && context.userInfo?.dataCommons.includes(aSubmission?.dataCommons)) ||
-            isCollaborator
-        );
     }
 
     // private function
