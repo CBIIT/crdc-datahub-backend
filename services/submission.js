@@ -976,25 +976,23 @@ class Submission {
         }
         if (!aSubmission.collaborators) 
             aSubmission.collaborators = [];
+
         // validate collaborators one by one.
         for (const collaborator of collaborators) {
+            //find a submitter with the collaborator ID
+            const user = await findByID(this.userService.userCollection, collaborator.collaboratorID);
             //find if the submission including existing collaborator
             if (!aSubmission.collaborators.find(c => c.collaboratorID === collaborator.collaboratorID)) {
-                //find a submitter with the collaborator ID
-                const user = await findByID(this.userService.userCollection, collaborator.collaboratorID);
                 if (!user) {
                     throw new Error(ERROR.COLLABORATOR_NOT_EXIST);
                 }
                 if (user.role !== ROLES.SUBMITTER) {
                     throw new Error(ERROR.INVALID_COLLABORATOR_ROLE_SUBMITTER);
                 }
-                 // check if the collaborator has submissions with the same study.
-                const search_conditions = {
-                    studyID: aSubmission.studyID,
-                    submitterID: collaborator.collaboratorID
-                }
-                const collaborator_subs = await this.submissionCollection.aggregate([{$match: search_conditions}]);
-                if (!collaborator_subs || collaborator_subs.length === 0 )
+                const organizationIDs = await this.organizationService.findByStudyID(aSubmission?.studyID);
+                const users = await this.userService.getUsersByOrganizationIDs(organizationIDs);
+                const collaborator_study = users.find(u => u._id === collaborator.collaboratorID)
+                if (!collaborator_study)
                 {
                     throw new Error(ERROR.INVALID_COLLABORATOR_STUDY);
                 }
@@ -1003,6 +1001,8 @@ class Submission {
                     throw new Error(ERROR.INVALID_COLLABORATOR_PERMISSION);
                 }
             }
+            collaborator.collaboratorName = user.firstName + " " + user.lastName;
+            collaborator.Organization = user.organization;
         }
         // if passed validation
         aSubmission.collaborators = collaborators;  
