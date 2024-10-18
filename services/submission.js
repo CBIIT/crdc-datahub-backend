@@ -176,7 +176,7 @@ class Submission {
             throw new Error(ERROR.MISSING_REQUIRED_SUBMISSION_DATA);
         }
 
-        const result = await this.batchService.createBatch(params, aSubmission);
+        const result = await this.batchService.createBatch(params, aSubmission, userInfo);
         // The submission status needs to be updated after createBatch
         if ([NEW, WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
             await updateSubmissionStatus(this.submissionCollection, aSubmission, userInfo, IN_PROGRESS);
