@@ -986,9 +986,12 @@ class Submission {
                 if (user.role !== ROLES.SUBMITTER) {
                     throw new Error(ERROR.INVALID_COLLABORATOR_ROLE_SUBMITTER);
                 }
-                const organizationIDs = await this.organizationService.findByStudyID(aSubmission?.studyID);
-                const users = await this.userService.getUsersByOrganizationIDs(organizationIDs);
-                const collaborator_study = users.find(u => u._id === collaborator.collaboratorID)
+                //check if the collaborator has the study
+                const organization = await findByID(this.organizationService.organizationCollection, user.organization.orgID);
+                if (!organization || organization?.studies.length === 0) {
+                    throw new Error(ERROR.INVALID_COLLABORATOR_STUDY);
+                }
+                const collaborator_study = organization.studies.find(s => s._id ===  aSubmission.studyID);
                 if (!collaborator_study)
                 {
                     throw new Error(ERROR.INVALID_COLLABORATOR_STUDY);
