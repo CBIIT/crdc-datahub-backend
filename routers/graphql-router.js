@@ -13,7 +13,8 @@ const {DATABASE_NAME, APPLICATION_COLLECTION, SUBMISSIONS_COLLECTION, USER_COLLE
     VALIDATION_COLLECTION,
     CONFIGURATION_COLLECTION,
     CDE_COLLECTION,
-    DATA_RECORDS_ARCHIVE_COLLECTION
+    DATA_RECORDS_ARCHIVE_COLLECTION,
+    QC_RESULTS_COLLECTION
 } = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoDBCollection} = require("../crdc-datahub-database-drivers/mongodb-collection");
 const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-connector");
@@ -35,6 +36,7 @@ const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_N
 const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
 const AuthenticationService = require("../services/authentication-service");
 const {apiAuthorization, extractAPINames, PUBLIC} = require("./api-authorization");
+const {QcResultService} = require("../services/qc-result-service");
 const public_api_list = extractAPINames(schema, PUBLIC)
 const INACTIVE_SUBMISSION_DAYS = "Inactive_Submission_Notify_Days";
 let root;
@@ -88,7 +90,9 @@ dbConnector.connect().then(async () => {
     
     const cdeCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CDE_COLLECTION);
     const cdeService = new CDE(cdeCollection);
-    
+
+    const qcResultCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, QC_RESULTS_COLLECTION);
+    const qcResultsService = new QcResultService(qcResultCollection, submissionCollection);
 
     root = {
         version: () => {return config.version},
@@ -122,7 +126,7 @@ dbConnector.connect().then(async () => {
         listLogs: submissionService.listLogs.bind(submissionService),
         validateSubmission: submissionService.validateSubmission.bind(submissionService),
         submissionStats: submissionService.submissionStats.bind(submissionService),
-        submissionQCResults: submissionService.submissionQCResults.bind(submissionService),
+        submissionQCResults: qcResultsService.submissionQCResultsAPI.bind(qcResultsService),
         submissionCrossValidationResults: submissionService.submissionCrossValidationResults.bind(submissionService),
         exportSubmission: submissionService.exportSubmission.bind(submissionService),
         listSubmissionNodeTypes: submissionService.listSubmissionNodeTypes.bind(submissionService),
