@@ -973,12 +973,13 @@ class Submission {
         }
         if (!aSubmission.collaborators) 
             aSubmission.collaborators = [];
+
         // validate collaborators one by one.
         for (const collaborator of collaborators) {
+            //find a submitter with the collaborator ID
+            const user = await findByID(this.userService.userCollection, collaborator.collaboratorID);
             //find if the submission including existing collaborator
             if (!aSubmission.collaborators.find(c => c.collaboratorID === collaborator.collaboratorID)) {
-                //find a submitter with the collaborator ID
-                const user = await findByID(this.userService.userCollection, collaborator.collaboratorID);
                 if (!user) {
                     throw new Error(ERROR.COLLABORATOR_NOT_EXIST);
                 }
@@ -1000,6 +1001,8 @@ class Submission {
                     throw new Error(ERROR.INVALID_COLLABORATOR_PERMISSION);
                 }
             }
+            collaborator.collaboratorName = user.firstName + " " + user.lastName;
+            collaborator.Organization = user.organization;
         }
         // if passed validation
         aSubmission.collaborators = collaborators;  
