@@ -56,12 +56,12 @@ class BatchService {
         const skippedCount = skippedFiles.length
         const isAllSkipped = skippedCount === files.length;
 
-        const s3Files = await this.s3Service.listFileInDir(bucketName, aBatch?.prefix);
+        const s3Files = await this.s3Service.listFileInDir(bucketName, aBatch?.filePrefix);
         const s3UploadedFiles = new Set(s3Files
-            ?.map((f)=> f.Key?.replace(aBatch?.prefix, "")));
+            ?.map((f)=> f.Key?.replace(`${aBatch?.filePrefix}/`, "")));
 
         const noUploadedFiles = files
-            .filter(file => !Boolean(file.skipped) && Boolean(file.succeeded) && !s3UploadedFiles.has(file.fileName))
+            .filter(file => !file?.skipped && Boolean(file.succeeded) && !s3UploadedFiles.has(file.fileName))
             .map(file => file.fileName);
 
         if (noUploadedFiles.length > 0) {
