@@ -8,7 +8,7 @@ const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-consta
 const {QCResultError} = require("../domain/qc-result");
 const {replaceErrorString} = require("../utility/string-util");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
-
+const BATCH_SIZE = 300;
 const ERROR = "Error";
 const WARNING = "Warning";
 const NODE_VIEW = {
@@ -51,7 +51,7 @@ class DataRecordService {
             this.dataRecordsCollection.aggregate([
                 { "$match": {submissionID: aSubmission?._id, "s3FileInfo.status": {$in: validNodeStatus}}}]),
             // submission's root path should be matched, otherwise the other file node count return wrong
-            await this.s3Service.listFile(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}`)
+            await this.s3Service.listFileInDir(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}/`)
         ]);
         const [groupByNodeType, fileRecords, s3SubmissionFiles] = res;
         const statusPipeline = { "$group": { _id: "$status", count: { $sum: 1 }}};
@@ -70,9 +70,9 @@ class DataRecordService {
                 submissionStats.addStats(stat);
             }
         });
-        const uploadedFiles = s3SubmissionFiles?.Contents
-            .filter((f)=> f && f.Key !== `${aSubmission.rootPath}/${FILE}/`)
-            .map((f)=> f.Key.replace(`${aSubmission.rootPath}/${FILE}/`, ''));
+        const uploadedFiles = s3SubmissionFiles
+            ?.filter((f)=> f && f.Key !== `${aSubmission.rootPath}/${FILE}/`)
+            ?.map((f)=> f.Key.replace(`${aSubmission.rootPath}/${FILE}/`, ''));
         // This dataFiles represents the intersection of the orphanedFiles.
         const [orphanedFiles, dataFiles, missingFileSet] = this.#dataFilesStats(uploadedFiles, fileRecords);
         // The data file might have been deleted, fixing the missing file to match the submission stat.
@@ -191,25 +191,32 @@ class DataRecordService {
         }
         const isFile = types.some(t => (t?.toLowerCase() === VALIDATION.TYPES.DATA_FILE || t?.toLowerCase() === VALIDATION.TYPES.FILE));
         if (isFile) {
-            let fileValidationErrors = [];
             const fileNodes = await getFileNodes(this.dataRecordsCollection, submissionID, scope);
             if (fileNodes && fileNodes.length > 0) {
-                for (const aFile of fileNodes) {
-                    const msg = Message.createFileNodeMessage("Validate File", aFile._id, validationID);
-                    const result = await sendSQSMessageWrapper(this.awsService, msg, aFile._id, this.fileQueueName, submissionID);
-                    if (!result.success)
-                        fileValidationErrors.push(result.message);
-                }
+                const fileValidationErrors = await this.#sendBatchSQSMessage(fileNodes, validationID, submissionID);
+                if (fileValidationErrors.length > 0)
+                    errorMessages.push(ERRORS.FAILED_VALIDATE_FILE, ...fileValidationErrors)
             }
-            const msg = Message.createFileSubmissionMessage("Validate Submission Files", submissionID, validationID);
-            const result= await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.fileQueueName, submissionID);
-            if (!result.success)
-                fileValidationErrors.push(result.message);
-
-            if (fileValidationErrors.length > 0)
-                errorMessages.push(ERRORS.FAILED_VALIDATE_FILE, ...fileValidationErrors)
         }
         return (errorMessages.length > 0) ? ValidationHandler.handle(errorMessages) : ValidationHandler.success();
+    }
+
+    async #sendBatchSQSMessage(fileNodes, validationID, submissionID) {
+        let fileValidationErrors = [];
+        for (let i = 0; i < fileNodes.length; i += BATCH_SIZE) {
+            const batch = fileNodes.slice(i, i + BATCH_SIZE);
+            const validationPromises = batch.map(async (aFile) => {
+                const msg = Message.createFileNodeMessage("Validate File", aFile._id, validationID);
+                const result = await sendSQSMessageWrapper(this.awsService, msg, aFile._id, this.fileQueueName, submissionID);
+                if (!result.success) {
+                    return result.message;
+                }
+                return null;
+            });
+            const batchErrors = (await Promise.all(validationPromises)).filter(error => error !== null);
+            fileValidationErrors = fileValidationErrors.concat(batchErrors);
+        }
+        return fileValidationErrors;
     }
 
     async exportMetadata(submissionID) {

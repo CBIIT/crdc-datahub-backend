@@ -793,10 +793,10 @@ class Submission {
             nodes: []
         };
         //2) populate s3Files and sorting and paging 3) retrieve file node info from dataRecords
-        if (!listedObjects || !listedObjects.Contents || listedObjects.Contents.length === 0) 
+        if (!listedObjects || listedObjects.length === 0)
             return returnVal;
         // populate s3Files list and 
-        for (let file of listedObjects.Contents) {
+        for (let file of listedObjects) {
             //don't retrieve logs
             if (file.Key.endsWith('/log'))
                 break
@@ -1222,7 +1222,7 @@ class Submission {
         const organizationIDs = await this.organizationService.findByStudyID(aSubmission?.studyID);
         const users = await this.userService.getUsersByOrganizationIDs(organizationIDs);
         return users
-            .filter(u=> u._id !== aSubmission?.submitterID);
+            .filter(u=> u._id !== aSubmission?.submitterID && u.role === ROLES.SUBMITTER);
     }
 
     async verifySubmitter(submissionID, context) {
