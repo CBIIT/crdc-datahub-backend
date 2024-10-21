@@ -47,7 +47,7 @@ class BatchService {
         }
         return newBatch;
     }
-    async updateBatch(aBatch, files) {
+    async updateBatch(aBatch, bucketName, files) {
         const uploadFiles = new Map(files
             .filter(aFile => (aFile?.fileName) && aFile?.fileName.trim().length > 0)
             .map(file => [file?.fileName, file]));
@@ -56,10 +56,14 @@ class BatchService {
         const skippedCount = skippedFiles.length
         const isAllSkipped = skippedCount === files.length;
 
-        // The user is trying to update a batch with files that weren't uploaded.
-        const batchFileNames = new Set(aBatch.files.map(batchFile => batchFile.fileName));
-        const noUploadedFiles = Array.from(uploadFiles.keys())
-            .filter(fileName => !batchFileNames.has(fileName));
+        const s3Files = await this.s3Service.listFileInDir(bucketName, aBatch?.prefix);
+        const s3UploadedFiles = new Set(s3Files
+            ?.map((f)=> f.Key?.replace(aBatch?.prefix, "")));
+
+        const noUploadedFiles = files
+            .filter(file => !Boolean(file.skipped) && Boolean(file.succeeded) && !s3UploadedFiles.has(file.fileName))
+            .map(file => file.fileName);
+
         if (noUploadedFiles.length > 0) {
             throw new Error(replaceErrorString(ERROR.NO_UPLOADED_FILES, `'${noUploadedFiles.join(", ")}'`));
         }
