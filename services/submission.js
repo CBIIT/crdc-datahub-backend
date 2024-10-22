@@ -353,11 +353,12 @@ class Submission {
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
             throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
         }
-
         // Send complete action
         const completePromise = [];
         if (action === ACTIONS.COMPLETE) {
             completePromise.push(this.#sendCompleteMessage({type: COMPLETE_SUBMISSION, submissionID}, submissionID));
+        }
+        if (action === ACTIONS.RELEASE) {
             completePromise.push(this.#sendCompleteMessage({type: GENERATE_DCF_MANIFEST, submissionID}, submissionID));
         }
 
