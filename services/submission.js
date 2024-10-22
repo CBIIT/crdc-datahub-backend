@@ -1060,6 +1060,13 @@ class Submission {
         return existingFiles;
     }
 
+    async #getAllSubmissionDataFiles(bucketName, rootPath) {
+        const AllDataFiles = await this.s3Service.listFileInDir(bucketName, `${rootPath}/${FILE}/`);
+        return AllDataFiles
+            ?.filter((f) => f.Key !== `${rootPath}/${FILE}/`)
+            ?.map((f)=> f.Key.replace(`${rootPath}/${FILE}/`, ''));
+    }
+
     async #deleteDataFiles(existingFiles, aSubmission) {
         // Set a flag when initiating the deletion of S3 files.
         await this.submissionCollection.update({_id: aSubmission?._id, updatedAt: getCurrentTime(), deletingData: true});
@@ -1193,6 +1200,11 @@ class Submission {
             const deletedFiles = await this.#deleteDataFiles(existingFiles, aSubmission);
             if (deletedFiles.length > 0) {
                 await this.#logDataRecord(context?.userInfo, aSubmission._id, VALIDATION.TYPES.DATA_FILE, deletedFiles);
+            }
+            // note: reset metadataValidationStatus if no data files found
+            const submissionDataFiles = await this.#getAllSubmissionDataFiles(aSubmission?.bucketName, aSubmission?.rootPath);
+            if (submissionDataFiles?.length === 0) {
+                await this.submissionCollection.updateOne({_id: aSubmission?._id}, {metadataValidationStatus: VALIDATION_STATUS.NEW, updatedAt: getCurrentTime()});
             }
             return ValidationHandler.success(`${deletedFiles.length} extra files deleted`)
         }
