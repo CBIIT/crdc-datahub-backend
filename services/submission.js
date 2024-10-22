@@ -290,7 +290,9 @@ class Submission {
                 aSubmission = updateSubmission.value;
             }
             // add userName in each history
-            for (const history of aSubmission.history) {
+            for (const history of aSubmission?.history) {
+                if (history?.userName) continue;
+                if (!history?.userID) continue;
                 const user = await this.userService.getUserByID(history.userID);
                 history.userName = user.firstName + " " + user.lastName;
             }
