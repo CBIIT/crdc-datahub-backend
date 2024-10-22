@@ -484,7 +484,7 @@ type Collaborator {
     collaboratorID: ID,
     collaboratorName: String,
     Organization: OrgInfo,
-    permission: String # hard code to "Read Only" (for future use)
+    permission: String
 }
 
 input CollaboratorInput {

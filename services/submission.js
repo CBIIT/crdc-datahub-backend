@@ -1857,8 +1857,6 @@ class DataSubmission {
     }
 }
 
-const VIEW = "Can View";
-const EDIT = "Can Edit";
 class Collaborators {
     constructor(collaborators) {
         this.collaborators = collaborators || [];
@@ -1890,12 +1888,12 @@ class Collaborators {
 
     #getViewableCollaborators(collaborators) {
         return collaborators
-            .filter(i => i?.permission?.includes(VIEW));
+            .filter(i => i?.permission === COLLABORATOR_PERMISSIONS.CAN_EDIT || i?.permission === COLLABORATOR_PERMISSIONS.CAN_VIEW);
     }
 
     #getEditableCollaborators(collaborators) {
         return collaborators
-            .filter(i => i?.permission?.includes(EDIT));
+            .filter(i => i?.permission === COLLABORATOR_PERMISSIONS.CAN_EDIT);
     }
 }
 
