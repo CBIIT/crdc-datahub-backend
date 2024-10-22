@@ -1,29 +1,29 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+<head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
-      body,
-      pre {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-          Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
-      }
+        body,
+        pre {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+            Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+        }
     </style>
-  </head>
-  <body>
-    <p>Dear {{ firstName }},</p>
-    <p>{{ topMessage }}</p>
-    {{#if additionalInfo}}
-    <p>
+</head>
+<body>
+<p>Dear {{ firstName }},</p>
+<p>{{ topMessage }}</p>
+{{#if additionalInfo}}
+<p>
     {{#each additionalInfo}}
-      {{#if this.[0]}}<span><strong>{{{ this.[0] }}}:</strong></span>{{/if}}
-      {{#if this.[1]}}<span> {{{ this.[1] }}}</span>{{/if}}<br>
+    {{#if this.[0]}}<span><strong>{{{ this.[0] }}}:</strong></span>{{/if}}
+    {{#if this.[1]}}<span> {{{ this.[1] }}}</span>{{/if}}<br>
     {{/each}}
-    </p>
-    {{/if}}
-    <p>{{ bottomMessage }}</p>
-    <p>Sincerely,</p>
-    <p>{{senderName}}</p>
-  </body>
+</p>
+{{/if}}
+<p>{{ bottomMessage }}</p>
+<p>Sincerely,</p>
+<p>{{senderName}}</p>
+</body>
 </html>
