@@ -109,14 +109,14 @@ class Submission {
 
         const filterConditions = [
             // default filter for listing submissions
-            await this.#listConditions(context?.userInfo, params.status, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName),
+            this.#listConditions(context?.userInfo, params.status, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName),
             // no filter for dataCommons aggregation
-            await this.#listConditions(context?.userInfo, ALL_FILTER, ALL_FILTER, null, null, ALL_FILTER, ALL_FILTER),
+            this.#listConditions(context?.userInfo, ALL_FILTER, ALL_FILTER, null, null, ALL_FILTER, ALL_FILTER),
             // note: Aggregation of Submitter name should not be filtered by a submitterName
-            await this.#listConditions(context?.userInfo, params?.status, params.organization, params.name, params.dbGaPID, params.dataCommons, ALL_FILTER),
+            this.#listConditions(context?.userInfo, params?.status, params.organization, params.name, params.dbGaPID, params.dataCommons, ALL_FILTER),
         ]
 
-        const [listConditions, dataCommonsCondition, submitterNameCondition] = await Promise.all(filterConditions);
+        const [listConditions, dataCommonsCondition, submitterNameCondition] = filterConditions;
         const pipeline = [{"$match": listConditions}];
         if (params.orderBy) {
             pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
@@ -1351,7 +1351,7 @@ class Submission {
 
         const baseConditions = { ...statusCondition, ...organizationCondition, ...nameCondition,
             ...dbGaPIDCondition, ...dataCommonsCondition, ...submitterNameCondition };
-        return (async () => {
+        return (() => {
             switch (role) {
                 case ROLES.ADMIN:
                 case ROLES.FEDERAL_LEAD:
@@ -1368,9 +1368,7 @@ class Submission {
                 case ROLES.FEDERAL_MONITOR:
                     return {...baseConditions, studyID: {$in: studies || []}};
                 default:
-                    const submitterCondition = {...baseConditions, submitterID: _id};
-                    const collaboratorUserIDs = await this.submissionCollection.distinct("collaborators.collaboratorID", submitterCondition);
-                    return {...baseConditions, "$or": [{"submitterID": _id}, {"submitterID": {"$in": collaboratorUserIDs}}]};
+                    return {...baseConditions, "$or": [{"submitterID": _id}, {"collaborators.collaboratorID": _id}]};
             }
         })();
     }
