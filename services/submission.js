@@ -1368,7 +1368,9 @@ class Submission {
                 case ROLES.FEDERAL_MONITOR:
                     return {...baseConditions, studyID: {$in: studies || []}};
                 default:
-                    return {...baseConditions, "$or": [{"submitterID": _id}, {"collaborators.collaboratorID": _id}]};
+                    return {...baseConditions, "$or": [
+                        {"submitterID": _id},
+                        {"collaborators.collaboratorID": _id, "collaborators.permission": {$in: [COLLABORATOR_PERMISSIONS.CAN_EDIT, COLLABORATOR_PERMISSIONS.CAN_VIEW]}}]};
             }
         })();
     }
