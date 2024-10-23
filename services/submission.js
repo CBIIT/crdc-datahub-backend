@@ -200,7 +200,7 @@ class Submission {
         const aSubmission = await findByID(this.submissionCollection, aBatch.submissionID);
         // submission owner & submitter's Org Owner
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
-        const res = await this.batchService.updateBatch(aBatch, params?.files);
+        const res = await this.batchService.updateBatch(aBatch, aSubmission?.bucketName, params?.files);
         // new status is ready for the validation
         if (res.status === BATCH.STATUSES.UPLOADED) {
             const updateSubmission = {
@@ -290,7 +290,9 @@ class Submission {
                 aSubmission = updateSubmission.value;
             }
             // add userName in each history
-            for (const history of aSubmission.history) {
+            for (const history of aSubmission?.history) {
+                if (history?.userName) continue;
+                if (!history?.userID) continue;
                 const user = await this.userService.getUserByID(history.userID);
                 history.userName = user.firstName + " " + user.lastName;
             }
@@ -1869,8 +1871,6 @@ class DataSubmission {
     }
 }
 
-const VIEW = "Can View";
-const EDIT = "Can Edit";
 class Collaborators {
     constructor(collaborators) {
         this.collaborators = collaborators || [];
@@ -1902,12 +1902,12 @@ class Collaborators {
 
     #getViewableCollaborators(collaborators) {
         return collaborators
-            .filter(i => i?.permission?.includes(VIEW));
+            .filter(i => i?.permission === COLLABORATOR_PERMISSIONS.CAN_EDIT || i?.permission === COLLABORATOR_PERMISSIONS.CAN_VIEW);
     }
 
     #getEditableCollaborators(collaborators) {
         return collaborators
-            .filter(i => i?.permission?.includes(EDIT));
+            .filter(i => i?.permission === COLLABORATOR_PERMISSIONS.CAN_EDIT);
     }
 }
 

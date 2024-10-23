@@ -47,7 +47,7 @@ class BatchService {
         }
         return newBatch;
     }
-    async updateBatch(aBatch, files) {
+    async updateBatch(aBatch, bucketName, files) {
         const uploadFiles = new Map(files
             .filter(aFile => (aFile?.fileName) && aFile?.fileName.trim().length > 0)
             .map(file => [file?.fileName, file]));
@@ -55,14 +55,6 @@ class BatchService {
         const skippedFiles = files.filter(f=>f.skipped === true);
         const skippedCount = skippedFiles.length
         const isAllSkipped = skippedCount === files.length;
-
-        // The user is trying to update a batch with files that weren't uploaded.
-        const batchFileNames = new Set(aBatch.files.map(batchFile => batchFile.fileName));
-        const noUploadedFiles = Array.from(uploadFiles.keys())
-            .filter(fileName => !batchFileNames.has(fileName));
-        if (noUploadedFiles.length > 0) {
-            throw new Error(replaceErrorString(ERROR.NO_UPLOADED_FILES, `'${noUploadedFiles.join(", ")}'`));
-        }
 
         if (!isAllSkipped) {
             let updatedFiles = [];
@@ -96,6 +88,21 @@ class BatchService {
         // Count how many batch files updated from FE match the uploaded files.
         const isAllUploaded = files?.length > 0 && (succeededFiles.length + skippedCount  === files?.length);
         aBatch.status = isAllUploaded ? (aBatch.type=== BATCH.TYPE.METADATA && !isAllSkipped? BATCH.STATUSES.UPLOADING : BATCH.STATUSES.UPLOADED) : BATCH.STATUSES.FAILED;
+        // Store error files that were not uploaded to the S3 bucket
+        if (aBatch.status !== BATCH.STATUSES.UPLOADING) {
+            const s3Files = await this.s3Service.listFileInDir(bucketName, aBatch?.filePrefix);
+            const s3UploadedFiles = new Set(s3Files
+                ?.map((f)=> f.Key?.replace(`${aBatch?.filePrefix}/`, "")));
+
+            const noUploadedFiles = files
+                .filter(file => !s3UploadedFiles.has(file.fileName))
+                .map(file => file.fileName);
+            if (noUploadedFiles.length > 0) {
+                aBatch.errors = aBatch.errors || [];
+                aBatch.errors.push(replaceErrorString(ERROR.NO_UPLOADED_FILES, `'${noUploadedFiles.join(", ")}'`));
+                aBatch.status = BATCH.STATUSES.FAILED;
+            }
+        }
         await asyncUpdateBatch(this.awsService, this.batchCollection, aBatch, this.sqsLoaderQueue, isAllUploaded, isAllSkipped);
         return await this.findByID(aBatch._id);
     }
