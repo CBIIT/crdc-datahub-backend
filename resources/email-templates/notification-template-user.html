@@ -18,7 +18,15 @@
     <p>
     {{#each additionalInfo}}
       {{#if this.[0]}}<span><strong>{{{ this.[0] }}}:</strong></span>{{/if}}
-      {{#if this.[1]}}<span> {{{ this.[1] }}}</span>{{/if}}<br>
+      {{#if this.[1]}}
+        {{#if (isArray this.[1])}}
+          {{#each this.[1]}}
+            <br><span>- {{ this }}</span>
+          {{/each}}
+        {{else}}
+          <span> {{{ this.[1] }}}</span>
+        {{/if}}
+      {{/if}}<br>
     {{/each}}
     </p>
     {{/if}}
