@@ -142,7 +142,7 @@ const ERROR = {
     EXISTING_SUBMISSION_COLLABORATOR: "The collaborator exists in the submission already.",
     COLLABORATOR_NOT_EXIST: "collaborator does not exist",
     INVALID_COLLABORATOR_ROLE_SUBMITTER: "Invalid collaborator role for the submitter",
-    INVALID_COLLABORATOR_STUDY: "No matched collaborator study.",
+    INVALID_COLLABORATOR_STUDY: "Collaborator could not be added because the collaborator's organization is not related to study in this submission.",
     FAILED_ADD_SUBMISSION_COLLABORATOR: "Failed to add submission collaborator",
     FAILED_REMOVE_SUBMISSION_COLLABORATOR: "Failed to remove submission collaborator",
     INVALID_SUBMISSION_COLLABORATOR: "Invalid submission collaborator",
