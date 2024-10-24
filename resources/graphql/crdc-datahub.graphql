@@ -728,7 +728,7 @@ type Mutation {
     ): ApprovedStudy
 
     requestAccess(
-        role: ID!
+        role: String!
         organization: String!, # organizationID
         additionalInfo: String,
     ): AsyncProcessResult
