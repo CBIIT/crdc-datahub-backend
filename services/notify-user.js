@@ -1,6 +1,7 @@
 const yaml = require('js-yaml');
 const fs = require('fs');
 const {createEmailTemplate} = require("../lib/create-email-template");
+const sanitizeHtml = require('sanitize-html');
 const {replaceMessageVariables} = require("../utility/string-util");
 const config = require("../config");
 const NOTIFICATION_USER_HTML_TEMPLATE = "notification-template-user.html";
@@ -314,6 +315,7 @@ class NotifyUser {
     }
 
     async requestUserAccessNotification(email, CCs, templateParams, tier) {
+        const sanitizedAdditionalInfo = sanitizeHtml(templateParams.additionalInfo, {allowedTags: [],allowedAttributes: {}});
         const topMessage = replaceMessageVariables(this.email_constants.USER_REQUEST_ACCESS_CONTENT, {});
         const subject = this.email_constants.USER_REQUEST_ACCESS_SUBJECT;
         const additionalInfo = [
@@ -322,7 +324,7 @@ class NotifyUser {
             [ACCOUNT_EMAIL, templateParams.email],
             ...(templateParams.role) ? [[REQUESTED_ROLE, templateParams.role]] : [],
             ...(templateParams.org) ? [[AFFILIATED_ORGANIZATION, templateParams.org]] : [],
-            ...(templateParams.additionalInfo) ? [[ADDITIONAL_INFO, templateParams.additionalInfo]] : []
+            ...(sanitizedAdditionalInfo) ? [[ADDITIONAL_INFO, sanitizedAdditionalInfo]] : []
         ];
         return await this.send(async () => {
             return await this.emailService.sendNotification(
