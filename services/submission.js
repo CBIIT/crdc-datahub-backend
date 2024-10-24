@@ -109,14 +109,14 @@ class Submission {
 
         const filterConditions = [
             // default filter for listing submissions
-            await this.#listConditions(context?.userInfo, params.status, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName),
+            this.#listConditions(context?.userInfo, params.status, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName),
             // no filter for dataCommons aggregation
-            await this.#listConditions(context?.userInfo, ALL_FILTER, ALL_FILTER, null, null, ALL_FILTER, ALL_FILTER),
+            this.#listConditions(context?.userInfo, ALL_FILTER, ALL_FILTER, null, null, ALL_FILTER, ALL_FILTER),
             // note: Aggregation of Submitter name should not be filtered by a submitterName
-            await this.#listConditions(context?.userInfo, params?.status, params.organization, params.name, params.dbGaPID, params.dataCommons, ALL_FILTER),
+            this.#listConditions(context?.userInfo, params?.status, params.organization, params.name, params.dbGaPID, params.dataCommons, ALL_FILTER),
         ]
 
-        const [listConditions, dataCommonsCondition, submitterNameCondition] = await Promise.all(filterConditions);
+        const [listConditions, dataCommonsCondition, submitterNameCondition] = filterConditions;
         const pipeline = [{"$match": listConditions}];
         if (params.orderBy) {
             pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
@@ -176,7 +176,7 @@ class Submission {
             throw new Error(ERROR.MISSING_REQUIRED_SUBMISSION_DATA);
         }
 
-        const result = await this.batchService.createBatch(params, aSubmission);
+        const result = await this.batchService.createBatch(params, aSubmission, userInfo);
         // The submission status needs to be updated after createBatch
         if ([NEW, WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
             await updateSubmissionStatus(this.submissionCollection, aSubmission, userInfo, IN_PROGRESS);
@@ -979,25 +979,26 @@ class Submission {
         }
         if (!aSubmission.collaborators) 
             aSubmission.collaborators = [];
+
         // validate collaborators one by one.
         for (const collaborator of collaborators) {
+            //find a submitter with the collaborator ID
+            const user = await findByID(this.userService.userCollection, collaborator.collaboratorID);
             //find if the submission including existing collaborator
             if (!aSubmission.collaborators.find(c => c.collaboratorID === collaborator.collaboratorID)) {
-                //find a submitter with the collaborator ID
-                const user = await findByID(this.userService.userCollection, collaborator.collaboratorID);
                 if (!user) {
                     throw new Error(ERROR.COLLABORATOR_NOT_EXIST);
                 }
                 if (user.role !== ROLES.SUBMITTER) {
                     throw new Error(ERROR.INVALID_COLLABORATOR_ROLE_SUBMITTER);
                 }
-                 // check if the collaborator has submissions with the same study.
-                const search_conditions = {
-                    studyID: aSubmission.studyID,
-                    submitterID: collaborator.collaboratorID
+                //check if the collaborator has the study
+                const organization = await findByID(this.organizationService.organizationCollection, user.organization.orgID);
+                if (!organization || organization?.studies.length === 0) {
+                    throw new Error(ERROR.INVALID_COLLABORATOR_STUDY);
                 }
-                const collaborator_subs = await this.submissionCollection.aggregate([{$match: search_conditions}]);
-                if (!collaborator_subs || collaborator_subs.length === 0 )
+                const collaborator_study = organization.studies.find(s => s._id ===  aSubmission.studyID);
+                if (!collaborator_study)
                 {
                     throw new Error(ERROR.INVALID_COLLABORATOR_STUDY);
                 }
@@ -1006,6 +1007,8 @@ class Submission {
                     throw new Error(ERROR.INVALID_COLLABORATOR_PERMISSION);
                 }
             }
+            collaborator.collaboratorName = user.lastName + "," + user.firstName ;
+            collaborator.Organization = user.organization;
         }
         // if passed validation
         aSubmission.collaborators = collaborators;  
@@ -1351,7 +1354,7 @@ class Submission {
 
         const baseConditions = { ...statusCondition, ...organizationCondition, ...nameCondition,
             ...dbGaPIDCondition, ...dataCommonsCondition, ...submitterNameCondition };
-        return (async () => {
+        return (() => {
             switch (role) {
                 case ROLES.ADMIN:
                 case ROLES.FEDERAL_LEAD:
@@ -1368,9 +1371,9 @@ class Submission {
                 case ROLES.FEDERAL_MONITOR:
                     return {...baseConditions, studyID: {$in: studies || []}};
                 default:
-                    const submitterCondition = {...baseConditions, submitterID: _id};
-                    const collaboratorUserIDs = await this.submissionCollection.distinct("collaborators.collaboratorID", submitterCondition);
-                    return {...baseConditions, "$or": [{"submitterID": _id}, {"submitterID": {"$in": collaboratorUserIDs}}]};
+                    return {...baseConditions, "$or": [
+                        {"submitterID": _id},
+                        {"collaborators.collaboratorID": _id, "collaborators.permission": {$in: [COLLABORATOR_PERMISSIONS.CAN_EDIT, COLLABORATOR_PERMISSIONS.CAN_VIEW]}}]};
             }
         })();
     }

@@ -19,10 +19,10 @@ class BatchService {
         this.fetchDataModelInfo = fetchDataModelInfo;
     }
 
-    async createBatch(params, aSubmission) {
+    async createBatch(params, aSubmission, user) {
         const prefix = createPrefix(params, aSubmission?.rootPath);
         const newDisplayID = await this.#getBatchDisplayID(params.submissionID);
-        const newBatch = Batch.createNewBatch(params.submissionID, newDisplayID, aSubmission?.bucketName, prefix, params.type.toLowerCase(), aSubmission.submitterID, aSubmission.submitterName);
+        const newBatch = Batch.createNewBatch(params.submissionID, newDisplayID, aSubmission?.bucketName, prefix, params.type.toLowerCase(), user._id, user.firstName + " " + user.lastName);
         if (BATCH.TYPE.METADATA === params.type.toLowerCase()) {
             await Promise.all(params.files.map(async (file) => {
                 if (file.fileName) {
