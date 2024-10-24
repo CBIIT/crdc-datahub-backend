@@ -49,11 +49,16 @@ let config = {
     //uploader configuration file template
     uploaderCLIConfigs: readUploaderCLIConfigTemplate(),
     dataCommonsList: process.env.DATA_COMMONS_LIST ? JSON.parse(process.env.DATA_COMMONS_LIST) : ["CDS", "ICDC", "CTDC", "CCDI", "Test MDF", "Hidden Model"],
+    hiddenModels: process.env.HIDDEN_MODELS ? parseHiddenModels(JSON.parse(process.env.HIDDEN_MODELS)) : [],
     inactive_submission_days: process.env.INACTIVE_SUBMISSION_DAYS_DELETE || 120,
     completed_submission_days: process.env.COMPLETED_RETENTION_DAYS || 30,
     dashboardSessionTimeout: process.env.DASHBOARD_SESSION_TIMEOUT || 3600, // 60 minutes by default
 };
 config.mongo_db_connection_string = `mongodb://${config.mongo_db_user}:${config.mongo_db_password}@${config.mongo_db_host}:${process.env.MONGO_DB_PORT}`;
+
+function parseHiddenModels(hiddenModels) {
+    return Array.isArray(hiddenModels) ? hiddenModels : [hiddenModels]
+}
 
 function getTransportConfig() {
     return {
