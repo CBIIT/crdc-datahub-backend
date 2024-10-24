@@ -5,10 +5,11 @@ const ERROR = require("../constants/error-constants");
 const {replaceErrorString} = require("../utility/string-util");
 
 class UserService {
-    constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, tier) {
+    constructor(userCollection, logCollection, organizationCollection, organizationService, notificationsService, submissionsCollection, applicationCollection, officialEmail, tier) {
         this.userCollection = userCollection;
         this.logCollection = logCollection;
         this.organizationCollection = organizationCollection;
+        this.organizationService = organizationService;
         this.notificationsService = notificationsService;
         this.submissionsCollection = submissionsCollection;
         this.applicationCollection = applicationCollection;
@@ -32,7 +33,7 @@ class UserService {
         ]);
 
         if (!org || !org.name) {
-            return new Error(ERROR.ORGANIZATION_NOT_FOUND);
+            await this.organizationService.createOrganization({name: params?.organization});
         }
 
         const CCs = orgOwners?.filter((u)=> u.email).map((u)=> u.email);
@@ -49,7 +50,7 @@ class UserService {
                 accountType: userInfo?.IDP,
                 email: userInfo?.email,
                 role: params?.role,
-                org: org.name,
+                org: params?.organization,
                 additionalInfo: params?.additionalInfo?.trim()
             }
             ,this.tier);
