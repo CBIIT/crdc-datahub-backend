@@ -26,7 +26,7 @@ class UserService {
         }
 
         const [org, adminUsers, orgOwners] = await Promise.all([
-            this.#getOrgByID(params?.organization),
+            this.#getOrgByName(params?.organization),
             this.getAdmin(),
             this.getOrgOwner(params?.organization)
         ]);
@@ -60,8 +60,17 @@ class UserService {
         return ValidationHandler.handle(ERROR.DELETE_NO_DATA_FILE_EXISTS);
     }
 
-    async #getOrgByID(orgID) {
-        return (await this.organizationCollection.find(orgID))?.pop();
+    async #getOrgByName(orgName) {
+        const orgs = await this.organizationCollection.aggregate([{
+            "$match": {
+                name: orgName
+            }
+        }]);
+        //  This is an invalid case for the user.
+        if (orgs.length > 1) {
+            throw new Error(replaceErrorString(ERROR.DUPLICATE_ORGANIZATION_NAME, orgName));
+        }
+        return (orgs)?.pop();
     }
 
     async getAdmin() {
