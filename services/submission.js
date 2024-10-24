@@ -1209,7 +1209,7 @@ class Submission {
             // note: reset metadataValidationStatus if no data files found
             const submissionDataFiles = await this.#getAllSubmissionDataFiles(aSubmission?.bucketName, aSubmission?.rootPath);
             if (submissionDataFiles?.length === 0) {
-                await this.submissionCollection.updateOne({_id: aSubmission?._id}, {fileValidationStatus: null, updatedAt: getCurrentTime()});
+                await this.submissionCollection.updateOne({_id: aSubmission?._id}, {fileValidationStatus: null, metadataValidationStatus: null, updatedAt: getCurrentTime()});
             }
             return ValidationHandler.success(`${deletedFiles.length} extra files deleted`)
         }
