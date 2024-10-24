@@ -324,7 +324,7 @@ class NotifyUser {
             [ACCOUNT_EMAIL, templateParams.email],
             ...(templateParams.role) ? [[REQUESTED_ROLE, templateParams.role]] : [],
             ...(templateParams.org) ? [[AFFILIATED_ORGANIZATION, templateParams.org]] : [],
-            ...(templateParams.additionalInfo) ? [[ADDITIONAL_INFO, sanitizedAdditionalInfo]] : []
+            ...(sanitizedAdditionalInfo) ? [[ADDITIONAL_INFO, sanitizedAdditionalInfo]] : []
         ];
         return await this.send(async () => {
             return await this.emailService.sendNotification(
