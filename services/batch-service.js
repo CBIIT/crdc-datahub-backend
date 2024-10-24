@@ -102,6 +102,16 @@ class BatchService {
                 aBatch.errors.push(replaceErrorString(ERROR.NO_UPLOADED_FILES, `'${noUploadedFiles.join(", ")}'`));
                 aBatch.status = BATCH.STATUSES.FAILED;
             }
+
+            for (const aFileName of uploadFiles?.keys()) {
+                const file = uploadFiles.get(aFileName);
+                // File already uploaded, but it marked the file as failed.
+                if (!Boolean(file?.succeeded) && s3UploadedFiles.has(aFileName)) {
+                    aBatch.errors = aBatch.errors || [];
+                    aBatch.errors.push(replaceErrorString(ERROR.INVALID_UPLOAD_ATTEMPT, aFileName));
+                    aBatch.status = BATCH.STATUSES.FAILED;
+                }
+            }
         }
         await asyncUpdateBatch(this.awsService, this.batchCollection, aBatch, this.sqsLoaderQueue, isAllUploaded, isAllSkipped);
         return await this.findByID(aBatch._id);
