@@ -20,6 +20,7 @@ class CDE {
      * @returns [CDE]
      */
     async getCDEs(params) {
+        if (!params?.CDEInfo || !Array.isArray(params?.CDEInfo) || params?.CDEInfo.length === 0) return [];
         const conditions = params?.CDEInfo.filter(c=>c?.CDEVersion).map(cde => ({
             CDECode: cde.CDECode,
             CDEVersion: cde.CDEVersion
