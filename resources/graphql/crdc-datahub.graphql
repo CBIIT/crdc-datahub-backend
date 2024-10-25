@@ -467,7 +467,7 @@ type Dashboard {
 
 input CDEInput {
     CDECode: String!,
-    CDEVersion: String!
+    CDEVersion: String
 }
 
 type CDE {
