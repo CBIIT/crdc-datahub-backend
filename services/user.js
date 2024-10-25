@@ -6,7 +6,7 @@ const {replaceErrorString} = require("../utility/string-util");
 const sanitizeHtml = require("sanitize-html");
 
 class UserService {
-    constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, tier) {
+    constructor(userCollection, logCollection, organizationCollection, organizationService, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, tier) {
         this.userCollection = userCollection;
         this.logCollection = logCollection;
         this.organizationCollection = organizationCollection;
@@ -87,10 +87,10 @@ class UserService {
         return result || [];
     }
 
-    async getOrgOwner(orgID) {
+    async getOrgOwnerByName(orgName) {
         return await this.userCollection.aggregate([{
             "$match": {
-                "organization.orgID": orgID,
+                "organization.name": orgName,
                 role: USER.ROLES.ORG_OWNER,
                 userStatus: USER.STATUSES.ACTIVE
             }
