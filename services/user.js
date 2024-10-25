@@ -90,7 +90,7 @@ class UserService {
     async getOrgOwnerByName(orgName) {
         return await this.userCollection.aggregate([{
             "$match": {
-                "organization.name": orgName,
+                "organization.orgName": orgName,
                 role: USER.ROLES.ORG_OWNER,
                 userStatus: USER.STATUSES.ACTIVE
             }
