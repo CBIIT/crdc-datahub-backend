@@ -35,7 +35,7 @@ class UserService {
         ]);
 
         if (!org || !org.name) {
-            await this.organizationService.createOrganization({name: orgName});
+            await this.organizationService.createOrganization({name: orgName?.trim()});
         }
 
         const CCs = orgOwners?.filter((u)=> u.email).map((u)=> u.email);
