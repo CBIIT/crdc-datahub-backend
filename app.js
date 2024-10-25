@@ -94,7 +94,7 @@ cronJob.schedule(config.schedule_job, async () => {
         const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
         const organizationService = new Organization(organizationCollection);
         const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
-        const userService = new User(userCollection, logCollection, organizationCollection, organizationService, notificationsService, submissionCollection, applicationCollection, config.official_email, config.tier);
+        const userService = new User(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.tier);
 
         const s3Service = new S3Service();
         const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
