@@ -3,6 +3,7 @@ const {USER} = require("../crdc-datahub-database-drivers/constants/user-constant
 const {ValidationHandler} = require("../utility/validation-handler");
 const ERROR = require("../constants/error-constants");
 const {replaceErrorString} = require("../utility/string-util");
+const sanitizeHtml = require("sanitize-html");
 
 class UserService {
     constructor(userCollection, logCollection, organizationCollection, organizationService, notificationsService, submissionsCollection, applicationCollection, officialEmail, tier) {
@@ -26,14 +27,15 @@ class UserService {
             return new Error(replaceErrorString(ERROR.INVALID_REQUEST_ROLE, params?.role));
         }
 
+        const orgName = sanitizeHtml(params?.organization, {allowedTags: [],allowedAttributes: {}});
         const [org, adminUsers, orgOwners] = await Promise.all([
-            this.#getOrgByName(params?.organization),
+            this.#getOrgByName(orgName),
             this.getAdmin(),
-            this.getOrgOwnerByName(params?.organization)
+            this.getOrgOwnerByName(orgName)
         ]);
 
         if (!org || !org.name) {
-            await this.organizationService.createOrganization({name: params?.organization});
+            await this.organizationService.createOrganization({name: orgName});
         }
 
         const CCs = orgOwners?.filter((u)=> u.email).map((u)=> u.email);
@@ -50,7 +52,7 @@ class UserService {
                 accountType: userInfo?.IDP,
                 email: userInfo?.email,
                 role: params?.role,
-                org: params?.organization,
+                org: orgName,
                 additionalInfo: params?.additionalInfo?.trim()
             }
             ,this.tier);
