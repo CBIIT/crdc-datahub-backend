@@ -132,7 +132,7 @@ const ERROR = {
         CONTENTS: "Data file $item$ not found"
     },
     NO_UPLOADED_FILES: "You are attempting to update files that do not exist in the batch. Please check the file: $item$.",
-    INVALID_UPLOAD_ATTEMPT: "You are attempting to falsely update already uploaded files in the s3 bucket. Please check the file: $item$.",
+    INVALID_UPLOAD_ATTEMPT: "Update of existing S3 file $item$ failed. Please check $item$ for errors and then try again.",
     MISSING_STUDY_NAME: "Study name is required.",
     INVALID_CONTROLLED_ACCESS: "Invalid controlled access value.",
     MISSING_DB_GAP_ID: "dbGaP ID is required when access is controlled.",
