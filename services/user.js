@@ -29,15 +29,10 @@ class UserService {
         }
 
         const orgName = sanitizeHtml(params?.organization, {allowedTags: [],allowedAttributes: {}});
-        const [org, adminUsers, orgOwners] = await Promise.all([
-            this.#getOrgByName(orgName),
+        const [adminUsers, orgOwners] = await Promise.all([
             this.getAdmin(),
             this.getOrgOwnerByName(orgName)
         ]);
-
-        if (!org || !org.name) {
-            await this.organizationService.createOrganization({name: orgName?.trim()});
-        }
 
         const CCs = orgOwners?.filter((u)=> u.email).map((u)=> u.email);
         const adminEmails = adminUsers?.filter((u)=> u.email).map((u)=> u.email);
@@ -62,19 +57,6 @@ class UserService {
             return ValidationHandler.success()
         }
         return ValidationHandler.handle(ERROR.DELETE_NO_DATA_FILE_EXISTS);
-    }
-
-    async #getOrgByName(orgName) {
-        const orgs = await this.organizationCollection.aggregate([{
-            "$match": {
-                name: orgName
-            }
-        }]);
-        //  This is an invalid case for the user.
-        if (orgs.length > 1) {
-            throw new Error(replaceErrorString(ERROR.DUPLICATE_ORGANIZATION_NAME, orgName));
-        }
-        return (orgs)?.pop();
     }
 
     async getAdmin() {
