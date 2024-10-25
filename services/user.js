@@ -3,12 +3,14 @@ const {USER} = require("../crdc-datahub-database-drivers/constants/user-constant
 const {ValidationHandler} = require("../utility/validation-handler");
 const ERROR = require("../constants/error-constants");
 const {replaceErrorString} = require("../utility/string-util");
+const sanitizeHtml = require("sanitize-html");
 
 class UserService {
-    constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, tier) {
+    constructor(userCollection, logCollection, organizationCollection, organizationService, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, tier) {
         this.userCollection = userCollection;
         this.logCollection = logCollection;
         this.organizationCollection = organizationCollection;
+        this.organizationService = organizationService;
         this.notificationsService = notificationsService;
         this.submissionsCollection = submissionsCollection;
         this.applicationCollection = applicationCollection;
@@ -26,15 +28,11 @@ class UserService {
             return new Error(replaceErrorString(ERROR.INVALID_REQUEST_ROLE, params?.role));
         }
 
-        const [org, adminUsers, orgOwners] = await Promise.all([
-            this.#getOrgByName(params?.organization),
+        const orgName = sanitizeHtml(params?.organization, {allowedTags: [],allowedAttributes: {}});
+        const [adminUsers, orgOwners] = await Promise.all([
             this.getAdmin(),
-            this.getOrgOwner(params?.organization)
+            this.getOrgOwnerByName(orgName)
         ]);
-
-        if (!org || !org.name) {
-            return new Error(ERROR.ORGANIZATION_NOT_FOUND);
-        }
 
         const CCs = orgOwners?.filter((u)=> u.email).map((u)=> u.email);
         const adminEmails = adminUsers?.filter((u)=> u.email).map((u)=> u.email);
@@ -50,7 +48,7 @@ class UserService {
                 accountType: userInfo?.IDP,
                 email: userInfo?.email,
                 role: params?.role,
-                org: org.name,
+                org: orgName,
                 additionalInfo: params?.additionalInfo?.trim()
             }
             ,this.tier);
@@ -59,19 +57,6 @@ class UserService {
             return ValidationHandler.success()
         }
         return ValidationHandler.handle(ERROR.DELETE_NO_DATA_FILE_EXISTS);
-    }
-
-    async #getOrgByName(orgName) {
-        const orgs = await this.organizationCollection.aggregate([{
-            "$match": {
-                name: orgName
-            }
-        }]);
-        //  This is an invalid case for the user.
-        if (orgs.length > 1) {
-            throw new Error(replaceErrorString(ERROR.DUPLICATE_ORGANIZATION_NAME, orgName));
-        }
-        return (orgs)?.pop();
     }
 
     async getAdmin() {
@@ -84,10 +69,10 @@ class UserService {
         return result || [];
     }
 
-    async getOrgOwner(orgID) {
+    async getOrgOwnerByName(orgName) {
         return await this.userCollection.aggregate([{
             "$match": {
-                "organization.orgID": orgID,
+                "organization.orgName": orgName,
                 role: USER.ROLES.ORG_OWNER,
                 userStatus: USER.STATUSES.ACTIVE
             }

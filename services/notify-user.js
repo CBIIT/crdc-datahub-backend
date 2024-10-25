@@ -316,6 +316,7 @@ class NotifyUser {
 
     async requestUserAccessNotification(email, CCs, templateParams, tier) {
         const sanitizedAdditionalInfo = sanitizeHtml(templateParams.additionalInfo, {allowedTags: [],allowedAttributes: {}});
+        const sanitizedOrgName = sanitizeHtml(templateParams.org, {allowedTags: [],allowedAttributes: {}});
         const topMessage = replaceMessageVariables(this.email_constants.USER_REQUEST_ACCESS_CONTENT, {});
         const subject = this.email_constants.USER_REQUEST_ACCESS_SUBJECT;
         const additionalInfo = [
@@ -323,7 +324,7 @@ class NotifyUser {
             [ACCOUNT_TYPE, templateParams.accountType?.toUpperCase()],
             [ACCOUNT_EMAIL, templateParams.email],
             ...(templateParams.role) ? [[REQUESTED_ROLE, templateParams.role]] : [],
-            ...(templateParams.org) ? [[AFFILIATED_ORGANIZATION, templateParams.org]] : [],
+            ...(sanitizedOrgName) ? [[AFFILIATED_ORGANIZATION, sanitizedOrgName]] : [],
             ...(sanitizedAdditionalInfo) ? [[ADDITIONAL_INFO, sanitizedAdditionalInfo]] : []
         ];
         return await this.send(async () => {
