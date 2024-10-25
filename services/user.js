@@ -29,7 +29,7 @@ class UserService {
         const [org, adminUsers, orgOwners] = await Promise.all([
             this.#getOrgByName(params?.organization),
             this.getAdmin(),
-            this.getOrgOwner(params?.organization)
+            this.getOrgOwnerByName(params?.organization)
         ]);
 
         if (!org || !org.name) {
@@ -84,10 +84,10 @@ class UserService {
         return result || [];
     }
 
-    async getOrgOwner(orgID) {
+    async getOrgOwnerByName(orgName) {
         return await this.userCollection.aggregate([{
             "$match": {
-                "organization.orgID": orgID,
+                "organization.name": orgName,
                 role: USER.ROLES.ORG_OWNER,
                 userStatus: USER.STATUSES.ACTIVE
             }
