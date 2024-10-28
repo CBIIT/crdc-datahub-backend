@@ -162,6 +162,13 @@ class DataRecordService {
         }
     }
 
+    async deleteDataRecordsBySubmissionID(submissionID) {
+        const res = await this.dataRecordsCollection.deleteMany({submissionID: submissionID});
+        if (!res.acknowledged) {
+            console.error("Failed to delete data records submissionID", submissionID);
+        }
+    }
+
     async validateMetadata(submissionID, types, scope, validationID) {
         isValidMetadata(types, scope);
         const isMetadata = types.some(t => t === VALIDATION.TYPES.METADATA || t === VALIDATION.TYPES.CROSS_SUBMISSION);

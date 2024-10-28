@@ -13,7 +13,8 @@ const {DATABASE_NAME, APPLICATION_COLLECTION, SUBMISSIONS_COLLECTION, USER_COLLE
     VALIDATION_COLLECTION,
     CONFIGURATION_COLLECTION,
     CDE_COLLECTION,
-    DATA_RECORDS_ARCHIVE_COLLECTION
+    DATA_RECORDS_ARCHIVE_COLLECTION,
+    RELEASE_COLLECTION
 } = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoDBCollection} = require("../crdc-datahub-database-drivers/mongodb-collection");
 const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-connector");
@@ -36,6 +37,7 @@ const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
 const AuthenticationService = require("../services/authentication-service");
 const {apiAuthorization, extractAPINames, PUBLIC} = require("./api-authorization");
 const {UserService} = require("../services/user");
+const {ReleaseService} = require("../services/release-service");
 const public_api_list = extractAPINames(schema, PUBLIC)
 const INACTIVE_SUBMISSION_DAYS = "Inactive_Submission_Notify_Days";
 let root;
@@ -82,7 +84,9 @@ dbConnector.connect().then(async () => {
     const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days,
         submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk, remindSubmissionDay: inactiveSubmissionsTimeout, techSupportEmail: config.techSupportEmail};
 
-    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, fetchDataModelInfo, awsService, config.export_queue, s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue);
+    const releaseCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, RELEASE_COLLECTION);
+    const releaseService = new ReleaseService(releaseCollection);
+    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, fetchDataModelInfo, awsService, config.export_queue, s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, releaseService);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.tier, institutionService);
 
     const dashboardService = new DashboardService(userService, awsService, configurationService, {sessionTimeout: config.dashboardSessionTimeout});

@@ -52,7 +52,7 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList, hiddenDataCommonsList, validationCollection, sqsLoaderQueue) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList, hiddenDataCommonsList, validationCollection, sqsLoaderQueue, releaseService) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -70,6 +70,7 @@ class Submission {
         this.hiddenDataCommons = new Set(hiddenDataCommonsList);
         this.validationCollection = validationCollection;
         this.sqsLoaderQueue = sqsLoaderQueue;
+        this.releaseService = releaseService;
     }
 
     async createSubmission(params, context) {
@@ -369,9 +370,20 @@ class Submission {
         const logEvent = SubmissionActionEvent.create(userInfo._id, userInfo.email, userInfo.IDP, submission._id, action, fromStatus, newStatus);
         await Promise.all([
             this.logCollection.insert(logEvent),
-            submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService, this.emailParams, this.tier)
+            submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService, this.emailParams, this.tier),
+            this.#cleanUpSubmission(action, submissionID, submission?.bucketName, submission?.rootPath)
         ].concat(completePromise));
         return submission;
+    }
+
+    async #cleanUpSubmission(action, submissionID, bucketName, rootPath) {
+        if (action === ACTIONS.CANCEL) {
+            const deleteS3Files = await this.s3Service.deleteDirectory(bucketName, rootPath);
+            if (deleteS3Files) {
+                await this.dataRecordService.deleteDataRecordsBySubmissionID(submissionID);
+                await this.releaseService.deleteReleaseBySubmissionID(submissionID);
+            }
+        }
     }
 
     async remindInactiveSubmission() {
