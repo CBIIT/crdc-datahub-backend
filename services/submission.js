@@ -379,7 +379,7 @@ class Submission {
         if (action === ACTIONS.CANCEL) {
             try {
                 await this.#archiveSubmission(submissionID, bucketName, rootPath);
-                console.debug(`Successfully archive completed submissions: ${submissionID}.`);
+                console.debug(`Successfully archive canceled submissions: ${submissionID}.`);
             } catch (e) {
                 console.error(`Failed to delete files under archived canceled submission: ${submissionID} with error: ${e.message}.`);
             }
