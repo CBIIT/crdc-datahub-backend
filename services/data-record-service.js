@@ -106,6 +106,16 @@ class DataRecordService {
         }
     }
 
+    async isNodeErrorsBySubmissionID(submissionID) {
+        const errorNodes = await this.dataRecordsCollection.aggregate([{
+            $match: {
+                submissionID: submissionID,
+                "s3FileInfo.status": VALIDATION_STATUS.ERROR
+            }},
+            {$limit: 1}
+        ]);
+        return errorNodes.length > 0;
+    }
 
     #dataFilesStats(s3SubmissionFiles, fileRecords) {
         const s3FileSet = new Set(s3SubmissionFiles);
