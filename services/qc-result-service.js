@@ -60,21 +60,26 @@ class QcResultService{
         }
         // Filter by batch IDs
         if (!!batchIDs && batchIDs.length > 0){
+            // If multiple batchIDs are specified, then only the first will be used for the filter
+            const batchID = batchIDs[0];
             // Check if any of the specified batchIDs are in the qcResult
             pipeline.push({
-                $set:{
-                    batch_check: {
-                        $size: {
-                            $setIntersection: ["$batchIDs", batchIDs]
+                $match:{
+                    batchIDs: {
+                        $elemMatch: {
+                            $eq: batchID
                         }
                     }
                 }
             })
-            // Filter out qcResults where the batch_check is less than 1
+        }
+        // Filter by nodeTypes
+        if (!!nodeTypes && nodeTypes.length > 0){
+            // Check if any of the specified nodeTypes are in the qcResult
             pipeline.push({
                 $match:{
-                    batch_check: {
-                        $gte: 1
+                    type: {
+                        $in: nodeTypes
                     }
                 }
             })
