@@ -522,8 +522,15 @@ class Submission {
             .filter((f)=> f && f.type === VALIDATION.TYPES.DATA_FILE && f.severity === VALIDATION_STATUS.ERROR)
             .map((study)=> study.submittedID);
 
-        if (JSON.stringify(aSubmissionErrors) !== JSON.stringify(orphanedFiles)) {
-            await this.submissionCollection.update({_id: aSubmission?._id, fileErrors, updatedAt: getCurrentTime()});
+        const isOrphanedError = JSON.stringify(aSubmissionErrors) !== JSON.stringify(orphanedFiles);
+        const isNodeError = await this.dataRecordService.isNodeErrorsBySubmissionID(aSubmission?._id);
+        if (isOrphanedError || (isNodeError && aSubmission.fileValidationStatus !== VALIDATION_STATUS.ERROR)) {
+            await this.submissionCollection.update({
+                _id: aSubmission?._id,
+                updatedAt: getCurrentTime(),
+                ...(isOrphanedError ? fileErrors : {}),
+                ...(isNodeError ? {fileValidationStatus : VALIDATION_STATUS.ERROR} : {})
+            });
         }
         return submissionStats;
     }
