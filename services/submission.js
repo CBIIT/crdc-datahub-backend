@@ -369,9 +369,21 @@ class Submission {
         const logEvent = SubmissionActionEvent.create(userInfo._id, userInfo.email, userInfo.IDP, submission._id, action, fromStatus, newStatus);
         await Promise.all([
             this.logCollection.insert(logEvent),
-            submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService, this.emailParams, this.tier)
+            submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService, this.emailParams, this.tier),
+            this.#archiveCancelSubmission(action, submissionID, submission?.bucketName, submission?.rootPath)
         ].concat(completePromise));
         return submission;
+    }
+
+    async #archiveCancelSubmission(action, submissionID, bucketName, rootPath) {
+        if (action === ACTIONS.CANCEL) {
+            try {
+                await this.#archiveSubmission(submissionID, bucketName, rootPath);
+                console.debug(`Successfully archive canceled submissions: ${submissionID}.`);
+            } catch (e) {
+                console.error(`Failed to delete files under archived canceled submission: ${submissionID} with error: ${e.message}.`);
+            }
+        }
     }
 
     async remindInactiveSubmission() {
@@ -1125,13 +1137,8 @@ class Submission {
             //archive related data and delete files in s3
             for (const sub of archive_subs) {
                 try {
-                    const result = await this.s3Service.deleteDirectory(sub.bucketName, sub.rootPath);
-                    if (result === true) {
-                        await this.dataRecordService.archiveMetadataByFilter({"submissionID": sub._id});
-                        await this.batchService.deleteBatchByFilter({"submissionID": sub._id});
-                        await this.submissionCollection.updateOne({"_id": sub._id}, {"archived": true, "updatedAt": new Date()});
-                        console.debug(`Successfully archive completed submissions: ${sub._id}.`);
-                    }
+                    await this.#archiveSubmission(sub._id, sub.bucketName, sub.rootPath);
+                    console.debug(`Successfully archive completed submissions: ${sub._id}.`);
                 } catch (e) {
                     console.error(`Failed to delete files under archived completed submission: ${sub._id} with error: ${e.message}.`);
                     failed_delete_subs.push(sub._id);
@@ -1142,6 +1149,17 @@ class Submission {
         catch (e){
             console.error("Failed to archive completed submission(s) with error:" + e.message);
             return "failed!";
+        }
+    }
+
+    async #archiveSubmission(submissionID, bucketName, rootPath) {
+        const result = await this.s3Service.deleteDirectory(bucketName, rootPath);
+        if (result === true) {
+            await this.dataRecordService.archiveMetadataByFilter({"submissionID": submissionID});
+            await this.batchService.deleteBatchByFilter({"submissionID": submissionID});
+            await this.submissionCollection.updateOne({"_id": submissionID}, {"archived": true, "updatedAt": new Date()});
+        } else {
+            console.error(`Failed to delete files in the s3 bucket. SubmissionID: ${submissionID}.`);
         }
     }
 
