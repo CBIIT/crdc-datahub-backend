@@ -108,7 +108,7 @@ cronJob.schedule(config.schedule_job, async () => {
         const utilityService = new UtilityService();
         const dataModelInfo = await utilityService.fetchJsonFromUrl(config.model_url);
         const validationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, VALIDATION_COLLECTION);
-        const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, dataModelInfo, awsService, config.export_queue, s3Service, emailParams, config.dataCommonsList, validationCollection);
+        const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, dataModelInfo, awsService, config.export_queue, s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection);
         const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.tier, emailParams);
 
         console.log("Running a scheduled background task to delete inactive application at " + getCurrentTime());

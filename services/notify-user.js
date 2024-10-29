@@ -1,17 +1,22 @@
 const yaml = require('js-yaml');
 const fs = require('fs');
 const {createEmailTemplate} = require("../lib/create-email-template");
+const sanitizeHtml = require('sanitize-html');
 const {replaceMessageVariables} = require("../utility/string-util");
 const config = require("../config");
 const NOTIFICATION_USER_HTML_TEMPLATE = "notification-template-user.html";
-const ACCOUNT_TYPE = "Account Type";
-const ACCOUNT_EMAIL = "Account Email";
 const ROLE = "Role";
-const AFFILIATED_ORGANIZATION = "Affiliated Organization";
 const DATA_COMMONS = "Data Commons";
 const STUDIES = "Studies";
 const CRDC_PORTAL_USER = "CRDC Submission Portal User";
 const CRDC_PORTAL_TEAM ="CRDC Submission Portal Team";
+const USER_NAME = "User Name"
+const ACCOUNT_TYPE = "Account Type";
+const ACCOUNT_EMAIL = "Account Email";
+const REQUESTED_ROLE = "Requested Role";
+const ADDITIONAL_INFO = "Additional Info";
+const AFFILIATED_ORGANIZATION = "Affiliated Organization";
+const CRDC_PORTAL_ADMIN = "CRDC Submission Portal Admins";
 class NotifyUser {
 
     constructor(emailService) {
@@ -302,6 +307,35 @@ class NotifyUser {
                 isTierAdded(tier) ? `${tier} ${subject}` : subject,
                 await createEmailTemplate("notification-template.html", {
                     message, ...template_params
+                }),
+                email,
+                CCs
+            );
+        });
+    }
+
+    async requestUserAccessNotification(email, CCs, templateParams, tier) {
+        const sanitizedAdditionalInfo = sanitizeHtml(templateParams.additionalInfo, {allowedTags: [],allowedAttributes: {}});
+        const sanitizedOrgName = sanitizeHtml(templateParams.org, {allowedTags: [],allowedAttributes: {}});
+        const topMessage = replaceMessageVariables(this.email_constants.USER_REQUEST_ACCESS_CONTENT, {});
+        const subject = this.email_constants.USER_REQUEST_ACCESS_SUBJECT;
+        const additionalInfo = [
+            [USER_NAME, templateParams.userName],
+            [ACCOUNT_TYPE, templateParams.accountType?.toUpperCase()],
+            [ACCOUNT_EMAIL, templateParams.email],
+            ...(templateParams.role) ? [[REQUESTED_ROLE, templateParams.role]] : [],
+            ...(sanitizedOrgName) ? [[AFFILIATED_ORGANIZATION, sanitizedOrgName]] : [],
+            ...(sanitizedAdditionalInfo) ? [[ADDITIONAL_INFO, sanitizedAdditionalInfo]] : []
+        ];
+        return await this.send(async () => {
+            return await this.emailService.sendNotification(
+                this.email_constants.NOTIFICATION_SENDER,
+                isTierAdded(tier) ? `${tier} ${subject}` : subject,
+                await createEmailTemplate(NOTIFICATION_USER_HTML_TEMPLATE, {
+                    topMessage, ...{
+                        firstName: CRDC_PORTAL_ADMIN,
+                        senderName: CRDC_PORTAL_TEAM,
+                        ...templateParams, additionalInfo}
                 }),
                 email,
                 CCs

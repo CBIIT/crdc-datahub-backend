@@ -132,6 +132,7 @@ const ERROR = {
         CONTENTS: "Data file $item$ not found"
     },
     NO_UPLOADED_FILES: "You are attempting to update files that do not exist in the batch. Please check the file: $item$.",
+    INVALID_UPLOAD_ATTEMPT: "Update of existing S3 file $item$ failed. Please check $item$ for errors and then try again.",
     MISSING_STUDY_NAME: "Study name is required.",
     INVALID_CONTROLLED_ACCESS: "Invalid controlled access value.",
     MISSING_DB_GAP_ID: "dbGaP ID is required when access is controlled.",
@@ -142,13 +143,18 @@ const ERROR = {
     EXISTING_SUBMISSION_COLLABORATOR: "The collaborator exists in the submission already.",
     COLLABORATOR_NOT_EXIST: "collaborator does not exist",
     INVALID_COLLABORATOR_ROLE_SUBMITTER: "Invalid collaborator role for the submitter",
-    INVALID_COLLABORATOR_STUDY: "No matched collaborator study.",
+    INVALID_COLLABORATOR_STUDY: "Collaborator could not be added because the collaborator's organization is not related to study in this submission.",
     FAILED_ADD_SUBMISSION_COLLABORATOR: "Failed to add submission collaborator",
     FAILED_REMOVE_SUBMISSION_COLLABORATOR: "Failed to remove submission collaborator",
     INVALID_SUBMISSION_COLLABORATOR: "Invalid submission collaborator",
     INVALID_SUBMISSION_STUDY: "Invalid submission, missing studyID",
     INVALID_COLLABORATOR_PERMISSION: "Invalid collaborator permission, must be 'Can View' or 'Can Edit'",
     DUPLICATE_STUDY_NAME: "Error saving this study. This study name already exists.",
-} 
+    // User
+    ORGANIZATION_NOT_FOUND: "The provided organization name does not exist in the organization record",
+    INVALID_REQUEST_ROLE: "Invalid user role is requested: $item$",
+    DUPLICATE_ORGANIZATION_NAME: "Duplicate organization name found: $item$",
+    NO_ADMIN_USER: "No admin user found"
+}
 
 module.exports = ERROR;

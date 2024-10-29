@@ -20,16 +20,24 @@ class CDE {
      * @returns [CDE]
      */
     async getCDEs(params) {
-        const conditions = params?.CDEInfo.map(cde => ({
+        if (!params?.CDEInfo || !Array.isArray(params?.CDEInfo) || params?.CDEInfo.length === 0) return [];
+        const conditions = params?.CDEInfo.filter(c=>c?.CDEVersion).map(cde => ({
             CDECode: cde.CDECode,
             CDEVersion: cde.CDEVersion
-          }))
+          })).concat(params?.CDEInfo.filter(c=>!c?.CDEVersion).map(cde => ({
+            CDECode: cde.CDECode
+          })));
+          
         const query = {"$or": conditions}
         return await this.#find_cde_by_code_version(query); 
     }
 
     async #find_cde_by_code_version(query) {
-        return this.CDE_collection.aggregate([{"$match": query}]);
+        const pipelines = [{"$match": query}];
+        pipelines.push({"$sort": {CDECode: 1, CDEVersion: -1}});
+        pipelines.push({"$group": {"_id": "$CDECode", "latestDocument": {"$first": "$$ROOT"}}});
+        pipelines.push({"$replaceRoot": {"newRoot": "$latestDocument"}});
+        return this.CDE_collection.aggregate(pipelines);
     }
 }
 

@@ -472,7 +472,7 @@ type Dashboard {
 
 input CDEInput {
     CDECode: String!,
-    CDEVersion: String!
+    CDEVersion: String
 }
 
 type CDE {
@@ -489,7 +489,7 @@ type Collaborator {
     collaboratorID: ID,
     collaboratorName: String,
     Organization: OrgInfo,
-    permission: String # hard code to "Read Only" (for future use)
+    permission: String
 }
 
 input CollaboratorInput {
@@ -731,4 +731,10 @@ type Mutation {
         ORCID: String, #optional in format of 0000-1234-2345-3456
         PI: String #optional 
     ): ApprovedStudy
+
+    requestAccess(
+        role: String!
+        organization: String!, # organizationID
+        additionalInfo: String,
+    ): AsyncProcessResult
 }

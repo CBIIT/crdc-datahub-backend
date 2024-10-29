@@ -52,7 +52,7 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList, validationCollection, sqsLoaderQueue) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList, hiddenDataCommonsList, validationCollection, sqsLoaderQueue) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -67,6 +67,7 @@ class Submission {
         this.s3Service = s3Service;
         this.emailParams = emailParams;
         this.allowedDataCommons = new Set(dataCommonsList);
+        this.hiddenDataCommons = new Set(hiddenDataCommonsList);
         this.validationCollection = validationCollection;
         this.sqsLoaderQueue = sqsLoaderQueue;
     }
@@ -78,7 +79,7 @@ class Submission {
             .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER]);
         const intention = [INTENTION.UPDATE, INTENTION.DELETE].find((i) => i.toLowerCase() === params?.intention.toLowerCase());
         const dataType = [DATA_TYPE.METADATA_AND_DATA_FILES, DATA_TYPE.METADATA_ONLY].find((i) => i.toLowerCase() === params?.dataType.toLowerCase());
-        validateCreateSubmissionParams(params, this.allowedDataCommons, intention, dataType, context?.userInfo);
+        validateCreateSubmissionParams(params, this.allowedDataCommons, this.hiddenDataCommons, intention, dataType, context?.userInfo);
 
         const aUserOrganization= await this.organizationService.getOrganizationByName(context.userInfo?.organization?.orgName);
         const approvedStudy = aUserOrganization.studies.find((study) => study?._id === params.studyID);
@@ -109,14 +110,14 @@ class Submission {
 
         const filterConditions = [
             // default filter for listing submissions
-            await this.#listConditions(context?.userInfo, params.status, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName),
+            this.#listConditions(context?.userInfo, params.status, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName),
             // no filter for dataCommons aggregation
-            await this.#listConditions(context?.userInfo, ALL_FILTER, ALL_FILTER, null, null, ALL_FILTER, ALL_FILTER),
+            this.#listConditions(context?.userInfo, ALL_FILTER, ALL_FILTER, null, null, ALL_FILTER, ALL_FILTER),
             // note: Aggregation of Submitter name should not be filtered by a submitterName
-            await this.#listConditions(context?.userInfo, params?.status, params.organization, params.name, params.dbGaPID, params.dataCommons, ALL_FILTER),
+            this.#listConditions(context?.userInfo, params?.status, params.organization, params.name, params.dbGaPID, params.dataCommons, ALL_FILTER),
         ]
 
-        const [listConditions, dataCommonsCondition, submitterNameCondition] = await Promise.all(filterConditions);
+        const [listConditions, dataCommonsCondition, submitterNameCondition] = filterConditions;
         const pipeline = [{"$match": listConditions}];
         if (params.orderBy) {
             pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
@@ -176,7 +177,7 @@ class Submission {
             throw new Error(ERROR.MISSING_REQUIRED_SUBMISSION_DATA);
         }
 
-        const result = await this.batchService.createBatch(params, aSubmission);
+        const result = await this.batchService.createBatch(params, aSubmission, userInfo);
         // The submission status needs to be updated after createBatch
         if ([NEW, WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
             await updateSubmissionStatus(this.submissionCollection, aSubmission, userInfo, IN_PROGRESS);
@@ -200,7 +201,7 @@ class Submission {
         const aSubmission = await findByID(this.submissionCollection, aBatch.submissionID);
         // submission owner & submitter's Org Owner
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
-        const res = await this.batchService.updateBatch(aBatch, params?.files);
+        const res = await this.batchService.updateBatch(aBatch, aSubmission?.bucketName, params?.files);
         // new status is ready for the validation
         if (res.status === BATCH.STATUSES.UPLOADED) {
             const updateSubmission = {
@@ -290,7 +291,9 @@ class Submission {
                 aSubmission = updateSubmission.value;
             }
             // add userName in each history
-            for (const history of aSubmission.history) {
+            for (const history of aSubmission?.history) {
+                if (history?.userName) continue;
+                if (!history?.userID) continue;
                 const user = await this.userService.getUserByID(history.userID);
                 history.userName = user.firstName + " " + user.lastName;
             }
@@ -353,11 +356,12 @@ class Submission {
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
             throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
         }
-
         // Send complete action
         const completePromise = [];
         if (action === ACTIONS.COMPLETE) {
             completePromise.push(this.#sendCompleteMessage({type: COMPLETE_SUBMISSION, submissionID}, submissionID));
+        }
+        if (action === ACTIONS.RELEASE) {
             completePromise.push(this.#sendCompleteMessage({type: GENERATE_DCF_MANIFEST, submissionID}, submissionID));
         }
 
@@ -976,25 +980,26 @@ class Submission {
         }
         if (!aSubmission.collaborators) 
             aSubmission.collaborators = [];
+
         // validate collaborators one by one.
         for (const collaborator of collaborators) {
+            //find a submitter with the collaborator ID
+            const user = await findByID(this.userService.userCollection, collaborator.collaboratorID);
             //find if the submission including existing collaborator
             if (!aSubmission.collaborators.find(c => c.collaboratorID === collaborator.collaboratorID)) {
-                //find a submitter with the collaborator ID
-                const user = await findByID(this.userService.userCollection, collaborator.collaboratorID);
                 if (!user) {
                     throw new Error(ERROR.COLLABORATOR_NOT_EXIST);
                 }
                 if (user.role !== ROLES.SUBMITTER) {
                     throw new Error(ERROR.INVALID_COLLABORATOR_ROLE_SUBMITTER);
                 }
-                 // check if the collaborator has submissions with the same study.
-                const search_conditions = {
-                    studyID: aSubmission.studyID,
-                    submitterID: collaborator.collaboratorID
+                //check if the collaborator has the study
+                const organization = await findByID(this.organizationService.organizationCollection, user.organization.orgID);
+                if (!organization || organization?.studies.length === 0) {
+                    throw new Error(ERROR.INVALID_COLLABORATOR_STUDY);
                 }
-                const collaborator_subs = await this.submissionCollection.aggregate([{$match: search_conditions}]);
-                if (!collaborator_subs || collaborator_subs.length === 0 )
+                const collaborator_study = organization.studies.find(s => s._id ===  aSubmission.studyID);
+                if (!collaborator_study)
                 {
                     throw new Error(ERROR.INVALID_COLLABORATOR_STUDY);
                 }
@@ -1003,6 +1008,8 @@ class Submission {
                     throw new Error(ERROR.INVALID_COLLABORATOR_PERMISSION);
                 }
             }
+            collaborator.collaboratorName = user.lastName + "," + user.firstName ;
+            collaborator.Organization = user.organization;
         }
         // if passed validation
         aSubmission.collaborators = collaborators;  
@@ -1057,6 +1064,13 @@ class Submission {
             }
         });
         return existingFiles;
+    }
+
+    async #getAllSubmissionDataFiles(bucketName, rootPath) {
+        const AllDataFiles = await this.s3Service.listFileInDir(bucketName, `${rootPath}/${FILE}/`);
+        return AllDataFiles
+            ?.filter((f) => f.Key !== `${rootPath}/${FILE}/`)
+            ?.map((f)=> f.Key.replace(`${rootPath}/${FILE}/`, ''));
     }
 
     async #deleteDataFiles(existingFiles, aSubmission) {
@@ -1192,6 +1206,11 @@ class Submission {
             const deletedFiles = await this.#deleteDataFiles(existingFiles, aSubmission);
             if (deletedFiles.length > 0) {
                 await this.#logDataRecord(context?.userInfo, aSubmission._id, VALIDATION.TYPES.DATA_FILE, deletedFiles);
+            }
+            // note: reset metadataValidationStatus if no data files found
+            const submissionDataFiles = await this.#getAllSubmissionDataFiles(aSubmission?.bucketName, aSubmission?.rootPath);
+            if (submissionDataFiles?.length === 0) {
+                await this.submissionCollection.updateOne({_id: aSubmission?._id}, {fileValidationStatus: null, metadataValidationStatus: null, updatedAt: getCurrentTime()});
             }
             return ValidationHandler.success(`${deletedFiles.length} extra files deleted`)
         }
@@ -1348,7 +1367,7 @@ class Submission {
 
         const baseConditions = { ...statusCondition, ...organizationCondition, ...nameCondition,
             ...dbGaPIDCondition, ...dataCommonsCondition, ...submitterNameCondition };
-        return (async () => {
+        return (() => {
             switch (role) {
                 case ROLES.ADMIN:
                 case ROLES.FEDERAL_LEAD:
@@ -1365,9 +1384,9 @@ class Submission {
                 case ROLES.FEDERAL_MONITOR:
                     return {...baseConditions, studyID: {$in: studies || []}};
                 default:
-                    const submitterCondition = {...baseConditions, submitterID: _id};
-                    const collaboratorUserIDs = await this.submissionCollection.distinct("collaborators.collaboratorID", submitterCondition);
-                    return {...baseConditions, "$or": [{"submitterID": _id}, {"submitterID": {"$in": collaboratorUserIDs}}]};
+                    return {...baseConditions, "$or": [
+                        {"submitterID": _id},
+                        {"collaborators.collaboratorID": _id, "collaborators.permission": {$in: [COLLABORATOR_PERMISSIONS.CAN_EDIT, COLLABORATOR_PERMISSIONS.CAN_VIEW]}}]};
             }
         })();
     }
@@ -1729,14 +1748,14 @@ const isPermittedUser = (aTargetUser, userInfo) => {
     return aTargetUser?.email === userInfo.email && aTargetUser?.IDP === userInfo.IDP
 }
 
-function validateCreateSubmissionParams (params, allowedDataCommons, intention, dataType, userInfo) {
+function validateCreateSubmissionParams (params, allowedDataCommons, hiddenDataCommons, intention, dataType, userInfo) {
     if (!params.name || params?.name?.trim().length === 0 || !params.studyID || !params.dataCommons) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
     }
     if (params?.name?.length > CONSTRAINTS.NAME_MAX_LENGTH) {
         throw new Error(replaceErrorString(ERROR.CREATE_SUBMISSION_INVALID_NAME, `${CONSTRAINTS.NAME_MAX_LENGTH}`));
     }
-    if (!allowedDataCommons.has(params.dataCommons)) {
+    if (hiddenDataCommons.has(params.dataCommons) || !allowedDataCommons.has(params.dataCommons)) {
         throw new Error(replaceErrorString(ERROR.CREATE_SUBMISSION_INVALID_DATA_COMMONS, `'${params.dataCommons}'`));
     }
 
@@ -1856,8 +1875,6 @@ class DataSubmission {
     }
 }
 
-const VIEW = "Can View";
-const EDIT = "Can Edit";
 class Collaborators {
     constructor(collaborators) {
         this.collaborators = collaborators || [];
@@ -1889,12 +1906,12 @@ class Collaborators {
 
     #getViewableCollaborators(collaborators) {
         return collaborators
-            .filter(i => i?.permission?.includes(VIEW));
+            .filter(i => i?.permission === COLLABORATOR_PERMISSIONS.CAN_EDIT || i?.permission === COLLABORATOR_PERMISSIONS.CAN_VIEW);
     }
 
     #getEditableCollaborators(collaborators) {
         return collaborators
-            .filter(i => i?.permission?.includes(EDIT));
+            .filter(i => i?.permission === COLLABORATOR_PERMISSIONS.CAN_EDIT);
     }
 }
 
