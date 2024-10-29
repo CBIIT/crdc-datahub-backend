@@ -1231,11 +1231,10 @@ class Submission {
             const deletedFiles = await this.#deleteDataFiles(existingFiles, aSubmission);
             if (deletedFiles.length > 0) {
                 await this.#logDataRecord(context?.userInfo, aSubmission._id, VALIDATION.TYPES.DATA_FILE, deletedFiles);
-            }
-            // note: reset metadataValidationStatus if no data files found
-            const submissionDataFiles = await this.#getAllSubmissionDataFiles(aSubmission?.bucketName, aSubmission?.rootPath);
-            if (submissionDataFiles?.length === 0) {
-                await this.submissionCollection.updateOne({_id: aSubmission?._id}, {fileValidationStatus: null, metadataValidationStatus: null, updatedAt: getCurrentTime()});
+                const submissionDataFiles = await this.#getAllSubmissionDataFiles(aSubmission?.bucketName, aSubmission?.rootPath);
+                // note: reset fileValidationStatus if the number of data files changed. No data files exists if null
+                const fileValidationStatus = submissionDataFiles.length > 0 ? VALIDATION_STATUS.NEW : null;
+                await this.submissionCollection.updateOne({_id: aSubmission?._id}, {fileValidationStatus: fileValidationStatus, updatedAt: getCurrentTime()});
             }
             return ValidationHandler.success(`${deletedFiles.length} extra files deleted`)
         }
