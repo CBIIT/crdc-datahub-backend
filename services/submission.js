@@ -1158,6 +1158,8 @@ class Submission {
             await this.dataRecordService.archiveMetadataByFilter({"submissionID": submissionID});
             await this.batchService.deleteBatchByFilter({"submissionID": submissionID});
             await this.submissionCollection.updateOne({"_id": submissionID}, {"archived": true, "updatedAt": new Date()});
+        } else {
+            console.error(`Failed to delete files in the s3 bucket. SubmissionID: ${submissionID}.`);
         }
     }
 
