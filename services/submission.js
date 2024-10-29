@@ -1027,7 +1027,7 @@ class Submission {
                     throw new Error(ERROR.INVALID_COLLABORATOR_PERMISSION);
                 }
             }
-            collaborator.collaboratorName = user.lastName + "," + user.firstName ;
+            collaborator.collaboratorName = user.lastName + ", " + user.firstName ;
             collaborator.Organization = user.organization;
         }
         // if passed validation
