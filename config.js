@@ -57,10 +57,9 @@ let config = {
 config.mongo_db_connection_string = `mongodb://${config.mongo_db_user}:${config.mongo_db_password}@${config.mongo_db_host}:${process.env.MONGO_DB_PORT}`;
 
 function parseHiddenModels(hiddenModels) {
-    if (typeof hiddenModels === "string") {
-        return [hiddenModels];
-    }
-    return JSON.parse(hiddenModels) || [];
+    return hiddenModels.split(',')
+        .filter(item => item?.trim().length > 0)
+        .map(item => item?.trim());
 }
 
 function getTransportConfig() {
