@@ -173,4 +173,12 @@ app.use((err, req, res, next) => {
     res.json(res.locals.message);
 });
 
+process.on("unhandledRejection", (reason, promise) => {
+    if (reason.name === "MongoServerSelectionError") {
+        console.error("MongoServerSelectionError caught:", reason.message);
+    } else {
+        console.error("Unhandled Rejection:", reason);
+    }
+});
+
 module.exports = app;
