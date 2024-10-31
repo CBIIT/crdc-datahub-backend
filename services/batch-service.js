@@ -24,19 +24,19 @@ class BatchService {
         const newDisplayID = await this.#getBatchDisplayID(params.submissionID);
         const newBatch = Batch.createNewBatch(params.submissionID, newDisplayID, aSubmission?.bucketName, prefix, params.type.toLowerCase(), user._id, user.firstName + " " + user.lastName);
         if (BATCH.TYPE.METADATA === params.type.toLowerCase()) {
-            await Promise.all(params.files.map(async (file) => {
-                if (file.fileName) {
-                    const signedURL = await this.s3Service.createPreSignedURL(aSubmission?.bucketName, newBatch.filePrefix, file.fileName);
-                    newBatch.addMetadataFile(file.fileName, file.size, signedURL);
+            await Promise.all(params.files.map(async (fileName) => {
+                if (fileName) {
+                    const signedURL = await this.s3Service.createPreSignedURL(aSubmission?.bucketName, newBatch.filePrefix, fileName);
+                    newBatch.addMetadataFile(fileName, signedURL);
                 }
             }));
         } else {
             // The prefix "dg.4DFC" added if "omit-dcf-prefix" is null or set to false in the data model
             const dataModelInfo = await this.fetchDataModelInfo();
             const isOmitPrefix = Boolean(dataModelInfo?.[aSubmission?.dataCommons]?.[OMIT_DCF_PREFIX]);
-            params.files.forEach((file) => {
-                if (file.fileName) {
-                    newBatch.addDataFile(file.fileName, file.size, this.prodURL, aSubmission?.studyID, isOmitPrefix);
+            params.files.forEach((fileName) => {
+                if (fileName) {
+                    newBatch.addDataFile(fileName, this.prodURL, aSubmission?.studyID, isOmitPrefix);
                 }
             });
         }
