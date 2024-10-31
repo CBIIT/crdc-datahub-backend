@@ -115,9 +115,11 @@ class Submission {
             this.#listConditions(context?.userInfo, ALL_FILTER, ALL_FILTER, null, null, ALL_FILTER, ALL_FILTER),
             // note: Aggregation of Submitter name should not be filtered by a submitterName
             this.#listConditions(context?.userInfo, params?.status, params.organization, params.name, params.dbGaPID, params.dataCommons, ALL_FILTER),
+            // note: Aggregation of Organization name should not be filtered by a organization
+            this.#listConditions(context?.userInfo, params?.status, ALL_FILTER, params.name, params.dbGaPID, params.dataCommons, params?.submitterName),
         ]
 
-        const [listConditions, dataCommonsCondition, submitterNameCondition] = filterConditions;
+        const [listConditions, dataCommonsCondition, submitterNameCondition, organizationCondition] = filterConditions;
         const pipeline = [{"$match": listConditions}];
         if (params.orderBy) {
             pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
@@ -134,7 +136,9 @@ class Submission {
             await this.submissionCollection.aggregate(pipeline.concat([{ $group: { _id: "$_id" } }, { $count: "count" }])),
             await this.submissionCollection.distinct("dataCommons", dataCommonsCondition),
             // note: Submitter name filter is omitted
-            await this.submissionCollection.distinct("submitterName", submitterNameCondition)
+            await this.submissionCollection.distinct("submitterName", submitterNameCondition),
+            // note: Organization ID filter is omitted
+            await this.submissionCollection.distinct("organization", organizationCondition)
         ];
         
         return await Promise.all(promises).then(function(results) {
@@ -142,7 +146,8 @@ class Submission {
                 submissions: results[0] || [],
                 total: results[1]?.length > 0 ? results[1][0]?.count : 0,
                 dataCommons: results[2] || [],
-                submitterNames: results[3] || []
+                submitterNames: results[3] || [],
+                organizations: results[4] || []
             }
         });
     }

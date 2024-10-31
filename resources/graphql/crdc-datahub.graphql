@@ -64,6 +64,7 @@ type ListSubmissions {
     dataCommons: [String],
     submitterNames: [String],
     submissions: [Submission]
+    organizations: [Organization]
 }
 
 type Submission {
