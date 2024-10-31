@@ -304,10 +304,10 @@ type QCResults {
 
 type QCResult{
     _id: String
-    submissionID: String
+    submissionID: ID
     dataRecordID: String
     validationType: String #[metadata, file]
-    latestBatchID: String
+    batchID: String
     batchIDs: [String]
     displayID: String
     type: String
