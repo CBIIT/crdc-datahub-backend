@@ -122,7 +122,6 @@ dbConnector.connect().then(async () => {
             return awsService.createTempCredentials(params?.submissionID);
         },
         submissionAction: submissionService.submissionAction.bind(submissionService),
-        listLogs: submissionService.listLogs.bind(submissionService),
         validateSubmission: submissionService.validateSubmission.bind(submissionService),
         submissionStats: submissionService.submissionStats.bind(submissionService),
         submissionQCResults: submissionService.submissionQCResults.bind(submissionService),

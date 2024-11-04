@@ -210,16 +210,6 @@ type ApprovedStudyList {
     studies: [ApprovedStudy]
 }
 
-type ListLogFiles {
-    logFiles: [LogFile]
-}
-type LogFile {
-    fileName: String
-    uploadType: String # [metadata, file]
-    downloadUrl: String #s3 presigned download url of the file
-    fileSize: Int #size in byte
-}
-
 type User {
   _id: ID # MongoDB native ID or UUID
   firstName: String
@@ -569,9 +559,6 @@ type Query {
         sortDirection: String = "DESC" # ["DESC", "ASC"]
     ): ListBatches
 
-    #upload log queries
-    listLogs (submissionID: ID!) : ListLogFiles
-
     version: String
 
     "Limit to current user only"
@@ -658,8 +645,6 @@ type Mutation {
         comment: String
     ): Submission
 
-    deleteOrphanedFile(_id: ID!, fileName: String!): DataValidation
-    deleteAllOrphanedFiles(_id: ID!): DataValidation
     deleteDataRecords(submissionID: String!, nodeType: String!, nodeIDs: [String!]): DataValidation
     createBatch (submissionID: ID!, type: String, files: [FileInput]): NewBatch
     updateBatch (batchID: ID!, files: [UploadResult]): Batch
