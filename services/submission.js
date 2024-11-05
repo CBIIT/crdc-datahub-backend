@@ -532,7 +532,10 @@ class Submission {
                 ...(isNodeError ? {fileValidationStatus : VALIDATION_STATUS.ERROR} : {})
             });
         }
-        return submissionStats;
+        return {
+            submissionID: submissionStats?.submissionID || aSubmission._id,
+            stats: submissionStats?.stats || []
+        };
     }
 
     /**
