@@ -45,13 +45,14 @@ class DataRecordService {
 
     async submissionStats(aSubmission) {
         const validNodeStatus = [VALIDATION_STATUS.NEW, VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING, VALIDATION_STATUS.ERROR];
-        const submissionQuery = this.#getSubmissionStatQuery(aSubmission?._id);
+        const submissionQuery = this.#getSubmissionStatQuery(aSubmission?._id, validNodeStatus);
         const res = await Promise.all([
             this.dataRecordsCollection.aggregate(submissionQuery),
-            // future improvement, submissionQuery can replace this.
             this.dataRecordsCollection.aggregate([
-                { "$match": {submissionID: aSubmission?._id, "s3FileInfo.status": {$in: validNodeStatus}}}]),
-            // // submission's root path should be matched, otherwise the other file node count return wrong
+                {"$match": {submissionID: aSubmission?._id, "s3FileInfo.status": {$in: validNodeStatus}}},
+                {"$project": {"s3FileInfo.status": 1,"s3FileInfo.fileName": 1,}}
+            ]),
+            // submission's root path should be matched, otherwise the other file node count return wrong
             this.s3Service.listFileInDir(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}/`)
         ]);
         const [submissionStatsRes, fileRecords, s3SubmissionFiles] = res;
@@ -814,10 +815,11 @@ class DataRecordService {
         return await this.dataRecordsCollection.distinct("nodeType", filter);
     }
 
-    #getSubmissionStatQuery(submissionID) {
+    #getSubmissionStatQuery(submissionID, validNodeStatus) {
         return [
             {$match:{
-                    submissionID: submissionID
+                    submissionID: submissionID,
+                    status: {$in: validNodeStatus}
             }},
             {$group:{
                     _id: {submissionID: "$submissionID"},
@@ -835,21 +837,20 @@ class DataRecordService {
             }},
             {$set:{
                     new: {
-                        $cond: [{$eq: ["$nodeAndStatus.status","New"]},{$sum: 1},0]
+                        $cond: [{$eq: ["$nodeAndStatus.status", VALIDATION_STATUS.NEW]},{$sum: 1},0]
                     },
                     passed: {
-                        $cond: [{$eq: ["$nodeAndStatus.status","Passed"]},{$sum: 1},0]
+                        $cond: [{$eq: ["$nodeAndStatus.status", VALIDATION_STATUS.PASSED]},{$sum: 1},0]
                     },
                     error: {
-                        $cond: [{$eq: ["$nodeAndStatus.status","Error"]}, {$sum: 1},0]},
+                        $cond: [{$eq: ["$nodeAndStatus.status", VALIDATION_STATUS.ERROR]}, {$sum: 1},0]},
                     warning: {
-                        $cond: [{$eq: ["$nodeAndStatus.status","Warning"]},{$sum: 1}, 0]
+                        $cond: [{$eq: ["$nodeAndStatus.status", VALIDATION_STATUS.WARNING]},{$sum: 1}, 0]
                     }
             }},
             {$group: {
                     _id: {
                         submissionID: "$_id.submissionID",
-                        // fileNames: "$fileNames",
                         nodeName: "$nodeAndStatus.nodeType"
                     },
                     new: {$sum: "$new"},
@@ -859,7 +860,6 @@ class DataRecordService {
             }},
             {$project: {
                     submissionID: "$_id.submissionID",
-                    // fileNames: "$_id.fileNames",
                     stats: {
                         nodeName: "$_id.nodeName",
                         new: "$new",
@@ -883,7 +883,6 @@ class DataRecordService {
             {$project: {
                     _id: 0,
                     submissionID: "$_id.submissionID",
-                    // fileNames: "$_id.fileNames",
                     stats: 1
             }}
         ]
