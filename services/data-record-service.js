@@ -823,7 +823,6 @@ class DataRecordService {
             }},
             {$group:{
                     _id: {submissionID: "$submissionID"},
-                    fileNames: {$addToSet: "$s3FileInfo.fileName"},
                     nodeAndStatus: {
                         $push: {
                             nodeType: "$nodeType",
@@ -874,7 +873,6 @@ class DataRecordService {
             {$group: {
                     _id: {
                         submissionID: "$submissionID",
-                        // fileNames: "$fileNames"
                     },
                     stats: {
                         $push: "$stats"
