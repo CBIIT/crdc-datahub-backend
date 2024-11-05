@@ -849,7 +849,7 @@ class DataRecordService {
             {$group: {
                     _id: {
                         submissionID: "$_id.submissionID",
-                        fileNames: "$fileNames",
+                        // fileNames: "$fileNames",
                         nodeName: "$nodeAndStatus.nodeType"
                     },
                     new: {$sum: "$new"},
@@ -859,7 +859,7 @@ class DataRecordService {
             }},
             {$project: {
                     submissionID: "$_id.submissionID",
-                    fileNames: "$_id.fileNames",
+                    // fileNames: "$_id.fileNames",
                     stats: {
                         nodeName: "$_id.nodeName",
                         new: "$new",
@@ -874,7 +874,7 @@ class DataRecordService {
             {$group: {
                     _id: {
                         submissionID: "$submissionID",
-                        fileNames: "$fileNames"
+                        // fileNames: "$fileNames"
                     },
                     stats: {
                         $push: "$stats"
@@ -883,7 +883,7 @@ class DataRecordService {
             {$project: {
                     _id: 0,
                     submissionID: "$_id.submissionID",
-                    fileNames: "$_id.fileNames",
+                    // fileNames: "$_id.fileNames",
                     stats: 1
             }}
         ]
