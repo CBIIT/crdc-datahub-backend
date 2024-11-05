@@ -84,7 +84,10 @@ dbConnector.connect().then(async () => {
     const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days,
         submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk, remindSubmissionDay: inactiveSubmissionsTimeout, techSupportEmail: config.techSupportEmail};
 
-    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, fetchDataModelInfo, awsService, config.export_queue, s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue);
+    const qcResultCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, QC_RESULTS_COLLECTION);
+    const qcResultsService = new QcResultService(qcResultCollection, submissionCollection);
+
+    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, fetchDataModelInfo, awsService, config.export_queue, s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.tier, institutionService);
 
     const dashboardService = new DashboardService(userService, awsService, configurationService, {sessionTimeout: config.dashboardSessionTimeout});
@@ -93,9 +96,6 @@ dbConnector.connect().then(async () => {
     
     const cdeCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CDE_COLLECTION);
     const cdeService = new CDE(cdeCollection);
-
-    const qcResultCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, QC_RESULTS_COLLECTION);
-    const qcResultsService = new QcResultService(qcResultCollection, submissionCollection);
 
     root = {
         version: () => {return config.version},

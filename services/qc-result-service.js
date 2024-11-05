@@ -118,6 +118,13 @@ class QcResultService{
             total: totalRecords || 0
         }
     }
+
+    async deleteQCResultBySubmissionID(submissionID) {
+        const res = await this.qcResultCollection.deleteMany({"submissionID": submissionID});
+        if (!res) {
+            console.error("An error occurred while deleting the qcResult records");
+        }
+    }
 }
 
 module.exports = {
