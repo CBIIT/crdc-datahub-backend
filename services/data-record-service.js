@@ -44,32 +44,19 @@ class DataRecordService {
     }
 
     async submissionStats(aSubmission) {
-        const groupPipeline = { "$group": { _id: "$nodeType", count: { $sum: 1 }} };
         const validNodeStatus = [VALIDATION_STATUS.NEW, VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING, VALIDATION_STATUS.ERROR];
+        const submissionQuery = this.#getSubmissionStatQuery(aSubmission?._id, validNodeStatus);
         const res = await Promise.all([
-            this.dataRecordsCollection.aggregate([{ "$match": {submissionID: aSubmission?._id, status: {$in: validNodeStatus}}}, groupPipeline]),
+            this.dataRecordsCollection.aggregate(submissionQuery),
             this.dataRecordsCollection.aggregate([
-                { "$match": {submissionID: aSubmission?._id, "s3FileInfo.status": {$in: validNodeStatus}}}]),
+                {"$match": {submissionID: aSubmission?._id, "s3FileInfo.status": {$in: validNodeStatus}}},
+                {"$project": {"s3FileInfo.status": 1,"s3FileInfo.fileName": 1,}}
+            ]),
             // submission's root path should be matched, otherwise the other file node count return wrong
-            await this.s3Service.listFileInDir(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}/`)
+            this.s3Service.listFileInDir(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}/`)
         ]);
-        const [groupByNodeType, fileRecords, s3SubmissionFiles] = res;
-        const statusPipeline = { "$group": { _id: "$status", count: { $sum: 1 }}};
-        const promises = groupByNodeType.map(async node =>
-            [await this.dataRecordsCollection.aggregate([{ "$match": {submissionID: aSubmission?._id, nodeType: node?._id, status: {$in: validNodeStatus}}}, statusPipeline]), node?._id]
-        );
-        const submissionStatsRecords = await Promise.all(promises) || [];
-        const submissionStats = SubmissionStats.createSubmissionStats(aSubmission?._id);
-        submissionStatsRecords.forEach(aStatSet => {
-            const [nodes, nodeName] = aStatSet;
-            const stat = Stat.createStat(nodeName);
-            nodes.forEach(node => {
-                stat.countNodeType(node?._id, node.count);
-            });
-            if (stat.total > 0) {
-                submissionStats.addStats(stat);
-            }
-        });
+        const [submissionStatsRes, fileRecords, s3SubmissionFiles] = res;
+        const submissionStats = submissionStatsRes?.pop() || {};
         const uploadedFiles = s3SubmissionFiles
             ?.filter((f)=> f && f.Key !== `${aSubmission.rootPath}/${FILE}/`)
             ?.map((f)=> f.Key.replace(`${aSubmission.rootPath}/${FILE}/`, ''));
@@ -167,8 +154,9 @@ class DataRecordService {
         const missingFiles = fileRecords.filter(({file}) => file?.s3FileInfo?.status !== VALIDATION_STATUS.NEW);
         const total = orphanedFiles.length + missingFiles.length;
         if (stat.total > 0 && total > 0) {
-            stat.total = total
-            submissionStats.addStats(stat);
+            stat.total = total;
+            submissionStats.stats = submissionStats?.stats || [];
+            submissionStats.stats.push(stat);
         }
     }
 
@@ -595,6 +583,77 @@ class DataRecordService {
             submissionID: submissionID
         };
         return await this.dataRecordsCollection.distinct("nodeType", filter);
+    }
+
+    #getSubmissionStatQuery(submissionID, validNodeStatus) {
+        return [
+            {$match:{
+                    submissionID: submissionID,
+                    status: {$in: validNodeStatus}
+            }},
+            {$group:{
+                    _id: {submissionID: "$submissionID"},
+                    nodeAndStatus: {
+                        $push: {
+                            nodeType: "$nodeType",
+                            status: {
+                                $ifNull: ["$s3FileInfo.status","$status"]
+                            }
+                        }
+            }}},
+            {$unwind:{
+                    path: "$nodeAndStatus"
+            }},
+            {$set:{
+                    new: {
+                        $cond: [{$eq: ["$nodeAndStatus.status", VALIDATION_STATUS.NEW]},{$sum: 1},0]
+                    },
+                    passed: {
+                        $cond: [{$eq: ["$nodeAndStatus.status", VALIDATION_STATUS.PASSED]},{$sum: 1},0]
+                    },
+                    error: {
+                        $cond: [{$eq: ["$nodeAndStatus.status", VALIDATION_STATUS.ERROR]}, {$sum: 1},0]},
+                    warning: {
+                        $cond: [{$eq: ["$nodeAndStatus.status", VALIDATION_STATUS.WARNING]},{$sum: 1}, 0]
+                    }
+            }},
+            {$group: {
+                    _id: {
+                        submissionID: "$_id.submissionID",
+                        nodeName: "$nodeAndStatus.nodeType"
+                    },
+                    new: {$sum: "$new"},
+                    passed: {$sum: "$passed"},
+                    warning: {$sum: "$warning"},
+                    error: {$sum: "$error"}
+            }},
+            {$project: {
+                    submissionID: "$_id.submissionID",
+                    stats: {
+                        nodeName: "$_id.nodeName",
+                        new: "$new",
+                        passed: "$passed",
+                        warning: "$warning",
+                        error: "$error",
+                        total: {
+                            $add: ["$new", "$passed", "$warning", "$error"]
+                        }
+                    }
+            }},
+            {$group: {
+                    _id: {
+                        submissionID: "$submissionID",
+                    },
+                    stats: {
+                        $push: "$stats"
+                    }
+            }},
+            {$project: {
+                    _id: 0,
+                    submissionID: "$_id.submissionID",
+                    stats: 1
+            }}
+        ]
     }
 
     #replaceNaN(results, replacement){
