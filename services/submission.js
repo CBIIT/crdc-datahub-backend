@@ -26,7 +26,6 @@ const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
 const {isUndefined, replaceErrorString} = require("../utility/string-util");
 const {NODE_RELATION_TYPES} = require("./data-record-service");
-const {QCResult, QCResultError} = require("../domain/qc-result");
 const {verifyToken} = require("../verifier/token-verifier");
 const {verifyValidationResultsReadPermissions} = require("../verifier/permissions-verifier");
 const FILE = "file";
@@ -52,7 +51,7 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList, hiddenDataCommonsList, validationCollection, sqsLoaderQueue) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList, hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -70,6 +69,7 @@ class Submission {
         this.hiddenDataCommons = new Set(hiddenDataCommonsList);
         this.validationCollection = validationCollection;
         this.sqsLoaderQueue = sqsLoaderQueue;
+        this.qcResultsService = qcResultsService;
     }
 
     async createSubmission(params, context) {
@@ -509,26 +509,24 @@ class Submission {
             throw new Error(ERROR.INVALID_ROLE_STUDY);
         }
         const [orphanedFiles, submissionStats] = await this.dataRecordService.submissionStats(aSubmission);
-
-        const fileErrors = orphanedFiles?.map((fileName) => {
-            const errorMsg = QCResultError.create(
-                ERROR.MISSING_DATA_NODE_FILE_TITLE,
-                replaceErrorString(ERROR.MISSING_DATA_NODE_FILE_DESC, `'${fileName}'`)
-            );
-            return QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, fileName, null, null, VALIDATION_STATUS.ERROR, getCurrentTime(), getCurrentTime(), [errorMsg], []);
-        });
-
-        const aSubmissionErrors = aSubmission.fileErrors
-            .filter((f)=> f && f.type === VALIDATION.TYPES.DATA_FILE && f.severity === VALIDATION_STATUS.ERROR)
-            .map((study)=> study.submittedID);
-
-        const isOrphanedError = JSON.stringify(aSubmissionErrors) !== JSON.stringify(orphanedFiles);
         const isNodeError = await this.dataRecordService.isNodeErrorsBySubmissionID(aSubmission?._id);
-        if (isOrphanedError || (isNodeError && aSubmission.fileValidationStatus !== VALIDATION_STATUS.ERROR)) {
+
+        const qcResultErrors = await this.qcResultsService.getQCResultsErrors(aSubmission?._id, orphanedFiles, VALIDATION.TYPES.DATA_FILE);
+        const filteredQCResult = qcResultErrors
+            .filter((qcResult) => qcResult.dataRecordID === null);
+        if ((filteredQCResult.length !== orphanedFiles.length) || aSubmission.fileValidationStatus !== VALIDATION_STATUS.ERROR) {
+            const qcRecords = orphanedFiles.map(fileName => ({
+                fileName: fileName,
+                dataRecordID: null,
+                error: {
+                    title: ERROR.MISSING_DATA_NODE_FILE_TITLE,
+                    desc: ERROR.MISSING_DATA_NODE_FILE_DESC
+                }
+            }));
+            await this.qcResultsService.insertErrorRecord(aSubmission?._id, qcRecords);
             await this.submissionCollection.update({
                 _id: aSubmission?._id,
                 updatedAt: getCurrentTime(),
-                ...(isOrphanedError ? fileErrors : {}),
                 ...(isNodeError ? {fileValidationStatus : VALIDATION_STATUS.ERROR} : {})
             });
         }
