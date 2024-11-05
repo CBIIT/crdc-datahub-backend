@@ -81,7 +81,7 @@ class Submission {
         const dataType = [DATA_TYPE.METADATA_AND_DATA_FILES, DATA_TYPE.METADATA_ONLY].find((i) => i.toLowerCase() === params?.dataType.toLowerCase());
         validateCreateSubmissionParams(params, this.allowedDataCommons, this.hiddenDataCommons, intention, dataType, context?.userInfo);
 
-        const aUserOrganization= await this.organizationService.getOrganizationByName(context.userInfo?.organization?.orgName);
+        const aUserOrganization = await this.organizationService.getOrganizationByID(context.userInfo?.organization?.orgID, false);
         const approvedStudy = aUserOrganization.studies.find((study) => study?._id === params.studyID);
         if (!approvedStudy) {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
