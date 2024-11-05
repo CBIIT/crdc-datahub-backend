@@ -1231,7 +1231,7 @@ class Submission {
             }
             const deletedFiles = await this.#deleteDataFiles(existingFiles, aSubmission);
             if (deletedFiles.length > 0) {
-                await this.qcResultsService.deleteQCResultBySubmissionID(aSubmission._id);
+                await this.qcResultsService.deleteQCResultBySubmissionID(aSubmission._id, VALIDATION.TYPES.DATA_FILE, deletedFiles);
                 await this.#logDataRecord(context?.userInfo, aSubmission._id, VALIDATION.TYPES.DATA_FILE, deletedFiles);
                 const submissionDataFiles = await this.#getAllSubmissionDataFiles(aSubmission?.bucketName, aSubmission?.rootPath);
                 // note: reset fileValidationStatus if the number of data files changed. No data files exists if null

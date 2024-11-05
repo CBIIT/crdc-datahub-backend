@@ -119,10 +119,10 @@ class QcResultService{
         }
     }
 
-    async deleteQCResultBySubmissionID(submissionID) {
-        const res = await this.qcResultCollection.deleteMany({"submissionID": submissionID});
-        if (!res) {
-            console.error("An error occurred while deleting the qcResult records");
+    async deleteQCResultBySubmissionID(submissionID, dataType, fileNames) {
+        const res = await this.qcResultCollection.deleteMany({"submissionID": submissionID, validationType: dataType, submittedID: { "$in": fileNames }});
+        if (!res.acknowledged || (res.deletedCount > 0 && fileNames.length !== res.deletedCount)) {
+            console.error("An error occurred while deleting the qcResult records", `submissionID: ${submissionID}`);
         }
     }
 }
