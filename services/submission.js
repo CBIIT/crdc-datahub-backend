@@ -52,7 +52,7 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList, hiddenDataCommonsList, validationCollection, sqsLoaderQueue) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList, hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -70,6 +70,7 @@ class Submission {
         this.hiddenDataCommons = new Set(hiddenDataCommonsList);
         this.validationCollection = validationCollection;
         this.sqsLoaderQueue = sqsLoaderQueue;
+        this.qcResultsService = qcResultsService;
     }
 
     async createSubmission(params, context) {
@@ -1238,6 +1239,7 @@ class Submission {
             }
             const deletedFiles = await this.#deleteDataFiles(existingFiles, aSubmission);
             if (deletedFiles.length > 0) {
+                await this.qcResultsService.deleteQCResultBySubmissionID(aSubmission._id, VALIDATION.TYPES.DATA_FILE, deletedFiles);
                 await this.#logDataRecord(context?.userInfo, aSubmission._id, VALIDATION.TYPES.DATA_FILE, deletedFiles);
                 const submissionDataFiles = await this.#getAllSubmissionDataFiles(aSubmission?.bucketName, aSubmission?.rootPath);
                 // note: reset fileValidationStatus if the number of data files changed. No data files exists if null
