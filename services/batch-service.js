@@ -58,16 +58,14 @@ class BatchService {
 
         const s3Files = await this.s3Service.listFileInDir(bucketName, aBatch?.filePrefix);
         const s3UploadedFiles = new Set(s3Files
-            ?.map((f)=> f.Key?.replace(`${aBatch?.filePrefix}/`, "")));
+            ?.map((f)=> f.Key?.replace(`${aBatch?.filePrefix}/`, ""))
+            .filter((f)=>f !== ""));
 
         if (!isAllSkipped) {
             let updatedFiles = [];
             for (const aFile of aBatch.files) {
-                if (!uploadFiles.has(aFile.fileName)) {
-                    continue;
-                }
                 const aUploadFile = uploadFiles.get(aFile.fileName);
-                if( aUploadFile.skipped === true){
+                if(Boolean(aUploadFile?.skipped) === true){
                     continue;
                 }
                 aFile.updatedAt = getCurrentTime();
@@ -79,7 +77,7 @@ class BatchService {
                     aFile.errors = aUploadFile?.errors || [];
                     const invalidUploadAttempt = aUploadFile?.succeeded && !s3UploadedFiles.has(aFile.fileName) || !aUploadFile?.succeeded && s3UploadedFiles.has(aFile.fileName);
                     if (invalidUploadAttempt) {
-                        aBatch.errors.push(replaceErrorString(ERROR.INVALID_UPLOAD_ATTEMPT, aFileName));
+                        aBatch.errors.push(replaceErrorString(ERROR.INVALID_UPLOAD_ATTEMPT, aFile.fileName));
                     }
                 }
                 updatedFiles.push(aFile) 
