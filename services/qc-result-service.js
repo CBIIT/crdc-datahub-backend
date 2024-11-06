@@ -5,6 +5,7 @@ const {verifyValidationResultsReadPermissions} = require("../verifier/permission
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {replaceErrorString} = require("../utility/string-util");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
+const {v4} = require("uuid");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 
 function replaceNaN(results, replacement){
@@ -139,10 +140,11 @@ class QcResultService{
         }));
     }
 
-    async getQCResultsErrors(submissionID, fileNames, errorType) {
-        const result = await this.qcResultCollection.aggregate([{
-            "$match": { submissionID: submissionID, submittedID: {$in: fileNames}, type: errorType }
-        }]);
+    async getQCResultsErrors(submissionID, errorType) {
+        const result = await this.qcResultCollection.aggregate([
+            {"$match": { submissionID: submissionID, type: errorType}},
+            {"$project": {submittedID: 1, dataRecordID: 1}}
+        ]);
         return result || [];
     }
 }

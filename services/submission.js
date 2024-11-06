@@ -511,19 +511,11 @@ class Submission {
         const [orphanedFiles, submissionStats] = await this.dataRecordService.submissionStats(aSubmission);
         const isNodeError = await this.dataRecordService.isNodeErrorsBySubmissionID(aSubmission?._id);
 
-        const qcResultErrors = await this.qcResultsService.getQCResultsErrors(aSubmission?._id, orphanedFiles, VALIDATION.TYPES.DATA_FILE);
-        const filteredQCResult = qcResultErrors
-            .filter((qcResult) => qcResult.dataRecordID === null);
-        if ((filteredQCResult.length !== orphanedFiles.length) || aSubmission.fileValidationStatus !== VALIDATION_STATUS.ERROR) {
-            const qcRecords = orphanedFiles.map(fileName => ({
-                fileName: fileName,
-                dataRecordID: null,
-                error: {
-                    title: ERROR.MISSING_DATA_NODE_FILE_TITLE,
-                    desc: ERROR.MISSING_DATA_NODE_FILE_DESC
-                }
-            }));
+        const qcRecords = await this.#generateQCRecord(orphanedFiles, aSubmission._id);
+        if (qcRecords.length > 0) {
             await this.qcResultsService.insertErrorRecord(aSubmission?._id, qcRecords);
+        }
+        if (aSubmission.fileValidationStatus !== VALIDATION_STATUS.ERROR) {
             await this.submissionCollection.update({
                 _id: aSubmission?._id,
                 updatedAt: getCurrentTime(),
@@ -1343,6 +1335,25 @@ class Submission {
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
             throw new Error(ERROR.FAILED_VALIDATE_METADATA);
         }
+    }
+
+    async #generateQCRecord(orphanedFiles, submissionID) {
+        const qcResultErrors = await this.qcResultsService.getQCResultsErrors(submissionID, VALIDATION.TYPES.DATA_FILE);
+        const qcResultFileNames = new Set(
+            qcResultErrors
+                .filter(qcResult => qcResult.dataRecordID === null)
+                .map(qcResult => qcResult.submittedID)
+        );
+        return orphanedFiles
+            .filter(fileName => !qcResultFileNames.has(fileName))
+            .map(fileName => ({
+                fileName,
+                dataRecordID: null,
+                error: {
+                    title: ERROR.MISSING_DATA_NODE_FILE_TITLE,
+                    desc: ERROR.MISSING_DATA_NODE_FILE_DESC
+                }
+            }));
     }
 
     #getModelVersion(dataModelInfo, dataCommonType) {

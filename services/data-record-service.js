@@ -70,18 +70,23 @@ class DataRecordService {
     async #updateDataFileNode(submissionID, fileRecords, missingFileSet) {
         const updateRecords = [];
         const qcResultErrorRecords = [];
+
+        const qcResultErrors = await this.qcResultsService.getQCResultsErrors(submissionID, VALIDATION.TYPES.DATA_FILE);
+        const errorFiles = new Set(qcResultErrors
+            .filter((file) => file.dataRecordID !== null)
+            .map((file) => file.submittedID));
         fileRecords.forEach((node) => {
             if (node?.s3FileInfo?.status !== VALIDATION_STATUS.NEW && missingFileSet.has(node?.s3FileInfo?.fileName)) {
-                qcResultErrorRecords.push({
-                    fileName: node?.s3FileInfo?.fileName,
-                    dataRecordID: node?._id,
-                    error: {
-                        title: ERRORS.MISSING_DATA_FILE.TITLE,
-                        desc: ERRORS.MISSING_DATA_FILE.CONTENTS
-                    }
-                });
-                // TODO double check this statement requires
-                // if (JSON.stringify(node?.s3FileInfo?.errors) !== JSON.stringify(errors)) {
+                if (!errorFiles.has(node?.s3FileInfo?.fileName)) {
+                    qcResultErrorRecords.push({
+                        fileName: node?.s3FileInfo?.fileName,
+                        dataRecordID: node?._id,
+                        error: {
+                            title: ERRORS.MISSING_DATA_FILE.TITLE,
+                            desc: ERRORS.MISSING_DATA_FILE.CONTENTS
+                        }
+                    });
+                }
                 if (node.s3FileInfo.status !== VALIDATION_STATUS.ERROR) {
                     node.s3FileInfo.status = VALIDATION_STATUS.ERROR;
                     node.s3FileInfo.warnings = [];
@@ -89,7 +94,9 @@ class DataRecordService {
                 }
             }
         });
-        await this.qcResultsService.insertErrorRecord(submissionID, qcResultErrorRecords);
+        if (qcResultErrorRecords.length > 0) {
+            await this.qcResultsService.insertErrorRecord(submissionID, qcResultErrorRecords);
+        }
         if (updateRecords.length > 0) {
             await Promise.all(updateRecords.map(async (aRecord) => {
                 console.log(`update the error in the data record(${aRecord?._id}) because of missing data files in s3 bucket.`);
