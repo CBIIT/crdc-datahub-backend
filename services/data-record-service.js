@@ -109,7 +109,7 @@ class DataRecordService {
         const errorNodes = await this.dataRecordsCollection.aggregate([{
             $match: {
                 submissionID: submissionID,
-                "s3FileInfo.status": VALIDATION_STATUS.ERROR
+                "s3FileInfo.status": {$in: [VALIDATION_STATUS.ERROR, VALIDATION_STATUS.WARNING]}
             }},
             {$limit: 1}
         ]);
