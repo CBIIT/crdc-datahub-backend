@@ -1223,11 +1223,15 @@ class Submission {
 
         if (params?.nodeType === VALIDATION.TYPES.DATA_FILE) {
             const existingFiles = await this.#getExistingDataFiles(params.nodeIDs, aSubmission);
+            // note: file not existing in the s3 bucket should be deleted
+            const notExistingFileNames = params.nodeIDs.filter(item => !existingFiles.has(item));
+            await this.qcResultsService.deleteQCResultBySubmissionID(aSubmission._id, VALIDATION.TYPES.DATA_FILE, notExistingFileNames);
             if (existingFiles.size === 0) {
                 return ValidationHandler.handle(ERROR.DELETE_NO_DATA_FILE_EXISTS);
             }
             const deletedFiles = await this.#deleteDataFiles(existingFiles, aSubmission);
             if (deletedFiles.length > 0) {
+                // note: file deleted in s3 bucket should be deleted
                 await this.qcResultsService.deleteQCResultBySubmissionID(aSubmission._id, VALIDATION.TYPES.DATA_FILE, deletedFiles);
                 await this.#logDataRecord(context?.userInfo, aSubmission._id, VALIDATION.TYPES.DATA_FILE, deletedFiles);
                 const submissionDataFiles = await this.#getAllSubmissionDataFiles(aSubmission?.bucketName, aSubmission?.rootPath);
