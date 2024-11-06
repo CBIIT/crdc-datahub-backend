@@ -1,8 +1,11 @@
 const ERROR = require("../constants/error-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
-const {VALIDATION_STATUS} = require("../constants/submission-constants");
+const {VALIDATION_STATUS, VALIDATION} = require("../constants/submission-constants");
 const {verifyValidationResultsReadPermissions} = require("../verifier/permissions-verifier");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
+const {replaceErrorString} = require("../utility/string-util");
+const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
+const {v4} = require("uuid");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 
 function replaceNaN(results, replacement){
@@ -124,6 +127,65 @@ class QcResultService{
         if (!res.acknowledged || (res.deletedCount > 0 && fileNames.length !== res.deletedCount)) {
             console.error("An error occurred while deleting the qcResult records", `submissionID: ${submissionID}`);
         }
+    }
+
+    async insertErrorRecord(submissionID, qcRecords) {
+        const qcResultErrors = qcRecords?.map((record) => {
+            const errorMsg = QCResultError.create(
+                record.error.title,
+                replaceErrorString(record.error.desc, `'${record.fileName}'`)
+            );
+            return QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, record.fileName, null, null, VALIDATION_STATUS.ERROR, getCurrentTime(), getCurrentTime(), [errorMsg], [], record.dataRecordID);
+        });
+
+        await Promise.all(qcResultErrors.map(async (qcResult) => {
+            const res = await this.qcResultCollection.findOneAndUpdate({ submissionID: submissionID, submittedID: qcResult.submittedID, type: VALIDATION.TYPES.DATA_FILE},
+                qcResult, {returnDocument: 'after', upsert: true});
+            if (!res?.value) {
+                console.error(ERROR.FAILED_INSERT_QC_RESULT + ` submissionID: ${submissionID}`);
+            }
+        }));
+    }
+
+    async getQCResultsErrors(submissionID, errorType) {
+        const result = await this.qcResultCollection.aggregate([
+            {"$match": { submissionID: submissionID, type: errorType}},
+            {"$project": {submittedID: 1, dataRecordID: 1}}
+        ]);
+        return result || [];
+    }
+}
+
+class QCResult {
+    constructor(type, validationType, submittedID, batchID, displayID, severity, uploadedDate, validatedDate, errors, warnings, dataRecordID) {
+        this._id = v4();
+        this.type = type;
+        this.validationType = validationType;
+        this.submittedID = submittedID;
+        this.batchID = batchID;
+        this.displayID = displayID;
+        this.severity = severity;
+        this.uploadedDate = uploadedDate;
+        this.validatedDate = validatedDate;
+        this.errors = errors || [];
+        this.warnings = warnings || [];
+        this.dataRecordID = dataRecordID;
+    }
+
+    static create(type, validationType, submittedID, batchID, displayID, severity, uploadedDate, validatedDate, errors, warnings, dataRecordID) {
+        return new QCResult(type, validationType, submittedID, batchID, displayID, severity, uploadedDate, validatedDate, errors, warnings, dataRecordID);
+    }
+
+}
+
+class QCResultError {
+    constructor(title, description) {
+        this.title = title;
+        this.description = description;
+    }
+
+    static create(title, description) {
+        return new QCResultError(title, description);
     }
 }
 
