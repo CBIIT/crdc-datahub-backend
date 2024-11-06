@@ -5,8 +5,6 @@ const {ValidationHandler} = require("../utility/validation-handler");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const config = require("../config");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants.js");
-const {QCResultError} = require("../domain/qc-result");
-const {replaceErrorString} = require("../utility/string-util");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const BATCH_SIZE = 300;
 const ERROR = "Error";
@@ -34,13 +32,14 @@ const NODE_RELATION_TYPES = [NODE_RELATION_TYPE_PARENT, NODE_RELATION_TYPE_CHILD
 
 const FILE = "file";
 class DataRecordService {
-    constructor(dataRecordsCollection, dataRecordArchiveCollection, fileQueueName, metadataQueueName, awsService, s3Service) {
+    constructor(dataRecordsCollection, dataRecordArchiveCollection, fileQueueName, metadataQueueName, awsService, s3Service, qcResultsService) {
         this.dataRecordsCollection = dataRecordsCollection;
         this.fileQueueName = fileQueueName;
         this.metadataQueueName = metadataQueueName;
         this.awsService = awsService;
         this.s3Service = s3Service;
         this.dataRecordArchiveCollection = dataRecordArchiveCollection;
+        this.qcResultsService = qcResultsService;
     }
 
     async submissionStats(aSubmission) {
@@ -63,28 +62,41 @@ class DataRecordService {
         // This dataFiles represents the intersection of the orphanedFiles.
         const [orphanedFiles, dataFiles, missingFileSet] = this.#dataFilesStats(uploadedFiles, fileRecords);
         // The data file might have been deleted, fixing the missing file to match the submission stat.
-        await this.#updateDataFileNode(fileRecords, missingFileSet);
+        await this.#updateDataFileNode(aSubmission?._id, fileRecords, missingFileSet);
         this.#saveDataFileStats(submissionStats, orphanedFiles, dataFiles, fileRecords, aSubmission);
         return [orphanedFiles, submissionStats];
     }
 
-    async #updateDataFileNode(fileRecords, missingFileSet) {
+    async #updateDataFileNode(submissionID, fileRecords, missingFileSet) {
         const updateRecords = [];
+        const qcResultErrorRecords = [];
+
+        const qcResultErrors = await this.qcResultsService.getQCResultsErrors(submissionID, VALIDATION.TYPES.DATA_FILE);
+        const errorFiles = new Set(qcResultErrors
+            .filter((file) => file.dataRecordID !== null)
+            .map((file) => file.submittedID));
         fileRecords.forEach((node) => {
             if (node?.s3FileInfo?.status !== VALIDATION_STATUS.NEW && missingFileSet.has(node?.s3FileInfo?.fileName)) {
-                const errors = [
-                    QCResultError.create(
-                        ERRORS.MISSING_DATA_FILE.TITLE,
-                        replaceErrorString(ERRORS.MISSING_DATA_FILE.CONTENTS, `'${node?.s3FileInfo?.fileName}'`))];
-                if (JSON.stringify(node?.s3FileInfo?.errors) !== JSON.stringify(errors)) {
+                if (!errorFiles.has(node?.s3FileInfo?.fileName)) {
+                    qcResultErrorRecords.push({
+                        fileName: node?.s3FileInfo?.fileName,
+                        dataRecordID: node?._id,
+                        error: {
+                            title: ERRORS.MISSING_DATA_FILE.TITLE,
+                            desc: ERRORS.MISSING_DATA_FILE.CONTENTS
+                        }
+                    });
+                }
+                if (node.s3FileInfo.status !== VALIDATION_STATUS.ERROR) {
                     node.s3FileInfo.status = VALIDATION_STATUS.ERROR;
-                    node.s3FileInfo.errors = errors;
                     node.s3FileInfo.warnings = [];
                     updateRecords.push(node);
                 }
             }
         });
-
+        if (qcResultErrorRecords.length > 0) {
+            await this.qcResultsService.insertErrorRecord(submissionID, qcResultErrorRecords);
+        }
         if (updateRecords.length > 0) {
             await Promise.all(updateRecords.map(async (aRecord) => {
                 console.log(`update the error in the data record(${aRecord?._id}) because of missing data files in s3 bucket.`);
