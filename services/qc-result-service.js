@@ -158,7 +158,6 @@ class QcResultService{
 
 class QCResult {
     constructor(type, validationType, submittedID, batchID, displayID, severity, uploadedDate, validatedDate, errors, warnings, dataRecordID) {
-        this._id = v4();
         this.type = type;
         this.validationType = validationType;
         this.submittedID = submittedID;
