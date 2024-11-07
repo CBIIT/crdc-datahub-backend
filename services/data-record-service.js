@@ -608,9 +608,7 @@ class DataRecordService {
                     nodeAndStatus: {
                         $push: {
                             nodeType: "$nodeType",
-                            status: {
-                                $ifNull: ["$s3FileInfo.status","$status"]
-                            }
+                            status: "$status"
                         }
             }}},
             {$unwind:{
