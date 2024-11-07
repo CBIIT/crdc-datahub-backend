@@ -77,6 +77,7 @@ class BatchService {
                     aFile.errors = aUploadFile?.errors || [];
                     const invalidUploadAttempt = aUploadFile?.succeeded && !s3UploadedFiles.has(aFile.fileName) || !aUploadFile?.succeeded && s3UploadedFiles.has(aFile.fileName);
                     if (invalidUploadAttempt) {
+                        aBatch.errors = aBatch?.errors || [];
                         aBatch.errors.push(replaceErrorString(ERROR.INVALID_UPLOAD_ATTEMPT, aFile.fileName));
                     }
                 }
