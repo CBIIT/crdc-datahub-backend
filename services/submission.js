@@ -362,6 +362,7 @@ class Submission {
             completePromise.push(this.#sendCompleteMessage({type: COMPLETE_SUBMISSION, submissionID}, submissionID));
         }
         if (action === ACTIONS.RELEASE) {
+            completePromise.push(this.dataRecordService.exportMetadata(submissionID));
             completePromise.push(this.#sendCompleteMessage({type: GENERATE_DCF_MANIFEST, submissionID}, submissionID));
         }
 
@@ -630,33 +631,6 @@ class Submission {
             }
         }
         return result;
-    }
-    /**
-     * API to export dataRecords of the submission to tsv file by async process
-     * @param {*} params 
-     * @param {*} context 
-     * @returns AsyncProcessResult
-     */
-    async exportSubmission(params, context) {
-        verifySession(context)
-            .verifyInitialized()
-            .verifyRole([ROLES.ADMIN, ROLES.CURATOR, ROLES.SUBMITTER]);
-        const aSubmission = await findByID(this.submissionCollection, params._id);
-        if(!aSubmission){
-            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
-        }
-        const userInfo = context.userInfo;
-        const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
-        const isCollaborator = collaboratorUserIDs.includes(userInfo._id);
-        const isPermitted = (this.userService.isAdmin(userInfo.role) ||
-            (userInfo.role === ROLES.CURATOR && userInfo?.dataCommons.includes(aSubmission?.dataCommons)) || isCollaborator)
-        if (!isPermitted) {
-            throw new Error(ERROR.INVALID_EXPORT_METADATA);
-        }
-        if (aSubmission.status !== SUBMITTED) {
-            throw new Error(`${ERROR.VERIFY.INVALID_SUBMISSION_ACTION_STATUS} ${EXPORT}!`);
-        }
-        return await this.dataRecordService.exportMetadata(params._id);
     }
     
     async submissionQCResults(params, context) {
