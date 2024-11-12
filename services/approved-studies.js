@@ -107,7 +107,7 @@ class ApprovedStudiesService {
                 $in: organization.studies?.filter((s) => s?._id).map((s) => s?._id)
             }
         };
-        return this.listApprovedStudies(filters);
+        return await this.listApprovedStudies(filters);
     }
 
     /**
