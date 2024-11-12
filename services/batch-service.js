@@ -3,10 +3,10 @@ const {BATCH, FILE} = require("../crdc-datahub-database-drivers/constants/batch-
 const ERROR = require("../constants/error-constants");
 const {NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED, REJECTED, WITHDRAWN, VALIDATION, INTENTION} = require("../constants/submission-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
-const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {SUBMISSIONS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {replaceErrorString} = require("../utility/string-util");
+const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const LOAD_METADATA = "Load Metadata";
 const OMIT_DCF_PREFIX = 'omit-DCF-prefix';
 class BatchService {
@@ -121,15 +121,11 @@ class BatchService {
 
     async listBatches(params, context) {
         let pipeline = listBatchConditions(context.userInfo._id, params?.collaboratorUserIDs, context.userInfo?.role, context.userInfo?.organization, params.submissionID, context.userInfo?.dataCommons);
-        const pagination = [
-            {"$sort": { [params.orderBy]: getSortDirection(params.sortDirection)}}, // default by displayID & Desc
-            {"$skip": params.offset},
-            // disable pagination if fist === -1
-            ...(params.first === -1 ? [] : [{"$limit": params.first}])
-        ];
+        const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
+        const noPaginationPipe = pipeline.concat(paginationPipe.getNoLimitPipeline());
         const promises = [
-            await this.batchCollection.aggregate(pipeline.concat(pagination)),
-            await this.batchCollection.aggregate(pipeline.concat([{$count: "count"}]))
+            await this.batchCollection.aggregate(pipeline.concat(paginationPipe)),
+            await this.batchCollection.aggregate(noPaginationPipe.concat([{$count: "count"}]))
         ];
         return await Promise.all(promises).then(function(results) {
             const total = results[1]?.length > 0 ? results[1][0] : {};
