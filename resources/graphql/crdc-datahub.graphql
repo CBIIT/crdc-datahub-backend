@@ -174,11 +174,6 @@ type FileURL {
     signedURL: String
 }
 
-input FileInput {
-    fileName: String
-    size: Float
-}
-
 input UploadResult {
     fileName: String
     succeeded: Boolean
