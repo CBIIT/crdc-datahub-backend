@@ -15,7 +15,6 @@ const {SubmissionActionEvent, DeleteRecordEvent} = require("../crdc-datahub-data
 const {verifyBatch} = require("../verifier/batch-verifier");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
-const {AWSService} = require("../services/aws-request");
 // const {write2file} = require("../utility/io-util") //keep the line for future testing.
 
 const ROLES = USER_CONSTANTS.USER.ROLES;
@@ -31,10 +30,6 @@ const {verifyToken} = require("../verifier/token-verifier");
 const {verifyValidationResultsReadPermissions} = require("../verifier/permissions-verifier");
 const FILE = "file";
 
-const UPLOAD_TYPES = ['file','metadata'];
-const LOG_DIR = 'logs';
-const LOG_FILE_EXT_ZIP ='.zip';
-const LOG_FILE_EXT_LOG ='.log';
 const DATA_MODEL_SEMANTICS = 'semantics';
 const DATA_MODEL_FILE_NODES = 'file-nodes';
 const COMPLETE_SUBMISSION = "Complete Submission";
@@ -533,51 +528,6 @@ class Submission {
             });
         }
         return submissionStats;
-    }
-
-    /**
-     * API to get list of upload log files
-     * @param {*} params 
-     * @param {*} context 
-     * @returns dictionary
-     */
-    async listLogs(params, context){
-        //1) verify session
-        verifySession(context)
-            .verifyInitialized();
-        //2) verify submitter
-        const submission = await verifySubmitter(context.userInfo, params?.submissionID, this.submissionCollection, this.userService);
-        //3) get upload log files
-        const rootPath = submission.rootPath;
-        try {
-            const fileList = await this.getLogFiles(config.submission_bucket, rootPath);
-            return {logFiles: fileList} 
-        }
-        catch(err)
-        {
-            throw new Error(`${ERROR.FAILED_LIST_LOG}, ${params.submissionID}! ${err}`);
-        }
-    }
-    /**
-     * 
-     * @param {*} bucket as object {} contains submission ID
-     * @param {*} rootPath
-     * @returns fileList []
-     */
-    async getLogFiles(bucket, rootPath){
-        this.aws = new AWSService();
-        let fileList = []; 
-        for (let type of UPLOAD_TYPES){
-            //check if zip existing
-            let file = await this.aws.getLastFileFromS3(bucket, `${rootPath}/${type}/${LOG_DIR}`, type, LOG_FILE_EXT_ZIP);
-            // if not, check log file.
-            if (!file || !file.downloadUrl) {
-                file = await this.aws.getLastFileFromS3(bucket, `${rootPath}/${type}/${LOG_DIR}`, type, LOG_FILE_EXT_LOG);
-            }
-
-            if(file) fileList.push(file);
-        }
-        return fileList;
     }
 
     async validateSubmission(params, context) {

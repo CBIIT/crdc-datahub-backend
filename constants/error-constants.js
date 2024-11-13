@@ -97,7 +97,6 @@ const ERROR = {
     INVALID_NODE_NOT_FOUND: "Cant find the node by nodeID, nodeType and submissionID",
     INVALID_SUBMITTER: "The user has no permissions to upload data for the submission",
     INVALID_SESSION_OR_TOKEN: "No valid session or valid API token",
-    FAILED_LIST_LOG: "Failed to get log file(s) for submission",
     // AWS
     FAILED_SQS_SEND: "Failed to send a message to aws SQS queue",
     //export dataRecords
