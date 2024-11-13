@@ -1,6 +1,7 @@
 const {buildSchema} = require('graphql');
 const {createHandler} = require("graphql-http/lib/use/express");
-const config = require("../config");
+const configuration = require("../config");
+
 const {Application} = require("../services/application");
 const {Submission} = require("../services/submission");
 const {AWSService} = require("../services/aws-request");
@@ -32,8 +33,8 @@ const {DashboardService} = require("../services/dashboardService");
 const UserInitializationService = require("../services/user-initialization-service");
 const {ConfigurationService} = require("../services/configurationService");
 const schema = buildSchema(require("fs").readFileSync("resources/graphql/crdc-datahub.graphql", "utf8"));
-const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
-const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
+const dbService = new MongoQueries(configuration.mongo_db_connection_string, DATABASE_NAME);
+const dbConnector = new DatabaseConnector(configuration.mongo_db_connection_string);
 const AuthenticationService = require("../services/authentication-service");
 const {apiAuthorization, extractAPINames, PUBLIC} = require("./api-authorization");
 const {QcResultService} = require("../services/qc-result-service");
@@ -43,11 +44,12 @@ const INACTIVE_SUBMISSION_DAYS = "Inactive_Submission_Notify_Days";
 let root;
 let authenticationService, userInitializationService;
 dbConnector.connect().then(async () => {
+    const config = await configuration.updateConfig(dbConnector);
     const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
     const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
     const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
     const emailService = new EmailService(config.email_transport, config.emails_enabled);
-    const notificationsService = new NotifyUser(emailService);
+    const notificationsService = new NotifyUser(emailService, config.committee_emails);
 
     const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
@@ -55,12 +57,12 @@ dbConnector.connect().then(async () => {
     const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection, approvedStudiesCollection);
     const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, organizationService);
 
-    const userService = new User(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, config.tier, approvedStudiesCollection);
+    const userService = new User(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, config.tier, approvedStudiesCollection, config.inactive_user_days);
     // TODO move userService
     const userBEService = new UserService(userCollection, logCollection, organizationCollection, organizationService, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, config.tier);
     const s3Service = new S3Service();
     const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
-    const awsService = new AWSService(submissionCollection, userService);
+    const awsService = new AWSService(submissionCollection, userService, config.role_arn, config.presign_expiration);
 
     const utilityService = new UtilityService();
     const fetchDataModelInfo = async () => {
@@ -76,7 +78,7 @@ dbConnector.connect().then(async () => {
 
     const dataRecordCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_COLLECTION);
     const dataRecordArchiveCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_ARCHIVE_COLLECTION);
-    const dataRecordService = new DataRecordService(dataRecordCollection, dataRecordArchiveCollection, config.file_queue, config.metadata_queue, awsService, s3Service, qcResultsService);
+    const dataRecordService = new DataRecordService(dataRecordCollection, dataRecordArchiveCollection, config.file_queue, config.metadata_queue, awsService, s3Service, qcResultsService, config.export_queue);
 
     const validationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, VALIDATION_COLLECTION);
 
