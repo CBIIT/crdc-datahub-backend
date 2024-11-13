@@ -153,7 +153,9 @@ const ERROR = {
     ORGANIZATION_NOT_FOUND: "The provided organization name does not exist in the organization record",
     INVALID_REQUEST_ROLE: "Invalid user role is requested: $item$",
     DUPLICATE_ORGANIZATION_NAME: "Duplicate organization name found: $item$",
-    NO_ADMIN_USER: "No admin user found"
+    NO_ADMIN_USER: "No admin user found",
+    // QC Results
+    FAILED_INSERT_QC_RESULT: "An error occurred while attempting to insert the qc-result into the database."
 }
 
 module.exports = ERROR;

@@ -523,16 +523,7 @@ const saveApprovedStudies = async (approvedStudiesService, organizationService, 
         aApplication?.PI, aApplication?.openAccess
     );
 
-    const orgApprovedStudy = savedApprovedStudy ? {
-        _id: savedApprovedStudy?._id,
-        studyName: savedApprovedStudy?.studyName,
-        studyAbbreviation: savedApprovedStudy?.studyAbbreviation,
-        controlledAccess: savedApprovedStudy?.controlledAccess,
-        ORCID: savedApprovedStudy?.ORCID,
-        PI: savedApprovedStudy?.PI,
-        openAccess: savedApprovedStudy?.openAccess
-    } : null;
-    await organizationService.storeApprovedStudies(aApplication?.organization?._id, orgApprovedStudy);
+    await organizationService.storeApprovedStudies(aApplication?.organization?._id, savedApprovedStudy?._id);
 }
 
 module.exports = {

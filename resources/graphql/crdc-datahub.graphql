@@ -64,6 +64,7 @@ type ListSubmissions {
     dataCommons: [String],
     submitterNames: [String],
     submissions: [Submission]
+    organizations: [Organization]
 }
 
 type Submission {
@@ -288,14 +289,17 @@ type QCResults {
 }
 
 type QCResult{
+    _id: String
     submissionID: ID
-    type: String
+    dataRecordID: String
     validationType: String #[metadata, file]
     batchID: String
-    displayID: Int
+    batchIDs: [String]
+    displayID: String
+    type: String
     submittedID: String
     severity: String # [Error, Warning]
-    uploadedDate: Date # batch.updatedAt
+    uploadedDate: Date
     validatedDate: Date
     errors: [ErrorMessage]
     warnings: [ErrorMessage]
@@ -322,6 +326,8 @@ type CrossValidationResult{
 }
 
 type ErrorMessage {
+    _id: String
+    code: String
     title: String
     description: String
 }

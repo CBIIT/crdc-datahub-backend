@@ -56,24 +56,30 @@ class BatchService {
         const skippedCount = skippedFiles.length
         const isAllSkipped = skippedCount === files.length;
 
+        const s3Files = await this.s3Service.listFileInDir(bucketName, aBatch?.filePrefix);
+        const s3UploadedFiles = new Set(s3Files
+            ?.map((f)=> f.Key?.replace(`${aBatch?.filePrefix}/`, ""))
+            .filter((f)=>f !== ""));
+
         if (!isAllSkipped) {
             let updatedFiles = [];
             for (const aFile of aBatch.files) {
-                if (!uploadFiles.has(aFile.fileName)) {
-                    continue;
-                }
                 const aUploadFile = uploadFiles.get(aFile.fileName);
-                if( aUploadFile.skipped === true){
+                if(Boolean(aUploadFile?.skipped) === true){
                     continue;
                 }
                 aFile.updatedAt = getCurrentTime();
-                if (aUploadFile?.succeeded) {
+                if (aUploadFile?.succeeded && s3UploadedFiles.has(aFile.fileName)) {
                     aFile.status = FILE.UPLOAD_STATUSES.UPLOADED;
                     succeededFiles.push(aFile);
-                }
-                else {
+                } else {
                     aFile.status = FILE.UPLOAD_STATUSES.FAILED;
                     aFile.errors = aUploadFile?.errors || [];
+                    const invalidUploadAttempt = aUploadFile?.succeeded && !s3UploadedFiles.has(aFile.fileName) || !aUploadFile?.succeeded && s3UploadedFiles.has(aFile.fileName);
+                    if (invalidUploadAttempt) {
+                        aBatch.errors = aBatch?.errors || [];
+                        aBatch.errors.push(replaceErrorString(ERROR.INVALID_UPLOAD_ATTEMPT, aFile.fileName));
+                    }
                 }
                 updatedFiles.push(aFile) 
             }
@@ -90,10 +96,6 @@ class BatchService {
         aBatch.status = isAllUploaded ? (aBatch.type=== BATCH.TYPE.METADATA && !isAllSkipped? BATCH.STATUSES.UPLOADING : BATCH.STATUSES.UPLOADED) : BATCH.STATUSES.FAILED;
         // Store error files that were not uploaded to the S3 bucket
         if (aBatch.status !== BATCH.STATUSES.UPLOADING) {
-            const s3Files = await this.s3Service.listFileInDir(bucketName, aBatch?.filePrefix);
-            const s3UploadedFiles = new Set(s3Files
-                ?.map((f)=> f.Key?.replace(`${aBatch?.filePrefix}/`, "")));
-
             const noUploadedFiles = files
                 .filter(file => !s3UploadedFiles.has(file.fileName))
                 .map(file => file.fileName);

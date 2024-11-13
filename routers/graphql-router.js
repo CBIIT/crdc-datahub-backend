@@ -13,7 +13,8 @@ const {DATABASE_NAME, APPLICATION_COLLECTION, SUBMISSIONS_COLLECTION, USER_COLLE
     VALIDATION_COLLECTION,
     CONFIGURATION_COLLECTION,
     CDE_COLLECTION,
-    DATA_RECORDS_ARCHIVE_COLLECTION
+    DATA_RECORDS_ARCHIVE_COLLECTION,
+    QC_RESULTS_COLLECTION
 } = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoDBCollection} = require("../crdc-datahub-database-drivers/mongodb-collection");
 const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-connector");
@@ -35,6 +36,7 @@ const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_N
 const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
 const AuthenticationService = require("../services/authentication-service");
 const {apiAuthorization, extractAPINames, PUBLIC} = require("./api-authorization");
+const {QcResultService} = require("../services/qc-result-service");
 const {UserService} = require("../services/user");
 const public_api_list = extractAPINames(schema, PUBLIC)
 const INACTIVE_SUBMISSION_DAYS = "Inactive_Submission_Notify_Days";
@@ -53,7 +55,7 @@ dbConnector.connect().then(async () => {
     const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection, approvedStudiesCollection);
     const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, organizationService);
 
-    const userService = new User(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, config.tier);
+    const userService = new User(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, config.tier, approvedStudiesCollection);
     // TODO move userService
     const userBEService = new UserService(userCollection, logCollection, organizationCollection, organizationService, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, config.tier);
     const s3Service = new S3Service();
@@ -69,9 +71,12 @@ dbConnector.connect().then(async () => {
     const institutionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, INSTITUTION_COLLECTION);
     const institutionService = new InstitutionService(institutionCollection);
 
+    const qcResultCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, QC_RESULTS_COLLECTION);
+    const qcResultsService = new QcResultService(qcResultCollection, submissionCollection);
+
     const dataRecordCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_COLLECTION);
     const dataRecordArchiveCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_ARCHIVE_COLLECTION);
-    const dataRecordService = new DataRecordService(dataRecordCollection, dataRecordArchiveCollection, config.file_queue, config.metadata_queue, awsService, s3Service);
+    const dataRecordService = new DataRecordService(dataRecordCollection, dataRecordArchiveCollection, config.file_queue, config.metadata_queue, awsService, s3Service, qcResultsService);
 
     const validationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, VALIDATION_COLLECTION);
 
@@ -82,7 +87,7 @@ dbConnector.connect().then(async () => {
     const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days,
         submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk, remindSubmissionDay: inactiveSubmissionsTimeout, techSupportEmail: config.techSupportEmail};
 
-    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, fetchDataModelInfo, awsService, config.export_queue, s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue);
+    const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, fetchDataModelInfo, awsService, config.export_queue, s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.tier, institutionService);
 
     const dashboardService = new DashboardService(userService, awsService, configurationService, {sessionTimeout: config.dashboardSessionTimeout});
@@ -91,7 +96,6 @@ dbConnector.connect().then(async () => {
     
     const cdeCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CDE_COLLECTION);
     const cdeService = new CDE(cdeCollection);
-    
 
     root = {
         version: () => {return config.version},
@@ -124,7 +128,7 @@ dbConnector.connect().then(async () => {
         submissionAction: submissionService.submissionAction.bind(submissionService),
         validateSubmission: submissionService.validateSubmission.bind(submissionService),
         submissionStats: submissionService.submissionStats.bind(submissionService),
-        submissionQCResults: submissionService.submissionQCResults.bind(submissionService),
+        submissionQCResults: qcResultsService.submissionQCResultsAPI.bind(qcResultsService),
         submissionCrossValidationResults: submissionService.submissionCrossValidationResults.bind(submissionService),
         listSubmissionNodeTypes: submissionService.listSubmissionNodeTypes.bind(submissionService),
         getSubmissionNodes: submissionService.listSubmissionNodes.bind(submissionService),

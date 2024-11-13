@@ -25,7 +25,6 @@ const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
 const {isUndefined, replaceErrorString} = require("../utility/string-util");
 const {NODE_RELATION_TYPES} = require("./data-record-service");
-const {QCResult, QCResultError} = require("../domain/qc-result");
 const {verifyToken} = require("../verifier/token-verifier");
 const {verifyValidationResultsReadPermissions} = require("../verifier/permissions-verifier");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
@@ -48,7 +47,7 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList, hiddenDataCommonsList, validationCollection, sqsLoaderQueue) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList, hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -66,6 +65,7 @@ class Submission {
         this.hiddenDataCommons = new Set(hiddenDataCommonsList);
         this.validationCollection = validationCollection;
         this.sqsLoaderQueue = sqsLoaderQueue;
+        this.qcResultsService = qcResultsService;
     }
 
     async createSubmission(params, context) {
@@ -77,7 +77,7 @@ class Submission {
         const dataType = [DATA_TYPE.METADATA_AND_DATA_FILES, DATA_TYPE.METADATA_ONLY].find((i) => i.toLowerCase() === params?.dataType.toLowerCase());
         validateCreateSubmissionParams(params, this.allowedDataCommons, this.hiddenDataCommons, intention, dataType, context?.userInfo);
 
-        const aUserOrganization= await this.organizationService.getOrganizationByName(context.userInfo?.organization?.orgName);
+        const aUserOrganization = await this.organizationService.getOrganizationByID(context.userInfo?.organization?.orgID, false);
         const approvedStudy = aUserOrganization.studies.find((study) => study?._id === params.studyID);
         if (!approvedStudy) {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
@@ -111,9 +111,11 @@ class Submission {
             this.#listConditions(context?.userInfo, ALL_FILTER, ALL_FILTER, null, null, ALL_FILTER, ALL_FILTER),
             // note: Aggregation of Submitter name should not be filtered by a submitterName
             this.#listConditions(context?.userInfo, params?.status, params.organization, params.name, params.dbGaPID, params.dataCommons, ALL_FILTER),
+            // note: Aggregation of Organization name should not be filtered by a organization
+            this.#listConditions(context?.userInfo, params?.status, ALL_FILTER, params.name, params.dbGaPID, params.dataCommons, params?.submitterName),
         ]
 
-        const [listConditions, dataCommonsCondition, submitterNameCondition] = filterConditions;
+        const [listConditions, dataCommonsCondition, submitterNameCondition, organizationCondition] = filterConditions;
         const pipeline = [{"$match": listConditions}];
         const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
         const noPaginationPipeline = pipeline.concat(paginationPipe.getNoLimitPipeline());
@@ -122,7 +124,9 @@ class Submission {
             await this.submissionCollection.aggregate(noPaginationPipeline.concat([{ $group: { _id: "$_id" } }, { $count: "count" }])),
             await this.submissionCollection.distinct("dataCommons", dataCommonsCondition),
             // note: Submitter name filter is omitted
-            await this.submissionCollection.distinct("submitterName", submitterNameCondition)
+            await this.submissionCollection.distinct("submitterName", submitterNameCondition),
+            // note: Organization ID filter is omitted
+            await this.submissionCollection.distinct("organization", organizationCondition)
         ];
         
         return await Promise.all(promises).then(function(results) {
@@ -130,7 +134,8 @@ class Submission {
                 submissions: results[0] || [],
                 total: results[1]?.length > 0 ? results[1][0]?.count : 0,
                 dataCommons: results[2] || [],
-                submitterNames: results[3] || []
+                submitterNames: results[3] || [],
+                organizations: results[4] || []
             }
         });
     }
@@ -498,30 +503,23 @@ class Submission {
             throw new Error(ERROR.INVALID_ROLE_STUDY);
         }
         const [orphanedFiles, submissionStats] = await this.dataRecordService.submissionStats(aSubmission);
-
-        const fileErrors = orphanedFiles?.map((fileName) => {
-            const errorMsg = QCResultError.create(
-                ERROR.MISSING_DATA_NODE_FILE_TITLE,
-                replaceErrorString(ERROR.MISSING_DATA_NODE_FILE_DESC, `'${fileName}'`)
-            );
-            return QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, fileName, null, null, VALIDATION_STATUS.ERROR, getCurrentTime(), getCurrentTime(), [errorMsg], []);
-        });
-
-        const aSubmissionErrors = aSubmission.fileErrors
-            .filter((f)=> f && f.type === VALIDATION.TYPES.DATA_FILE && f.severity === VALIDATION_STATUS.ERROR)
-            .map((study)=> study.submittedID);
-
-        const isOrphanedError = JSON.stringify(aSubmissionErrors) !== JSON.stringify(orphanedFiles);
         const isNodeError = await this.dataRecordService.isNodeErrorsBySubmissionID(aSubmission?._id);
-        if (isOrphanedError || (isNodeError && aSubmission.fileValidationStatus !== VALIDATION_STATUS.ERROR)) {
+
+        const qcRecords = await this.#generateQCRecord(orphanedFiles, aSubmission._id);
+        if (qcRecords.length > 0) {
+            await this.qcResultsService.insertErrorRecord(aSubmission?._id, qcRecords);
+        }
+        if (aSubmission.fileValidationStatus !== VALIDATION_STATUS.ERROR) {
             await this.submissionCollection.update({
                 _id: aSubmission?._id,
                 updatedAt: getCurrentTime(),
-                ...(isOrphanedError ? fileErrors : {}),
                 ...(isNodeError ? {fileValidationStatus : VALIDATION_STATUS.ERROR} : {})
             });
         }
-        return submissionStats;
+        return {
+            submissionID: submissionStats?.submissionID || aSubmission._id,
+            stats: submissionStats?.stats || []
+        };
     }
 
     async validateSubmission(params, context) {
@@ -1142,11 +1140,16 @@ class Submission {
 
         if (params?.nodeType === VALIDATION.TYPES.DATA_FILE) {
             const existingFiles = await this.#getExistingDataFiles(params.nodeIDs, aSubmission);
+            // note: file not existing in the s3 bucket should be deleted
+            const notExistingFileNames = params.nodeIDs.filter(item => !existingFiles.has(item));
+            await this.qcResultsService.deleteQCResultBySubmissionID(aSubmission._id, VALIDATION.TYPES.DATA_FILE, notExistingFileNames);
             if (existingFiles.size === 0) {
                 return ValidationHandler.handle(ERROR.DELETE_NO_DATA_FILE_EXISTS);
             }
             const deletedFiles = await this.#deleteDataFiles(existingFiles, aSubmission);
             if (deletedFiles.length > 0) {
+                // note: file deleted in s3 bucket should be deleted
+                await this.qcResultsService.deleteQCResultBySubmissionID(aSubmission._id, VALIDATION.TYPES.DATA_FILE, deletedFiles);
                 await this.#logDataRecord(context?.userInfo, aSubmission._id, VALIDATION.TYPES.DATA_FILE, deletedFiles);
                 const submissionDataFiles = await this.#getAllSubmissionDataFiles(aSubmission?.bucketName, aSubmission?.rootPath);
                 // note: reset fileValidationStatus if the number of data files changed. No data files exists if null
@@ -1259,6 +1262,25 @@ class Submission {
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
             throw new Error(ERROR.FAILED_VALIDATE_METADATA);
         }
+    }
+
+    async #generateQCRecord(orphanedFiles, submissionID) {
+        const qcResultErrors = await this.qcResultsService.getQCResultsErrors(submissionID, VALIDATION.TYPES.DATA_FILE);
+        const qcResultFileNames = new Set(
+            qcResultErrors
+                .filter(qcResult => qcResult.dataRecordID === null)
+                .map(qcResult => qcResult.submittedID)
+        );
+        return orphanedFiles
+            .filter(fileName => !qcResultFileNames.has(fileName))
+            .map(fileName => ({
+                fileName,
+                dataRecordID: null,
+                error: {
+                    title: ERROR.MISSING_DATA_NODE_FILE_TITLE,
+                    desc: ERROR.MISSING_DATA_NODE_FILE_DESC
+                }
+            }));
     }
 
     #getModelVersion(dataModelInfo, dataCommonType) {
@@ -1498,8 +1520,7 @@ const sendEmails = {
         await notificationService.submitDataSubmissionNotification(aSubmitter?.email, ccEmails, {
             firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
             }, {
-                idandname: `${aSubmission?.name} (ID: ${aSubmission?._id})`,
-                dataconcierge: `${aSubmission?.conciergeName || 'NA'} at ${aSubmission?.conciergeEmail||'NA'}.`
+                concierge: `${aSubmission?.conciergeName || 'NA'} via ${aSubmission?.conciergeEmail||'NA'}.`
             },tier
             
         );
