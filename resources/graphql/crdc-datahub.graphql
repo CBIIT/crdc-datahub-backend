@@ -174,11 +174,6 @@ type FileURL {
     signedURL: String
 }
 
-input FileInput {
-    fileName: String
-    size: Float
-}
-
 input UploadResult {
     fileName: String
     succeeded: Boolean
@@ -646,7 +641,7 @@ type Mutation {
     ): Submission
 
     deleteDataRecords(submissionID: String!, nodeType: String!, nodeIDs: [String!]): DataValidation
-    createBatch (submissionID: ID!, type: String, files: [FileInput]): NewBatch
+    createBatch (submissionID: ID!, type: String, files: [String!]!): NewBatch
     updateBatch (batchID: ID!, files: [UploadResult]): Batch
     createTempCredentials (submissionID: ID!): TempCredentials
     validateSubmission(

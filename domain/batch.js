@@ -24,13 +24,13 @@ class Batch {
         this.submitterName = submitterName;
     }
 
-    addDataFile(name, size, url, studyID, isOmitPrefix){
+    addDataFile(name, url, studyID, isOmitPrefix){
         const fileID = this.#generateDataFileUUID(name, url, studyID, isOmitPrefix);
-        this.#addFile(name, size, null, true, fileID);
+        this.#addFile(name, null, true, fileID);
     }
 
-    addMetadataFile(name, size, signedURL){
-        this.#addFile(name, size, signedURL, false)
+    addMetadataFile(name, signedURL){
+        this.#addFile(name, signedURL, false)
     }
 
     #generateDataFileUUID(fileName, url, studyID, isOmitPrefix) {
@@ -41,8 +41,8 @@ class Batch {
     }
 
 
-    #addFile(name, size, signedURL, isDataFile, fileID) {
-        const file = new BatchFile(name, size, signedURL, this.filePrefix, isDataFile, fileID);
+    #addFile(name, signedURL, isDataFile, fileID) {
+        const file = new BatchFile(name, signedURL, this.filePrefix, isDataFile, fileID);
         this.files.push(file);
         this.fileCount += 1;
     }
@@ -54,9 +54,8 @@ class Batch {
 }
 
 class BatchFile {
-    constructor(fileName, size, signedURL, filePrefix, isDataFile, fileID) {
+    constructor(fileName, signedURL, filePrefix, isDataFile, fileID) {
         this.fileName = fileName;
-        this.size = size;
         this.status = FILE.UPLOAD_STATUSES.NEW;
         if (signedURL) {
             this.signedURL = signedURL;
