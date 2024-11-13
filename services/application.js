@@ -6,7 +6,6 @@ const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifyApplication} = require("../verifier/application-verifier");
 const {verifySession} = require("../verifier/user-info-verifier");
 const ERROR = require("../constants/error-constants");
-const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
@@ -14,6 +13,7 @@ const ROLES = USER_CONSTANTS.USER.ROLES;
 const {parseJsonString} = require("../crdc-datahub-database-drivers/utility/string-utility");
 const {formatName} = require("../utility/format-name");
 const {isUndefined, replaceErrorString} = require("../utility/string-util");
+const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 
 class Application {
     constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, tier, institutionService) {
@@ -150,17 +150,11 @@ class Application {
         verifySession(context)
             .verifyInitialized();
         let pipeline = this.listApplicationConditions(context.userInfo._id, context.userInfo?.role);
-        if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
-
-        const pagination = [];
-        if (params.offset) pagination.push({"$skip": params.offset});
-        const disablePagination = Number.isInteger(params.first) && params.first === -1;
-        if (!disablePagination) {
-            pagination.push({"$limit": params.first});
-        }
+        const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
+        const noPaginationPipe = pipeline.concat(paginationPipe.getNoLimitPipeline());
         const promises = [
-            await this.applicationCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline),
-            await this.applicationCollection.aggregate(pipeline)
+            await this.applicationCollection.aggregate(paginationPipe.getPaginationPipeline()),
+            await this.applicationCollection.aggregate(noPaginationPipe)
         ];
 
         return await Promise.all(promises).then(function(results) {

@@ -488,7 +488,7 @@ type Query {
     getMyLastApplication: Application
 
     "Result depends on user's permission"
-    listApplications(first: Int = 10, offset: Int = 0, orderBy: String = "Submitted Date", sortDirection: String = "DESC"): ListApplications
+    listApplications(first: Int = -1, offset: Int = 0, orderBy: String = "Submitted Date", sortDirection: String = "DESC"): ListApplications
     # when first parameter is set to -1, we should return all applications (no pagination)
     # sortDirection in ["ASC", "DESC"]
     # orderBy in ["Submitter Name", "Organization", "Study", "Program", "Status", "Submitted Date"]
@@ -501,7 +501,7 @@ type Query {
         controlledAccess: String = "All", #value in ["All", "Controlled", "Open"]
         study: String, #partial match against study name or abbreviation
         dbGaPID: String, #filter by study's dbGaPID
-        first: Int = 10, #number of records to be returned, return all records if -1 is sent (also default value)
+        first: Int = -1, #number of records to be returned, return all records if -1 is sent (also default value)
         offset: Int = 0, #number of records to be skipped before returning data
         orderBy: String = "studyName", #property name to be used for sorting 
         sortDirection: String = "ASC" #["DESC", "ASC"]
@@ -517,7 +517,7 @@ type Query {
         submitterName: String,
         organization: String,
         status: String,
-        first: Int = 10,
+        first: Int = -1,
         offset: Int = 0,
         # ["updatedAt", "createdAt", "name", "dataCommons", "organization", "studyAbbreviation",
         #              "dbGapID", "status", "concierge"]
@@ -531,7 +531,7 @@ type Query {
         nodeTypes: [String],
         batchIDs: [ID],
         severities: String, # All, Error, Warning
-        first: Int = 10,
+        first: Int = -1,
         offset: Int = 0
         # [ "uploadedDate", "nodeType", "batchID", "nodeID", "CRDC_ID", "severity"]
         orderBy: String = "uploadedDate",
@@ -543,7 +543,7 @@ type Query {
         nodeTypes: [String],
         batchIDs: [ID],
         severities: String, # All, Error, Warning
-        first: Int = 10,
+        first: Int = -1,
         offset: Int = 0
         orderBy: String = "validatedDate",
         sortDirection: String = "DESC"
@@ -552,7 +552,7 @@ type Query {
     listSubmissionNodeTypes(_id: ID!): [String]
 
     listBatches(submissionID: ID!,
-        first: Int = 10,
+        first: Int = -1,
         offset: Int = 0,
         # in ["updatedAt", "createdAt", "fileCount", "status", "errors"]
         orderBy: String = "updatedAt",
@@ -578,7 +578,7 @@ type Query {
         nodeType: String!,
         status: String = "All", # ["All", "New", "Error", "Passed", "Warning"]
         nodeID: String,
-        first: Int = 10,
+        first: Int = -1,
         offset: Int = 0,
         orderBy: String = "nodeID",
         sortDirection: String = "ASC"

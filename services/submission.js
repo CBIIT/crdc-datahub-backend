@@ -28,6 +28,7 @@ const {NODE_RELATION_TYPES} = require("./data-record-service");
 const {QCResult, QCResultError} = require("../domain/qc-result");
 const {verifyToken} = require("../verifier/token-verifier");
 const {verifyValidationResultsReadPermissions} = require("../verifier/permissions-verifier");
+const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -114,19 +115,11 @@ class Submission {
 
         const [listConditions, dataCommonsCondition, submitterNameCondition] = filterConditions;
         const pipeline = [{"$match": listConditions}];
-        if (params.orderBy) {
-            pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
-        }
-
-        const pagination = [];
-        if (params.offset) pagination.push({"$skip": params.offset});
-        const disablePagination = Number.isInteger(params.first) && params.first === -1;
-        if (!disablePagination) {
-            pagination.push({"$limit": params.first});
-        }
+        const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
+        const noPaginationPipeline = pipeline.concat(paginationPipe.getNoLimitPipeline());
         const promises = [
-            await this.submissionCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline),
-            await this.submissionCollection.aggregate(pipeline.concat([{ $group: { _id: "$_id" } }, { $count: "count" }])),
+            await this.submissionCollection.aggregate(pipeline.concat(paginationPipe.getPaginationPipeline())),
+            await this.submissionCollection.aggregate(noPaginationPipeline.concat([{ $group: { _id: "$_id" } }, { $count: "count" }])),
             await this.submissionCollection.distinct("dataCommons", dataCommonsCondition),
             // note: Submitter name filter is omitted
             await this.submissionCollection.distinct("submitterName", submitterNameCondition)
