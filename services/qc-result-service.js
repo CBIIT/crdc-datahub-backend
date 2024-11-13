@@ -68,11 +68,7 @@ class QcResultService{
             // Check if any of the specified batchIDs are in the qcResult
             pipeline.push({
                 $match:{
-                    batchIDs: {
-                        $elemMatch: {
-                            $eq: batchID
-                        }
-                    }
+                    latestBatchID: batchID
                 }
             })
         }
