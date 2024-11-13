@@ -126,7 +126,6 @@ dbConnector.connect().then(async () => {
         submissionStats: submissionService.submissionStats.bind(submissionService),
         submissionQCResults: submissionService.submissionQCResults.bind(submissionService),
         submissionCrossValidationResults: submissionService.submissionCrossValidationResults.bind(submissionService),
-        exportSubmission: submissionService.exportSubmission.bind(submissionService),
         listSubmissionNodeTypes: submissionService.listSubmissionNodeTypes.bind(submissionService),
         getSubmissionNodes: submissionService.listSubmissionNodes.bind(submissionService),
         getNodeDetail: submissionService.getNodeDetail.bind(submissionService),

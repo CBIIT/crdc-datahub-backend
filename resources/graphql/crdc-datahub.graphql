@@ -649,9 +649,6 @@ type Mutation {
         types: [String] # [file, metadata]
         scope: String # [New, All] case-insensitive
     ): DataValidation
-    exportSubmission(
-        _id: ID!
-    ): AsyncProcessResult
 
     "User initiated operations"
     updateMyUser (userInfo: UpdateUserInput!): User
