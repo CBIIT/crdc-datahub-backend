@@ -32,6 +32,12 @@ const COMPLETED_RETENTION_DAYS = "COMPLETED_RETENTION_DAYS";
 const INACTIVE_SUBMISSION_DAYS_DELETE = "INACTIVE_SUBMISSION_DAYS_DELETE";
 const DASHBOARD_SESSION_TIMEOUT = "DASHBOARD_SESSION_TIMEOUT";
 
+const EMAIL_SMTP = "EMAIL_SMTP";
+const SCHEDULED_JOBS = "SCHEDULED_JOBS";
+const LIST_OF_EMAIL_ADDRESS = "LIST_OF_EMAIL_ADDRESS";
+const LIST_OF_URLS = "LIST_OF_URLS";
+const AWS_SQS_QUEUE = "AWS_SQS_QUEUE";
+const TIMEOUT = "TIMEOUT";
 let config = {
     //info variables
     version: process.env.VERSION || 'Version not set',
@@ -53,41 +59,48 @@ let config = {
     updateConfig: async (dbConnector)=> {
         const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
         const configurationService = new ConfigurationService(configurationCollection);
-        const inactiveUserDaysConf = await configurationService.findByType(INACTIVE_USER_DAYS);
-        const inactiveApplicationDaysConf = await configurationService.findByType(INACTIVE_APPLICATION_DAYS);
-        const remindApplicationDaysConf = await configurationService.findByType(REMIND_APPLICATION_DAYS);
-
-        const emailSmtpHostConf = await configurationService.findByType(EMAIL_SMTP_HOST);
-        const emailSmtpPortConf = await configurationService.findByType(EMAIL_SMTP_PORT);
-        const emailSmtpUserConf = await configurationService.findByType(EMAIL_USER);
-        const emailSmtpPasswordConf = await configurationService.findByType(EMAIL_PASSWORD);
-
-        const emailURLConf = await configurationService.findByType(EMAIL_URL);
-        const officialEmailConf = await configurationService.findByType(OFFICIAL_EMAIL);
-
-        const submissionDocUrlCOnf = await configurationService.findByType(SUBMISSION_DOC_URL);
-        const submissionHelpdeskConf = await configurationService.findByType(SUBMISSION_HELPDESK);
-        const techSupportEmailConf = await configurationService.findByType(TECH_SUPPORT_EMAIL);
-        const submissionSystemPortalConf = await configurationService.findByType(SUBMISSION_SYSTEM_PORTAL);
-        const prodUrlConf = await configurationService.findByType(PROD_URL);
-        const roleTimeoutConf = await configurationService.findByType(ROLE_TIMEOUT);
-        const preSignExpirationConf = await configurationService.findByType(PRESIGN_EXPIRATION);
-
+        // SCHEDULED_JOBS
+        const scheduledJobsConf = await configurationService.findByType(SCHEDULED_JOBS);
+        const inactiveUserDaysConf = scheduledJobsConf?.[INACTIVE_USER_DAYS];
+        const inactiveApplicationDaysConf = scheduledJobsConf?.[INACTIVE_APPLICATION_DAYS];
+        const remindApplicationDaysConf = scheduledJobsConf?.[REMIND_APPLICATION_DAYS];
+        const inactiveSubmissionDaysConf = scheduledJobsConf?.[INACTIVE_SUBMISSION_DAYS_DELETE];
+        const completedSubmissionDaysConf = scheduledJobsConf?.[COMPLETED_RETENTION_DAYS];
+        // EMAIL_SMTP
+        const emailSmtpConf = await configurationService.findByType(EMAIL_SMTP);
+        const emailSmtpHostConf = emailSmtpConf?.[EMAIL_SMTP_HOST];
+        const emailSmtpPortConf = emailSmtpConf?.[EMAIL_SMTP_PORT];
+        const emailSmtpUserConf = emailSmtpConf?.[EMAIL_USER];
+        const emailSmtpPasswordConf = emailSmtpConf?.[EMAIL_PASSWORD];
+        // LIST_OF_EMAIL_ADDRESS
+        const listEmailsConf = await configurationService.findByType(LIST_OF_EMAIL_ADDRESS);
+        const officialEmailConf = listEmailsConf?.[OFFICIAL_EMAIL];
+        const reviewCommitteeEmailConf = listEmailsConf?.[REVIEW_COMMITTEE_EMAIL];
+        const techSupportEmailConf = listEmailsConf?.[TECH_SUPPORT_EMAIL];
+        const submissionHelpdeskConf = listEmailsConf?.[SUBMISSION_HELPDESK];
+        // LIST_OF_URLS
+        const listURLsConf = await configurationService.findByType(LIST_OF_URLS);
+        const emailURLConf = listURLsConf?.[EMAIL_URL];
+        const submissionDocUrlCOnf = listURLsConf?.[SUBMISSION_DOC_URL];
+        const submissionSystemPortalConf = listURLsConf?.[SUBMISSION_SYSTEM_PORTAL];
+        const prodUrlConf = listURLsConf?.[PROD_URL];
+        const modelURLConf = listURLsConf?.[MODEL_URL];
+        // TIMEOUT
+        const timeoutConf = await configurationService.findByType(TIMEOUT);
+        const roleTimeoutConf = timeoutConf?.[ROLE_TIMEOUT];
+        const preSignExpirationConf = timeoutConf?.[PRESIGN_EXPIRATION];
+        const dashboardSessionTimeoutConf =  timeoutConf?.[DASHBOARD_SESSION_TIMEOUT];
+        // TIER
         const tierConf = await configurationService.findByType(TIER);
-        const loaderQueueConf = await configurationService.findByType(LOADER_QUEUE);
-        const metadataQueueConf = await configurationService.findByType(METADATA_QUEUE);
-        const fileQueueConf = await configurationService.findByType(FILE_QUEUE);
-
-        const exporterQueueConf = await configurationService.findByType(EXPORTER_QUEUE);
-        const reviewCommitteeEmailConf = await configurationService.findByType(REVIEW_COMMITTEE_EMAIL);
-
-        const modelURLConf = await configurationService.findByType(MODEL_URL);
+        // AWS_SQS_QUEUE
+        const awsQueuesConf = await configurationService.findByType(AWS_SQS_QUEUE);
+        const loaderQueueConf = awsQueuesConf?.[LOADER_QUEUE];
+        const metadataQueueConf = awsQueuesConf?.[METADATA_QUEUE];
+        const fileQueueConf = awsQueuesConf?.[FILE_QUEUE];
+        const exporterQueueConf = awsQueuesConf?.[EXPORTER_QUEUE];
+        // SUBMISSION
         const dataCommonsListConf = await configurationService.findByType(DATA_COMMONS_LIST);
         const hiddenModelsConf = await configurationService.findByType(HIDDEN_MODELS);
-        const inactiveSubmissionDaysConf = await configurationService.findByType(INACTIVE_SUBMISSION_DAYS_DELETE);
-        const completedSubmissionDaysConf = await configurationService.findByType(COMPLETED_RETENTION_DAYS);
-        const dashboardSessionTimeoutConf =  await configurationService.findByType(DASHBOARD_SESSION_TIMEOUT);
-
         return {
             ...this.config,
             inactive_user_days : inactiveUserDaysConf?.key || (process.env.INACTIVE_USER_DAYS || 60),
