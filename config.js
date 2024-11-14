@@ -104,7 +104,7 @@ let config = {
         const dataCommonsListConf = await configurationService.findByType(DATA_COMMONS_LIST);
         const hiddenModelsConf = await configurationService.findByType(HIDDEN_MODELS);
         return {
-            ...this.config,
+            ...config,
             inactive_user_days : inactiveUserDaysConf || (process.env.INACTIVE_USER_DAYS || 60),
             remind_application_days: remindApplicationDaysConf || (process.env.REMIND_APPLICATION_DAYS || 30),
             inactive_application_days : inactiveApplicationDaysConf || (process.env.INACTIVE_APPLICATION_DAYS || 45),
