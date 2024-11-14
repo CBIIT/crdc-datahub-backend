@@ -12,7 +12,7 @@ const graphqlRouter = require("./routers/graphql-router");
 const {MongoDBCollection} = require("./crdc-datahub-database-drivers/mongodb-collection");
 const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, LOG_COLLECTION, APPROVED_STUDIES_COLLECTION,
     ORGANIZATION_COLLECTION, SUBMISSIONS_COLLECTION, BATCH_COLLECTION, DATA_RECORDS_COLLECTION, VALIDATION_COLLECTION,
-    CONFIGURATION_COLLECTION, DATA_RECORDS_ARCHIVE_COLLECTION
+    DATA_RECORDS_ARCHIVE_COLLECTION, QC_RESULTS_COLLECTION
 } = require("./crdc-datahub-database-drivers/database-constants");
 const {Application} = require("./services/application");
 const {Submission} = require("./services/submission");
@@ -20,7 +20,7 @@ const {DataRecordService} = require("./services/data-record-service");
 const {S3Service} = require("./crdc-datahub-database-drivers/services/s3-service");
 const {MongoQueries} = require("./crdc-datahub-database-drivers/mongo-queries");
 const {DatabaseConnector} = require("./crdc-datahub-database-drivers/database-connector");
-const {getCurrentTime, subtractDaysFromNow} = require("./crdc-datahub-database-drivers/utility/time-utility");
+const {getCurrentTime} = require("./crdc-datahub-database-drivers/utility/time-utility");
 const {EmailService} = require("./services/email");
 const {NotifyUser} = require("./services/notify-user");
 const {User} = require("./crdc-datahub-database-drivers/services/user");
@@ -32,8 +32,7 @@ const {LOGIN, REACTIVATE_USER} = require("./crdc-datahub-database-drivers/consta
 const {BatchService} = require("./services/batch-service");
 const {AWSService} = require("./services/aws-request");
 const {UtilityService} = require("./services/utility");
-const authenticationMiddleware = require("./middleware/authentication-middleware");
-const {ConfigurationService} = require("./services/configurationService");
+const {QcResultService} = require("./services/qc-result-service");
 // print environment variables to log
 console.info(configuration);
 
@@ -70,7 +69,6 @@ app.use(createSession(configuration.session_secret, configuration.session_timeou
 
 // add graphql endpoint
 app.use("/api/graphql", graphqlRouter);
-const INACTIVE_SUBMISSION_DAYS = "Inactive_Submission_Notify_Days";
 cronJob.schedule(configuration.schedule_job, async () => {
     const dbConnector = new DatabaseConnector(configuration.mongo_db_connection_string);
     const dbService = new MongoQueries(configuration.mongo_db_connection_string, DATABASE_NAME);
@@ -81,12 +79,8 @@ cronJob.schedule(configuration.schedule_job, async () => {
         const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
         const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
 
-        const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
-        const configurationService = new ConfigurationService(configurationCollection)
-        const inactiveSubmissionConf = await configurationService.findByType(INACTIVE_SUBMISSION_DAYS);
-        const inactiveSubmissionsTimeout = Array.isArray(inactiveSubmissionConf?.timeout) && inactiveSubmissionConf?.timeout?.length > 0 ? inactiveSubmissionConf?.timeout : [7, 30, 60];
         const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days,
-            submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk, remindSubmissionDay: inactiveSubmissionsTimeout,
+            submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk, remindSubmissionDay: config.inactiveSubmissionNotifyDays,
             finalRemindSubmissionDay: config.inactive_submission_days || 120};
         const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
         const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);

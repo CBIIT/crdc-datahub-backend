@@ -31,6 +31,7 @@ const HIDDEN_MODELS = "HIDDEN_MODELS";
 const COMPLETED_RETENTION_DAYS = "COMPLETED_RETENTION_DAYS";
 const INACTIVE_SUBMISSION_DAYS_DELETE = "INACTIVE_SUBMISSION_DAYS_DELETE";
 const DASHBOARD_SESSION_TIMEOUT = "DASHBOARD_SESSION_TIMEOUT";
+const INACTIVE_SUBMISSION_NOTIFY_DAYS = "INACTIVE_SUBMISSION_NOTIFY_DAYS";
 
 const EMAIL_SMTP = "EMAIL_SMTP";
 const SCHEDULED_JOBS = "SCHEDULED_JOBS";
@@ -66,6 +67,7 @@ let config = {
         const remindApplicationDaysConf = scheduledJobsConf?.[REMIND_APPLICATION_DAYS];
         const inactiveSubmissionDaysConf = scheduledJobsConf?.[INACTIVE_SUBMISSION_DAYS_DELETE];
         const completedSubmissionDaysConf = scheduledJobsConf?.[COMPLETED_RETENTION_DAYS];
+        const inactiveSubmissionNotifyDaysConf = scheduledJobsConf?.[INACTIVE_SUBMISSION_NOTIFY_DAYS];
         // EMAIL_SMTP
         const emailSmtpConf = await configurationService.findByType(EMAIL_SMTP);
         const emailSmtpHostConf = emailSmtpConf?.[EMAIL_SMTP_HOST];
@@ -81,7 +83,7 @@ let config = {
         // LIST_OF_URLS
         const listURLsConf = await configurationService.findByType(LIST_OF_URLS);
         const emailURLConf = listURLsConf?.[EMAIL_URL];
-        const submissionDocUrlCOnf = listURLsConf?.[SUBMISSION_DOC_URL];
+        const submissionDocUrlConf = listURLsConf?.[SUBMISSION_DOC_URL];
         const submissionSystemPortalConf = listURLsConf?.[SUBMISSION_SYSTEM_PORTAL];
         const prodUrlConf = listURLsConf?.[PROD_URL];
         const modelURLConf = listURLsConf?.[MODEL_URL];
@@ -103,39 +105,40 @@ let config = {
         const hiddenModelsConf = await configurationService.findByType(HIDDEN_MODELS);
         return {
             ...this.config,
-            inactive_user_days : inactiveUserDaysConf?.key || (process.env.INACTIVE_USER_DAYS || 60),
-            remind_application_days: remindApplicationDaysConf?.key || (process.env.REMIND_APPLICATION_DAYS || 30),
-            inactive_application_days : inactiveApplicationDaysConf?.key || (process.env.INACTIVE_APPLICATION_DAYS || 45),
+            inactive_user_days : inactiveUserDaysConf || (process.env.INACTIVE_USER_DAYS || 60),
+            remind_application_days: remindApplicationDaysConf || (process.env.REMIND_APPLICATION_DAYS || 30),
+            inactive_application_days : inactiveApplicationDaysConf || (process.env.INACTIVE_APPLICATION_DAYS || 45),
             // Email settings
-            email_transport: getTransportConfig(emailSmtpHostConf?.key, emailSmtpPortConf?.key, emailSmtpUserConf?.key, emailSmtpPasswordConf?.key),
+            email_transport: getTransportConfig(emailSmtpHostConf, emailSmtpPortConf, emailSmtpUserConf, emailSmtpPasswordConf),
             emails_enabled: process.env.EMAILS_ENABLED ? process.env.EMAILS_ENABLED.toLowerCase() === 'true' : true,
-            emails_url: emailURLConf?.key || (process.env.EMAIL_URL ? process.env.EMAIL_URL : 'http://localhost:4010'),
-            official_email: officialEmailConf?.key || (process.env.OFFICIAL_EMAIL || 'CRDCHelpDesk@nih.gov'),
+            emails_url: emailURLConf || (process.env.EMAIL_URL ? process.env.EMAIL_URL : 'http://localhost:4010'),
+            official_email: officialEmailConf || (process.env.OFFICIAL_EMAIL || 'CRDCHelpDesk@nih.gov'),
             // temp url for email
-            submission_doc_url: submissionDocUrlCOnf?.key || (process.env.SUBMISSION_DOC_URL || ""),
-            submission_helpdesk: submissionHelpdeskConf?.key || "CRDCSubmissions@nih.gov",
-            techSupportEmail: techSupportEmailConf?.key || (process.env.TECH_SUPPORT_EMAIL || "NCICRDCTechSupport@mail.nih.gov"),
-            submission_system_portal: submissionSystemPortalConf?.key || "https://datacommons.cancer.gov/",
-            prod_url: prodUrlConf?.key || (process.env.PROD_URL || "https://hub.datacommons.cancer.gov/"),
+            submission_doc_url: submissionDocUrlConf || (process.env.SUBMISSION_DOC_URL || ""),
+            submission_helpdesk: submissionHelpdeskConf || "CRDCSubmissions@nih.gov",
+            techSupportEmail: techSupportEmailConf || (process.env.TECH_SUPPORT_EMAIL || "NCICRDCTechSupport@mail.nih.gov"),
+            submission_system_portal: submissionSystemPortalConf || "https://datacommons.cancer.gov/",
+            prod_url: prodUrlConf || (process.env.PROD_URL || "https://hub.datacommons.cancer.gov/"),
             submission_bucket: process.env.SUBMISSION_BUCKET,
-            role_timeout: roleTimeoutConf?.key || (parseInt(process.env.ROLE_TIMEOUT) || 12*3600),
-            presign_expiration: preSignExpirationConf?.key || (parseInt(process.env.PRESIGN_EXPIRATION) || 3600),
-            tier: getTier(tierConf),
+            role_timeout: roleTimeoutConf || (parseInt(process.env.ROLE_TIMEOUT) || 12*3600),
+            presign_expiration: preSignExpirationConf || (parseInt(process.env.PRESIGN_EXPIRATION) || 3600),
+            tier: getTier(tierConf?.key),
             // aws SQS names
-            sqs_loader_queue: loaderQueueConf?.key || (process.env.LOADER_QUEUE || "crdcdh-queue"),
-            metadata_queue: metadataQueueConf?.key || process.env.METADATA_QUEUE,
-            file_queue: fileQueueConf?.key || process.env.FILE_QUEUE,
-            export_queue: exporterQueueConf?.key || process.env.EXPORTER_QUEUE,
+            sqs_loader_queue: loaderQueueConf || (process.env.LOADER_QUEUE || "crdcdh-queue"),
+            metadata_queue: metadataQueueConf || process.env.METADATA_QUEUE,
+            file_queue: fileQueueConf || process.env.FILE_QUEUE,
+            export_queue: exporterQueueConf || process.env.EXPORTER_QUEUE,
             //CRDC Review Committee Emails, separated by ","
-            committee_emails: ((reviewCommitteeEmailConf?.key || process.env.REVIEW_COMMITTEE_EMAIL) ? (reviewCommitteeEmailConf?.key || process.env.REVIEW_COMMITTEE_EMAIL)?.split(',') : ["CRDCSubmisison@nih.gov"]),
-            model_url: modelURLConf?.key || getModelUrl(tierConf?.key),
+            committee_emails: reviewCommitteeEmailConf || (process.env.REVIEW_COMMITTEE_EMAIL ? (reviewCommitteeEmailConf || process.env.REVIEW_COMMITTEE_EMAIL)?.split(',') : ["CRDCSubmisison@nih.gov"]),
+            model_url: modelURLConf || getModelUrl(tierConf?.key),
             //uploader configuration file template
             uploaderCLIConfigs: readUploaderCLIConfigTemplate(),
             dataCommonsList: dataCommonsListConf?.key || (process.env.DATA_COMMONS_LIST ? JSON.parse(process.env.DATA_COMMONS_LIST) : ["CDS", "ICDC", "CTDC", "CCDI", "Test MDF", "Hidden Model"]),
             hiddenModels: hiddenModelsConf?.key || (process.env.HIDDEN_MODELS ? parseHiddenModels(process.env.HIDDEN_MODELS) : []),
-            inactive_submission_days: inactiveSubmissionDaysConf?.key || (process.env.INACTIVE_SUBMISSION_DAYS_DELETE || 120),
-            completed_submission_days: completedSubmissionDaysConf?.key || (process.env.COMPLETED_RETENTION_DAYS || 30),
-            dashboardSessionTimeout: dashboardSessionTimeoutConf?.key || (process.env.DASHBOARD_SESSION_TIMEOUT || 3600), // 60 minutes by default
+            inactive_submission_days: inactiveSubmissionDaysConf || (process.env.INACTIVE_SUBMISSION_DAYS_DELETE || 120),
+            completed_submission_days: completedSubmissionDaysConf || (process.env.COMPLETED_RETENTION_DAYS || 30),
+            dashboardSessionTimeout: dashboardSessionTimeoutConf || (process.env.DASHBOARD_SESSION_TIMEOUT || 3600), // 60 minutes by default
+            inactiveSubmissionNotifyDays: inactiveSubmissionNotifyDaysConf || [7, 30, 60] // 7, 30, 60 days by default
         };
     }
 }
