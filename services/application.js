@@ -153,7 +153,7 @@ class Application {
         const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
         const noPaginationPipe = pipeline.concat(paginationPipe.getNoLimitPipeline());
         const promises = [
-            await this.applicationCollection.aggregate(paginationPipe.getPaginationPipeline()),
+            await this.applicationCollection.aggregate(pipeline.concat(paginationPipe.getPaginationPipeline())),
             await this.applicationCollection.aggregate(noPaginationPipe)
         ];
 
