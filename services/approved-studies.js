@@ -230,7 +230,7 @@ class ApprovedStudiesService {
         verifySession(context)
           .verifyInitialized()
           .verifyRole([USER.ROLES.ADMIN]);
-        const {
+        let {
             name,
             acronym,
             controlledAccess,
@@ -238,24 +238,17 @@ class ApprovedStudiesService {
             dbGaPID,
             ORCID, 
             PI
-        } = params;
-        if (!name) {
-            throw new Error(ERROR.MISSING_STUDY_NAME);
-        }
-        const controlledAccessVal = (controlledAccess !== true)? false: true;
-        if (controlledAccess === true && !dbGaPID){
-            throw new Error(ERROR.MISSING_DB_GAP_ID);
-        }
-        if (ORCID && !this.#validateIdentifier(ORCID)) {
-            throw new Error(ERROR.INVALID_ORCID);
-        }
+        } = this.#verifyAndFormatStudyParams(params);
         // check if name is unique
         await this.#validateStudyName(name)
         const current_date = new Date();
-        let newStudy = {_id: v4(), studyName: name, studyAbbreviation: acronym, controlledAccess: controlledAccessVal, openAccess: openAccess, dbGaPID: dbGaPID, ORCID: ORCID, PI: PI, createdAt: current_date, updatedAt: current_date};
+        if (!acronym){
+            acronym = name;
+        }
+        let newStudy = {_id: v4(), studyName: name, studyAbbreviation: acronym, controlledAccess: controlledAccess, openAccess: openAccess, dbGaPID: dbGaPID, ORCID: ORCID, PI: PI, createdAt: current_date, updatedAt: current_date};
         const result = await this.approvedStudiesCollection.insert(newStudy);
         if (!result?.acknowledged) {
-            throw new Error(ERROR.FAILED_APPROVED_STUDIES_INSERTION);
+            throw new Error(ERROR.FAILED_APPROVED_STUDY_INSERTION);
         }
         return newStudy;
     }
@@ -283,29 +276,18 @@ class ApprovedStudiesService {
             dbGaPID,
             ORCID, 
             PI
-        } = params;
+        } = this.#verifyAndFormatStudyParams(params);
         let updateStudy = await this.approvedStudiesCollection.find(studyID);
         if (!updateStudy || updateStudy.length === 0) {
             throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
         }
         updateStudy = updateStudy[0];
-        if (!name) {
-            throw new Error(ERROR.MISSING_STUDY_NAME);
-        }
-        const controlledAccessVal = (controlledAccess !== true)? false: true;
-        
-        if (controlledAccess === true && !dbGaPID){
-            throw new Error(ERROR.MISSING_DB_GAP_ID);
-        }
-        if (ORCID && !this.#validateIdentifier(ORCID)) {
-            throw new Error(ERROR.INVALID_ORCID);
-        }  
         // check if name is unique
         if (name !== updateStudy.studyName)
             await this.#validateStudyName(name)
         updateStudy.studyName = name;
-        updateStudy.controlledAccess = controlledAccessVal;
-        if (acronym !== undefined) {
+        updateStudy.controlledAccess = controlledAccess;
+        if (!!acronym) {
             updateStudy.studyAbbreviation = acronym;
         }
         if(openAccess !== undefined){
@@ -343,6 +325,32 @@ class ApprovedStudiesService {
             throw new Error(ERROR.DUPLICATE_STUDY_NAME);
         } 
         return true;  
+    }
+
+    #verifyAndFormatStudyParams(params) {
+        // trim name if it exists
+        if (!!params.name && params.name.length > 0) {
+            params.name = params.name.trim();
+        }
+        // trim acronym if it exists
+        if (!!params.acronym && params.acronym.length > 0) {
+            params.acronym = params.acronym.trim();
+        }
+        // ensure controlledAccess has a boolean value
+        params.controlledAccess = params.controlledAccess === true;
+        // verify name exists and is not an empty string
+        if (!params.name) {
+            throw new Error(ERROR.MISSING_STUDY_NAME);
+        }
+        // verify that dbGaPID exists if the study is controlledAccess
+        if (!!params.controlledAccess && !params.dbGaPID){
+            throw new Error(ERROR.MISSING_DB_GAP_ID);
+        }
+        // validate that ORCID if it exists
+        if (!!params.ORCID && !this.#validateIdentifier(params.ORCID)) {
+            throw new Error(ERROR.INVALID_ORCID);
+        }
+        return params;
     }
 }
 
