@@ -1,13 +1,12 @@
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
-    REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, EXPORT, INTENTION, DATA_TYPE, DELETED, DATA_FILE,
+    REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, INTENTION, DATA_TYPE, DELETED, DATA_FILE,
     CONSTRAINTS, COLLABORATOR_PERMISSIONS
 } = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
-const {verifySession, verifySubmitter} = require("../verifier/user-info-verifier");
+const {verifySession} = require("../verifier/user-info-verifier");
 const {verifySubmissionAction} = require("../verifier/submission-verifier");
-const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {formatName} = require("../utility/format-name");
 const ERROR = require("../constants/error-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
@@ -509,11 +508,11 @@ class Submission {
         if (qcRecords.length > 0) {
             await this.qcResultsService.insertErrorRecord(aSubmission?._id, qcRecords);
         }
-        if (aSubmission.fileValidationStatus !== VALIDATION_STATUS.ERROR) {
+        if (aSubmission.fileValidationStatus !== VALIDATION_STATUS.ERROR && isNodeError) {
             await this.submissionCollection.update({
                 _id: aSubmission?._id,
                 updatedAt: getCurrentTime(),
-                ...(isNodeError ? {fileValidationStatus : VALIDATION_STATUS.ERROR} : {})
+                fileValidationStatus : VALIDATION_STATUS.ERROR
             });
         }
         return {
@@ -1382,6 +1381,7 @@ String.prototype.format = function(placeholders) {
  * @param {*} userService 
  * @param {*} organizationService
  * @param {*} notificationService
+ * @param {*} emailParams
  * @param {*} tier
  */
 async function submissionActionNotification(userInfo, action, aSubmission, userService, organizationService, notificationService, emailParams, tier) {
