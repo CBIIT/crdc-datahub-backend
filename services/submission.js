@@ -520,11 +520,11 @@ class Submission {
         if (qcRecords.length > 0) {
             await this.qcResultsService.insertErrorRecord(aSubmission?._id, qcRecords);
         }
-        if (aSubmission.fileValidationStatus !== VALIDATION_STATUS.ERROR) {
+        if (aSubmission.fileValidationStatus !== VALIDATION_STATUS.ERROR && isNodeError) {
             await this.submissionCollection.update({
                 _id: aSubmission?._id,
                 updatedAt: getCurrentTime(),
-                ...(isNodeError ? {fileValidationStatus : VALIDATION_STATUS.ERROR} : {})
+                fileValidationStatus : VALIDATION_STATUS.ERROR
             });
         }
         return {
