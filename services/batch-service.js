@@ -6,7 +6,7 @@ const {USER} = require("../crdc-datahub-database-drivers/constants/user-constant
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {SUBMISSIONS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
-const {replaceErrorString} = require("../utility/string-util");
+const {replaceErrorString, isValidFileExtension} = require("../utility/string-util");
 const LOAD_METADATA = "Load Metadata";
 const OMIT_DCF_PREFIX = 'omit-DCF-prefix';
 class BatchService {
@@ -69,13 +69,15 @@ class BatchService {
                     continue;
                 }
                 aFile.updatedAt = getCurrentTime();
-                if (aUploadFile?.succeeded && s3UploadedFiles.has(aFile.fileName)) {
+                if (aUploadFile?.succeeded && s3UploadedFiles.has(aFile.fileName) && isValidFileExtension(aFile.fileName)) {
                     aFile.status = FILE.UPLOAD_STATUSES.UPLOADED;
                     succeededFiles.push(aFile);
                 } else {
                     aFile.status = FILE.UPLOAD_STATUSES.FAILED;
                     aFile.errors = aUploadFile?.errors || [];
-                    const invalidUploadAttempt = aUploadFile?.succeeded && !s3UploadedFiles.has(aFile.fileName) || !aUploadFile?.succeeded && s3UploadedFiles.has(aFile.fileName);
+                    const invalidUploadAttempt = aUploadFile?.succeeded && !s3UploadedFiles.has(aFile.fileName)
+                        || !aUploadFile?.succeeded && s3UploadedFiles.has(aFile.fileName)
+                        || !isValidFileExtension(aFile.fileName);
                     if (invalidUploadAttempt) {
                         aBatch.errors = aBatch?.errors || [];
                         aBatch.errors.push(replaceErrorString(ERROR.INVALID_UPLOAD_ATTEMPT, aFile.fileName));

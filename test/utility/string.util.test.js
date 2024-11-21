@@ -1,5 +1,5 @@
 const {isCaseInsensitiveEqual, isElementInArray, isElementInArrayCaseInsensitive, parseArrToStr,
-    replaceMessageVariables, extractAndJoinFields, replaceErrorString
+    replaceMessageVariables, extractAndJoinFields, replaceErrorString, isValidFileExtension
 } = require("../../utility/string-util");
 const {parseJsonString} = require("../../crdc-datahub-database-drivers/utility/string-utility");
 describe('Util Test', () => {
@@ -182,5 +182,24 @@ describe('Util Test', () => {
         const originalString = "This is a duplicate study name. The $item$ study already exists in the system. Another $item$ is found.";
         const result = replaceErrorString(originalString);
         expect(result).toBe(originalString);
+    });
+
+    test('test valid file extensions', () => {
+        expect(isValidFileExtension("file.txt.tsv.tsv")).toBe(true);
+        expect(isValidFileExtension("file.txt")).toBe(true);
+        expect(isValidFileExtension("file,txt")).toBe(false);
+        expect(isValidFileExtension(".pdf")).toBe(false);
+        expect(isValidFileExtension("test.test,pdf")).toBe(false);
+        expect(isValidFileExtension("test,test,pdf")).toBe(false);
+        expect(isValidFileExtension("test.test.file,pdf")).toBe(false);
+        expect(isValidFileExtension("test.test,file.")).toBe(false);
+        expect(isValidFileExtension("test.test,file.")).toBe(false);
+        expect(isValidFileExtension("test.test.txt")).toBe(true);
+        expect(isValidFileExtension("test,test,txt")).toBe(false);
+        expect(isValidFileExtension("test,test.      ")).toBe(false);
+        expect(isValidFileExtension("test.test.      ")).toBe(false);
+        expect(isValidFileExtension("test.test?      ")).toBe(false);
+        expect(isValidFileExtension("&&&.&&&&")).toBe(false);
+        expect(isValidFileExtension("tes.&&&")).toBe(false);
     });
 });
