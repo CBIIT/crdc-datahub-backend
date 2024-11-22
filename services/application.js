@@ -184,9 +184,7 @@ class Application {
             }
         });
         for (let app of applications.applications.filter(a=>a.status === APPROVED)) {
-            if (app.status === APPROVED) {
-                await this.#checkConditionalApproval(app);
-            }
+            await this.#checkConditionalApproval(app);
         }
         return applications;
     }
