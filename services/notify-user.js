@@ -3,7 +3,6 @@ const fs = require('fs');
 const {createEmailTemplate} = require("../lib/create-email-template");
 const sanitizeHtml = require('sanitize-html');
 const {replaceMessageVariables} = require("../utility/string-util");
-const config = require("../config");
 const NOTIFICATION_USER_HTML_TEMPLATE = "notification-template-user.html";
 const ROLE = "Role";
 const DATA_COMMONS = "Data Commons";
@@ -19,7 +18,7 @@ const AFFILIATED_ORGANIZATION = "Affiliated Organization";
 const CRDC_PORTAL_ADMIN = "CRDC Submission Portal Admins";
 class NotifyUser {
 
-    constructor(emailService) {
+    constructor(emailService, committeeEmails) {
         this.emailService = emailService;
         this.email_constants = undefined
         try {
@@ -27,6 +26,7 @@ class NotifyUser {
         } catch (e) {
             console.error(e)
         }
+        this.committeeEmails = committeeEmails;
     }
 
     async send(fn){
@@ -43,8 +43,7 @@ class NotifyUser {
                 await createEmailTemplate("notification-template.html", {
                     message, firstName: this.email_constants.APPLICATION_COMMITTEE_NAME
                 }),
-                //this.email_constants.APPLICATION_COMMITTEE_EMAIL
-                config.committee_emails
+                this.committeeEmails
             );
         });
     }

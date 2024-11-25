@@ -3,7 +3,6 @@ const {VALIDATION} = require("../constants/submission-constants");
 const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
-const config = require("../config");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants.js");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const BATCH_SIZE = 300;
@@ -32,7 +31,7 @@ const NODE_RELATION_TYPES = [NODE_RELATION_TYPE_PARENT, NODE_RELATION_TYPE_CHILD
 
 const FILE = "file";
 class DataRecordService {
-    constructor(dataRecordsCollection, dataRecordArchiveCollection, fileQueueName, metadataQueueName, awsService, s3Service, qcResultsService) {
+    constructor(dataRecordsCollection, dataRecordArchiveCollection, fileQueueName, metadataQueueName, awsService, s3Service, qcResultsService, exportQueue) {
         this.dataRecordsCollection = dataRecordsCollection;
         this.fileQueueName = fileQueueName;
         this.metadataQueueName = metadataQueueName;
@@ -40,6 +39,7 @@ class DataRecordService {
         this.s3Service = s3Service;
         this.dataRecordArchiveCollection = dataRecordArchiveCollection;
         this.qcResultsService = qcResultsService;
+        this.exportQueue = exportQueue
     }
 
     async submissionStats(aSubmission) {
@@ -235,7 +235,7 @@ class DataRecordService {
 
     async exportMetadata(submissionID) {
         const msg = Message.createFileSubmissionMessage("Export Metadata", submissionID);
-        return await sendSQSMessageWrapper(this.awsService, msg, submissionID, config.export_queue, submissionID);
+        return await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.exportQueue, submissionID);
     }
 
     async submissionCrossValidationResults(submissionID, nodeTypes, batchIDs, severities, first, offset, orderBy, sortDirection){
