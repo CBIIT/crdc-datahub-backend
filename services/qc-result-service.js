@@ -131,7 +131,7 @@ class QcResultService{
                 record.error.title,
                 replaceErrorString(record.error.desc, `'${record.fileName}'`)
             );
-            return QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, record.fileName, null, null, VALIDATION_STATUS.ERROR, getCurrentTime(), getCurrentTime(), [errorMsg], [], record.dataRecordID);
+            return QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, record.fileName, null, null, VALIDATION_STATUS.ERROR, getCurrentTime(), getCurrentTime(), [errorMsg], [], record.dataRecordID, record?.origin);
         });
 
         await Promise.all(qcResultErrors.map(async (qcResult) => {
@@ -153,7 +153,7 @@ class QcResultService{
 }
 
 class QCResult {
-    constructor(type, validationType, submittedID, batchID, displayID, severity, uploadedDate, validatedDate, errors, warnings, dataRecordID) {
+    constructor(type, validationType, submittedID, batchID, displayID, severity, uploadedDate, validatedDate, errors, warnings, dataRecordID, origin) {
         this.type = type;
         this.validationType = validationType;
         this.submittedID = submittedID;
@@ -165,10 +165,13 @@ class QCResult {
         this.errors = errors || [];
         this.warnings = warnings || [];
         this.dataRecordID = dataRecordID;
+        if (origin) {
+            this.origin = origin;
+        }
     }
 
-    static create(type, validationType, submittedID, batchID, displayID, severity, uploadedDate, validatedDate, errors, warnings, dataRecordID) {
-        return new QCResult(type, validationType, submittedID, batchID, displayID, severity, uploadedDate, validatedDate, errors, warnings, dataRecordID);
+    static create(type, validationType, submittedID, batchID, displayID, severity, uploadedDate, validatedDate, errors, warnings, dataRecordID, origin) {
+        return new QCResult(type, validationType, submittedID, batchID, displayID, severity, uploadedDate, validatedDate, errors, warnings, dataRecordID, origin);
     }
 
 }

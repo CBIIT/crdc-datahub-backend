@@ -40,6 +40,7 @@ const FINAL_INACTIVE_REMINDER = "finalInactiveReminder";
 const SUBMISSION_ID = "Submission ID";
 const DATA_SUBMISSION_TYPE = "Data Submission Type";
 const DESTINATION_LOCATION = "Destination Location";
+const SUBMISSION_STATS_ORIGIN_API = "API: submissionStats";
 // Set to array
 Set.prototype.toArray = function() {
     return Array.from(this);
@@ -1281,6 +1282,7 @@ class Submission {
             .filter(fileName => !qcResultFileNames.has(fileName))
             .map(fileName => ({
                 fileName,
+                origin: SUBMISSION_STATS_ORIGIN_API,
                 dataRecordID: null,
                 error: {
                     title: ERROR.MISSING_DATA_NODE_FILE_TITLE,
