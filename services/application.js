@@ -32,13 +32,33 @@ class Application {
     async getApplication(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const application = await this.getApplicationById(params._id);
+        let application = await this.getApplicationById(params._id);
         const isAdminOrFedLead = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD].includes(context.userInfo?.role);
         const isSubmitter = application?.applicant?.applicantID === context?.userInfo?._id;
         if (!isAdminOrFedLead && !isSubmitter){
             throw new Error(ERROR.INVALID_PERMISSION);
         }
+        // add logics to check if conditional approval
+        if (application.status === APPROVED){
+            await this.#checkConditionalApproval(application);
+        }
         return application;
+    }
+
+    async #checkConditionalApproval(application) {
+        // 1) controlled study missing dbGaPID
+        const study_arr = await this.approvedStudiesService.findByStudyName(application.studyName);
+        if (!study_arr || study_arr.length < 1) {
+            return;
+        }
+        const study = study_arr[0];
+        if(study?.controlledAccess && !study?.dbGaPID){
+            application.conditional = true;
+            application.pendingConditions = (!application?.pendingConditions)? [ERROR.CONTROLLED_STUDY_NO_DBGAPID] : application.pendingConditions.push(CONTROLLED_STUDY_NO_DBGAPID);
+        }
+        else {
+            application.conditional = false;
+        }
     }
 
     async getApplicationById(id) {
@@ -153,16 +173,20 @@ class Application {
         const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
         const noPaginationPipe = pipeline.concat(paginationPipe.getNoLimitPipeline());
         const promises = [
-            await this.applicationCollection.aggregate(pipeline.concat(paginationPipe.getPaginationPipeline())),
-            await this.applicationCollection.aggregate(noPaginationPipe)
+            this.applicationCollection.aggregate(pipeline.concat(paginationPipe.getPaginationPipeline())),
+            this.applicationCollection.aggregate(noPaginationPipe)
         ];
 
-        return await Promise.all(promises).then(function(results) {
+        const applications = await Promise.all(promises).then(function(results) {
             return {
                 applications: (results[0] || []).map((app)=>(app)),
                 total: results[1]?.length || 0
             }
         });
+        for (let app of applications.applications.filter(a=>a.status === APPROVED)) {
+            await this.#checkConditionalApproval(app);
+        }
+        return applications;
     }
 
     async submitApplication(params, context) {

@@ -156,7 +156,8 @@ const ERROR = {
     DUPLICATE_ORGANIZATION_NAME: "Duplicate organization name found: $item$",
     NO_ADMIN_USER: "No admin user found",
     // QC Results
-    FAILED_INSERT_QC_RESULT: "An error occurred while attempting to insert the qc-result into the database."
+    FAILED_INSERT_QC_RESULT: "An error occurred while attempting to insert the qc-result into the database.",
+    CONTROLLED_STUDY_NO_DBGAPID: "dbGaP ID must be provided before data submissions can begin."
 }
 
 module.exports = ERROR;
