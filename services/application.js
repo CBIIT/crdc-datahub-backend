@@ -248,12 +248,15 @@ class Application {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
             $push: {history}
         });
+        const questionnaire = getApplicationQuestionnaire(application);
+        application.conditional = !questionnaire?.study?.dbGaPPPHSNumber;
         let promises = [];
         promises.push(this.institutionService.addNewInstitutions(document.institutions));
         promises.push(this.sendEmailAfterApproveApplication(context, application));
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             promises.unshift(this.getApplicationById(document._id));
-            promises.push(saveApprovedStudies(this.approvedStudiesService, this.organizationService, application));
+            if(questionnaire)
+                promises.push(saveApprovedStudies(this.approvedStudiesService, this.organizationService, application, questionnaire));
             promises.push(this.logCollection.insert(
                 UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, APPROVED)
             ));
