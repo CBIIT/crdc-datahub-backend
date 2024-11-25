@@ -421,7 +421,8 @@ class Application {
         }, {
             study: application?.studyAbbreviation,
             doc_url: this.emailParams.url,
-            contact_detail: contact_detail
+            contact_detail: contact_detail,
+            conditional: application?.conditional ? true: false
         })
     }
 }
