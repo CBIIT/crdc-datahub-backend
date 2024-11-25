@@ -510,12 +510,7 @@ const sendEmails = {
     }
 }
 
-const saveApprovedStudies = async (approvedStudiesService, organizationService, aApplication) => {
-    const questionnaire = parseJsonString(aApplication?.questionnaireData);
-    if (!questionnaire) {
-        console.error(ERROR.FAILED_STORE_APPROVED_STUDIES + ` id=${aApplication?._id}`);
-        return;
-    }
+const saveApprovedStudies = async (approvedStudiesService, organizationService, aApplication, questionnaire) => {
     // use study name when study abbreviation is not available
     const studyAbbreviation = !!aApplication?.studyAbbreviation?.trim() ? aApplication?.studyAbbreviation : questionnaire?.study?.name;
     const controlledAccess = aApplication?.controlledAccess;
@@ -524,10 +519,19 @@ const saveApprovedStudies = async (approvedStudiesService, organizationService, 
     }
     const savedApprovedStudy = await approvedStudiesService.storeApprovedStudies(
         aApplication?.studyName, studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name, controlledAccess, aApplication?.ORCID,
-        aApplication?.PI, aApplication?.openAccess
+        aApplication?.PI, aApplication?.openAccess, aApplication.programName
     );
 
     await organizationService.storeApprovedStudies(aApplication?.organization?._id, savedApprovedStudy?._id);
+}
+
+const getApplicationQuestionnaire = (aApplication) => {
+    const questionnaire = parseJsonString(aApplication?.questionnaireData);
+    if (!questionnaire) {
+        console.error(ERROR.FAILED_STORE_APPROVED_STUDIES + ` id=${aApplication?._id}`);
+        return null;
+    }
+    return questionnaire;
 }
 
 module.exports = {
