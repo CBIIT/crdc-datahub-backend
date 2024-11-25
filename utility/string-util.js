@@ -87,9 +87,8 @@ const isValidFileExtension = (name) => {
     if (!name || (name?.trim()?.length === 0)) {
         return false;
     }
-    const reversedString = name?.split('')?.reverse()?.join('');
-    const regex = /^[a-zA-Z]+[.]+[^\s]+$/;
-    return regex.test(reversedString);
+    const regex = /^\S+.*[.][A-Za-z0-9]+$/;
+    return regex.test(name);
 }
 
 module.exports = {
