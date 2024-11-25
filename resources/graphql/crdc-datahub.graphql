@@ -198,8 +198,8 @@ type ApprovedStudy {
     openAccess: Boolean
     PI: String
     ORCID: String
-    createdAt: Date, 
-    programName
+    createdAt: Date
+    programName: String
 }
 
 type ApprovedStudyList {
