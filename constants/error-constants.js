@@ -43,6 +43,7 @@ const ERROR = {
     INVALID_BATCH_INTENTION: "Uploading data files is not allowed for a Delete submission",
     INVALID_BATCH_DATA_TYPE: "Uploading data files is not allowed for a Metadata Only submission",
     MISSING_REQUIRED_SUBMISSION_DATA: "To create a batch, please ensure that both the study ID and the metadata are included in the submission.",
+    INVALID_FILE_EXTENSION: "The $item$ file(s) extension is invalid. Please try again.",
     // Approved Studies
     APPROVED_STUDIES_INSERTION: "An error occurred while attempting to insert the approved studies into the database.",
     ORGANIZATION_APPROVED_STUDIES_INSERTION: "An error occurred while attempting to insert the approved studies for the organization into the database.",
