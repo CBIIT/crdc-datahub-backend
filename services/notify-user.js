@@ -121,7 +121,7 @@ class NotifyUser {
                 await createEmailTemplate("notification-template-submission-request.html", {
                     message,
                     secondMessage,
-                    approverNotes: approverNotes.length > 0 ? approverNotes : "N/A",
+                    approverNotes: approverNotes?.length > 0 ? approverNotes : "N/A",
                     contactEmail: templateParams?.contactEmail,
                     ...sanitizeHtml(templateParams, {allowedTags: [],allowedAttributes: {}})
                 }),
