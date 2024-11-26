@@ -274,7 +274,8 @@ class Application {
         });
         let promises = [];
         promises.push(this.institutionService.addNewInstitutions(document.institutions));
-        promises.push(this.sendEmailAfterApproveApplication(context, application));
+        // TODO add conditional approval condition
+        promises.push(this.sendEmailAfterApproveApplication(context, application, document?.comment));
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             promises.unshift(this.getApplicationById(document._id));
             promises.push(saveApprovedStudies(this.approvedStudiesService, this.organizationService, application));
@@ -398,52 +399,46 @@ class Application {
         }
     }
 
-    async sendEmailAfterApproveApplication(context, application) {
-        // org owner email
-        let org_owner_email = ""
-        let orgOwner = await this.userService.getOrgOwner(application?.organization?._id)
-        for(let i of orgOwner){
-            org_owner_email  += i.email + " ; "
-        }
-        // concierge email
-        let concierge = await this.userService.getConcierge(application?.organization?._id)
-        let concierge_email = ""
-        for(let i of concierge){
-            concierge_email += i.email + " ; "
-        }
-        // admin email
-        let admin_user = await this.userService.getAdmin();
-        let admin_email = ""
-        for(let i of admin_user){
-            admin_email += i.email + " ; "
-        }
-        // cc emil
-        let cc_email
-        if(concierge_email){
-            cc_email = concierge_email
-        }else{
-            cc_email = admin_email
-        }
-
+    async sendEmailAfterApproveApplication(context, application, comment, conditional = false) {
+        const res = await Promise.all([
+            this.userService.getOrgOwner(application?.organization?._id),
+            this.userService.getConcierge(application?.organization?._id),
+            this.userService.getAdmin(),
+            this.userService.getFedLeads()
+        ]);
+        const [orgOwners, concierges, adminUsers, fedLeads] = res;
+        const [orgOwnerEmails, conciergesEmails,adminUsersEmails,fedLeadsEmails]
+            = [getUserEmails(orgOwners), getUserEmails(concierges), getUserEmails(adminUsers), getUserEmails(fedLeads)];
         // contact detail
-        let contact_detail = `either your organization ${org_owner_email} or your CRDC Data Team member ${concierge_email}.`
-        if(!org_owner_email &&!concierge_email ){
-            contact_detail = `the Submission Helpdesk ${this.emailParams.submissionHelpdesk}`
-        } else if(!org_owner_email){
-            contact_detail = `your CRDC Data Team member ${concierge_email}`
-        } else if(!concierge_email){
-            contact_detail = `either your organization ${org_owner_email} or the Submission Helpdesk ${this.emailParams.submissionHelpdesk}`
+        let contactDetail = `either your organization ${orgOwnerEmails?.join(";")} or your CRDC Data Team member ${conciergesEmails?.join(";")}.`
+        if(orgOwnerEmails.length === 0 && conciergesEmails.length === 0){
+            contactDetail = `the Submission Helpdesk ${this.emailParams?.submissionHelpdesk}`
+        } else if(orgOwnerEmails.length === 0) {
+            contactDetail = `your CRDC Data Team member ${conciergesEmails.join(";")}`
+        } else if(conciergesEmails.length === 0) {
+            contactDetail = `either your organization ${orgOwnerEmails.join(";")} or the Submission Helpdesk ${this.emailParams?.submissionHelpdesk}`
         }
-        await this.notificationService.approveQuestionNotification(application?.applicant?.applicantEmail,
-            // Organization Owner and concierge assigned/Super Admin
-            `${org_owner_email} ${cc_email}`,
-        {
-            firstName: application?.applicant?.applicantName
-        }, {
-            study: application?.studyAbbreviation,
-            doc_url: this.emailParams.url,
-            contact_detail: contact_detail
-        })
+        if (!conditional) {
+            const ccEmails = conciergesEmails.length > 0 ? conciergesEmails : adminUsersEmails
+            await this.notificationService.approveQuestionNotification(application?.applicant?.applicantEmail,
+                // Organization Owner and concierges assigned/Super Admin
+                new Set([...conciergesEmails, ...ccEmails]).toArray(),
+                {
+                    firstName: application?.applicant?.applicantName
+                }, {
+                    contact_detail: contactDetail
+            });
+            return;
+        }
+        await this.notificationService.conditionalApproveQuestionNotification(application?.applicant?.applicantEmail,
+            new Set([...fedLeadsEmails, ...orgOwnerEmails, ...adminUsersEmails]).toArray(),
+            {
+                firstName: application?.applicant?.applicantName,
+                study: setDefaultIfNoName(application?.studyName),
+                contactEmail: this.emailParams?.conditionalSubmissionContact,
+                url: this.emailParams?.submissionGuideURL,
+                approverNotes: comment?.trim().length > 0 ? comment?.trim() : "N/A"
+        });
     }
 }
 
@@ -548,6 +543,12 @@ const saveApprovedStudies = async (approvedStudiesService, organizationService, 
     );
 
     await organizationService.storeApprovedStudies(aApplication?.organization?._id, savedApprovedStudy?._id);
+}
+
+const getUserEmails = (users) => {
+    return users
+        ?.filter((aUser) => aUser?.email)
+        ?.map((aUser)=> aUser.email);
 }
 
 module.exports = {

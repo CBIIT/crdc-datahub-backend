@@ -93,14 +93,34 @@ class NotifyUser {
         });
     }
 
-    async approveQuestionNotification(email, emailCCs,template_params, messageVariables) {
+    async approveQuestionNotification(email, emailCCs,templateParams, messageVariables, tier) {
         const message = replaceMessageVariables(this.email_constants.APPROVE_CONTENT, messageVariables);
+        const subject = this.email_constants.APPROVE_SUBJECT;
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
-                this.email_constants.APPROVE_SUBJECT,
-                                await createEmailTemplate("notification-template.html", {
-                    message, ...template_params
+                isTierAdded(tier) ? `${tier} ${subject}` : subject,
+                await createEmailTemplate("notification-template.html", {
+                    message, ...templateParams
+                }),
+                email,
+                emailCCs
+            );
+        });
+    }
+
+    async conditionalApproveQuestionNotification(email, emailCCs, templateParams, messageVariables, tier) {
+        const message = replaceMessageVariables(this.email_constants.CONDITIONAL_APPROVE_CONTENT_FIRST, messageVariables);
+        const secondMessage = replaceMessageVariables(this.email_constants.CONDITIONAL_APPROVE_CONTENT_FIRST, messageVariables);
+        const subject = this.email_constants.CONDITIONAL_APPROVE_SUBJECT;
+        return await this.send(async () => {
+            await this.emailService.sendNotification(
+                this.email_constants.NOTIFICATION_SENDER,
+                isTierAdded(tier) ? `${tier} ${subject}` : subject,
+                await createEmailTemplate("notification-template-submission-request.html", {
+                    message,
+                    secondMessage,
+                    ...sanitizeHtml(templateParams, {allowedTags: [],allowedAttributes: {}})
                 }),
                 email,
                 emailCCs
