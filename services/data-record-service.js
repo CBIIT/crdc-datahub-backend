@@ -8,6 +8,7 @@ const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-
 const BATCH_SIZE = 300;
 const ERROR = "Error";
 const WARNING = "Warning";
+const SUBMISSION_STATS_ORIGIN_API = "API: submissionStats";
 const NODE_VIEW = {
     submissionID: "$submissionID",
     nodeType: "$nodeType",
@@ -81,6 +82,7 @@ class DataRecordService {
                     qcResultErrorRecords.push({
                         fileName: node?.s3FileInfo?.fileName,
                         dataRecordID: node?._id,
+                        origin: SUBMISSION_STATS_ORIGIN_API,
                         error: {
                             title: ERRORS.MISSING_DATA_FILE.TITLE,
                             desc: ERRORS.MISSING_DATA_FILE.CONTENTS
