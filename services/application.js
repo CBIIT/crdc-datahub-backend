@@ -268,12 +268,13 @@ class Application {
         }
 
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, APPROVED, document.comment);
+        const questionnaire = getApplicationQuestionnaire(application);
+        application.conditional = (questionnaire?.accessTypes?.includes("Controlled Access") && !questionnaire?.study?.dbGaPPPHSNumber);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
             $push: {history}
         });
-        const questionnaire = getApplicationQuestionnaire(application);
-        application.conditional = !questionnaire?.study?.dbGaPPPHSNumber;
+        
         let promises = [];
         promises.push(this.institutionService.addNewInstitutions(document.institutions));
         promises.push(this.sendEmailAfterApproveApplication(context, application));
