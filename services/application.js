@@ -437,7 +437,7 @@ class Application {
                 study: setDefaultIfNoName(application?.studyName),
                 contactEmail: this.emailParams?.conditionalSubmissionContact,
                 url: this.emailParams?.submissionGuideURL,
-                approverNotes: comment?.trim().length > 0 ? comment?.trim() : "N/A"
+                approverNotes: comment
         });
     }
 }

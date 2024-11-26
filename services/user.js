@@ -79,6 +79,17 @@ class UserService {
         }]);
     }
 
+    async getOrgOwner(orgID) {
+        let result = await this.userCollection.aggregate([{
+            "$match": {
+                "organization.orgID": orgID,
+                role: USER.ROLES.ORG_OWNER,
+                userStatus: USER.STATUSES.ACTIVE
+            }
+        }]);
+        return result;
+    }
+
     async getConcierge(orgID) {
         let result = await this.userCollection.aggregate([{
             "$match": {

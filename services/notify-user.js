@@ -113,6 +113,7 @@ class NotifyUser {
         const message = replaceMessageVariables(this.email_constants.CONDITIONAL_APPROVE_CONTENT_FIRST, messageVariables);
         const secondMessage = replaceMessageVariables(this.email_constants.CONDITIONAL_APPROVE_CONTENT_FIRST, messageVariables);
         const subject = this.email_constants.CONDITIONAL_APPROVE_SUBJECT;
+        const approverNotes = templateParams?.approverNotes?.trim();
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
@@ -120,6 +121,8 @@ class NotifyUser {
                 await createEmailTemplate("notification-template-submission-request.html", {
                     message,
                     secondMessage,
+                    approverNotes: approverNotes.length > 0 ? approverNotes : "N/A",
+                    contactEmail: templateParams?.contactEmail,
                     ...sanitizeHtml(templateParams, {allowedTags: [],allowedAttributes: {}})
                 }),
                 email,
