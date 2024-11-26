@@ -119,8 +119,10 @@ class NotifyUser {
                 this.email_constants.NOTIFICATION_SENDER,
                 isTierAdded(tier) ? `${tier} ${subject}` : subject,
                 await createEmailTemplate("notification-template-submission-request.html", {
+                    firstName: templateParams?.firstName,
                     message,
                     secondMessage,
+                    url: templateParams?.url,
                     approverNotes: approverNotes?.length > 0 ? approverNotes : "N/A",
                     contactEmail: templateParams?.contactEmail,
                     ...sanitizeHtml(templateParams, {allowedTags: [],allowedAttributes: {}})
