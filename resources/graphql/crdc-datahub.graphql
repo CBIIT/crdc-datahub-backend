@@ -20,7 +20,9 @@ type Application {
     # questionnaire data as JSON string
     questionnaireData: String
     PI: String
-    openAccess: Boolean
+    openAccess: Boolean,
+    conditional: Boolean,
+    pendingConditions: [String]
 }
 
 type Event {

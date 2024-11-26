@@ -4,7 +4,7 @@ const {join} = require("path");
 const cors = require('cors');
 const logger = require('morgan');
 const createError = require('http-errors');
-const config = require('./config');
+const configuration = require('./config');
 const cronJob = require("node-cron");
 const createSession = require("./crdc-datahub-database-drivers/session-middleware");
 const statusRouter = require("./routers/status-endpoints-router");
@@ -12,7 +12,7 @@ const graphqlRouter = require("./routers/graphql-router");
 const {MongoDBCollection} = require("./crdc-datahub-database-drivers/mongodb-collection");
 const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, LOG_COLLECTION, APPROVED_STUDIES_COLLECTION,
     ORGANIZATION_COLLECTION, SUBMISSIONS_COLLECTION, BATCH_COLLECTION, DATA_RECORDS_COLLECTION, VALIDATION_COLLECTION,
-    CONFIGURATION_COLLECTION, DATA_RECORDS_ARCHIVE_COLLECTION
+    DATA_RECORDS_ARCHIVE_COLLECTION, QC_RESULTS_COLLECTION
 } = require("./crdc-datahub-database-drivers/database-constants");
 const {Application} = require("./services/application");
 const {Submission} = require("./services/submission");
@@ -20,7 +20,7 @@ const {DataRecordService} = require("./services/data-record-service");
 const {S3Service} = require("./crdc-datahub-database-drivers/services/s3-service");
 const {MongoQueries} = require("./crdc-datahub-database-drivers/mongo-queries");
 const {DatabaseConnector} = require("./crdc-datahub-database-drivers/database-connector");
-const {getCurrentTime, subtractDaysFromNow} = require("./crdc-datahub-database-drivers/utility/time-utility");
+const {getCurrentTime} = require("./crdc-datahub-database-drivers/utility/time-utility");
 const {EmailService} = require("./services/email");
 const {NotifyUser} = require("./services/notify-user");
 const {User} = require("./crdc-datahub-database-drivers/services/user");
@@ -32,10 +32,9 @@ const {LOGIN, REACTIVATE_USER} = require("./crdc-datahub-database-drivers/consta
 const {BatchService} = require("./services/batch-service");
 const {AWSService} = require("./services/aws-request");
 const {UtilityService} = require("./services/utility");
-const authenticationMiddleware = require("./middleware/authentication-middleware");
-const {ConfigurationService} = require("./services/configurationService");
+const {QcResultService} = require("./services/qc-result-service");
 // print environment variables to log
-console.info(config);
+console.info(configuration);
 
 // create logs folder if it does not already exist
 const LOGS_FOLDER = 'logs';
@@ -56,7 +55,7 @@ app.use(express.static(join(__dirname, 'public')));
 app.use("/", statusRouter);
 
 // create session
-app.use(createSession(config.session_secret, config.session_timeout, config.mongo_db_connection_string));
+app.use(createSession(configuration.session_secret, configuration.session_timeout, configuration.mongo_db_connection_string));
 
 // // authentication middleware
 // app.use(async (req, res, next) => {
@@ -70,22 +69,18 @@ app.use(createSession(config.session_secret, config.session_timeout, config.mong
 
 // add graphql endpoint
 app.use("/api/graphql", graphqlRouter);
-const INACTIVE_SUBMISSION_DAYS = "Inactive_Submission_Notify_Days";
-cronJob.schedule(config.schedule_job, async () => {
-    const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
-    const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
-    const emailService = new EmailService(config.email_transport, config.emails_enabled);
-    const notificationsService = new NotifyUser(emailService);
+cronJob.schedule(configuration.schedule_job, async () => {
+    const dbConnector = new DatabaseConnector(configuration.mongo_db_connection_string);
+    const dbService = new MongoQueries(configuration.mongo_db_connection_string, DATABASE_NAME);
     dbConnector.connect().then( async () => {
+        const config = await configuration.updateConfig(dbConnector);
+        const emailService = new EmailService(config.email_transport, config.emails_enabled);
+        const notificationsService = new NotifyUser(emailService, config.committee_emails);
         const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
         const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
 
-        const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
-        const configurationService = new ConfigurationService(configurationCollection)
-        const inactiveSubmissionConf = await configurationService.findByType(INACTIVE_SUBMISSION_DAYS);
-        const inactiveSubmissionsTimeout = Array.isArray(inactiveSubmissionConf?.timeout) && inactiveSubmissionConf?.timeout?.length > 0 ? inactiveSubmissionConf?.timeout : [7, 30, 60];
         const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days,
-            submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk, remindSubmissionDay: inactiveSubmissionsTimeout,
+            submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk, remindSubmissionDay: config.inactiveSubmissionNotifyDays,
             finalRemindSubmissionDay: config.inactive_submission_days || 120};
         const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
         const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
@@ -94,16 +89,19 @@ cronJob.schedule(config.schedule_job, async () => {
         const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
         const organizationService = new Organization(organizationCollection);
         const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
-        const userService = new User(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.tier);
+        const userService = new User(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.tier, config.inactive_user_days);
 
         const s3Service = new S3Service();
         const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
-        const awsService = new AWSService(submissionCollection, userService);
+        const awsService = new AWSService(submissionCollection, userService, config.role_arn, config.presign_expiration);
         const batchService = new BatchService(s3Service, batchCollection, config.sqs_loader_queue, awsService);
+
+        const qcResultCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, QC_RESULTS_COLLECTION);
+        const qcResultsService = new QcResultService(qcResultCollection, submissionCollection);
 
         const dataRecordCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_COLLECTION);
         const dataRecordArchiveCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_ARCHIVE_COLLECTION);
-        const dataRecordService = new DataRecordService(dataRecordCollection, dataRecordArchiveCollection, config.file_queue, config.metadata_queue, awsService);
+        const dataRecordService = new DataRecordService(dataRecordCollection, dataRecordArchiveCollection, config.file_queue, config.metadata_queue, awsService, s3Service, qcResultsService, config.export_queue);
 
         const utilityService = new UtilityService();
         const dataModelInfo = await utilityService.fetchJsonFromUrl(config.model_url);

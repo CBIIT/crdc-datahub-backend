@@ -22,7 +22,7 @@ const NA = "NA"
 const config = require("../config");
 const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
-const {isUndefined, replaceErrorString} = require("../utility/string-util");
+const {isUndefined, replaceErrorString, isValidFileExtension} = require("../utility/string-util");
 const {NODE_RELATION_TYPES} = require("./data-record-service");
 const {verifyToken} = require("../verifier/token-verifier");
 const {verifyValidationResultsReadPermissions} = require("../verifier/permissions-verifier");
@@ -40,6 +40,7 @@ const FINAL_INACTIVE_REMINDER = "finalInactiveReminder";
 const SUBMISSION_ID = "Submission ID";
 const DATA_SUBMISSION_TYPE = "Data Submission Type";
 const DESTINATION_LOCATION = "Destination Location";
+const SUBMISSION_STATS_ORIGIN_API = "API: submissionStats";
 // Set to array
 Set.prototype.toArray = function() {
     return Array.from(this);
@@ -167,6 +168,13 @@ class Submission {
 
         if (params?.type === BATCH.TYPE.DATA_FILE && (!aSubmission.dataCommons || !aSubmission.studyID)) {
             throw new Error(ERROR.MISSING_REQUIRED_SUBMISSION_DATA);
+        }
+
+        const invalidFiles = params?.files
+            .filter((fileName) => !isValidFileExtension(fileName))
+            .map((fileName) => `'${fileName}'`);
+        if (invalidFiles.length > 0) {
+            throw new Error(replaceErrorString(ERROR.INVALID_FILE_EXTENSION, invalidFiles?.join(",")));
         }
 
         const result = await this.batchService.createBatch(params, aSubmission, userInfo);
@@ -1274,6 +1282,7 @@ class Submission {
             .filter(fileName => !qcResultFileNames.has(fileName))
             .map(fileName => ({
                 fileName,
+                origin: SUBMISSION_STATS_ORIGIN_API,
                 dataRecordID: null,
                 error: {
                     title: ERROR.MISSING_DATA_NODE_FILE_TITLE,
