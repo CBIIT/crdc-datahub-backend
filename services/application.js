@@ -268,16 +268,20 @@ class Application {
         }
 
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, APPROVED, document.comment);
+        const questionnaire = getApplicationQuestionnaire(application);
+        application.conditional = (questionnaire?.accessTypes?.includes("Controlled Access") && !questionnaire?.study?.dbGaPPPHSNumber);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
             $push: {history}
         });
+        
         let promises = [];
         promises.push(this.institutionService.addNewInstitutions(document.institutions));
         promises.push(this.sendEmailAfterApproveApplication(context, application));
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             promises.unshift(this.getApplicationById(document._id));
-            promises.push(saveApprovedStudies(this.approvedStudiesService, this.organizationService, application));
+            if(questionnaire)
+                promises.push(saveApprovedStudies(this.approvedStudiesService, this.organizationService, application, questionnaire));
             promises.push(this.logCollection.insert(
                 UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, APPROVED)
             ));
@@ -442,7 +446,8 @@ class Application {
         }, {
             study: application?.studyAbbreviation,
             doc_url: this.emailParams.url,
-            contact_detail: contact_detail
+            contact_detail: contact_detail,
+            conditional: application?.conditional ? true: false
         })
     }
 }
@@ -530,12 +535,7 @@ const sendEmails = {
     }
 }
 
-const saveApprovedStudies = async (approvedStudiesService, organizationService, aApplication) => {
-    const questionnaire = parseJsonString(aApplication?.questionnaireData);
-    if (!questionnaire) {
-        console.error(ERROR.FAILED_STORE_APPROVED_STUDIES + ` id=${aApplication?._id}`);
-        return;
-    }
+const saveApprovedStudies = async (approvedStudiesService, organizationService, aApplication, questionnaire) => {
     // use study name when study abbreviation is not available
     const studyAbbreviation = !!aApplication?.studyAbbreviation?.trim() ? aApplication?.studyAbbreviation : questionnaire?.study?.name;
     const controlledAccess = aApplication?.controlledAccess;
@@ -544,10 +544,19 @@ const saveApprovedStudies = async (approvedStudiesService, organizationService, 
     }
     const savedApprovedStudy = await approvedStudiesService.storeApprovedStudies(
         aApplication?.studyName, studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name, controlledAccess, aApplication?.ORCID,
-        aApplication?.PI, aApplication?.openAccess
+        aApplication?.PI, aApplication?.openAccess, aApplication.programName
     );
 
     await organizationService.storeApprovedStudies(aApplication?.organization?._id, savedApprovedStudy?._id);
+}
+
+const getApplicationQuestionnaire = (aApplication) => {
+    const questionnaire = parseJsonString(aApplication?.questionnaireData);
+    if (!questionnaire) {
+        console.error(ERROR.FAILED_STORE_APPROVED_STUDIES + ` id=${aApplication?._id}`);
+        return null;
+    }
+    return questionnaire;
 }
 
 module.exports = {
