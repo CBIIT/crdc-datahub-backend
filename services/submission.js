@@ -82,13 +82,13 @@ class Submission {
         if (!approvedStudy) {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
         }
-        if (approvedStudy.controlledAccess && !params.dbGaPID?.trim()?.length) {
+        if (approvedStudy.controlledAccess && !approvedStudy?.dbGaPID) {
             throw new Error(ERROR.MISSING_CREATE_SUBMISSION_DBGAPID);
         }
         const latestDataModel = await this.fetchDataModelInfo();
         const modelVersion = this.#getModelVersion(latestDataModel, params.dataCommons);
         const newSubmission = DataSubmission.createSubmission(
-            params.name, context.userInfo, params.dataCommons, params.studyID, params.dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy);
+            params.name, context.userInfo, params.dataCommons, params.studyID, approvedStudy?.dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy);
         const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
