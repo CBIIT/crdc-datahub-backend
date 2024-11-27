@@ -99,11 +99,10 @@ let config = {
         // TIER
         const tierConf = await configurationService.findByType(TIER);
         // AWS_SQS_QUEUE
-        const awsQueuesConf = await configurationService.findByType(AWS_SQS_QUEUE);
-        const loaderQueueConf = awsQueuesConf?.[LOADER_QUEUE];
-        const metadataQueueConf = awsQueuesConf?.[METADATA_QUEUE];
-        const fileQueueConf = awsQueuesConf?.[FILE_QUEUE];
-        const exporterQueueConf = awsQueuesConf?.[EXPORTER_QUEUE];
+        const loaderQueueConf = await configurationService.findByType(LOADER_QUEUE);
+        const fileQueueConf = await configurationService.findByType(FILE_QUEUE);
+        const metadataQueueConf = await configurationService.findByType(METADATA_QUEUE);
+        const exporterQueueConf = await configurationService.findByType(EXPORTER_QUEUE);
         // SUBMISSION
         const dataCommonsListConf = await configurationService.findByType(DATA_COMMONS_LIST);
         const hiddenModelsConf = await configurationService.findByType(HIDDEN_MODELS);
@@ -126,12 +125,12 @@ let config = {
             submission_bucket: process.env.SUBMISSION_BUCKET,
             role_timeout: roleTimeoutConf || (parseInt(process.env.ROLE_TIMEOUT) || 12*3600),
             presign_expiration: preSignExpirationConf || (parseInt(process.env.PRESIGN_EXPIRATION) || 3600),
-            tier: getTier(tierConf?.key),
+            tier: getTier(tierConf?.keys?.tier),
             // aws SQS names
-            sqs_loader_queue: loaderQueueConf || (process.env.LOADER_QUEUE || "crdcdh-queue"),
-            metadata_queue: metadataQueueConf || process.env.METADATA_QUEUE,
-            file_queue: fileQueueConf || process.env.FILE_QUEUE,
-            export_queue: exporterQueueConf || process.env.EXPORTER_QUEUE,
+            sqs_loader_queue: loaderQueueConf?.keys?.sqs || (process.env.LOADER_QUEUE || "crdcdh-queue"),
+            metadata_queue: metadataQueueConf?.keys?.sqs || process.env.METADATA_QUEUE,
+            file_queue: fileQueueConf?.keys?.sqs || process.env.FILE_QUEUE,
+            export_queue: exporterQueueConf?.keys?.sqs || process.env.EXPORTER_QUEUE,
             //CRDC Review Committee Emails, separated by ","
             committee_emails: reviewCommitteeEmailConf || (process.env.REVIEW_COMMITTEE_EMAIL ? (reviewCommitteeEmailConf || process.env.REVIEW_COMMITTEE_EMAIL)?.split(',') : ["CRDCSubmisison@nih.gov"]),
             model_url: modelURLConf || getModelUrl(tierConf?.key),

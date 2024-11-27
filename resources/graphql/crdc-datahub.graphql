@@ -201,6 +201,7 @@ type ApprovedStudy {
     PI: String
     ORCID: String
     createdAt: Date
+    programName: String
 }
 
 type ApprovedStudyList {
