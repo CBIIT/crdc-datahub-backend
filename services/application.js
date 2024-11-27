@@ -275,7 +275,7 @@ class Application {
         let promises = [];
         promises.push(this.institutionService.addNewInstitutions(document.institutions));
         // TODO add conditional approval condition
-        promises.push(this.sendEmailAfterApproveApplication(context, application, document?.comment));
+        promises.push(this.sendEmailAfterApproveApplication(context, application, this.tier, document?.comment));
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             promises.unshift(this.getApplicationById(document._id));
             promises.push(saveApprovedStudies(this.approvedStudiesService, this.organizationService, application));
@@ -399,7 +399,7 @@ class Application {
         }
     }
 
-    async sendEmailAfterApproveApplication(context, application, comment, conditional = false) {
+    async sendEmailAfterApproveApplication(context, application, tier, comment, conditional = false) {
         const res = await Promise.all([
             this.userService.getOrgOwner(application?.organization?._id),
             this.userService.getConcierge(application?.organization?._id),
@@ -427,18 +427,20 @@ class Application {
                     firstName: application?.applicant?.applicantName
                 }, {
                     contact_detail: contactDetail
-            });
+            }, tier);
             return;
         }
         await this.notificationService.conditionalApproveQuestionNotification(application?.applicant?.applicantEmail,
             new Set([...fedLeadsEmails, ...orgOwnerEmails, ...adminUsersEmails]).toArray(),
             {
                 firstName: application?.applicant?.applicantName,
-                study: setDefaultIfNoName(application?.studyName),
                 contactEmail: this.emailParams?.conditionalSubmissionContact,
                 url: this.emailParams?.submissionGuideURL,
                 approverNotes: comment
-        });
+            },
+            {study: setDefaultIfNoName(application?.studyName)},
+            tier
+        );
     }
 }
 

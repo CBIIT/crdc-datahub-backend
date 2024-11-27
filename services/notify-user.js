@@ -111,7 +111,7 @@ class NotifyUser {
 
     async conditionalApproveQuestionNotification(email, emailCCs, templateParams, messageVariables, tier) {
         const message = replaceMessageVariables(this.email_constants.CONDITIONAL_APPROVE_CONTENT_FIRST, messageVariables);
-        const secondMessage = replaceMessageVariables(this.email_constants.CONDITIONAL_APPROVE_CONTENT_FIRST, messageVariables);
+        const secondMessage = replaceMessageVariables(this.email_constants.CONDITIONAL_APPROVE_CONTENT_SECOND, messageVariables);
         const subject = this.email_constants.CONDITIONAL_APPROVE_SUBJECT;
         const approverNotes = templateParams?.approverNotes?.trim();
         return await this.send(async () => {
