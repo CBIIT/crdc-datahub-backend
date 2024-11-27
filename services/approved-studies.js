@@ -133,8 +133,7 @@ class ApprovedStudiesService {
      */
     async listApprovedStudiesAPI(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyRole([USER.ROLES.ADMIN]);
+            .verifyInitialized();
         
         const {
             controlledAccess,
