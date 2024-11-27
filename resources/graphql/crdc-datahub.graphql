@@ -715,7 +715,7 @@ type Mutation {
 
     requestAccess(
         role: String!
-        organization: String!, # organizationID
+        studies: [String]!, # Approved Studies IDs
         additionalInfo: String,
     ): AsyncProcessResult
 }
