@@ -39,6 +39,7 @@ const AuthenticationService = require("../services/authentication-service");
 const {apiAuthorization, extractAPINames, PUBLIC} = require("./api-authorization");
 const {QcResultService} = require("../services/qc-result-service");
 const {UserService} = require("../services/user");
+const sanitizeHtml = require("sanitize-html");
 const public_api_list = extractAPINames(schema, PUBLIC)
 const INACTIVE_SUBMISSION_DAYS = "Inactive_Submission_Notify_Days";
 let root;
@@ -105,7 +106,10 @@ dbConnector.connect().then(async () => {
         getMyLastApplication: dataInterface.getMyLastApplication.bind(dataInterface),
         listApplications: dataInterface.listApplications.bind(dataInterface),
         submitApplication: dataInterface.submitApplication.bind(dataInterface),
-        approveApplication: dataInterface.approveApplication.bind(dataInterface),
+        approveApplication:  async (params, context)=> {
+            const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
+            return dataInterface.approveApplication({...params, comment}, context);
+        },
         rejectApplication: dataInterface.rejectApplication.bind(dataInterface),
         inquireApplication: dataInterface.inquireApplication.bind(dataInterface),
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),

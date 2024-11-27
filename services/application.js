@@ -269,16 +269,15 @@ class Application {
 
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, APPROVED, document.comment);
         const questionnaire = getApplicationQuestionnaire(application);
-        application.conditional = (questionnaire?.accessTypes?.includes("Controlled Access") && !questionnaire?.study?.dbGaPPPHSNumber);
+        const approvalConditional = (questionnaire?.accessTypes?.includes("Controlled Access") && !questionnaire?.study?.dbGaPPPHSNumber);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
             $push: {history}
         });
 
         let promises = [];
-        promises.push(this.institutionService.addNewInstitutions(document.institutions));
-        // TODO add conditional approval condition
-        promises.push(this.sendEmailAfterApproveApplication(context, application, this.tier, document?.comment));
+        promises.push(this.institutionService.addNewInstitutions(document?.institutions));
+        promises.push(this.sendEmailAfterApproveApplication(context, application, this.tier, document?.comment, approvalConditional));
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             promises.unshift(this.getApplicationById(document._id));
             if(questionnaire)
@@ -413,25 +412,29 @@ class Application {
         const [orgOwners, concierges, adminUsers, fedLeads] = res;
         const [orgOwnerEmails, conciergesEmails,adminUsersEmails,fedLeadsEmails]
             = [getUserEmails(orgOwners), getUserEmails(concierges), getUserEmails(adminUsers), getUserEmails(fedLeads)];
-        // contact detail
-        let contactDetail = `either your organization ${orgOwnerEmails?.join(";")} or your CRDC Data Team member ${conciergesEmails?.join(";")}.`
-        if(orgOwnerEmails.length === 0 && conciergesEmails.length === 0){
-            contactDetail = `the Submission Helpdesk ${this.emailParams?.submissionHelpdesk}`
-        } else if(orgOwnerEmails.length === 0) {
-            contactDetail = `your CRDC Data Team member ${conciergesEmails.join(";")}`
-        } else if(conciergesEmails.length === 0) {
-            contactDetail = `either your organization ${orgOwnerEmails.join(";")} or the Submission Helpdesk ${this.emailParams?.submissionHelpdesk}`
-        }
+
         if (!conditional) {
-            const ccEmails = conciergesEmails.length > 0 ? conciergesEmails : adminUsersEmails
+            // contact detail
+            let contactDetail = `either your organization ${orgOwnerEmails?.join(";")} or your CRDC Data Team member ${conciergesEmails?.join(";")}.`
+            if(orgOwnerEmails.length === 0 && conciergesEmails.length === 0){
+                contactDetail = `the Submission Helpdesk ${this.emailParams?.submissionHelpdesk}`
+            } else if(orgOwnerEmails.length === 0) {
+                contactDetail = `your CRDC Data Team member ${conciergesEmails.join(";")}`
+            } else if(conciergesEmails.length === 0) {
+                contactDetail = `either your organization ${orgOwnerEmails.join(";")} or the Submission Helpdesk ${this.emailParams?.submissionHelpdesk}`
+            }
+            const ccEmails =[...conciergesEmails, ...orgOwnerEmails];
+            const toCCs = ccEmails.length > 0 ? ccEmails : adminUsersEmails
             await this.notificationService.approveQuestionNotification(application?.applicant?.applicantEmail,
                 // Organization Owner and concierges assigned/Super Admin
-                new Set([...conciergesEmails, ...ccEmails]).toArray(),
+                new Set([...toCCs]).toArray(),
+                {firstName: application?.applicant?.applicantName},
                 {
-                    firstName: application?.applicant?.applicantName
-                }, {
-                    contact_detail: contactDetail
-            }, tier);
+                    study: application?.studyAbbreviation,
+                    doc_url: this.emailParams.url,
+                    contact_detail: contactDetail,
+                },
+                tier);
             return;
         }
         await this.notificationService.conditionalApproveQuestionNotification(application?.applicant?.applicantEmail,

@@ -124,8 +124,7 @@ class NotifyUser {
                     secondMessage,
                     url: templateParams?.url,
                     approverNotes: approverNotes?.length > 0 ? approverNotes : "N/A",
-                    contactEmail: templateParams?.contactEmail,
-                    ...sanitizeHtml(templateParams, {allowedTags: [],allowedAttributes: {}})
+                    contactEmail: templateParams?.contactEmail
                 }),
                 email,
                 emailCCs
