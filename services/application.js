@@ -111,7 +111,9 @@ class Application {
             },
             history: [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)],
             createdAt: timestamp,
-            updatedAt: timestamp
+            updatedAt: timestamp,
+            programAbbreviation: application?.programAbbreviation,
+            programDescription: application?.programDescription
         };
         application = {
             ...application,
