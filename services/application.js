@@ -194,10 +194,15 @@ class Application {
             .verifyInitialized()
             .verifyRole([USER.ROLES.SUBMITTER, USER.ROLES.FEDERAL_LEAD])
         const application = await this.getApplicationById(params._id);
+        let validStatus = [];
+        if (context?.userInfo?.role === USER.ROLES.SUBMITTER) {
+            validStatus = [NEW, IN_PROGRESS];
+        } else if (context?.userInfo?.role === USER.ROLES.FEDERAL_LEAD) {
+            validStatus = [INQUIRED, IN_PROGRESS];
+        }
         verifyApplication(application)
             .notEmpty()
-            // Submitter or Fed Leads only can submit under certain application status
-            .state(context?.userInfo?.role === USER.ROLES.SUBMITTER ? [NEW, IN_PROGRESS] : [INQUIRED, IN_PROGRESS]);
+            .state(validStatus);
         // In Progress -> In Submitted
         const history = application.history || [];
         const historyEvent = HistoryEventBuilder.createEvent(context.userInfo._id, SUBMITTED, null);
