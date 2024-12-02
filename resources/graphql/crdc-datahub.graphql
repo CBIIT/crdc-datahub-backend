@@ -221,7 +221,7 @@ type User {
   dataCommons: [String] # Applies to Data Commons POC role only. Empty for other roles.
   createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
   updateAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
-  studies: [String]
+  studies: [ApprovedStudy]
 }
 
 type UserInfo {
@@ -680,7 +680,6 @@ type Mutation {
     
     editUser(
       userID: ID!,
-      organization: String, # Organization ID
       status: String, # in [Active, Inactive]
       role: String,
       dataCommons: [String], # Applies to Data Commons POC role only. Empty for other roles.
