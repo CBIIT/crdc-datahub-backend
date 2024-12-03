@@ -47,7 +47,7 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList, hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList, hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, approvedStudiesCollection) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -66,6 +66,7 @@ class Submission {
         this.validationCollection = validationCollection;
         this.sqsLoaderQueue = sqsLoaderQueue;
         this.qcResultsService = qcResultsService;
+        this.approvedStudiesCollection = approvedStudiesCollection;
     }
 
     async createSubmission(params, context) {
@@ -78,11 +79,21 @@ class Submission {
         validateCreateSubmissionParams(params, this.allowedDataCommons, this.hiddenDataCommons, intention, dataType, context?.userInfo);
 
         const aUserOrganization = await this.organizationService.getOrganizationByID(context.userInfo?.organization?.orgID, false);
-        const approvedStudy = aUserOrganization.studies.find((study) => study?._id === params.studyID);
-        if (!approvedStudy) {
+        const user = await this.userService.userCollection.find(context.userInfo._id);
+        if (!user?.studies || user.studies.length === 0){
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
         }
-        if (approvedStudy.controlledAccess && !approvedStudy?.dbGaPID) {
+        const study = (user.studies[0] instanceof Object)? user.studies.find((study) => study._id === params.studyID) : user.studies.find((study) => study === params.studyID);
+        if (!study) {
+            throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
+        }
+        const studyID = (study instanceof Object)? study._id : study;
+        const approvedStudies = await this.#findApprovedStudies([studyID]); 
+
+        if (approvedStudies.length === 0) {
+            throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_APPROVED_STUDY);
+        }
+        if (approvedStudies[0].controlledAccess && !approvedStudies[0]?.dbGaPID) {
             throw new Error(ERROR.MISSING_CREATE_SUBMISSION_DBGAPID);
         }
         const latestDataModel = await this.fetchDataModelInfo();
@@ -94,6 +105,16 @@ class Submission {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
         }
         return newSubmission;
+    }
+    async #findApprovedStudies(studies) {
+        if (!studies || studies.length === 0) return [];
+        const studiesIDs = (studies[0] instanceof Object) ? studies.map((study) => study?._id) : studies;
+        const approvedStudies = await this.approvedStudiesCollection.aggregate([{
+            "$match": {
+                "_id": { "$in": studiesIDs } 
+            }
+        }]);
+        return approvedStudies;
     }
 
     async listSubmissions(params, context) {
