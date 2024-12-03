@@ -669,13 +669,17 @@ type Mutation {
         name: String!, # BE needs to check uniqueness of the new name
         conciergeID: String, # BE needs to save ID, email and name (first + last) of the concierge
         studies: [ApprovedStudyInput], # Will replace the list in the DB
+        abbreviation: String!,
+        description: String
     ) : UserOrganization
     editOrganization(
         orgID: ID!,
         name: String, # BE needs to check uniqueness of the new name
         conciergeID: String, # BE needs to save ID, email and name (first + last) of the concierge
         studies: [ApprovedStudyInput], # Will replace the list in the DB
-        status: String # in [Active, Inactive]
+        status: String, # in [Active, Inactive]
+        abbreviation: String,
+        description: String
     ): UserOrganization
     
     editUser(
