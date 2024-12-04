@@ -60,7 +60,7 @@ dbConnector.connect().then(async () => {
 
     const userService = new User(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, config.tier, approvedStudiesCollection, config.inactive_user_days);
     // TODO move userService
-    const userBEService = new UserService(userCollection, logCollection, organizationCollection, organizationService, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, config.tier, approvedStudiesService);
+    const userBEService = new UserService(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, config.tier, approvedStudiesService, approvedStudiesCollection);
     const s3Service = new S3Service();
     const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
     const awsService = new AWSService(submissionCollection, userService, config.role_arn, config.presign_expiration);
@@ -146,7 +146,7 @@ dbConnector.connect().then(async () => {
         getUser : userService.getUser.bind(userService),
         updateMyUser : userService.updateMyUser.bind(userService),
         listUsers : userService.listUsers.bind(userService),
-        editUser : userService.editUser.bind(userService),
+        editUser : userBEService.editUser.bind(userBEService),
         grantToken : userService.grantToken.bind(userService),
         listActiveCurators: userService.listActiveCuratorsAPI.bind(userService),
         listOrganizations : organizationService.listOrganizationsAPI.bind(organizationService),
