@@ -13,6 +13,7 @@ const INACTIVE_APPLICATION_DAYS= "INACTIVE_APPLICATION_DAYS";
 const REMIND_APPLICATION_DAYS = "REMIND_APPLICATION_DAYS";
 const SUBMISSION_SYSTEM_PORTAL = "SUBMISSION_SYSTEM_PORTAL";
 const SUBMISSION_HELPDESK = "SUBMISSION_HELPDESK";
+const SUBMISSION_REQUEST_EMAIL = "SUBMISSION_REQUEST_CONTACT_EMAIL";
 const TECH_SUPPORT_EMAIL = "TECH_SUPPORT_EMAIL";
 const INACTIVE_USER_DAYS = "INACTIVE_USER_DAYS";
 const SUBMISSION_DOC_URL = "SUBMISSION_DOC_URL";
@@ -26,6 +27,7 @@ const FILE_QUEUE = "FILE_QUEUE";
 const EXPORTER_QUEUE = "EXPORTER_QUEUE";
 const REVIEW_COMMITTEE_EMAIL = "REVIEW_COMMITTEE_EMAIL";
 const MODEL_URL = "MODEL_URL";
+const SUBMISSION_GUIDE_URL = "SUBMISSION_GUIDE_URL";
 const DATA_COMMONS_LIST = "DATA_COMMONS_LIST";
 const HIDDEN_MODELS = "HIDDEN_MODELS";
 const COMPLETED_RETENTION_DAYS = "COMPLETED_RETENTION_DAYS";
@@ -80,6 +82,7 @@ let config = {
         const reviewCommitteeEmailConf = listEmailsConf?.[REVIEW_COMMITTEE_EMAIL];
         const techSupportEmailConf = listEmailsConf?.[TECH_SUPPORT_EMAIL];
         const submissionHelpdeskConf = listEmailsConf?.[SUBMISSION_HELPDESK];
+        const submissionRequestEmailConf = listEmailsConf?.[SUBMISSION_REQUEST_EMAIL];
         // LIST_OF_URLS
         const listURLsConf = await configurationService.findByType(LIST_OF_URLS);
         const emailURLConf = listURLsConf?.[EMAIL_URL];
@@ -87,6 +90,7 @@ let config = {
         const submissionSystemPortalConf = listURLsConf?.[SUBMISSION_SYSTEM_PORTAL];
         const prodUrlConf = listURLsConf?.[PROD_URL];
         const modelURLConf = listURLsConf?.[MODEL_URL];
+        const submissionGuideURLConf = listURLsConf?.[SUBMISSION_GUIDE_URL];
         // TIMEOUT
         const timeoutConf = await configurationService.findByType(TIMEOUT);
         const roleTimeoutConf = timeoutConf?.[ROLE_TIMEOUT];
@@ -137,7 +141,9 @@ let config = {
             inactive_submission_days: inactiveSubmissionDaysConf || (process.env.INACTIVE_SUBMISSION_DAYS_DELETE || 120),
             completed_submission_days: completedSubmissionDaysConf || (process.env.COMPLETED_RETENTION_DAYS || 30),
             dashboardSessionTimeout: dashboardSessionTimeoutConf || (process.env.DASHBOARD_SESSION_TIMEOUT || 3600), // 60 minutes by default
-            inactiveSubmissionNotifyDays: inactiveSubmissionNotifyDaysConf || [7, 30, 60] // 7, 30, 60 days by default
+            inactiveSubmissionNotifyDays: inactiveSubmissionNotifyDaysConf || [7, 30, 60], // 7, 30, 60 days by default
+            conditionalSubmissionContact: submissionRequestEmailConf || "NCICRDC@mail.nih.gov",
+            submissionGuideUrl: submissionGuideURLConf || "https://datacommons.cancer.gov/data-submission-instructions"
         };
     }
 }

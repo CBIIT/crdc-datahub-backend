@@ -90,6 +90,40 @@ class UserService {
             }
         }]);
     }
+
+    async getOrgOwner(orgID) {
+        let result = await this.userCollection.aggregate([{
+            "$match": {
+                "organization.orgID": orgID,
+                role: USER.ROLES.ORG_OWNER,
+                userStatus: USER.STATUSES.ACTIVE
+            }
+        }]);
+        return result;
+    }
+
+    async getConcierge(orgID) {
+        let result = await this.userCollection.aggregate([{
+            "$match": {
+                "organization.orgID": orgID,
+                role: USER.ROLES.CURATOR
+            }
+        }]);
+        return result;
+    }
+
+    /**
+     * Retrieves user documents from the userCollection for a Federal Lead role.
+     * @returns {Array} - An array of user documents.
+     */
+    async getFedLeads() {
+        return await this.userCollection.aggregate([{
+            "$match": {
+                role: USER.ROLES.FEDERAL_LEAD,
+                userStatus: USER.STATUSES.ACTIVE
+            }
+        }]);
+    }
 }
 
 module.exports = {

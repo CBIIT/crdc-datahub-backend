@@ -39,6 +39,7 @@ const AuthenticationService = require("../services/authentication-service");
 const {apiAuthorization, extractAPINames, PUBLIC} = require("./api-authorization");
 const {QcResultService} = require("../services/qc-result-service");
 const {UserService} = require("../services/user");
+const sanitizeHtml = require("sanitize-html");
 const public_api_list = extractAPINames(schema, PUBLIC)
 const INACTIVE_SUBMISSION_DAYS = "Inactive_Submission_Notify_Days";
 let root;
@@ -85,10 +86,10 @@ dbConnector.connect().then(async () => {
     const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
     const configurationService = new ConfigurationService(configurationCollection)
     const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days,
-        submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk, remindSubmissionDay: config.inactiveSubmissionNotifyDays, techSupportEmail: config.techSupportEmail};
+        submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk, remindSubmissionDay: config.inactiveSubmissionNotifyDays, techSupportEmail: config.techSupportEmail, conditionalSubmissionContact: config.conditionalSubmissionContact, submissionGuideURL: config.submissionGuideUrl};
 
     const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, fetchDataModelInfo, awsService, config.export_queue, s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService);
-    const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.tier, institutionService);
+    const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userBEService, dbService, notificationsService, emailParams, organizationService, config.tier, institutionService);
 
     const dashboardService = new DashboardService(userService, awsService, configurationService, {sessionTimeout: config.dashboardSessionTimeout});
     userInitializationService = new UserInitializationService(userCollection, organizationCollection, approvedStudiesCollection);
@@ -105,7 +106,10 @@ dbConnector.connect().then(async () => {
         getMyLastApplication: dataInterface.getMyLastApplication.bind(dataInterface),
         listApplications: dataInterface.listApplications.bind(dataInterface),
         submitApplication: dataInterface.submitApplication.bind(dataInterface),
-        approveApplication: dataInterface.approveApplication.bind(dataInterface),
+        approveApplication:  async (params, context)=> {
+            const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
+            return dataInterface.approveApplication({...params, comment}, context);
+        },
         rejectApplication: dataInterface.rejectApplication.bind(dataInterface),
         inquireApplication: dataInterface.inquireApplication.bind(dataInterface),
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
