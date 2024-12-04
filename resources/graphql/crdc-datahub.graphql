@@ -22,7 +22,9 @@ type Application {
     PI: String
     openAccess: Boolean,
     conditional: Boolean,
-    pendingConditions: [String]
+    pendingConditions: [String],
+    programAbbreviation: String,
+    programDescription: String
 }
 
 type Event {
@@ -43,6 +45,8 @@ input AppInput {
     ORCID: String
     PI: String
     openAccess: Boolean
+    programAbbreviation: String
+    programDescription: String
 }
 
 type Applicant {
