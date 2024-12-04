@@ -6,7 +6,7 @@ const {replaceErrorString} = require("../utility/string-util");
 const sanitizeHtml = require("sanitize-html");
 
 class UserService {
-    constructor(userCollection, logCollection, organizationCollection, organizationService, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, tier) {
+    constructor(userCollection, logCollection, organizationCollection, organizationService, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, tier, approvedStudiesService) {
         this.userCollection = userCollection;
         this.logCollection = logCollection;
         this.organizationCollection = organizationCollection;
@@ -17,6 +17,7 @@ class UserService {
         this.officialEmail = officialEmail;
         this.appUrl = appUrl;
         this.tier = tier;
+        this.approvedStudiesService = approvedStudiesService;
     }
 
     async requestAccess(params, context) {
@@ -28,10 +29,16 @@ class UserService {
             return new Error(replaceErrorString(ERROR.INVALID_REQUEST_ROLE, params?.role));
         }
 
-        const orgName = sanitizeHtml(params?.organization, {allowedTags: [],allowedAttributes: {}});
+        const approvedStudies = params?.studies?.length > 0 ?
+            await this.approvedStudiesService.listApprovedStudies({_id: {$in: params?.studies}})
+            : []
+        if (approvedStudies.length === 0) {
+            return new Error(ERROR.INVALID_APPROVED_STUDIES_ACCESS_REQUEST);
+        }
+
         const [adminUsers, orgOwners] = await Promise.all([
             this.getAdmin(),
-            this.getOrgOwnerByName(orgName)
+            this.getOrgOwner(context?.userInfo?.organization?.orgID)
         ]);
 
         const CCs = orgOwners?.filter((u)=> u.email).map((u)=> u.email);
@@ -48,7 +55,7 @@ class UserService {
                 accountType: userInfo?.IDP,
                 email: userInfo?.email,
                 role: params?.role,
-                org: orgName,
+                studies: approvedStudies?.map((study)=> study?.studyName),
                 additionalInfo: params?.additionalInfo?.trim()
             }
             ,this.tier);
@@ -56,7 +63,7 @@ class UserService {
         if (res?.accepted?.length > 0) {
             return ValidationHandler.success()
         }
-        return ValidationHandler.handle(ERROR.DELETE_NO_DATA_FILE_EXISTS);
+        return ValidationHandler.handle(replaceErrorString(ERROR.FAILED_TO_NOTIFY_ACCESS_REQUEST, `userID:${context?.userInfo?._id}`));
     }
 
     async getAdmin() {
@@ -69,10 +76,15 @@ class UserService {
         return result || [];
     }
 
-    async getOrgOwnerByName(orgName) {
+    /**
+     * Retrieves user documents from the userCollection by matching organization ID.
+     * @param {String} orgID - a organization ID
+     * @returns {Array} - An array of user documents.
+     */
+    async getOrgOwner(orgID) {
         return await this.userCollection.aggregate([{
             "$match": {
-                "organization.orgName": orgName,
+                "organization.orgID": orgID,
                 role: USER.ROLES.ORG_OWNER,
                 userStatus: USER.STATUSES.ACTIVE
             }

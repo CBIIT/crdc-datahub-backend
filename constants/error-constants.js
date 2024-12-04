@@ -153,6 +153,8 @@ const ERROR = {
     // User
     ORGANIZATION_NOT_FOUND: "The provided organization name does not exist in the organization record",
     INVALID_REQUEST_ROLE: "Invalid user role is requested: $item$",
+    FAILED_TO_NOTIFY_ACCESS_REQUEST: "Failed to send notification for user role access request; $item$",
+    INVALID_APPROVED_STUDIES_ACCESS_REQUEST: "Failed to request an access request because of invalid or missing approved study IDs.",
     DUPLICATE_ORGANIZATION_NAME: "Duplicate organization name found: $item$",
     NO_ADMIN_USER: "No admin user found",
     // QC Results
