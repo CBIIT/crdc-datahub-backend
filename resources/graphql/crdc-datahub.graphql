@@ -226,6 +226,8 @@ type User {
   createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
   updateAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
   studies: [String]
+  permissions: UserPermissionInfo
+  notifications: UserNotificationsInfo
 }
 
 type UserInfo {
@@ -490,6 +492,57 @@ input CollaboratorInput {
    permission: String! # ["Can View" and "Can Edit"] 
 }
 
+type SubmissionRequestEmail {
+   submit: Boolean
+   additionalInfo: Boolean
+   approve: Boolean
+   reject: Boolean
+}
+
+type SubmissionEmail {
+   submitted: Boolean
+   cancelled: Boolean
+   withdrawn: Boolean
+   released: Boolean
+   completed: Boolean
+   expireSoon: Boolean
+   deleted: Boolean
+}
+
+type SubmissionAction {
+    create: Boolean
+    upload: Boolean
+    submit: Boolean
+    withdraw: Boolean
+    cancel: Boolean
+    validate: Boolean
+    crossValidate: Boolean
+    release: Boolean
+    reject: Boolean
+    adminSubmit: Boolean
+    completeAfterRelease: Boolean
+    rejectAfterRelease: Boolean
+}
+
+type UserPermissionInfo {
+    submissionAction: SubmissionAction
+}
+
+type UserNotificationsInfo {
+    submissionEmail: SubmissionEmail
+    submissionRequestEmail: SubmissionRequestEmail
+}
+
+input UserPermissionInput {
+    submissionAction: SubmissionAction
+}
+
+input UserNotificationsInput {
+    submissionEmail: SubmissionEmail
+    submissionRequestEmail: SubmissionRequestEmail
+}
+
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -688,7 +741,8 @@ type Mutation {
     
     editUser(
       userID: ID!,
-      organization: String, # Organization ID
+      permissions: UserPermissionInput
+      notifications: UserNotificationsInput
       status: String, # in [Active, Inactive]
       role: String,
       dataCommons: [String], # Applies to Data Commons POC role only. Empty for other roles.
