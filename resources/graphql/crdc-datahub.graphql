@@ -256,8 +256,8 @@ type UserOrganization {
   conciergeName: String # The user's name (first + last) is stored for the organization curators, aka. primary contact
   conciergeEmail: String
   studies: [ApprovedStudy] # Study names and abbreviations
-  bucketName: String # Set by BE at creation time
-  rootPath: String # Set by BE at creation time, in the form of “/<organization ID>”
+  abbreviation: String
+  description: String
   createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
   updateAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
 }
