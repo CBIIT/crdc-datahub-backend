@@ -129,7 +129,9 @@ class QcResultService{
         const qcResultErrors = qcRecords?.map((record) => {
             const errorMsg = QCResultError.create(
                 record.error.title,
-                replaceErrorString(record.error.desc, `'${record.fileName}'`)
+                replaceErrorString(record.error.desc, `'${record.fileName}'`),
+                record.error.code,
+                record.error.severity
             );
             return QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, record.fileName, null, null, VALIDATION_STATUS.ERROR, getCurrentTime(), getCurrentTime(), [errorMsg], [], record.dataRecordID, record?.origin);
         });
@@ -177,13 +179,15 @@ class QCResult {
 }
 
 class QCResultError {
-    constructor(title, description) {
+    constructor(title, description, severity, code) {
         this.title = title;
         this.description = description;
+        this.severity = severity;
+        this.code = code;
     }
 
-    static create(title, description) {
-        return new QCResultError(title, description);
+    static create(title, description, severity, code) {
+        return new QCResultError(title, description, severity, code);
     }
 }
 

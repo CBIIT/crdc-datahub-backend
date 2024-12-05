@@ -1285,6 +1285,8 @@ class Submission {
                 origin: SUBMISSION_STATS_ORIGIN_API,
                 dataRecordID: null,
                 error: {
+                    severity: ERRORS.QC_RESULT.ERROR_TYPE.ERROR,
+                    code: ERRORS.CODES.F008,
                     title: ERROR.MISSING_DATA_NODE_FILE_TITLE,
                     desc: ERROR.MISSING_DATA_NODE_FILE_DESC
                 }

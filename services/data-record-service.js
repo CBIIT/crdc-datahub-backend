@@ -84,6 +84,8 @@ class DataRecordService {
                         dataRecordID: node?._id,
                         origin: SUBMISSION_STATS_ORIGIN_API,
                         error: {
+                            severity: ERRORS.QC_RESULT.ERROR_TYPE.ERROR,
+                            code: ERRORS.CODES.F001,
                             title: ERRORS.MISSING_DATA_FILE.TITLE,
                             desc: ERRORS.MISSING_DATA_FILE.CONTENTS
                         }
