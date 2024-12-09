@@ -539,6 +539,7 @@ type Query {
         nodeTypes: [String],
         batchIDs: [ID],
         severities: String, # All, Error, Warning
+        issueCode: String,
         first: Int = -1,
         offset: Int = 0
         # [ "uploadedDate", "nodeType", "batchID", "nodeID", "CRDC_ID", "severity"]
