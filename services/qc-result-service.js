@@ -40,11 +40,11 @@ class QcResultService{
             throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS);
         }
 
-        return await this.submissionQCResults(params._id, params.nodeTypes, params.batchIDs, params.severities, params.first, params.offset, params.orderBy, params.sortDirection);
+        return await this.submissionQCResults(params._id, params.nodeTypes, params.batchIDs, params.severities, params.issueCode, params.first, params.offset, params.orderBy, params.sortDirection);
     }
 
 
-    async submissionQCResults(submissionID, nodeTypes, batchIDs, severities, first, offset, orderBy, sortDirection){
+    async submissionQCResults(submissionID, nodeTypes, batchIDs, severities, issueCode, first, offset, orderBy, sortDirection){
         // Create lookup pipeline
         let pipeline = [];
         // Filter by submission ID
@@ -80,6 +80,18 @@ class QcResultService{
                     type: {
                         $in: nodeTypes
                     }
+                }
+            })
+        }
+        // Filter by issueCode
+        if (!!issueCode){
+            // Check if the specified issueCode is in any of the qcResult's errors or warnings
+            pipeline.push({
+                $match:{
+                    $or: [
+                        {"errors.code": issueCode},
+                        {"warnings.code": issueCode}
+                    ]
                 }
             })
         }
