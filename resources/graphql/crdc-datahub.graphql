@@ -225,7 +225,7 @@ type User {
   dataCommons: [String] # Applies to Data Commons POC role only. Empty for other roles.
   createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
   updateAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
-  studies: [String]
+  studies: [ApprovedStudy]
   # Submission Action Permissions
   # [Create, Upload, Submit, Withdraw, Cancel, Validate, CrossValidate, Release, Reject, AdminSubmit, CompleteRelease, RejectRelease]
   # TODO By Mr.Peter Gu - Submission Request Action Permissions
@@ -551,6 +551,7 @@ type Query {
         nodeTypes: [String],
         batchIDs: [ID],
         severities: String, # All, Error, Warning
+        issueCode: String,
         first: Int = -1,
         offset: Int = 0
         # [ "uploadedDate", "nodeType", "batchID", "nodeID", "CRDC_ID", "severity"]

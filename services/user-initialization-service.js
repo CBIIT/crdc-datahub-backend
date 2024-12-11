@@ -6,9 +6,10 @@ const {v4} = require("uuid");
 
 class UserInitializationService {
 
-    constructor(userCollection, organizationCollection) {
+    constructor(userCollection, organizationCollection, approvedStudiesCollection) {
         this.userCollection = userCollection;
         this.organizationCollection = organizationCollection;
+        this.approvedStudiesCollection = approvedStudiesCollection
     }
 
     async getMyUser(params, context){
@@ -62,6 +63,23 @@ class UserInitializationService {
         if (!result) {
             console.error("User lookup by email and IDP failed");
             throw new Error(ERROR.DATABASE_OPERATION_FAILED);
+        }
+        if ( result[0]?.studies && result[0]?.studies.length > 0) {
+            let approvedStudies = null;
+            const allStudy = (result[0]?.studies[0] instanceof Object) ? result[0]?.studies.find(study=>study._id === "All"): result[0]?.studies.find(study=>study=== "All");
+            if(allStudy){
+                approvedStudies = [{_id: "All", studyName: "All"}];
+                result[0].studies = approvedStudies;
+            }
+            else {
+                const studiesIDs = (result[0]?.studies[0] instanceof Object) ? result[0]?.studies.map((study) => study?._id) : result[0]?.studies;
+                approvedStudies = await this.approvedStudiesCollection.aggregate([{
+                    "$match": {
+                        "_id": { "$in": studiesIDs } 
+                    }
+                }])
+            }
+            result[0].studies = approvedStudies;
         }
         return result.length > 0 ? result[0] : null;
     }

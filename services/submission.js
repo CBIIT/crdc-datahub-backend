@@ -47,7 +47,9 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList, hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService,
+                dataRecordService, tier, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList,
+                hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -66,6 +68,7 @@ class Submission {
         this.validationCollection = validationCollection;
         this.sqsLoaderQueue = sqsLoaderQueue;
         this.qcResultsService = qcResultsService;
+        this.uploaderCLIConfigs = uploaderCLIConfigs;
     }
 
     async createSubmission(params, context) {
@@ -580,24 +583,7 @@ class Submission {
         }
         return result;
     }
-    
-    async submissionQCResults(params, context) {
-        // Check if the submission exists
-        const submission = await findByID(this.submissionCollection, params._id);
-        if(!submission){
-            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
-        }
-        // Check if the user has permission to read this data
-        const userInfo = context.userInfo;
-        if (!verifyValidationResultsReadPermissions(userInfo, submission)) {
-            // A different error message is required if a Federal Monitor is unauthorized
-            if (userInfo.role === ROLES.FEDERAL_MONITOR){
-                throw new Error(ERROR.INVALID_ROLE_STUDY);
-            }
-            throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS);
-        }
-        return this.dataRecordService.submissionQCResults(params._id, params.nodeTypes, params.batchIDs, params.severities, params.first, params.offset, params.orderBy, params.sortDirection);
-    }
+
 
     async submissionCrossValidationResults(params, context){
         verifySession(context)
@@ -884,7 +870,7 @@ class Submission {
             manifest: (params.manifest)? params.manifest: "/Users/my_name/my_manifest.tsv"
         }
         //get the uploader CLI config template as string
-        var configString = config.uploaderCLIConfigs;
+        var configString = this.uploaderCLIConfigs;
         //insert params values into the string
         configString = configString.format(parameters);
         //insert data model file node properties into the string
@@ -1052,28 +1038,28 @@ class Submission {
      * description: overnight job to set completed submission after retention with "archived = true", archive related data and delete s3 files
      */
     async archiveCompletedSubmissions(){
-        var target_retention_date = new Date();
-        target_retention_date.setDate(target_retention_date.getDate() - config.completed_submission_days);
-        const query = [{"$match": {"status": COMPLETED, "updatedAt": { "$lte": target_retention_date}}}];
+        var targetRetentionDate = new Date();
+        targetRetentionDate.setDate(targetRetentionDate.getDate() - this.emailParams.completedSubmissionDays);
+        const query = [{"$match": {"status": COMPLETED, "updatedAt": { "$lte": targetRetentionDate}}}];
         try {
-            const archive_subs = await this.submissionCollection.aggregate(query);
-            if (!archive_subs || archive_subs.length === 0) {
+            const archiveSubs = await this.submissionCollection.aggregate(query);
+            if (!archiveSubs || archiveSubs.length === 0) {
                 console.debug("No completed submissions need to be archived.")
                 return "No completed submissions need to be archived";
             }
            
-            let failed_delete_subs = []
+            let failedDeleteSubs = []
             //archive related data and delete files in s3
-            for (const sub of archive_subs) {
+            for (const sub of archiveSubs) {
                 try {
                     await this.#archiveSubmission(sub._id, sub.bucketName, sub.rootPath);
                     console.debug(`Successfully archive completed submissions: ${sub._id}.`);
                 } catch (e) {
                     console.error(`Failed to delete files under archived completed submission: ${sub._id} with error: ${e.message}.`);
-                    failed_delete_subs.push(sub._id);
+                    failedDeleteSubs.push(sub._id);
                 }
             }
-            return (failed_delete_subs.length === 0 )? "successful!" : `Failed to delete files archived completed submission submissions: ${failed_delete_subs.toString()}.  please contact admin.`;
+            return (failedDeleteSubs.length === 0 )? "successful!" : `Failed to delete files archived completed submission submissions: ${failedDeleteSubs.toString()}.  please contact admin.`;
         }
         catch (e){
             console.error("Failed to archive completed submission(s) with error:" + e.message);
@@ -1098,18 +1084,18 @@ class Submission {
      */
      async deleteInactiveSubmissions(){
         //get target inactive date, current date - config.inactive_submission_days (default 120 days)
-        var target_inactive_date = new Date();
-        target_inactive_date.setDate(target_inactive_date.getDate() - config.inactive_submission_days - 1);
-        const query = [{"$match": {"status": {"$in":[IN_PROGRESS, NEW, REJECTED, WITHDRAWN]}, "accessedAt": {"$exists": true, "$ne": null, "$lte": target_inactive_date}}}];
+        var targetInactiveDate = new Date();
+        targetInactiveDate.setDate(targetInactiveDate.getDate() - this.emailParams.inactiveSubmissionDays - 1);
+        const query = [{"$match": {"status": {"$in":[IN_PROGRESS, NEW, REJECTED, WITHDRAWN]}, "accessedAt": {"$exists": true, "$ne": null, "$lte": targetInactiveDate}}}];
         try {
-            const inactive_subs = await this.submissionCollection.aggregate(query);
-            if (!inactive_subs || inactive_subs.length === 0) {
+            const inactiveSubs = await this.submissionCollection.aggregate(query);
+            if (!inactiveSubs || inactiveSubs.length === 0) {
                 console.debug("No inactive submission found.")
                 return "No inactive submissions";
             }
-            let failed_delete_subs = []
+            let failedDeleteSubs = []
             //delete related data and files
-            for (const sub of inactive_subs) {
+            for (const sub of inactiveSubs) {
                 try {
                     const result = await this.s3Service.deleteDirectory(sub.bucketName, sub.rootPath);
                     if (result === true) {
@@ -1120,10 +1106,10 @@ class Submission {
                     }
                 } catch (e) {
                     console.error(`Failed to delete files under inactive submission: ${sub._id} with error: ${e.message}.`);
-                    failed_delete_subs.push(sub._id);
+                    failedDeleteSubs.push(sub._id);
                 }
             }
-            return (failed_delete_subs.length === 0 )? "successful!" : `Failed to delete files under submissions: ${failed_delete_subs.toString()}.  please contact admin.`;
+            return (failedDeleteSubs.length === 0 )? "successful!" : `Failed to delete files under submissions: ${failedDeleteSubs.toString()}.  please contact admin.`;
         }
         catch (e){
             console.error("Failed to delete inactive submission(s) with error:" + e.message);
@@ -1285,6 +1271,8 @@ class Submission {
                 origin: SUBMISSION_STATS_ORIGIN_API,
                 dataRecordID: null,
                 error: {
+                    severity: ERRORS.QC_RESULT.ERROR_TYPE.ERROR,
+                    code: ERRORS.CODES.F008_MISSING_DATA_NODE_FILE,
                     title: ERROR.MISSING_DATA_NODE_FILE_TITLE,
                     desc: ERROR.MISSING_DATA_NODE_FILE_DESC
                 }
