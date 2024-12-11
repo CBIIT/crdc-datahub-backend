@@ -82,15 +82,17 @@ class Submission {
         if (!user[0]?.studies || user[0].studies.length === 0){
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
         }
-        const study = (user[0].studies[0] instanceof Object)? user[0].studies.find((study) => study._id === params.studyID) : user[0].studies.find((study) => study === params.studyID);
-        if (!study) {
-            throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
+        // check if user has all studies
+        const allStudy = (user[0].studies[0] instanceof Object)? user[0].studies.find((study) => study._id === "All") : user[0].studies.find((study) => study === "All");
+        if (!allStudy) {
+            const study = (user[0].studies[0] instanceof Object)? user[0].studies.find((study) => study._id === params.studyID) : user[0].studies.find((study) => study === params.studyID);
+            if (!study) {
+                throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
+            }
         }
-        const studyID = (study instanceof Object)? study._id : study;
-        const approvedStudies = await this.#findApprovedStudies([studyID]); 
-
+        const approvedStudies = await this.#findApprovedStudies([params.studyID]); 
         if (approvedStudies.length === 0) {
-            throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_APPROVED_STUDY);
+            throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
         }
         const approvedStudy = approvedStudies[0];
         if (approvedStudy.controlledAccess && !approvedStudy?.dbGaPID) {
