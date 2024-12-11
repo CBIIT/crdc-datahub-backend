@@ -85,7 +85,7 @@ class DataRecordService {
                         origin: SUBMISSION_STATS_ORIGIN_API,
                         error: {
                             severity: ERRORS.QC_RESULT.ERROR_TYPE.ERROR,
-                            code: ERRORS.CODES.F001,
+                            code: ERRORS.CODES.F001_FILE_MISSING_FROM_BUCKET,
                             title: ERRORS.MISSING_DATA_FILE.TITLE,
                             desc: ERRORS.MISSING_DATA_FILE.CONTENTS
                         }

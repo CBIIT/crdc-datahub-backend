@@ -167,8 +167,8 @@ const ERROR = {
         }
     },
     CODES: {
-        F001: "F001",
-        F008: "F008"
+        F001_FILE_MISSING_FROM_BUCKET: "F001",
+        F008_MISSING_DATA_NODE_FILE: "F008"
     }
 }
 

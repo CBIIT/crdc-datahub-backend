@@ -1286,7 +1286,7 @@ class Submission {
                 dataRecordID: null,
                 error: {
                     severity: ERRORS.QC_RESULT.ERROR_TYPE.ERROR,
-                    code: ERRORS.CODES.F008,
+                    code: ERRORS.CODES.F008_MISSING_DATA_NODE_FILE,
                     title: ERROR.MISSING_DATA_NODE_FILE_TITLE,
                     desc: ERROR.MISSING_DATA_NODE_FILE_DESC
                 }
