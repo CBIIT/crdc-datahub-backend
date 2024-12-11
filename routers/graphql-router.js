@@ -96,7 +96,7 @@ dbConnector.connect().then(async () => {
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userBEService, dbService, notificationsService, emailParams, organizationService, config.tier, institutionService);
 
     const dashboardService = new DashboardService(userService, awsService, configurationService, {sessionTimeout: config.dashboardSessionTimeout});
-    userInitializationService = new UserInitializationService(userCollection, organizationCollection);
+    userInitializationService = new UserInitializationService(userCollection, organizationCollection, approvedStudiesCollection);
     authenticationService = new AuthenticationService(userCollection);
     
     const cdeCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CDE_COLLECTION);
