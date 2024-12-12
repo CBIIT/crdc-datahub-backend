@@ -3,6 +3,7 @@ const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-
 const orgToUserOrg = require("../crdc-datahub-database-drivers/utility/org-to-userOrg-converter");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {v4} = require("uuid");
+const {getNewUserPermission, getNewUserEmailNotifications} = require("../crdc-datahub-database-drivers/services/user");
 
 class UserInitializationService {
 
@@ -92,6 +93,8 @@ class UserInitializationService {
             throw new Error(ERROR.CREATE_USER_MISSING_INFO)
         }
         let sessionCurrentTime = getCurrentTime();
+        const newPermission = getNewUserPermission();
+        const newEmailNotifications = getNewUserEmailNotifications();
         const newUser = {
             _id: v4(),
             email: email,
@@ -103,7 +106,9 @@ class UserInitializationService {
             firstName: userInfo?.firstName || email.split("@")[0],
             lastName: userInfo?.lastName,
             createdAt: sessionCurrentTime,
-            updateAt: sessionCurrentTime
+            updateAt: sessionCurrentTime,
+            permissions: newPermission,
+            notifications: newEmailNotifications
         };
         const result = await this.userCollection.insert(newUser);
         if (!result?.acknowledged){

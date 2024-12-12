@@ -431,7 +431,7 @@ class UserService {
         }
 
         if(!params?.studies && ![USER.ROLES.ADMIN, USER.ROLES.USER, USER.ROLES.CURATOR, USER.ROLES.DC_POC, USER.ROLES.DATA_COMMONS_PERSONNEL].includes(params.role)){
-            throw new Error(SUBMODULE_ERROR.APPROVED_STUDIES_REQUIRED);
+            throw new Error(ERROR.APPROVED_STUDIES_REQUIRED);
         }
 
         const isValidUserStatus = Object.values(USER.STATUSES).includes(params.status);
