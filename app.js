@@ -23,7 +23,6 @@ const {DatabaseConnector} = require("./crdc-datahub-database-drivers/database-co
 const {getCurrentTime} = require("./crdc-datahub-database-drivers/utility/time-utility");
 const {EmailService} = require("./services/email");
 const {NotifyUser} = require("./services/notify-user");
-const {User} = require("./crdc-datahub-database-drivers/services/user");
 const {extractAndJoinFields} = require("./utility/string-util");
 const {ApprovedStudiesService} = require("./services/approved-studies");
 const {USER} = require("./crdc-datahub-database-drivers/constants/user-constants");
@@ -33,6 +32,7 @@ const {BatchService} = require("./services/batch-service");
 const {AWSService} = require("./services/aws-request");
 const {UtilityService} = require("./services/utility");
 const {QcResultService} = require("./services/qc-result-service");
+const {UserService} = require("./services/user");
 // print environment variables to log
 console.info(configuration);
 
@@ -91,8 +91,7 @@ cronJob.schedule(configuration.schedule_job, async () => {
         const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
         const organizationService = new Organization(organizationCollection);
         const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
-        const userService = new User(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, config.tier, approvedStudiesCollection, config.inactive_user_days);
-
+        const userService = new UserService(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, config.tier, approvedStudiesService, config.inactive_user_days);
         const s3Service = new S3Service();
         const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
         const awsService = new AWSService(submissionCollection, userService, config.role_arn, config.presign_expiration);
