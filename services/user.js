@@ -2,13 +2,20 @@ const {verifySession} = require("../verifier/user-info-verifier");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
 const ERROR = require("../constants/error-constants");
-const SUBMODULE_ERROR = require("../crdc-datahub-database-drivers/constants/error-constants");
+const {ERROR: SUBMODULE_ERROR} = require("../crdc-datahub-database-drivers/constants/error-constants");
 const {replaceErrorString} = require("../utility/string-util");
 const config = require("../config");
 const {getCurrentTime, subtractDaysFromNowTimestamp} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {UpdateProfileEvent, ReactivateUserEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const {LOG_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const jwt = require("jsonwebtoken");
+const {
+    APPLICATION_ACTION,
+    OTHER_ACTION,
+    SUBMISSION_ACTION,
+    USER_ACTION,
+    EMAIL_NOTIFICATIONS
+} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 
 
 const isLoggedInOrThrow = (context) => {
@@ -448,6 +455,7 @@ class UserService {
         }
 
         updatedUser.dataCommons = DataCommon.get(user[0]?.role, user[0]?.dataCommons, params?.role, params?.dataCommons);
+        this.#setUserPermissions(user[0]?.role, params?.role, params?.permissions, params?.notifications, updatedUser);
         return await this.updateUserInfo(user[0], updatedUser, params.userID, params.status, params.role, params?.studies);
     }
     async updateUserInfo(prevUser, updatedUser, userID, status, role, approvedStudyIDs) {
@@ -740,6 +748,42 @@ class UserService {
         });
         return await this.userCollection.aggregate(pipeline);
     }
+
+    #validateUserPermission(permissions, notifications) {
+        // Only Valid User Permissions
+        if (permissions) {
+            const allPermissionNames = [...Object.values(APPLICATION_ACTION), ...Object.values(SUBMISSION_ACTION), ...Object.values(USER_ACTION), ...Object.values(OTHER_ACTION)];
+            const allPermissionNamesSet = new Set(allPermissionNames);
+            const filteredPermissions = permissions?.filter(permission => !allPermissionNamesSet.has(permission));
+            if (filteredPermissions.length > 0) {
+                throw new Error(replaceErrorString(ERROR.INVALID_PERMISSION_NAME, `${filteredPermissions.join(',')}`));
+            }
+        }
+
+        if (notifications) {
+            const allEmailNotificationNames = [...Object.values(EMAIL_NOTIFICATIONS.APPLICATION), ...Object.values(EMAIL_NOTIFICATIONS.SUBMISSION)];
+            const allEmailNotificationNamesSet = new Set(allEmailNotificationNames);
+            const filteredNotifications = notifications?.filter(permission => !allEmailNotificationNamesSet.has(permission));
+            if (filteredNotifications.length > 0) {
+                throw new Error(replaceErrorString(ERROR.INVALID_NOTIFICATION_NAME, `${filteredNotifications.join(',')}`));
+            }
+        }
+    }
+
+    #setUserPermissions(currRole, newRole, permissions, notifications, updatedUser) {
+        this.#validateUserPermission(permissions, notifications);
+        const isUserRoleChange = (newRole && (currRole !== newRole));
+        const userRole = isUserRoleChange ? newRole : currRole;
+        const userPermissions = UserActionPermissions.get(userRole, permissions);
+        if ((isUserRoleChange || permissions) && !isIdenticalArrays(currRole?.permissions, userPermissions)) {
+            updatedUser.permissions = userPermissions;
+        }
+
+        const userNotifications = UserNotifications.get(userRole, notifications);
+        if ((isUserRoleChange || notifications) && !isIdenticalArrays(currRole?.notifications, userNotifications)) {
+            updatedUser.notifications = userNotifications;
+        }
+    }
 }
 
 
@@ -802,7 +846,136 @@ class DataCommon {
 }
 
 
+class UserActionPermissions {
+    constructor(role) {
+        this.role = role;
+    }
+
+    static get(role, permissions) {
+        const userPermissions = new UserActionPermissions(role);
+        return userPermissions.#getPermissions(permissions);
+    }
+
+    static getNewUserPermission(role) {
+        const permissions = new UserActionPermissions(role);
+        return permissions.#getDefaultPermissionsByRole();
+    }
+
+    #getPermissions(permissions) {
+        const editableUserRoles = [USER.ROLES.FEDERAL_LEAD, USER.ROLES.FEDERAL_MONITOR, USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.CURATOR, USER.ROLES.DC_POC];
+        const defaultPermissions = UserActionPermissions.getNewUserPermission(this.role);
+        if (editableUserRoles.includes(this.role)) {
+            const bannedPermissions = this.#getBannedPermissionsByRole(this.role);
+            const bannedPermissionsSet = new Set(bannedPermissions);
+            return permissions ? permissions.filter(permission => !bannedPermissionsSet.has(permission)) : defaultPermissions;
+        }
+        return defaultPermissions;
+    }
+
+    #getDefaultPermissionsByRole() {
+        switch (this.role) {
+            case USER.ROLES.FEDERAL_LEAD:
+                return [APPLICATION_ACTION.VIEW, OTHER_ACTION.DASHBOARD_VIEW, SUBMISSION_ACTION.VIEW];
+            case USER.ROLES.DATA_COMMONS_PERSONNEL:
+                return [SUBMISSION_ACTION.VIEW, SUBMISSION_ACTION.REVIEW, SUBMISSION_ACTION.CONFIRM];
+            case USER.ROLES.ADMIN:
+                return [APPLICATION_ACTION.VIEW, SUBMISSION_ACTION.VIEW, SUBMISSION_ACTION.CREATE, USER_ACTION.REQUEST_ACCESS];
+            case USER.ROLES.SUBMITTER:
+                return [APPLICATION_ACTION.CREATE, SUBMISSION_ACTION.VIEW, SUBMISSION_ACTION.CREATE, USER_ACTION.REQUEST_ACCESS];
+            default:
+                // For USER.ROLES.USER:
+                return [APPLICATION_ACTION.CREATE, USER_ACTION.REQUEST_ACCESS];
+        }
+    }
+
+    #getBannedPermissionsByRole() {
+        switch (this.role) {
+            case USER.ROLES.FEDERAL_LEAD:
+                return [SUBMISSION_ACTION.ADMIN_SUBMIT, USER_ACTION.REQUEST_ACCESS];
+            case USER.ROLES.DATA_COMMONS_PERSONNEL:
+                return [APPLICATION_ACTION.VIEW, SUBMISSION_ACTION.VIEW, SUBMISSION_ACTION.CREATE, USER_ACTION.REQUEST_ACCESS, USER_ACTION.MANAGE_USER];
+            default:
+                return [];
+        }
+    }
+}
+
+class UserNotifications {
+    constructor(role) {
+        this.role = role;
+    }
+
+    static get(role, notifications) {
+        const userNotifications = new UserNotifications(role);
+        return userNotifications.#getNotifications(notifications);
+    }
+
+    #getNotifications(notifications) {
+        const editableUserRoles = [USER.ROLES.FEDERAL_LEAD, USER.ROLES.FEDERAL_MONITOR, USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.CURATOR, USER.ROLES.DC_POC];
+        const defaultNotifications = UserNotifications.getNewUserEmailNotifications(this.role);
+        if (editableUserRoles.includes(this.role)) {
+            const bannedNotifications = this.#getBannedNotificationsByRole(this.role);
+            const bannedNotificationSet = new Set(bannedNotifications);
+            return notifications ? notifications.filter(notification => !bannedNotificationSet.has(notification)) : defaultNotifications;
+        }
+        return defaultNotifications;
+    }
+
+    #getDefaultNotificationsByRole(role) {
+        switch (role) {
+            case USER.ROLES.FEDERAL_LEAD:
+                return [EMAIL_NOTIFICATIONS.APPLICATION.REQUEST_READY_REVIEW];
+            case USER.ROLES.DATA_COMMONS_PERSONNEL:
+                return [EMAIL_NOTIFICATIONS.SUBMISSION.SUBMIT, EMAIL_NOTIFICATIONS.SUBMISSION.CANCEL, EMAIL_NOTIFICATIONS.SUBMISSION.WITHDRAW,
+                    EMAIL_NOTIFICATIONS.SUBMISSION.RELEASE, EMAIL_NOTIFICATIONS.SUBMISSION.COMPLETE, EMAIL_NOTIFICATIONS.SUBMISSION.REMIND_EXPIRE,
+                    EMAIL_NOTIFICATIONS.SUBMISSION.DELETE
+                ];
+            case USER.ROLES.ADMIN:
+                return [EMAIL_NOTIFICATIONS.APPLICATION.REQUEST_READY_REVIEW, EMAIL_NOTIFICATIONS.APPLICATION.REQUEST_REVIEW, EMAIL_NOTIFICATIONS.SUBMISSION.CANCEL,
+                    EMAIL_NOTIFICATIONS.SUBMISSION.RELEASE, EMAIL_NOTIFICATIONS.SUBMISSION.COMPLETE, EMAIL_NOTIFICATIONS.SUBMISSION.REMIND_EXPIRE,
+                    EMAIL_NOTIFICATIONS.SUBMISSION.DELETE, USER_ACTION.REQUEST_ACCESS];
+            case USER.ROLES.SUBMITTER:
+                return [EMAIL_NOTIFICATIONS.APPLICATION.REQUEST_REVIEW, EMAIL_NOTIFICATIONS.SUBMISSION.SUBMIT, EMAIL_NOTIFICATIONS.SUBMISSION.CANCEL,
+                    EMAIL_NOTIFICATIONS.SUBMISSION.WITHDRAW, EMAIL_NOTIFICATIONS.SUBMISSION.RELEASE, EMAIL_NOTIFICATIONS.SUBMISSION.COMPLETE,
+                    EMAIL_NOTIFICATIONS.SUBMISSION.REMIND_EXPIRE, EMAIL_NOTIFICATIONS.SUBMISSION.DELETE, USER_ACTION.REQUEST_ACCESS];
+            default:
+                // For USER.ROLES.USER:
+                return [EMAIL_NOTIFICATIONS.APPLICATION.REQUEST_REVIEW, USER_ACTION.REQUEST_ACCESS];
+        }
+    }
+
+    #getBannedNotificationsByRole(role) {
+        switch (role) {
+            case USER.ROLES.FEDERAL_LEAD:
+                return [SUBMISSION_ACTION.ADMIN_SUBMIT, USER_ACTION.REQUEST_ACCESS];
+            case USER.ROLES.DATA_COMMONS_PERSONNEL:
+                return [APPLICATION_ACTION.VIEW, SUBMISSION_ACTION.VIEW, SUBMISSION_ACTION.CREATE, USER_ACTION.REQUEST_ACCESS, USER_ACTION.MANAGE_USER];
+            default:
+                return [];
+        }
+    }
+
+    static getNewUserEmailNotifications(role) {
+        const permissions = new UserNotifications();
+        return permissions.#getDefaultNotificationsByRole(role);
+    }
+}
+
+const getNewUserPermission = (role) => {
+    return UserActionPermissions.getNewUserPermission(role);
+}
+
+const getNewUserEmailNotifications = (role) => {
+    return UserNotifications.getNewUserEmailNotifications(role);
+}
+
+function isIdenticalArrays(arr1, arr2) {
+    if (arr1?.length !== arr2?.length) return false;
+    return arr1.every(value => arr2?.includes(value));
+}
 
 module.exports = {
-    UserService
+    UserService,
+    getNewUserPermission,
+    getNewUserEmailNotifications
 };
