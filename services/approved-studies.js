@@ -76,41 +76,6 @@ class ApprovedStudiesService {
     }
 
     /**
-     * List Approved Studies of My Org API Interface.
-     *
-     * Note:
-     * - This is open to any authenticated user, but returns only approved studies tied
-     *   to the user's organization.
-     * - If no organization is associated with the user, an empty array is returned.
-     * - If no studies are associated with the user's organization, an empty array is returned.
-     *
-     * @api
-     * @param {Object} params Endpoint parameters
-     * @param {{ cookie: Object, userInfo: Object }} context request context
-     * @returns {Promise<Object[]>} An array of ApprovedStudies
-     */
-    async listApprovedStudiesOfMyOrganizationAPI(params, context) {
-        verifySession(context)
-          .verifyInitialized();
-
-        if (!context.userInfo?.organization?.orgID) {
-            return [];
-        }
-
-        const organization = await this.organizationService.getOrganizationByID(context.userInfo.organization.orgID);
-        if (!organization || !organization?.studies?.length) {
-            return [];
-        }
-
-        const filters = {
-            _id: {
-                $in: organization.studies?.filter((s) => s?._id).map((s) => s?._id)
-            }
-        };
-        return await this.listApprovedStudies(filters);
-    }
-
-    /**
      * List all approved studies in the collection. Supports filtering.
      *
      * @typedef {Object<string, any>} Filters K:V pairs of filters

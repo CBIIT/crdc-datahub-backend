@@ -62,7 +62,7 @@ const ERROR = {
     CREATE_SUBMISSION_INVALID_DELETE_INTENTION: "when intention is Delete, only 'Metadata Only' is allowed",
     UPDATE_SUBMISSION_ERROR:"An error occurred while attempting to update the submission in the database",
     CREATE_SUBMISSION_INVALID_DATA_COMMONS: "Requested data commons $item$ is not supported",
-    CREATE_SUBMISSION_NO_MATCHING_STUDY: "The study provided does not match an approved study within the user's organization",
+    CREATE_SUBMISSION_NO_MATCHING_STUDY: "The study provided does not match an approved study within the user's studies",
     MISSING_CREATE_SUBMISSION_DBGAPID: "dbGapID is required for controlled-access studies.",
     // List Submissions
     LIST_SUBMISSION_INVALID_STATUS_FILTER: "The status filter is invalid",
@@ -160,7 +160,17 @@ const ERROR = {
     NO_ADMIN_USER: "No admin user found",
     // QC Results
     FAILED_INSERT_QC_RESULT: "An error occurred while attempting to insert the qc-result into the database.",
-    CONTROLLED_STUDY_NO_DBGAPID: "dbGaP ID must be provided before data submissions can begin."
+    CONTROLLED_STUDY_NO_DBGAPID: "dbGaP ID must be provided before data submissions can begin.",
+    QC_RESULT: {
+        ERROR_TYPE: {
+            ERROR: "Error",
+            WARNING: "Warning"
+        }
+    },
+    CODES: {
+        F001_FILE_MISSING_FROM_BUCKET: "F001",
+        F008_MISSING_DATA_NODE_FILE: "F008"
+    }
 }
 
 module.exports = ERROR;
