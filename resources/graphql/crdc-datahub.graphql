@@ -513,9 +513,6 @@ type Query {
     # sortDirection in ["ASC", "DESC"]
     # orderBy in ["Submitter Name", "Organization", "Study", "Program", "Status", "Submitted Date"]
 
-    # return approved studied for a user's organization
-    listApprovedStudiesOfMyOrganization: [ApprovedStudy]
-
     # Admin only
     listApprovedStudies(
         controlledAccess: String = "All", #value in ["All", "Controlled", "Open"]
