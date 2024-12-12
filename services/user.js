@@ -769,6 +769,22 @@ class UserService {
         }
     }
 
+    /**
+     * Retrieves user permissions based on the provided role and permissions list.
+     *
+     * @param {string} role - The role of the user
+     * @param {Array} permissions - A list of permission string
+     * @returns [] - The corresponding permissions for the specified role.
+     *
+     * @throws Will throw an error if the permissions are invalid.
+     *
+     * */
+
+     getUserPermissions = (role, permissions) => {
+        this.#validateUserPermission(permissions)
+        return UserActionPermissions.get(role, permissions);
+    }
+
     #setUserPermissions(currRole, newRole, permissions, notifications, updatedUser) {
         this.#validateUserPermission(permissions, notifications);
         const isUserRoleChange = (newRole && (currRole !== newRole));
