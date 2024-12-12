@@ -368,22 +368,22 @@ acls_emails:
       - _id: "user:manage"
         group: "Admin"
         name: "Manage Users"
-        checked: false
-        disabled: true
+        checked: true
+        disabled: false
       - _id: "program:manage"
         group: "Admin"
         name: "Manage Programs"
-        checked: false
+        checked: true
         disabled: false
       - _id: "study:manage"
         group: "Admin"
         name: "Manage Studies"
-        checked: false
+        checked: true
         disabled: false
       - _id: "dashboard:view"
         group: "Admin"
         name: "View Operation Dashboards"
-        checked: false
+        checked: true
         disabled: false
     notifications: 
     # submission request
@@ -472,13 +472,13 @@ acls_emails:
       - _id: "submission_request:view"
         group: "submission_request"
         name: "View Submission Requests"
-        checked: true
-        disabled: false
+        checked: false
+        disabled: true
       - _id: "submission_request:create"
         group: "submission_request"
         name: "Create/Edit Submission Requests"
-        checked: false
-        disabled: true
+        checked: true
+        disabled: false
       - _id: "submission_request:review"
         group: "submission_request"
         name: "Review Submission Requests"
@@ -493,8 +493,8 @@ acls_emails:
       - _id: "access:request"
         group: "Data Submission"
         name: "Request Access"
-        checked: false
-        disabled: true
+        checked: true
+        disabled: false
       - _id: "data_submission:view"
         group: "Data Submission"
         name: "View Data Submissions"
@@ -508,18 +508,18 @@ acls_emails:
       - _id: "data_submission:review"
         group: "Data Submission"
         name: "Review Data Submissions"
-        checked: true
-        disabled: false
+        checked: false
+        disabled: true
       - _id: "data_submission:admin_submit"
         group: "Data Submission"
         name: "Admin Submit Data Submissions"
-        checked: true
-        disabled: false
+        checked: false
+        disabled: true
       - _id: "data_submission:confirm"
         group: "Data Submission"
         name: "Confirm Data Submissions"
-        checked: true
-        disabled: false
+        checked: false
+        disabled: true
       # Admin
       - _id: "user:manage"
         group: "Admin"
@@ -530,29 +530,29 @@ acls_emails:
         group: "Admin"
         name: "Manage Programs"
         checked: false
-        disabled: false
+        disabled: true
       - _id: "study:manage"
         group: "Admin"
         name: "Manage Studies"
         checked: false
-        disabled: false
+        disabled: true
       - _id: "dashboard:view"
         group: "Admin"
         name: "View Operation Dashboards"
         checked: false
-        disabled: false
+        disabled: true
     notifications: 
     # submission request
       - _id: "submission_request:submitted"
         group: "sr"
         name: "Submission Request is received"
-        checked: false
+        checked: true
         disabled: false
       - _id: "submission_request:to_be_reviewed"
         group: "sr"
         name: "Submission Request is ready for review"
-        checked: true
-        disabled: false
+        checked: false
+        disabled: true
       - _id: "submission_request:reviewed"
         group: "sr"
         name: "Submission Request review decision"
