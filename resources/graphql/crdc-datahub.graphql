@@ -267,6 +267,7 @@ type UserOrganization {
   conciergeID: ID # The user's IDs are stored for the organization curators, aka. primary contact
   conciergeName: String # The user's name (first + last) is stored for the organization curators, aka. primary contact
   conciergeEmail: String
+  abbreviation: String
   studies: [ApprovedStudy] # Study names and abbreviations
   abbreviation: String
   description: String
