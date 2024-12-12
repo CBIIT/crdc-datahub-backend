@@ -2,7 +2,7 @@ const {verifySession} = require("../verifier/user-info-verifier");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
 const ERROR = require("../constants/error-constants");
-const SUBMODULE_ERROR = require("../crdc-datahub-database-drivers/constants/error-constants");
+const {ERROR: SUBMODULE_ERROR} = require("../crdc-datahub-database-drivers/constants/error-constants");
 const {replaceErrorString} = require("../utility/string-util");
 const config = require("../config");
 const {getCurrentTime, subtractDaysFromNowTimestamp} = require("../crdc-datahub-database-drivers/utility/time-utility");
@@ -217,6 +217,7 @@ class UserService {
     async getUser(params, context) {
         isLoggedInOrThrow(context);
         if (!params?.userID) {
+            const eee= SUBMODULE_ERROR.INVALID_USERID;
             throw new Error(SUBMODULE_ERROR.INVALID_USERID);
         }
         if (context?.userInfo?.role !== USER.ROLES.ADMIN && context?.userInfo.role !== USER.ROLES.ORG_OWNER) {
