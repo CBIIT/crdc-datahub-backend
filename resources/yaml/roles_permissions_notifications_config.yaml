@@ -1,0 +1,623 @@
+acls_emails: 
+  # Federal Lead"
+  - role: "Federal Lead"
+    permissions: 
+      # submission_request
+      - _id: "submission_request:view"
+        group: "submission_request"
+        name: "View Submission Requests"
+        checked: true
+        disabled: false
+      - _id: "submission_request:create"
+        group: "submission_request"
+        name: "Create/Edit Submission Requests"
+        checked: false
+        disabled: false
+      - _id: "submission_request:review"
+        group: "submission_request"
+        name: "Review Submission Requests"
+        checked: false
+        disabled: false
+      - _id: "submission_request:submit"
+        group: "submission_request"
+        name: "Submit Submission Requests"
+        checked: false
+        disabled: false
+      # Data Submission
+      - _id: "access:request"
+        group: "Data Submission"
+        name: "Request Access"
+        checked: false
+        disabled: true
+      - _id: "data_submission:view"
+        group: "Data Submission"
+        name: "View Data Submissions"
+        checked: true
+        disabled: false
+      - _id: "data_submission:create"
+        group: "Data Submission"
+        name: "Create/Edit Data_submissions"
+        checked: false
+        disabled: false
+      - _id: "data_submission:review"
+        group: "Data Submission"
+        name: "Review Data Submissions"
+        checked: false
+        disabled: false
+      - _id: "data_submission:admin_submit"
+        group: "Data Submission"
+        name: "Admin Submit Data Submissions"
+        checked: false
+        disabled: true
+      - _id: "data_submission:confirm"
+        group: "Data Submission"
+        name: "Confirm Data Submissions"
+        checked: false
+        disabled: false
+      # Admin
+      - _id: "user:manage"
+        group: "Admin"
+        name: "Manage Users"
+        checked: false
+        disabled: false
+      - _id: "program:manage"
+        group: "Admin"
+        name: "Manage Programs"
+        checked: false
+        disabled: false
+      - _id: "study:manage"
+        group: "Admin"
+        name: "Manage Studies"
+        checked: false
+        disabled: false
+      - _id: "dashboard:view"
+        group: "Admin"
+        name: "View Operation Dashboards"
+        checked: true
+        disabled: false
+    notifications: 
+    # submission request
+      - _id: "submission_request:submitted"
+        group: "sr"
+        name: "Submission Request is received"
+        checked: false
+        disabled: false
+      - _id: "submission_request:to_be_reviewed"
+        group: "sr"
+        name: "Submission Request is ready for review"
+        checked: true
+        disabled: false
+      - _id: "submission_request:reviewed"
+        group: "sr"
+        name: "Submission Request review decision"
+        checked: false
+        disabled: false
+      - _id: "submission_request:deleted"
+        group: "sr"
+        name: "Submission Request Deleted"
+        checked: false
+        disabled: false
+    # data submission
+      - _id: "data_submission:submitted"
+        group: "ds"
+        name: "Data Submission is submitted"
+        checked: false
+        disabled: false
+      - _id: "data_submission:cancelled"
+        group: "ds"
+        name: "Data Submission is cancelled"
+        checked: false
+        disabled: false
+      - _id: "data_submission:withdrawn"
+        group: "ds"
+        name: "Data Submission is withdrawn"
+        checked: false
+        disabled: false
+      - _id: "data_submission:released"
+        group: "ds"
+        name: "Data Submission is released"
+        checked: false
+        disabled: false
+      - _id: "data_submission:completed"
+        group: "ds"
+        name: "data_submission is completed"
+        checked: false
+        disabled: false
+      - _id: "data_submission:expiring"
+        group: "ds"
+        name: "Data Submission is about to expire"
+        checked: false
+        disabled: false
+      - _id: "data_submission:deleted"
+        group: "ds"
+        name: "Data Submission is deleted"
+        checked: false
+        disabled: false
+    # User Account
+      - _id: "access:requested"
+        group: "User Account"
+        name: "User Request Access"
+        checked: false
+        disabled: true
+      - _id: "account:inactivated"
+        group: "User Account"
+        name: "Account Disabled due to inactivity (to user)"
+        checked: true
+        disabled: false
+      - _id: "account:users_inactivated"
+        group: "User Account"
+        name: "Account Disabled due to inactivity (consolidated email to admin)"
+        checked: false
+        disabled: true
+      - _id: "account:disabled"
+        group: "User Account"
+        name: "Account Disabled by admin (to user)"
+        checked: true
+        disabled: false
+  # Data Commons Personnel
+  - role: "Data Commons Personnel":
+    permissions: 
+      # submission_request
+      - _id: "submission_request:view"
+        group: "submission_request"
+        name: "View Submission Requests"
+        checked: false
+        disabled: false
+      - _id: "submission_request:create"
+        group: "submission_request"
+        name: "Create/Edit Submission Requests"
+        checked: false
+        disabled: false
+      - _id: "submission_request:review"
+        group: "submission_request"
+        name: "Review Submission Requests"
+        checked: false
+        disabled: false
+      - _id: "submission_request:submit"
+        group: "submission_request"
+        name: "Submit Submission Requests"
+        checked: false
+        disabled: false
+      # Data Submission
+      - _id: "access:request"
+        group: "Data Submission"
+        name: "Request Access"
+        checked: false
+        disabled: true
+      - _id: "data_submission:view"
+        group: "Data Submission"
+        name: "View Data Submissions"
+        checked: true
+        disabled: false
+      - _id: "data_submission:create"
+        group: "Data Submission"
+        name: "Create/Edit Data_submissions"
+        checked: false
+        disabled: false
+      - _id: "data_submission:review"
+        group: "Data Submission"
+        name: "Review Data Submissions"
+        checked: true
+        disabled: false
+      - _id: "data_submission:admin_submit"
+        group: "Data Submission"
+        name: "Admin Submit Data Submissions"
+        checked: false
+        disabled: false
+      - _id: "data_submission:confirm"
+        group: "Data Submission"
+        name: "Confirm Data Submissions"
+        checked: true
+        disabled: false
+      # Admin
+      - _id: "user:manage"
+        group: "Admin"
+        name: "Manage Users"
+        checked: false
+        disabled: true
+      - _id: "program:manage"
+        group: "Admin"
+        name: "Manage Programs"
+        checked: false
+        disabled: false
+      - _id: "study:manage"
+        group: "Admin"
+        name: "Manage Studies"
+        checked: false
+        disabled: false
+      - _id: "dashboard:view"
+        group: "Admin"
+        name: "View Operation Dashboards"
+        checked: false
+        disabled: false
+    notifications: 
+    # submission request
+      - _id: "submission_request:submitted"
+        group: "sr"
+        name: "Submission Request is received"
+        checked: false
+        disabled: false
+      - _id: "submission_request:to_be_reviewed"
+        group: "sr"
+        name: "Submission Request is ready for review"
+        checked: false
+        disabled: false
+      - _id: "submission_request:reviewed"
+        group: "sr"
+        name: "Submission Request review decision"
+        checked: false
+        disabled: false
+      - _id: "submission_request:deleted"
+        group: "sr"
+        name: "Submission Request Deleted"
+        checked: true
+        disabled: false
+    # data submission
+      - _id: "data_submission:submitted"
+        group: "ds"
+        name: "Data Submission is submitted"
+        checked: true
+        disabled: false
+      - _id: "data_submission:cancelled"
+        group: "ds"
+        name: "Data Submission is cancelled"
+        checked: true
+        disabled: false
+      - _id: "data_submission:withdrawn"
+        group: "ds"
+        name: "Data Submission is withdrawn"
+        checked: true
+        disabled: false
+      - _id: "data_submission:released"
+        group: "ds"
+        name: "Data Submission is released"
+        checked: true
+        disabled: false
+      - _id: "data_submission:completed"
+        group: "ds"
+        name: "data_submission is completed"
+        checked: true
+        disabled: false
+      - _id: "data_submission:expiring"
+        group: "ds"
+        name: "Data Submission is about to expire"
+        checked: true
+        disabled: false
+      - _id: "data_submission:deleted"
+        group: "ds"
+        name: "Data Submission is deleted"
+        checked: true
+        disabled: false
+    # User Account
+      - _id: "access:requested"
+        group: "User Account"
+        name: "User Request Access"
+        checked: false
+        disabled: true
+      - _id: "account:inactivated"
+        group: "User Account"
+        name: "Account Disabled due to inactivity (to user)"
+        checked: true
+        disabled: false
+      - _id: "account:users_inactivated"
+        group: "User Account"
+        name: "Account Disabled due to inactivity (consolidated email to admin)"
+        checked: false
+        disabled: true
+      - _id: "account:disabled"
+        group: "User Account"
+        name: "Account Disabled by admin (to user)"
+        checked: true
+        disabled: false
+# Admin
+- role: "Admin":
+    permissions: 
+      # submission_request
+      - _id: "submission_request:view"
+        group: "submission_request"
+        name: "View Submission Requests"
+        checked: true
+        disabled: false
+      - _id: "submission_request:create"
+        group: "submission_request"
+        name: "Create/Edit Submission Requests"
+        checked: false
+        disabled: true
+      - _id: "submission_request:review"
+        group: "submission_request"
+        name: "Review Submission Requests"
+        checked: false
+        disabled: true
+      - _id: "submission_request:submit"
+        group: "submission_request"
+        name: "Submit Submission Requests"
+        checked: false
+        disabled: true
+      # Data Submission
+      - _id: "access:request"
+        group: "Data Submission"
+        name: "Request Access"
+        checked: false
+        disabled: true
+      - _id: "data_submission:view"
+        group: "Data Submission"
+        name: "View Data Submissions"
+        checked: true
+        disabled: false
+      - _id: "data_submission:create"
+        group: "Data Submission"
+        name: "Create/Edit Data_submissions"
+        checked: false
+        disabled: true
+      - _id: "data_submission:review"
+        group: "Data Submission"
+        name: "Review Data Submissions"
+        checked: true
+        disabled: false
+      - _id: "data_submission:admin_submit"
+        group: "Data Submission"
+        name: "Admin Submit Data Submissions"
+        checked: true
+        disabled: false
+      - _id: "data_submission:confirm"
+        group: "Data Submission"
+        name: "Confirm Data Submissions"
+        checked: true
+        disabled: false
+      # Admin
+      - _id: "user:manage"
+        group: "Admin"
+        name: "Manage Users"
+        checked: false
+        disabled: true
+      - _id: "program:manage"
+        group: "Admin"
+        name: "Manage Programs"
+        checked: false
+        disabled: false
+      - _id: "study:manage"
+        group: "Admin"
+        name: "Manage Studies"
+        checked: false
+        disabled: false
+      - _id: "dashboard:view"
+        group: "Admin"
+        name: "View Operation Dashboards"
+        checked: false
+        disabled: false
+    notifications: 
+    # submission request
+      - _id: "submission_request:submitted"
+        group: "sr"
+        name: "Submission Request is received"
+        checked: false
+        disabled: false
+      - _id: "submission_request:to_be_reviewed"
+        group: "sr"
+        name: "Submission Request is ready for review"
+        checked: true
+        disabled: false
+      - _id: "submission_request:reviewed"
+        group: "sr"
+        name: "Submission Request review decision"
+        checked: true
+        disabled: false
+      - _id: "submission_request:deleted"
+        group: "sr"
+        name: "Submission Request Deleted"
+        checked: true
+        disabled: false
+    # data submission
+      - _id: "data_submission:submitted"
+        group: "ds"
+        name: "Data Submission is submitted"
+        checked: false
+        disabled: false
+      - _id: "data_submission:cancelled"
+        group: "ds"
+        name: "Data Submission is cancelled"
+        checked: true
+        disabled: false
+      - _id: "data_submission:withdrawn"
+        group: "ds"
+        name: "Data Submission is withdrawn"
+        checked: false
+        disabled: false
+      - _id: "data_submission:released"
+        group: "ds"
+        name: "Data Submission is released"
+        checked: true
+        disabled: false
+      - _id: "data_submission:completed"
+        group: "ds"
+        name: "data_submission is completed"
+        checked: true
+        disabled: false
+      - _id: "data_submission:expiring"
+        group: "ds"
+        name: "Data Submission is about to expire"
+        checked: true
+        disabled: false
+      - _id: "data_submission:deleted"
+        group: "ds"
+        name: "Data Submission is deleted"
+        checked: true
+        disabled: false
+    # User Account
+      - _id: "access:requested"
+        group: "User Account"
+        name: "User Request Access"
+        checked: true
+        disabled: false
+      - _id: "account:inactivated"
+        group: "User Account"
+        name: "Account Disabled due to inactivity (to user)"
+        checked: false
+        disabled: true
+      - _id: "account:users_inactivated"
+        group: "User Account"
+        name: "Account Disabled due to inactivity (consolidated email to admin)"
+        checked: true
+        disabled: false
+      - _id: "account:disabled"
+        group: "User Account"
+        name: "Account Disabled by admin (to user)"
+        checked: true
+        disabled: false
+
+# submitter
+- role: "Submitter":
+    permissions: 
+      # submission_request
+      - _id: "submission_request:view"
+        group: "submission_request"
+        name: "View Submission Requests"
+        checked: true
+        disabled: false
+      - _id: "submission_request:create"
+        group: "submission_request"
+        name: "Create/Edit Submission Requests"
+        checked: false
+        disabled: true
+      - _id: "submission_request:review"
+        group: "submission_request"
+        name: "Review Submission Requests"
+        checked: false
+        disabled: true
+      - _id: "submission_request:submit"
+        group: "submission_request"
+        name: "Submit Submission Requests"
+        checked: false
+        disabled: true
+      # Data Submission
+      - _id: "access:request"
+        group: "Data Submission"
+        name: "Request Access"
+        checked: false
+        disabled: true
+      - _id: "data_submission:view"
+        group: "Data Submission"
+        name: "View Data Submissions"
+        checked: true
+        disabled: false
+      - _id: "data_submission:create"
+        group: "Data Submission"
+        name: "Create/Edit Data_submissions"
+        checked: false
+        disabled: true
+      - _id: "data_submission:review"
+        group: "Data Submission"
+        name: "Review Data Submissions"
+        checked: true
+        disabled: false
+      - _id: "data_submission:admin_submit"
+        group: "Data Submission"
+        name: "Admin Submit Data Submissions"
+        checked: true
+        disabled: false
+      - _id: "data_submission:confirm"
+        group: "Data Submission"
+        name: "Confirm Data Submissions"
+        checked: true
+        disabled: false
+      # Admin
+      - _id: "user:manage"
+        group: "Admin"
+        name: "Manage Users"
+        checked: false
+        disabled: true
+      - _id: "program:manage"
+        group: "Admin"
+        name: "Manage Programs"
+        checked: false
+        disabled: false
+      - _id: "study:manage"
+        group: "Admin"
+        name: "Manage Studies"
+        checked: false
+        disabled: false
+      - _id: "dashboard:view"
+        group: "Admin"
+        name: "View Operation Dashboards"
+        checked: false
+        disabled: false
+    notifications: 
+    # submission request
+      - _id: "submission_request:submitted"
+        group: "sr"
+        name: "Submission Request is received"
+        checked: false
+        disabled: false
+      - _id: "submission_request:to_be_reviewed"
+        group: "sr"
+        name: "Submission Request is ready for review"
+        checked: true
+        disabled: false
+      - _id: "submission_request:reviewed"
+        group: "sr"
+        name: "Submission Request review decision"
+        checked: true
+        disabled: false
+      - _id: "submission_request:deleted"
+        group: "sr"
+        name: "Submission Request Deleted"
+        checked: true
+        disabled: false
+    # data submission
+      - _id: "data_submission:submitted"
+        group: "ds"
+        name: "Data Submission is submitted"
+        checked: true
+        disabled: false
+      - _id: "data_submission:cancelled"
+        group: "ds"
+        name: "Data Submission is cancelled"
+        checked: true
+        disabled: false
+      - _id: "data_submission:withdrawn"
+        group: "ds"
+        name: "Data Submission is withdrawn"
+        checked: true
+        disabled: false
+      - _id: "data_submission:released"
+        group: "ds"
+        name: "Data Submission is released"
+        checked: true
+        disabled: false
+      - _id: "data_submission:completed"
+        group: "ds"
+        name: "data_submission is completed"
+        checked: true
+        disabled: false
+      - _id: "data_submission:expiring"
+        group: "ds"
+        name: "Data Submission is about to expire"
+        checked: true
+        disabled: false
+      - _id: "data_submission:deleted"
+        group: "ds"
+        name: "Data Submission is deleted"
+        checked: true
+        disabled: false
+    # User Account
+      - _id: "access:requested"
+        group: "User Account"
+        name: "User Request Access"
+        checked: true
+        disabled: false
+      - _id: "account:inactivated"
+        group: "User Account"
+        name: "Account Disabled due to inactivity (to user)"
+        checked: false
+        disabled: true
+      - _id: "account:users_inactivated"
+        group: "User Account"
+        name: "Account Disabled due to inactivity (consolidated email to admin)"
+        checked: true
+        disabled: false
+      - _id: "account:disabled"
+        group: "User Account"
+        name: "Account Disabled by admin (to user)"
+        checked: true
+        disabled: false
+
