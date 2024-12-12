@@ -81,10 +81,23 @@ class Submission {
         validateCreateSubmissionParams(params, this.allowedDataCommons, this.hiddenDataCommons, intention, dataType, context?.userInfo);
 
         const aUserOrganization = await this.organizationService.getOrganizationByID(context.userInfo?.organization?.orgID, false);
-        const approvedStudy = aUserOrganization.studies.find((study) => study?._id === params.studyID);
-        if (!approvedStudy) {
+        const user = await this.userService.userCollection.find(context.userInfo._id);
+        if (!user[0]?.studies || user[0].studies.length === 0){
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
         }
+        // check if user has all studies
+        const allStudy = (user[0].studies[0] instanceof Object)? user[0].studies.find((study) => study._id === "All") : user[0].studies.find((study) => study === "All");
+        if (!allStudy) {
+            const study = (user[0].studies[0] instanceof Object)? user[0].studies.find((study) => study._id === params.studyID) : user[0].studies.find((study) => study === params.studyID);
+            if (!study) {
+                throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
+            }
+        }
+        const approvedStudies = await this.#findApprovedStudies([params.studyID]); 
+        if (approvedStudies.length === 0) {
+            throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
+        }
+        const approvedStudy = approvedStudies[0];
         if (approvedStudy.controlledAccess && !approvedStudy?.dbGaPID) {
             throw new Error(ERROR.MISSING_CREATE_SUBMISSION_DBGAPID);
         }
@@ -97,6 +110,16 @@ class Submission {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
         }
         return newSubmission;
+    }
+    async #findApprovedStudies(studies) {
+        if (!studies || studies.length === 0) return [];
+        const studiesIDs = (studies[0] instanceof Object) ? studies.map((study) => study?._id) : studies;
+        const approvedStudies = await this.userService.approvedStudiesCollection.aggregate([{
+            "$match": {
+                "_id": { "$in": studiesIDs } 
+            }
+        }]);
+        return approvedStudies;
     }
 
     async listSubmissions(params, context) {
