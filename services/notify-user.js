@@ -8,7 +8,7 @@ const ROLE = "Role";
 const DATA_COMMONS = "Data Commons";
 const STUDIES = "Studies";
 const CRDC_PORTAL_USER = "CRDC Submission Portal User";
-const CRDC_PORTAL_TEAM ="CRDC Submission Portal Team";
+const CRDC_SUBMISSION_PORTAL ="CRDC Submission Portal";
 const USER_NAME = "User Name"
 const ACCOUNT_TYPE = "Account Type";
 const ACCOUNT_EMAIL = "Account Email";
@@ -151,7 +151,7 @@ class NotifyUser {
                 await createEmailTemplate(NOTIFICATION_USER_HTML_TEMPLATE, {
                     topMessage, bottomMessage, ...{
                         firstName: CRDC_PORTAL_USER,
-                        senderName: CRDC_PORTAL_TEAM,
+                        senderName: CRDC_SUBMISSION_PORTAL,
                         ...templateParams, additionalInfo}
                 }),
                 email,
@@ -357,7 +357,7 @@ class NotifyUser {
                 await createEmailTemplate(NOTIFICATION_USER_HTML_TEMPLATE, {
                     topMessage, ...{
                         firstName: CRDC_PORTAL_ADMIN,
-                        senderName: CRDC_PORTAL_TEAM,
+                        senderName: CRDC_SUBMISSION_PORTAL,
                         ...templateParams, additionalInfo}
                 }),
                 email,
