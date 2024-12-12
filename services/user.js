@@ -770,15 +770,14 @@ class UserService {
     }
 
     /**
-     * Retrieves user permissions based on the provided role and permissions list.
+     * Retrieves user permissions based on the specified role and permissions list.
      *
-     * @param {string} role - The role of the user
-     * @param {Array} permissions - A list of permission string
-     * @returns [] - The corresponding permissions for the specified role.
+     * @param {string} role - The user's role
+     * @param {Array<string>} permissions - An array of permission strings to validate and retrieve.
+     * @returns {Array<string>} - A list of validated permissions associated with the role.
      *
-     * @throws Will throw an error if the permissions are invalid.
-     *
-     * */
+     * @throws {Error} Throws an error if the provided permissions are invalid.
+     */
 
      getUserPermissions = (role, permissions) => {
         this.#validateUserPermission(permissions)
