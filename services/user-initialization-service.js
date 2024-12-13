@@ -3,7 +3,7 @@ const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-
 const orgToUserOrg = require("../crdc-datahub-database-drivers/utility/org-to-userOrg-converter");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {v4} = require("uuid");
-const {getNewUserPermission, getNewUserEmailNotifications} = require("../crdc-datahub-database-drivers/services/user");
+const {getNewUserPermission, getNewUserEmailNotifications} = require("./user");
 
 class UserInitializationService {
 
