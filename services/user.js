@@ -223,6 +223,7 @@ class UserService {
     async getUser(params, context) {
         isLoggedInOrThrow(context);
         if (!params?.userID) {
+            const eee= SUBMODULE_ERROR.INVALID_USERID;
             throw new Error(SUBMODULE_ERROR.INVALID_USERID);
         }
         if (context?.userInfo?.role !== USER.ROLES.ADMIN && context?.userInfo.role !== USER.ROLES.ORG_OWNER) {

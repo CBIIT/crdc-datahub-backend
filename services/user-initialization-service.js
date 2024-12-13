@@ -61,7 +61,7 @@ class UserInitializationService {
             {"$sort": {createdAt: -1}}, // sort descending
             {"$limit": 1} // return one
         ]);
-        if (!result) {
+        if (!result || !result.length || result.length === 0) {
             console.error("User lookup by email and IDP failed");
             throw new Error(ERROR.DATABASE_OPERATION_FAILED);
         }
