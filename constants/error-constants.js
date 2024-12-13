@@ -5,6 +5,7 @@ const ERROR = {
     // Application
     APPLICATION_NOT_FOUND: "The provided application ID was not found in the database. Provided _id: ",
     APPLICATION_CONTROLLED_ACCESS_NOT_FOUND: "The application does not store controlled access property.",
+    MISSING_PROGRAM_INFO: "The program property is required to approve the submission request.",
     UPDATE_FAILED: "Update unsuccessful",
     VERIFY: {
         UNDEFINED_APPLICATION: "Application array is undefined",
