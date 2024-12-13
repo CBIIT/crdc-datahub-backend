@@ -93,8 +93,8 @@ class UserInitializationService {
             throw new Error(ERROR.CREATE_USER_MISSING_INFO)
         }
         let sessionCurrentTime = getCurrentTime();
-        const newPermission = getNewUserPermission();
-        const newEmailNotifications = getNewUserEmailNotifications();
+        const newPermission = getNewUserPermission(USER.ROLES.USER);
+        const newEmailNotifications = getNewUserEmailNotifications(USER.ROLES.USER);
         const newUser = {
             _id: v4(),
             email: email,
