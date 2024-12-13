@@ -1817,6 +1817,7 @@ class DataValidation {
 }
 
 class DataSubmission {
+    #SUBMISSIONS = "submissions";
     constructor(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy) {
         this._id = v4();
         this.name = name;
@@ -1834,7 +1835,7 @@ class DataSubmission {
         this.status = NEW;
         this.history = [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)];
         this.bucketName = aUserOrganization.bucketName;
-        this.rootPath = aUserOrganization.rootPath.concat(`/${this._id}`);
+        this.rootPath = `${this.#SUBMISSIONS}/${this._id}`;
         this.conciergeName = aUserOrganization.conciergeName;
         this.conciergeEmail = aUserOrganization.conciergeEmail;
         this.createdAt = this.updatedAt = getCurrentTime();
