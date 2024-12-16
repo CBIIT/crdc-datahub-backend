@@ -19,6 +19,20 @@ function replaceNaN(results, replacement){
     return results;
 }
 
+function formatSeverityFilter(severity){
+    if (!severity || typeof severity !== "string"){
+        return null;
+    }
+    severity = severity.toLowerCase();
+    if (severity === VALIDATION_STATUS.ERROR.toLowerCase()){
+        return VALIDATION_STATUS.ERROR;
+    }
+    if (severity === VALIDATION_STATUS.WARNING.toLowerCase()){
+        return VALIDATION_STATUS.WARNING;
+    }
+    return null;
+}
+
 class QcResultService{
     constructor(qcResultCollection, submissionCollection){
         this.qcResultCollection = qcResultCollection;
@@ -42,7 +56,6 @@ class QcResultService{
 
         return await this.submissionQCResults(params._id, params.nodeTypes, params.batchIDs, params.severities, params.issueCode, params.first, params.offset, params.orderBy, params.sortDirection);
     }
-
 
     async submissionQCResults(submissionID, nodeTypes, batchIDs, severities, issueCode, first, offset, orderBy, sortDirection){
         // Create lookup pipeline
@@ -163,6 +176,111 @@ class QcResultService{
             {"$project": {submittedID: 1, dataRecordID: 1}}
         ]);
         return result || [];
+    }
+
+    async aggregatedSubmissionQCResultsAPI(params, context) {
+        // Check that the specified submissionID exists
+        const submission = await this.submissionCollection.findOne(params.submissionID);
+        if(!submission){
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
+        }
+        // Check that the user is authorized to view the QC results
+        if (!verifyValidationResultsReadPermissions(context.userInfo, submission)){
+            throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS);
+        }
+        return await this.aggregatedSubmissionQCResults(params.submissionID, params.severity, params.first, params.offset, params.orderBy, params.sortDirection);
+    }
+
+    async aggregatedSubmissionQCResults(submissionID, severity, first, offset, orderBy, sortDirection) {
+        // Create lookup pipeline
+        let basePipeline = [];
+        // Filter by submission ID
+        basePipeline.push({
+            $match: {
+                submissionID: submissionID
+            }
+        });
+        // Set severity field
+        basePipeline.push({
+            $set: {
+                "errors.severity": VALIDATION_STATUS.ERROR,
+                "warnings.severity": VALIDATION_STATUS.WARNING
+            }
+        })
+        // Combine warnings and errors arrays
+        basePipeline.push({
+            $set: {
+                issues: {
+                    $concatArrays: ["$warnings", "$errors"]
+                }
+            }
+        })
+        // Unwind issues array
+        basePipeline.push({
+            $unwind:{
+                path: "$issues"
+            }
+        });
+        // Filter by severity
+        // Format severity filter
+        let severityFilter = formatSeverityFilter(severity);
+        // Add the severity filter to the pipeline
+        if (!!severityFilter) {
+            basePipeline.push({
+                $match:{
+                    "issues.severity": severityFilter
+                }
+            });
+        }
+        // Aggregate and count the results
+        basePipeline.push({
+            $group:{
+                _id: {
+                    title: "$issues.title",
+                    severity: "$issues.severity"
+                },
+                count: {
+                    $sum: 1
+                }
+            }
+        });
+        // Format the output
+        basePipeline.push({
+            $project:{
+                _id: 0,
+                    title: "$_id.title",
+                severity: "$_id.severity",
+                count: "$count"
+            }
+        });
+        // Create count pipeline
+        let countPipeline = [...basePipeline];
+        countPipeline.push({
+            $count: "total"
+        });
+        // Create pagination pipeline
+        let paginationPipeline = [...basePipeline];
+        // Sort the results
+        paginationPipeline.push({
+            $sort: {
+                [orderBy]: getSortDirection(sortDirection)
+            }
+        });
+        // Paginate
+        paginationPipeline.push({
+            $skip: offset
+        });
+        paginationPipeline.push({
+            $limit: first
+        });
+        // Run pipelines
+        const countPipelineResult = await this.qcResultCollection.aggregate(countPipeline);
+        const totalRecords = countPipelineResult[0]?.total;
+        const paginatedPipelineResult = await this.qcResultCollection.aggregate(paginationPipeline);
+        return {
+            total: totalRecords,
+            results: paginatedPipelineResult
+        };
     }
 }
 
