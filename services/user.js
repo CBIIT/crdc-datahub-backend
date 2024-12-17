@@ -4,6 +4,7 @@ const {ValidationHandler} = require("../utility/validation-handler");
 const ERROR = require("../constants/error-constants");
 const {replaceErrorString} = require("../utility/string-util");
 const sanitizeHtml = require("sanitize-html");
+const configuration = require("../config");
 
 class UserService {
     constructor(userCollection, logCollection, organizationCollection, organizationService, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, tier, approvedStudiesService) {
@@ -123,6 +124,19 @@ class UserService {
                 userStatus: USER.STATUSES.ACTIVE
             }
         }]);
+    }
+
+    /**
+     * API: getPBTCDDefaults retrieve roles default permissions and notifications.
+     * @param {*} params 
+     * @param {*} context 
+     */
+    getPBTCDDefaults(params, context){
+        verifySession(context)
+            .verifyInitialized()
+            .verifyRole([USER.ROLES.ADMIN]);
+
+        return (params.roles.includes("All"))? configuration.permissions_notifications : configuration.permissions_notifications.filter((item)=> params.roles.includes(item.role));
     }
 }
 

@@ -1,5 +1,5 @@
 require('dotenv').config();
-const {readFile2Text} = require("./utility/io-util")
+const {readFile2Text, loadYamlFile2Object} = require("./utility/io-util")
 const {ConfigurationService} = require("./services/configurationService");
 const {MongoDBCollection} = require("./crdc-datahub-database-drivers/mongodb-collection");
 const {DATABASE_NAME, CONFIGURATION_COLLECTION} = require("./crdc-datahub-database-drivers/database-constants");
@@ -59,6 +59,7 @@ let config = {
     schedule_job: process.env.SCHEDULE_JOB || "1 0 1 * * *",
     //aws sts assume role
     role_arn: process.env.ROLE_ARN,
+    permissions_notifications: loadPermissionsAndNotificationsConfig(),
     updateConfig: async (dbConnector)=> {
         const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
         const configurationService = new ConfigurationService(configurationCollection);
@@ -174,12 +175,22 @@ function getTransportConfig(host, port, emailUser, emailPassword) {
 
 function readUploaderCLIConfigTemplate(){
     const uploaderConfigTemplate = 'resources/yaml/data_file_upload_config.yaml';
-    configString = readFile2Text(uploaderConfigTemplate);
+    const configString = readFile2Text(uploaderConfigTemplate);
     if (!configString){
         throw "Can't find uploader CLI config template at " + uploaderConfigTemplate + "!";
     }
     return configString;
 }
+
+function loadPermissionsAndNotificationsConfig(){
+    const acls_config_file = 'resources/yaml/roles_permissions_notifications_config.yaml';
+    const acls = loadYamlFile2Object(acls_config_file);
+    if (!acls || !acls.acls_emails){
+        throw "Can't load permissions and notifications config at " + acls_config_file + "!";
+    }
+    return acls.acls_emails;
+}
+
 function getModelUrl(dbTier) {
     // if MODEL_URL exists, it overrides
     if (process.env.MODEL_URL) {
@@ -203,5 +214,7 @@ function getTier(dbTier) {
     const tier = extractTierName(dbTier);
     return tier?.length > 0 ? `[${tier.toUpperCase()}]` : '';
 }
+
+
 
 module.exports = config;

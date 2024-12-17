@@ -1,4 +1,5 @@
 const fs = require("fs");
+const yaml = require('js-yaml');
 
 /**
  * util func: read text file to string
@@ -17,8 +18,18 @@ function write2file(text, filePath) {
     fs.writeFileSync(filePath, text);
 }
 
+/**
+ * loadYamlFile2Object
+ * @param {*} filePath 
+ * @returns 
+ */
+function loadYamlFile2Object(filePath) {
+    return (fs.existsSync(filePath))? yaml.load(fs.readFileSync(filePath, 'utf8')) : null;
+}
+
 module.exports = {
     readFile2Text,
-    write2file
+    write2file, 
+    loadYamlFile2Object
 }
 

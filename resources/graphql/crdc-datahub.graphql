@@ -502,6 +502,28 @@ input CollaboratorInput {
    permission: String! # ["Can View" and "Can Edit"] 
 }
 
+type Permission {
+    _id: String!,  #Permission Internal Name, unique 
+    group: String!, #permission group
+    name: String!, #permission name
+    checked: Boolean,
+    disabled: Boolean
+}
+
+type Notification {
+    _id: String!,  #Notification Internal Name, unique 
+    group: String!, #Notification group
+    name: String!, #Notification name
+    checked: Boolean, 
+    disabled: Boolean
+}
+
+type PBRCDefaults {
+    role: String!, #user role in ["Federal Lease", "Data Common Personnel", "Admin", "Submitter", "User"]
+    permissions: [Permission], 
+    notifications: [Notification]
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -638,6 +660,8 @@ type Query {
     listPotentialCollaborators(submissionID: String!): [User]
     
     collaborators: [Collaborator]
+
+    retrievePBRCDefaults(roles: [String!]!) : [PBRCDefaults] #to retrieve all roles. set parameter to ["All]
 }
 type Mutation {
     "User initiated operations"
