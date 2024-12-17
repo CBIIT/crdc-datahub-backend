@@ -14,6 +14,7 @@ const {parseJsonString} = require("../crdc-datahub-database-drivers/utility/stri
 const {formatName} = require("../utility/format-name");
 const {isUndefined, replaceErrorString} = require("../utility/string-util");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
+const {EMAIL_NOTIFICATIONS: EN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 
 class Application {
     constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, tier, institutionService) {
@@ -221,7 +222,7 @@ class Application {
         const logEvent = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, SUBMITTED);
         await Promise.all([
             await this.logCollection.insert(logEvent),
-            await sendEmails.submitApplication(this.notificationService,this.emailParams,context, application)
+            await sendEmails.submitApplication(this.notificationService, this.userService, this.emailParams,context, application)
         ]);
         return application;
     }
@@ -534,7 +535,16 @@ const sendEmails = {
             url: emailParams.url
         })
     },
-    submitApplication: async (notificationService, emailParams, context, application) => {
+    submitApplication: async (notificationService, userService, emailParams, context, application) => {
+        const allowedNotifyUsers = await userService.getUsersByNotifications([EN.SUBMISSION_REQUEST.REQUEST_SUBMIT],
+            [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]);
+
+        await notificationService.submitRequestReceivedNotification(application?.applicant?.applicantEmail,
+            {helpDesk: emailParams.conditionalSubmissionContact},
+            {userName: application?.applicant?.applicantName},
+            getUserEmails(allowedNotifyUsers)
+        );
+
         const programName = application?.programName?.trim() ?? "";
         const associate = `the ${application?.studyAbbreviation} study` + (programName.length > 0 ? ` associated with the ${programName} program` : '');
         await notificationService.submitQuestionNotification({
