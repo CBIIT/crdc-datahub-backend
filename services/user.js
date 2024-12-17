@@ -894,9 +894,10 @@ class UserActionPermissions {
             case USER.ROLES.DATA_COMMONS_PERSONNEL:
                 return [DATA_SUBMISSION.VIEW, DATA_SUBMISSION.REVIEW, DATA_SUBMISSION.CONFIRM];
             case USER.ROLES.ADMIN:
-                return [SUBMISSION_REQUEST.VIEW, DATA_SUBMISSION.VIEW, DATA_SUBMISSION.CREATE, DATA_SUBMISSION.REQUEST_ACCESS];
+                return [SUBMISSION_REQUEST.VIEW, DATA_SUBMISSION.VIEW, DATA_SUBMISSION.REVIEW, DATA_SUBMISSION.ADMIN_SUBMIT, DATA_SUBMISSION.CONFIRM,
+                ADMIN.MANAGE_USER, ADMIN.MANAGE_PROGRAMS, ADMIN.MANAGE_STUDIES, ADMIN.VIEW_DASHBOARD];
             case USER.ROLES.SUBMITTER:
-                return [SUBMISSION_REQUEST.CREATE, DATA_SUBMISSION.VIEW, DATA_SUBMISSION.CREATE, DATA_SUBMISSION.REQUEST_ACCESS];
+                return [SUBMISSION_REQUEST.CREATE, DATA_SUBMISSION.REQUEST_ACCESS, DATA_SUBMISSION.VIEW, DATA_SUBMISSION.CREATE];
             default:
                 // For USER.ROLES.USER:
                 return [SUBMISSION_REQUEST.CREATE, DATA_SUBMISSION.REQUEST_ACCESS];
@@ -970,6 +971,9 @@ class UserNotifications {
                 return [];
         }
     }
+
+    // Disabled
+    // Checked by default
 
     static getNewUserEmailNotifications(role) {
         const permissions = new UserNotifications();
