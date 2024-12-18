@@ -35,6 +35,8 @@ const createToken = (userInfo, token_secret, token_timeout)=> {
 
 
 class UserService {
+    #allPermissionNamesSet = new Set([...Object.values(SUBMISSION_REQUEST), ...Object.values(DATA_SUBMISSION), ...Object.values(ADMIN)]);
+    #allEmailNotificationNamesSet = new Set([...Object.values(EN.SUBMISSION_REQUEST), ...Object.values(EN.DATA_SUBMISSION)]);
     constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, tier, approvedStudiesService, inactiveUserDays) {
         this.userCollection = userCollection;
         this.logCollection = logCollection;
@@ -752,18 +754,14 @@ class UserService {
     #validateUserPermission(permissions, notifications) {
         // Only Valid User Permissions
         if (permissions) {
-            const allPermissionNames = [...Object.values(SUBMISSION_REQUEST), ...Object.values(DATA_SUBMISSION), ...Object.values(ADMIN)];
-            const allPermissionNamesSet = new Set(allPermissionNames);
-            const filteredPermissions = permissions?.filter(permission => !allPermissionNamesSet.has(permission));
+            const filteredPermissions = permissions?.filter(permission => !this.#allPermissionNamesSet.has(permission));
             if (filteredPermissions.length > 0) {
                 throw new Error(replaceErrorString(ERROR.INVALID_PERMISSION_NAME, `${filteredPermissions.join(',')}`));
             }
         }
 
         if (notifications) {
-            const allEmailNotificationNames = [...Object.values(EN.SUBMISSION_REQUEST), ...Object.values(EN.DATA_SUBMISSION)];
-            const allEmailNotificationNamesSet = new Set(allEmailNotificationNames);
-            const filteredNotifications = notifications?.filter(permission => !allEmailNotificationNamesSet.has(permission));
+            const filteredNotifications = notifications?.filter(permission => !this.#allEmailNotificationNamesSet.has(permission));
             if (filteredNotifications.length > 0) {
                 throw new Error(replaceErrorString(ERROR.INVALID_NOTIFICATION_NAME, `${filteredNotifications.join(',')}`));
             }
