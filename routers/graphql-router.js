@@ -133,6 +133,7 @@ dbConnector.connect().then(async () => {
         submissionAction: submissionService.submissionAction.bind(submissionService),
         validateSubmission: submissionService.validateSubmission.bind(submissionService),
         submissionStats: submissionService.submissionStats.bind(submissionService),
+        aggregatedSubmissionQCResults: qcResultsService.aggregatedSubmissionQCResultsAPI.bind(qcResultsService),
         submissionQCResults: qcResultsService.submissionQCResultsAPI.bind(qcResultsService),
         submissionCrossValidationResults: submissionService.submissionCrossValidationResults.bind(submissionService),
         listSubmissionNodeTypes: submissionService.listSubmissionNodeTypes.bind(submissionService),

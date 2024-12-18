@@ -60,12 +60,7 @@ class UserService {
             return new Error(ERROR.INVALID_APPROVED_STUDIES_ACCESS_REQUEST);
         }
 
-        const [adminUsers, orgOwners] = await Promise.all([
-            this.getAdmin(),
-            this.getOrgOwner(context?.userInfo?.organization?.orgID)
-        ]);
-
-        const CCs = orgOwners?.filter((u)=> u.email).map((u)=> u.email);
+        const adminUsers = await this.getAdmin();
         const adminEmails = adminUsers?.filter((u)=> u.email).map((u)=> u.email);
         const userInfo = context?.userInfo;
 
@@ -74,7 +69,7 @@ class UserService {
         }
 
         const res = await this.notificationsService.requestUserAccessNotification(adminEmails,
-            CCs, {
+            [], {
                 userName: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
                 accountType: userInfo?.IDP,
                 email: userInfo?.email,
