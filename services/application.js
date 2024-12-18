@@ -14,7 +14,7 @@ const {parseJsonString} = require("../crdc-datahub-database-drivers/utility/stri
 const {formatName} = require("../utility/format-name");
 const {isUndefined, replaceErrorString} = require("../utility/string-util");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
-const {EMAIL_NOTIFICATIONS: EN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+const {EMAIL_NOTIFICATIONS: EN, SUBMISSION_REQUEST} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 
 class Application {
     constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, tier, institutionService) {
@@ -195,7 +195,7 @@ class Application {
     async submitApplication(params, context) {
         verifySession(context)
             .verifyInitialized()
-            .verifyRole([USER.ROLES.SUBMITTER, USER.ROLES.FEDERAL_LEAD])
+            .verifyPermission(SUBMISSION_REQUEST.SUBMIT)
         const application = await this.getApplicationById(params._id);
         let validStatus = [];
         if (context?.userInfo?.role === USER.ROLES.SUBMITTER) {
