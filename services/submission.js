@@ -80,7 +80,6 @@ class Submission {
         const dataType = [DATA_TYPE.METADATA_AND_DATA_FILES, DATA_TYPE.METADATA_ONLY].find((i) => i.toLowerCase() === params?.dataType.toLowerCase());
         validateCreateSubmissionParams(params, this.allowedDataCommons, this.hiddenDataCommons, intention, dataType, context?.userInfo);
 
-        const aUserOrganization = await this.organizationService.getOrganizationByID(context.userInfo?.organization?.orgID, false);
         const user = await this.userService.userCollection.find(context.userInfo._id);
         if (!user[0]?.studies || user[0].studies.length === 0){
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
@@ -103,8 +102,14 @@ class Submission {
         }
         const latestDataModel = await this.fetchDataModelInfo();
         const modelVersion = this.#getModelVersion(latestDataModel, params.dataCommons);
+
+        const programs = await this.organizationService.findOneByStudyID(params?.studyID);
+        if (programs?.length === 0) {
+            throw new Error(replaceErrorString(ERROR.CREATE_SUBMISSION_MISSING_PROGRAM, params?.studyID));
+        }
+
         const newSubmission = DataSubmission.createSubmission(
-            params.name, context.userInfo, params.dataCommons, params.studyID, approvedStudy?.dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy);
+            params.name, context.userInfo, params.dataCommons, params.studyID, approvedStudy?.dbGaPID, programs[0], modelVersion, intention, dataType, approvedStudy);
         const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
@@ -1817,7 +1822,7 @@ class DataValidation {
 }
 
 class DataSubmission {
-    constructor(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy) {
+    constructor(name, userInfo, dataCommons, studyID, dbGaPID, aProgram, modelVersion, intention, dataType, approvedStudy) {
         this._id = v4();
         this.name = name;
         this.submitterID = userInfo._id;
@@ -1833,10 +1838,14 @@ class DataSubmission {
         this.dbGaPID = dbGaPID;
         this.status = NEW;
         this.history = [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)];
-        this.bucketName = aUserOrganization.bucketName;
-        this.rootPath = aUserOrganization.rootPath.concat(`/${this._id}`);
-        this.conciergeName = aUserOrganization.conciergeName;
-        this.conciergeEmail = aUserOrganization.conciergeEmail;
+        this.organization = {
+            _id: aProgram._id ?? aProgram?._id,
+            name: aProgram.name ?? aProgram?.name
+        };
+        this.bucketName = aProgram.bucketName;
+        this.rootPath = aProgram.rootPath.concat(`/${this._id}`);
+        this.conciergeName = aProgram.conciergeName;
+        this.conciergeEmail = aProgram.conciergeEmail;
         this.createdAt = this.updatedAt = getCurrentTime();
         // no metadata to be validated
         this.metadataValidationStatus = this.fileValidationStatus = this.crossSubmissionStatus = null;
@@ -1852,8 +1861,8 @@ class DataSubmission {
         this.accessedAt = getCurrentTime();
     }
 
-    static createSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy) {
-        return new DataSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy);
+    static createSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization) {
+        return new DataSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization);
     }
 }
 
