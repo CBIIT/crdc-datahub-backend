@@ -371,7 +371,7 @@ class NotifyUser {
             ...(sanitizedAdditionalInfo) ? [[ADDITIONAL_INFO, sanitizedAdditionalInfo]] : []
         ];
         return await this.send(async () => {
-            return await this.emailService.sendNotification(
+            const res = await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
                 isTierAdded(tier) ? `${tier} ${subject}` : subject,
                 await createEmailTemplate(NOTIFICATION_USER_HTML_TEMPLATE, {
@@ -383,6 +383,10 @@ class NotifyUser {
                 email,
                 CCs
             );
+            if (res?.accepted?.length === 0) {
+                console.error(`Failed to send Request User Access Email Notifications: ${email.join(",")}`);
+            }
+            return res;
         });
     }
 
