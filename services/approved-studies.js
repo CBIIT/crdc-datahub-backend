@@ -1,18 +1,17 @@
 const {v4} = require("uuid");
-const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ERROR = require("../constants/error-constants");
 const { verifySession } = require('../verifier/user-info-verifier');
 const {ApprovedStudies} = require("../crdc-datahub-database-drivers/domain/approved-studies");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
+const {ADMIN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const CONTROLLED_ACCESS_ALL = "All";
 const CONTROLLED_ACCESS_OPEN = "Open";
 const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
 const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN, CONTROLLED_ACCESS_CONTROLLED];
 class ApprovedStudiesService {
 
-    constructor(approvedStudiesCollection, organizationService) {
+    constructor(approvedStudiesCollection) {
         this.approvedStudiesCollection = approvedStudiesCollection;
-        this.organizationService = organizationService;
     }
 
     async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName) {
@@ -35,10 +34,8 @@ class ApprovedStudiesService {
     }
 
     /**
-     * Get an Approved Study by ID API Interface.
      * 
      * @api
-     * @note This is an ADMIN only operation.
      * @param {{ _id: string }} params Endpoint parameters
      * @param {{ cookie: Object, userInfo: Object }} context the request context
      * @returns {Promise<Object>} The requested ApprovedStudy
@@ -47,7 +44,7 @@ class ApprovedStudiesService {
     async getApprovedStudyAPI(params, context) {
         verifySession(context)
           .verifyInitialized()
-          .verifyRole([USER.ROLES.ADMIN]);
+          .verifyPermission(ADMIN.MANAGE_STUDIES);
 
         return this.getApprovedStudy(params);
     }
@@ -88,9 +85,6 @@ class ApprovedStudiesService {
 
     /**
      * List Approved Studies API Interface
-     *
-     * - This is an ADMIN only operation.
-     *
      * @api
      * @param {Object} params Endpoint parameters
      * @param {{ cookie: Object, userInfo: Object }} context request context
@@ -182,9 +176,6 @@ class ApprovedStudiesService {
     /**
      * Add Approved Study API Interface.
      *
-     * Note:
-     * - This is an ADMIN only operation.
-     *
      * @api
      * @param {Object} params Endpoint parameters
      * @param {{ cookie: Object, userInfo: Object }} context request context
@@ -193,7 +184,7 @@ class ApprovedStudiesService {
     async addApprovedStudyAPI(params, context) {
         verifySession(context)
           .verifyInitialized()
-          .verifyRole([USER.ROLES.ADMIN]);
+          .verifyPermission(ADMIN.MANAGE_STUDIES);
         const {
             name,
             acronym,
@@ -225,9 +216,6 @@ class ApprovedStudiesService {
     }
     /**
      * Edit Approved Study API
-     * 
-     * Note:
-     * - This is an ADMIN only operation.
      *
      * @param {*} params 
      * @param {*} context 
@@ -236,7 +224,7 @@ class ApprovedStudiesService {
     async editApprovedStudyAPI(params, context) {
         verifySession(context)
           .verifyInitialized()
-          .verifyRole([USER.ROLES.ADMIN]);
+          .verifyPermission(ADMIN.MANAGE_STUDIES);
 
         const {
             studyID,

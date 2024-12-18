@@ -21,7 +21,6 @@ const {MongoDBCollection} = require("../crdc-datahub-database-drivers/mongodb-co
 const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-connector");
 const {EmailService} = require("../services/email");
 const {NotifyUser} = require("../services/notify-user");
-const {User} = require("../crdc-datahub-database-drivers/services/user");
 const {ApprovedStudiesService} = require("../services/approved-studies");
 const {BatchService} = require("../services/batch-service");
 const {S3Service} = require("../crdc-datahub-database-drivers/services/s3-service");
@@ -56,7 +55,7 @@ dbConnector.connect().then(async () => {
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
     const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
     const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection, approvedStudiesCollection);
-    const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, organizationService);
+    const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection);
 
     const userService = new UserService(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, config.tier, approvedStudiesService, config.inactive_user_days);
     const s3Service = new S3Service();
