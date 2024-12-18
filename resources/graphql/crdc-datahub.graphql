@@ -502,6 +502,18 @@ input CollaboratorInput {
    permission: String! # ["Can View" and "Can Edit"] 
 }
 
+type aggregatedQCResults {
+    total: Int
+    results: [aggregatedQCResult]
+}
+
+type aggregatedQCResult {
+    title: String,
+    severity: String,
+    count: Int,
+    code: String
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -543,6 +555,20 @@ type Query {
 
     getSubmission(_id: ID!): Submission
     submissionStats(_id: ID!): SubmissionStats
+
+    aggregatedSubmissionQCResults(
+        submissionID: ID!,
+        severity: String = "all"
+        # "all", "error", "warning"
+        first: Int = -1,
+        # -1 will return all
+        offset: Int = 0,
+        orderBy: String = "count"
+        # ["count", "title", "code", "severity"]
+        sortDirection: String = "DESC"
+        # ["ASC", "DESC"]
+    ): aggregatedQCResults
+
     submissionQCResults(
         _id: ID!,
         nodeTypes: [String],
