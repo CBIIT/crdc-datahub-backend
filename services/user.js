@@ -736,22 +736,6 @@ class UserService {
         });
         return await this.userCollection.aggregate(pipeline);
     }
-
-    async getPBRCDefaults(params, context){
-        const userInfo = context?.userInfo;
-        verifySession(context)
-            .verifyInitialized()
-            .verifyRole([ROLES.ADMIN]);
-
-        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
-        if (!aSubmission) {
-            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
-        }
-        isSubmissionPermitted(aSubmission, userInfo);
-        const pbrDefaults = await this.pbrDefaultsService.getPBRCDefaults(aSubmission.studyID);
-        return pbrDefaults;
-
-    }
 }
 
 

@@ -530,7 +530,7 @@ type Notification {
     disabled: Boolean
 }
 
-type PBRCDefaults {
+type PBACDefaults {
     role: String!, #user role in ["Federal Lease", "Data Common Personnel", "Admin", "Submitter", "User"]
     permissions: [Permission], 
     notifications: [Notification]
@@ -687,7 +687,7 @@ type Query {
     
     collaborators: [Collaborator]
 
-    retrievePBRCDefaults (roles: [String!]!) : [PBRCDefaults] #To retrieve all roles' permissions and notifications, use roles: ["All"] as parameter.
+    retrievePBACDefaults (roles: [String!]!) : [PBACDefaults] #To retrieve all roles' permissions and notifications, use roles: ["All"] as parameter.
 }
 type Mutation {
     "User initiated operations"
