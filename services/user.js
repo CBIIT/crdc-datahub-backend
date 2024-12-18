@@ -909,7 +909,7 @@ class UserActionPermissions {
             case USER.ROLES.FEDERAL_LEAD:
                 return [DATA_SUBMISSION.ADMIN_SUBMIT, DATA_SUBMISSION.REQUEST_ACCESS];
             case USER.ROLES.DATA_COMMONS_PERSONNEL:
-                return [SUBMISSION_REQUEST.VIEW, DATA_SUBMISSION.VIEW, DATA_SUBMISSION.CREATE, DATA_SUBMISSION.REQUEST_ACCESS, ADMIN.MANAGE_USER];
+                return [DATA_SUBMISSION.REQUEST_ACCESS, ADMIN.MANAGE_USER];
             default:
                 return [];
         }
