@@ -30,7 +30,8 @@ const ERROR = {
         EMPTY_ROOT_PATH: "RootPath is missing in the submission",
         REJECT_ACTION_COMMENT_REQUIRED: "Reject submission action must include a comment.",
         SUBMIT_ACTION_COMMENT_REQUIRED: "Submit action must include a comment.",
-        INVALID_ORGANIZATION_STATUS: "No organization assigned, or your organization is currently inactive and needs reactivation for use"
+        INVALID_ORGANIZATION_STATUS: "No organization assigned, or your organization is currently inactive and needs reactivation for use",
+        INVALID_PERMISSION: "You do not have permission to perform this action."
     },
     // Batch
     FAILED_NEW_BATCH_INSERTION: "An error occurred while creating a new batch",

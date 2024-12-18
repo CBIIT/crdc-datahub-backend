@@ -29,6 +29,13 @@ class UserInfoVerifier {
         }
         return this;
     }
+
+    verifyPermission(permission) {
+        if (!this?.userInfo?.permissions?.includes(permission)) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+        return this;
+    }
 }
 
 async function verifySubmitter(userInfo, submissionID, submissions, userService){
