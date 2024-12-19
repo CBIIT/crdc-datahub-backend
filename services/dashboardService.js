@@ -1,5 +1,6 @@
 const {verifySession} = require("../verifier/user-info-verifier");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
+const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const ERROR = require("../constants/error-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 class DashboardService {
@@ -13,7 +14,7 @@ class DashboardService {
     async getDashboardURL(params, context) {
         verifySession(context)
             .verifyInitialized()
-            .verifyRole([ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN, ROLES.FEDERAL_MONITOR]);
+            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.VIEW_DASHBOARD)
 
         const aDashboardConf = await this.configurationService.findByType(params?.type);
         const dashboardID = aDashboardConf?.dashboardID;
