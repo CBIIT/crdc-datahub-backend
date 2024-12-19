@@ -1822,6 +1822,7 @@ class DataValidation {
 }
 
 class DataSubmission {
+    #SUBMISSIONS = "submissions";
     constructor(name, userInfo, dataCommons, studyID, dbGaPID, aProgram, modelVersion, intention, dataType, approvedStudy) {
         this._id = v4();
         this.name = name;
@@ -1843,7 +1844,7 @@ class DataSubmission {
             name: aProgram.name ?? aProgram?.name
         };
         this.bucketName = aProgram.bucketName;
-        this.rootPath = aProgram.rootPath.concat(`/${this._id}`);
+        this.rootPath = `${this.#SUBMISSIONS}/${this._id}`;
         this.conciergeName = aProgram.conciergeName;
         this.conciergeEmail = aProgram.conciergeEmail;
         this.createdAt = this.updatedAt = getCurrentTime();
