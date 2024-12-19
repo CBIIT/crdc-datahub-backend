@@ -159,7 +159,8 @@ dbConnector.connect().then(async () => {
         getDashboardURL: dashboardService.getDashboardURL.bind(dashboardService),
         retrieveCDEs: cdeService.getCDEs.bind(cdeService),
         editSubmissionCollaborators: submissionService.editSubmissionCollaborators.bind(submissionService),
-        requestAccess: userService.requestAccess.bind(userService)
+        requestAccess: userService.requestAccess.bind(userService), 
+        retrievePBACDefaults: configurationService.getPBACDefaults.bind(configurationService),
     };
 });
 
