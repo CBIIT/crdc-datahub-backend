@@ -792,25 +792,6 @@ class UserService {
             updatedUser.notifications = userNotifications;
         }
     }
-
-    /**
-     * Retrieves users by the specified notification array.
-     *
-     * @param {Array<string>} notifications - An array of notifications.
-     * @param {Array<string>} roles - An optional array of roles.
-     * @returns {Array<User>} - A list of Users associated with the notifications.
-     *
-     */
-    async getUsersByNotifications(notifications, roles = []) {
-        return await this.userCollection.aggregate([{"$match": {
-                "userStatus": USER.STATUSES.ACTIVE,
-                "notifications": {
-                    "$in": notifications
-                },
-                ...(roles?.length > 0 && { "role": { "$in": roles } })
-                }
-        }]);
-    }
 }
 
 
