@@ -48,26 +48,6 @@ class NotifyUser {
         });
     }
 
-    async submitRequestReceivedNotification(email, messageVariables, templateParams, BCCs) {
-        const message = replaceMessageVariables(this.email_constants.SUBMISSION_SUBMIT_RECEIVE_CONTENT_FIRST, {});
-        const secondMessage = replaceMessageVariables(this.email_constants.SUBMISSION_SUBMIT_RECEIVE_CONTENT_SECOND, messageVariables);
-        return await this.send(async () => {
-            const res = await this.emailService.sendNotification(
-                this.email_constants.NOTIFICATION_SENDER,
-                this.email_constants.SUBMISSION_SUBMIT_RECEIVE_SUBJECT,
-                await createEmailTemplate("notification-template.html", {
-                    message, secondMessage, firstName: templateParams.userName
-                }),
-                email,
-                [],
-                BCCs
-            );
-            if (res?.accepted?.length === 0) {
-                console.error(`Failed to send Submission Request Email Notifications: ${email}`);
-            }
-        });
-    }
-
     async inactiveApplicationsNotification(email, template_params, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.INACTIVE_APPLICATION_CONTENT, messageVariables);
         return await this.send(async () => {
@@ -371,7 +351,7 @@ class NotifyUser {
             ...(sanitizedAdditionalInfo) ? [[ADDITIONAL_INFO, sanitizedAdditionalInfo]] : []
         ];
         return await this.send(async () => {
-            const res = await this.emailService.sendNotification(
+            return await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
                 isTierAdded(tier) ? `${tier} ${subject}` : subject,
                 await createEmailTemplate(NOTIFICATION_USER_HTML_TEMPLATE, {
@@ -383,10 +363,6 @@ class NotifyUser {
                 email,
                 CCs
             );
-            if (res?.accepted?.length === 0) {
-                console.error(`Failed to send Request User Access Email Notifications: ${email.join(",")}`);
-            }
-            return res;
         });
     }
 
