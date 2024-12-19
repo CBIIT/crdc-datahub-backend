@@ -184,28 +184,28 @@
           },
           {
             "_id": "access:requested",
-            "group": "User Account",
+            "group": "Miscellaneous",
             "name": "User Request Access",
             "checked": false,
             "disabled": true
           },
           {
             "_id": "account:inactivated",
-            "group": "User Account",
+            "group": "Miscellaneous",
             "name": "Account Disabled due to inactivity (individual)",
             "checked": true,
             "disabled": false
           },
           {
             "_id": "account:users_inactivated",
-            "group": "User Account",
+            "group": "Miscellaneous",
             "name": "Account Disabled due to inactivity (consolidated)",
             "checked": false,
             "disabled": true
           },
           {
             "_id": "account:disabled",
-            "group": "User Account",
+            "group": "Miscellaneous",
             "name": "Account Disabled by admin (individual)",
             "checked": true,
             "disabled": false
@@ -394,28 +394,28 @@
           },
           {
             "_id": "access:requested",
-            "group": "User Account",
+            "group": "Miscellaneous",
             "name": "User Request Access",
             "checked": false,
             "disabled": true
           },
           {
             "_id": "account:inactivated",
-            "group": "User Account",
+            "group": "Miscellaneous",
             "name": "Account Disabled due to inactivity (individual)",
             "checked": true,
             "disabled": false
           },
           {
             "_id": "account:users_inactivated",
-            "group": "User Account",
+            "group": "Miscellaneous",
             "name": "Account Disabled due to inactivity (consolidated)",
             "checked": false,
             "disabled": true
           },
           {
             "_id": "account:disabled",
-            "group": "User Account",
+            "group": "Miscellaneous",
             "name": "Account Disabled by admin (individual)",
             "checked": true,
             "disabled": false
@@ -604,28 +604,28 @@
           },
           {
             "_id": "access:requested",
-            "group": "User Account",
+            "group": "Miscellaneous",
             "name": "User Request Access",
             "checked": true,
             "disabled": false
           },
           {
             "_id": "account:inactivated",
-            "group": "User Account",
+            "group": "Miscellaneous",
             "name": "Account Disabled due to inactivity (individual)",
             "checked": false,
             "disabled": true
           },
           {
             "_id": "account:users_inactivated",
-            "group": "User Account",
+            "group": "Miscellaneous",
             "name": "Account Disabled due to inactivity (consolidated)",
             "checked": true,
             "disabled": false
           },
           {
             "_id": "account:disabled",
-            "group": "User Account",
+            "group": "Miscellaneous",
             "name": "Account Disabled by admin (individual)",
             "checked": true,
             "disabled": false
@@ -814,28 +814,28 @@
           },
           {
             "_id": "access:requested",
-            "group": "User Account",
+            "group": "Miscellaneous",
             "name": "User Request Access",
             "checked": false,
             "disabled": true
           },
           {
             "_id": "account:inactivated",
-            "group": "User Account",
+            "group": "Miscellaneous",
             "name": "Account Disabled due to inactivity (individual)",
             "checked": true,
             "disabled": false
           },
           {
             "_id": "account:users_inactivated",
-            "group": "User Account",
+            "group": "Miscellaneous",
             "name": "Account Disabled due to inactivity (consolidated)",
             "checked": false,
             "disabled": true
           },
           {
             "_id": "account:disabled",
-            "group": "User Account",
+            "group": "Miscellaneous",
             "name": "Account Disabled by admin (individual)",
             "checked": true,
             "disabled": false
@@ -1024,28 +1024,28 @@
           },
           {
             "_id": "access:requested",
-            "group": "User Account",
+            "group": "Miscellaneous",
             "name": "User Request Access",
             "checked": false,
             "disabled": true
           },
           {
             "_id": "account:inactivated",
-            "group": "User Account",
+            "group": "Miscellaneous",
             "name": "Account Disabled due to inactivity (individual)",
             "checked": true,
             "disabled": false
           },
           {
             "_id": "account:users_inactivated",
-            "group": "User Account",
+            "group": "Miscellaneous",
             "name": "Account Disabled due to inactivity (consolidated)",
             "checked": false,
             "disabled": true
           },
           {
             "_id": "account:disabled",
-            "group": "User Account",
+            "group": "Miscellaneous",
             "name": "Account Disabled by admin (individual)",
             "checked": true,
             "disabled": false
