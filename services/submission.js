@@ -335,7 +335,7 @@ class Submission {
         const verifier = verifySubmissionAction(submissionID, action);
         //verify if a submission can be find by submissionID.
         let submission = await verifier.exists(this.submissionCollection);
-        if (!await this.#isValidPermission(userInfo, submission)) {
+        if (!await this.#isValidPermission(userInfo, submission) && ![ROLES.DC_POC, ROLES.FEDERAL_LEAD, ROLES.FEDERAL_MONITOR].includes(userInfo?.role)) {
             throw new Error(ERROR.INVALID_ROLE);
         }
         let fromStatus = submission.status;
@@ -647,6 +647,7 @@ class Submission {
         const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
         const isCollaborator = collaboratorUserIDs.includes(userInfo._id);
         const isPermitted = (this.userService.isAdmin(userInfo.role) ||
+            aSubmission?.submitterID === userInfo?._id || // Submitter
             (userInfo.role === ROLES.CURATOR && userInfo?.dataCommons.includes(aSubmission?.dataCommons)) || isCollaborator)
         if (!isPermitted) {
             throw new Error(ERROR.INVALID_EXPORT_METADATA);
