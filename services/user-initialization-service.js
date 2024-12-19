@@ -3,14 +3,14 @@ const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-
 const orgToUserOrg = require("../crdc-datahub-database-drivers/utility/org-to-userOrg-converter");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {v4} = require("uuid");
-const {getNewUserPermission, getNewUserEmailNotifications} = require("./user");
 
 class UserInitializationService {
 
-    constructor(userCollection, organizationCollection, approvedStudiesCollection) {
+    constructor(userCollection, organizationCollection, approvedStudiesCollection, configurationService) {
         this.userCollection = userCollection;
         this.organizationCollection = organizationCollection;
-        this.approvedStudiesCollection = approvedStudiesCollection
+        this.approvedStudiesCollection = approvedStudiesCollection;
+        this.configurationService = configurationService;
     }
 
     async getMyUser(params, context){
@@ -93,8 +93,12 @@ class UserInitializationService {
             throw new Error(ERROR.CREATE_USER_MISSING_INFO)
         }
         let sessionCurrentTime = getCurrentTime();
+        const permissionByRole = await this.configurationService.getPBACByRoles([USER.ROLES.USER]);
+        const defaultUserPermission = permissionByRole
+            ?.filter((p) => p?.role === USER.ROLES.USER)
+            ?.map();
         const newPermission = getNewUserPermission(USER.ROLES.USER);
-        const newEmailNotifications = getNewUserEmailNotifications(USER.ROLES.USER);
+        // const newEmailNotifications = getNewUserEmailNotifications(USER.ROLES.USER);
         const newUser = {
             _id: v4(),
             email: email,

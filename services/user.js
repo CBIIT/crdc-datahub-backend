@@ -977,13 +977,13 @@ class UserNotifications {
     }
 }
 
-const getNewUserPermission = (role) => {
-    return UserActionPermissions.getNewUserPermission(role);
-}
-
-const getNewUserEmailNotifications = (role) => {
-    return UserNotifications.getNewUserEmailNotifications(role);
-}
+// const getNewUserPermission = (role) => {
+//     return UserActionPermissions.getNewUserPermission(role);
+// }
+//
+// const getNewUserEmailNotifications = (role) => {
+//     return UserNotifications.getNewUserEmailNotifications(role);
+// }
 
 function isIdenticalArrays(arr1, arr2) {
     if (arr1?.length !== arr2?.length) return false;
