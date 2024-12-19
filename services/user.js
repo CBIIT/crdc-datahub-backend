@@ -977,21 +977,33 @@ class UserNotifications {
     }
 }
 
-// const getNewUserPermission = (role) => {
-//     return UserActionPermissions.getNewUserPermission(role);
-// }
-//
-// const getNewUserEmailNotifications = (role) => {
-//     return UserNotifications.getNewUserEmailNotifications(role);
-// }
-
 function isIdenticalArrays(arr1, arr2) {
     if (arr1?.length !== arr2?.length) return false;
     return arr1.every(value => arr2?.includes(value));
 }
 
+// TODO comment
+class UserPermissions {
+    constructor(role, aUser) {
+        this.role = role;
+        this.user = aUser;
+    }
+    // filter && map by _id disabled
+    getDisabled() {
+        return this.user
+            .filter((u) => u?.disabled)
+            .map((u) => u?._id)
+    }
+
+    // filter && map by _id disabled
+    getPermissions() {
+        return this.user
+            .filter((u) => u?.checked)
+            .map((u) => u?._id)
+    }
+}
+
 module.exports = {
     UserService,
-    getNewUserPermission,
-    getNewUserEmailNotifications
+    UserPermissions
 };
