@@ -47,10 +47,10 @@ class ConfigurationService {
      * @param {String} role - a user role.
      * @returns {Promise<{ permissions: {disabled: Array, permitted: Array}, notifications: {disabled: Array, permitted: Array} }>}
      */
-    async getAccessControl(role) {
+    async getPermissionAccess(role) {
         const usersPermissions = await this.getPBACByRoles([role]);
         if (usersPermissions.length === 0) {
-            return null;
+            return [];
         }
         // Only one user
         return {
