@@ -463,6 +463,7 @@ class UserService {
                 throw new Error(SUBMODULE_ERROR.INVALID_NOT_APPROVED_STUDIES);
             }
             else {
+                // ** Must store Approved studies ID only **
                 updatedUser.studies = (approvedStudyIDs instanceof Object)?approvedStudyIDs:approvedStudyIDs.map(str => ({ _id: str }));
             }
         }
