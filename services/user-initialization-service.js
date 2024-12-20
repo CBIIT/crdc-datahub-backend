@@ -76,7 +76,7 @@ class UserInitializationService {
                 const studiesIDs = (result[0]?.studies[0] instanceof Object) ? result[0]?.studies.map((study) => study?._id) : result[0]?.studies;
                 approvedStudies = await this.approvedStudiesCollection.aggregate([{
                     "$match": {
-                        "_id": { "$in": studiesIDs } 
+                        "_id": { "$in": studiesIDs }
                     }
                 }])
             }
@@ -93,12 +93,7 @@ class UserInitializationService {
             throw new Error(ERROR.CREATE_USER_MISSING_INFO)
         }
         let sessionCurrentTime = getCurrentTime();
-        const permissionByRole = await this.configurationService.getPBACByRoles([USER.ROLES.USER]);
-        const defaultUserPermission = permissionByRole
-            ?.filter((p) => p?.role === USER.ROLES.USER)
-            ?.map();
-        const newPermission = getNewUserPermission(USER.ROLES.USER);
-        // const newEmailNotifications = getNewUserEmailNotifications(USER.ROLES.USER);
+        const permissions = await this.configurationService.getAccessControl(USER.ROLES.USER);
         const newUser = {
             _id: v4(),
             email: email,
@@ -111,8 +106,8 @@ class UserInitializationService {
             lastName: userInfo?.lastName,
             createdAt: sessionCurrentTime,
             updateAt: sessionCurrentTime,
-            permissions: newPermission,
-            notifications: newEmailNotifications
+            permissions: permissions?.permissions?.permitted,
+            notifications: permissions?.notifications.permitted
         };
         const result = await this.userCollection.insert(newUser);
         if (!result?.acknowledged){

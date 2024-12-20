@@ -37,7 +37,7 @@ const createToken = (userInfo, token_secret, token_timeout)=> {
 class UserService {
     #allPermissionNamesSet = new Set([...Object.values(SUBMISSION_REQUEST), ...Object.values(DATA_SUBMISSION), ...Object.values(ADMIN)]);
     #allEmailNotificationNamesSet = new Set([...Object.values(EN.SUBMISSION_REQUEST), ...Object.values(EN.DATA_SUBMISSION)]);
-    constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, tier, approvedStudiesService, inactiveUserDays) {
+    constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, tier, approvedStudiesService, inactiveUserDays, configurationService) {
         this.userCollection = userCollection;
         this.logCollection = logCollection;
         this.organizationCollection = organizationCollection;
@@ -50,6 +50,7 @@ class UserService {
         this.approvedStudiesService = approvedStudiesService;
         this.approvedStudiesCollection = approvedStudiesService.approvedStudiesCollection;
         this.inactiveUserDays = inactiveUserDays;
+        this.configurationService = configurationService;
     }
 
     async requestAccess(params, context) {
@@ -763,26 +764,16 @@ class UserService {
         }
     }
 
-    /**
-     * Retrieves user permissions based on the specified role and permissions list.
-     *
-     * @param {string} role - The user's role
-     * @param {Array<string>} permissions - An array of permission strings to validate and retrieve.
-     * @returns {Array<string>} - A list of validated permissions associated with the role.
-     *
-     * @throws {Error} Throws an error if the provided permissions are invalid.
-     */
-
-     getUserPermissions = (role, permissions) => {
-        this.#validateUserPermission(permissions)
-        return UserActionPermissions.get(role, permissions);
-    }
-
-    #setUserPermissions(currRole, newRole, permissions, notifications, updatedUser) {
+    async #setUserPermissions(currRole, newRole, permissions, notifications, updatedUser) {
         this.#validateUserPermission(permissions, notifications);
         const isUserRoleChange = (newRole && (currRole !== newRole));
         const userRole = isUserRoleChange ? newRole : currRole;
         const userPermissions = UserActionPermissions.get(userRole, permissions);
+
+
+
+        // this.configurationService
+
         if ((isUserRoleChange || permissions) && !isIdenticalArrays(currRole?.permissions, userPermissions)) {
             updatedUser.permissions = userPermissions;
         }
@@ -982,28 +973,6 @@ function isIdenticalArrays(arr1, arr2) {
     return arr1.every(value => arr2?.includes(value));
 }
 
-// TODO comment
-class UserPermissions {
-    constructor(role, aUser) {
-        this.role = role;
-        this.user = aUser;
-    }
-    // filter && map by _id disabled
-    getDisabled() {
-        return this.user
-            .filter((u) => u?.disabled)
-            .map((u) => u?._id)
-    }
-
-    // filter && map by _id disabled
-    getPermissions() {
-        return this.user
-            .filter((u) => u?.checked)
-            .map((u) => u?._id)
-    }
-}
-
 module.exports = {
-    UserService,
-    UserPermissions
+    UserService
 };
