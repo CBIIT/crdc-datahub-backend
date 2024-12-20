@@ -293,8 +293,10 @@ class Application {
                 const approvedStudies = await saveApprovedStudies(this.approvedStudiesService, this.organizationService, application, questionnaire);
                 // added approved studies into user collection
                 const { _id, ...updateUser } = context?.userInfo || {};
+                const currStudyIDs = context?.userInfo?.studies?.map((study)=> study?._id) || [];
+                const newStudiesIDs = [approvedStudies?._id].concat(currStudyIDs);
                 promises.push(this.userService.updateUserInfo(
-                    context?.userInfo, updateUser, _id, context?.userInfo?.userStatus, context?.userInfo?.role, [approvedStudies?._id]));
+                    context?.userInfo, updateUser, _id, context?.userInfo?.userStatus, context?.userInfo?.role, newStudiesIDs));
 
                 const [name, abbreviation, description] = [application?.programName, application?.programAbbreviation, application?.programDescription];
                 if (name?.trim()?.length > 0) {
