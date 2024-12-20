@@ -76,7 +76,7 @@ class UserInitializationService {
                 const studiesIDs = (result[0]?.studies[0] instanceof Object) ? result[0]?.studies.map((study) => study?._id) : result[0]?.studies;
                 approvedStudies = await this.approvedStudiesCollection.aggregate([{
                     "$match": {
-                        "_id": { "$in": studiesIDs }
+                        "_id": { "$in": studiesIDs } 
                     }
                 }])
             }
@@ -93,7 +93,7 @@ class UserInitializationService {
             throw new Error(ERROR.CREATE_USER_MISSING_INFO)
         }
         let sessionCurrentTime = getCurrentTime();
-        const permissions = await this.configurationService.getAccessControl(USER.ROLES.USER);
+        const permissions = await this.configurationService.getPermissionAccess(USER.ROLES.USER);
         const newUser = {
             _id: v4(),
             email: email,
