@@ -278,11 +278,6 @@ class Application {
 
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, APPROVED, document.comment);
         const questionnaire = getApplicationQuestionnaire(application);
-
-        if (!questionnaire || (!questionnaire?.program?.name?.trim())) {
-            throw new Error(ERROR.MISSING_PROGRAM_INFO);
-        }
-
         const approvalConditional = (questionnaire?.accessTypes?.includes("Controlled Access") && !questionnaire?.study?.dbGaPPPHSNumber);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
@@ -300,17 +295,18 @@ class Application {
                 const { _id, ...updateUser } = context?.userInfo || {};
                 promises.push(this.userService.updateUserInfo(
                     context?.userInfo, updateUser, _id, context?.userInfo?.userStatus, context?.userInfo?.role, [approvedStudies?._id]));
+
+                const [name, abbreviation, description] = [application?.programName, application?.programAbbreviation, application?.programDescription];
+                if (name?.trim()?.length > 0) {
+                    const programs = await this.organizationService.findOneByProgramName(name);
+                    if (programs?.length === 0) {
+                        promises.push(this.organizationService.upsertByProgramName(name, abbreviation, description, [approvedStudies]));
+                    }
+                }
             }
             promises.push(this.logCollection.insert(
                 UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, APPROVED)
             ));
-
-            const {name, abbreviation, description} = questionnaire?.program;
-            const programs = await this.organizationService.findOneByProgramName(name);
-            if (programs?.length === 0) {
-                // added programs including the approved studies into program collection
-                promises.push(this.organizationService.upsertByProgramName(name, abbreviation, description));
-            }
         }
         return await Promise.all(promises).then(results => {
             return results[0];
