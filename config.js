@@ -102,7 +102,9 @@ function getModelUrl() {
 }
 
 function extractTierName() {
-    return process.env.TIER?.replace(/prod(uction)?/gi, '')?.replace(/[^a-zA-Z\d]/g, '')?.trim();
+    // return process.env.TIER?.replace(/prod(uction)?/gi, '')?.replace(/[^a-zA-Z\d]/g, '')?.trim();
+    // rollback the change to fix CRDCDH-2170
+    return process.env.TIER?.replace(/[^a-zA-Z\d]/g, '')?.trim();
 }
 
 function getTier() {
