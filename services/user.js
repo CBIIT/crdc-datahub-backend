@@ -793,6 +793,17 @@ class UserService {
             updatedUser.notifications = userNotifications;
         }
     }
+
+    async getUsersByStudyID(studyID) {
+        const query = {
+            "studies": {"$in": [studyID, "All"]}
+        }; // user's studies contains studyID
+        const users = await this.userCollection.aggregate([{"$match": query}]);
+        for (const user of users) {
+            user.studies = await this.#findApprovedStudies(user.studies);
+        }
+        return users
+    }   
 }
 
 

@@ -1203,8 +1203,8 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        const organizationIDs = await this.organizationService.findByStudyID(aSubmission?.studyID);
-        const users = await this.userService.getUsersByOrganizationIDs(organizationIDs);
+        // find user with the studyID
+        const users = await this.userService.getUsersByStudyID(aSubmission?.studyID);
         return users
             .filter(u=> u._id !== aSubmission?.submitterID && u.role === ROLES.SUBMITTER);
     }
