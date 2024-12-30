@@ -92,7 +92,7 @@ function getModelUrl() {
     if (process.env.MODEL_URL) {
         return process.env.MODEL_URL;
     }
-    const tier = extractTierName();
+    const tier = process.env.TIER?.replace(/[^a-zA-Z\d]/g, '')?.trim();
     // By default url
     const modelUrl = ['https://raw.githubusercontent.com/CBIIT/crdc-datahub-models/', tier || 'master', '/cache/content.json']
     if (tier?.length > 0) {
@@ -102,9 +102,7 @@ function getModelUrl() {
 }
 
 function extractTierName() {
-    // return process.env.TIER?.replace(/prod(uction)?/gi, '')?.replace(/[^a-zA-Z\d]/g, '')?.trim();
-    // rollback the change to fix CRDCDH-2170
-    return process.env.TIER?.replace(/[^a-zA-Z\d]/g, '')?.trim();
+    return process.env.TIER?.replace(/prod(uction)?/gi, '')?.replace(/[^a-zA-Z\d]/g, '')?.trim();
 }
 
 function getTier() {
