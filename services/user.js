@@ -16,7 +16,6 @@ const {
     EMAIL_NOTIFICATIONS: EN,
 } = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 
-
 const isLoggedInOrThrow = (context) => {
     if (!context?.userInfo?.email || !context?.userInfo?.IDP) throw new Error(SUBMODULE_ERROR.NOT_LOGGED_IN);
 }
@@ -792,18 +791,17 @@ class UserService {
         if ((isUserRoleChange || notifications) && !isIdenticalArrays(currRole?.notifications, userNotifications)) {
             updatedUser.notifications = userNotifications;
         }
-    }
-
-    async getUsersByStudyID(studyID) {
+    } 
+    async getCollaboratorsByStudyID(studyID, submitterID) {
         const query = {
-            "studies": {"$in": [studyID, "All"]}
+            "studies": {"$in": [studyID, "All"]}, "role": USER.ROLES.SUBMITTER, _id: {"$ne": submitterID}
         }; // user's studies contains studyID
         const users = await this.userCollection.aggregate([{"$match": query}]);
         for (const user of users) {
             user.studies = await this.#findApprovedStudies(user.studies);
         }
         return users
-    }   
+    }  
 }
 
 

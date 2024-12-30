@@ -1203,10 +1203,8 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        // find user with the studyID
-        const users = await this.userService.getUsersByStudyID(aSubmission?.studyID);
-        return users
-            .filter(u=> u._id !== aSubmission?.submitterID && u.role === ROLES.SUBMITTER);
+        // find Collaborators with aSubmission.studyID
+        return await this.userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
     }
 
     async verifySubmitter(submissionID, context) {
