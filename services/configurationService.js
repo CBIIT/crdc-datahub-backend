@@ -45,12 +45,12 @@ class ConfigurationService {
      * Get User Permission Access by a role
      * UserAccessControl class to filter permissions.
      * @param {String} role - a user role.
-     * @returns {Promise<{ permissions: {disabled: Array, permitted: Array}, notifications: {disabled: Array, permitted: Array} }>}
+     * @returns {Promise<{ permissions: {disabled: Array, permitted: Array}, notifications: {disabled: Array, permitted: Array} }> | null}
      */
-    async getPermissionAccess(role) {
+    async getAccessControl(role) {
         const usersPermissions = await this.getPBACByRoles([role]);
         if (usersPermissions.length === 0) {
-            return [];
+            return null;
         }
         // Only one user
         return {

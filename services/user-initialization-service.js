@@ -93,7 +93,7 @@ class UserInitializationService {
             throw new Error(ERROR.CREATE_USER_MISSING_INFO)
         }
         let sessionCurrentTime = getCurrentTime();
-        const permissions = await this.configurationService.getPermissionAccess(USER.ROLES.USER);
+        const accessControl = await this.configurationService.getAccessControl(USER.ROLES.USER);
         const newUser = {
             _id: v4(),
             email: email,
@@ -106,8 +106,8 @@ class UserInitializationService {
             lastName: userInfo?.lastName,
             createdAt: sessionCurrentTime,
             updateAt: sessionCurrentTime,
-            permissions: permissions?.permissions?.permitted,
-            notifications: permissions?.notifications.permitted
+            permissions: accessControl?.permissions?.permitted,
+            notifications: accessControl?.notifications.permitted
         };
         const result = await this.userCollection.insert(newUser);
         if (!result?.acknowledged){
