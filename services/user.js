@@ -771,7 +771,10 @@ class UserService {
         const userRole = isUserRoleChange ? newRole : currRole;
 
         const accessControl = await this.configurationService.getAccessControl(userRole);
-        const invalidPermissions = permissions.filter(permission => !accessControl.permissions.disabled?.includes(permission));
+        const validPermissions = new Set(accessControl?.permissions?.permitted);
+        const disabledPermissions = new Set(accessControl?.permissions?.disabled);
+        const invalidPermissions = permissions.filter(permission =>
+            !validPermissions.has(permission) && !disabledPermissions.has(permission));
         // The request permission is not allowed for the requested role
         if (invalidPermissions?.length > 0) {
             throw new Error(replaceErrorString(ERROR.INVALID_PERMISSION_NAME, `${invalidPermissions.join(',')}`));
