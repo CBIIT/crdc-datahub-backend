@@ -92,7 +92,7 @@ function getModelUrl() {
     if (process.env.MODEL_URL) {
         return process.env.MODEL_URL;
     }
-    const tier = extractTierName();
+    const tier = process.env.TIER?.replace(/[^a-zA-Z\d]/g, '')?.trim();
     // By default url
     const modelUrl = ['https://raw.githubusercontent.com/CBIIT/crdc-datahub-models/', tier || 'master', '/cache/content.json']
     if (tier?.length > 0) {
