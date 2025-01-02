@@ -33,6 +33,7 @@ const {AWSService} = require("./services/aws-request");
 const {UtilityService} = require("./services/utility");
 const {QcResultService} = require("./services/qc-result-service");
 const {UserService} = require("./services/user");
+const {EMAIL_NOTIFICATIONS} = require("./crdc-datahub-database-drivers/constants/user-permission-constants");
 // print environment variables to log
 console.info(configuration);
 
@@ -135,15 +136,17 @@ const runDeactivateInactiveUsers = async (userService, notificationsService, ina
     const usersToBeInactivated = await userService.checkForInactiveUsers([LOGIN, REACTIVATE_USER]);
     const disabledUsers = await userService.disableInactiveUsers(usersToBeInactivated);
     if (disabledUsers.length > 0) {
-        // Email disabled user(s)
+        // Email disabled user(s) with PBAC enabled
         await Promise.all(disabledUsers.map(async (user) => {
-            await notificationsService.inactiveUserNotification(user.email,
-                {firstName: user.firstName},
-                {inactiveDays: inactiveUserDays, officialEmail: emailParams.officialEmail},
-                tier);
+            if (user?.permissions?.includes(EMAIL_NOTIFICATIONS.USER_ACCOUNT.USER_INACTIVATED)) {
+                await notificationsService.inactiveUserNotification(user.email,
+                    {firstName: user.firstName},
+                    {inactiveDays: inactiveUserDays, officialEmail: emailParams.officialEmail},
+                    tier);
+            }
         }));
-        // Email admin(s)
-        const adminUsers = await userService.getAdminUserEmails();
+        // Email PBAC enabled admin(s)
+        const adminUsers = await userService.getAdminPBACUsers();
         // This is for the organization in the email template.
         const users = disabledUsers.map(u => ({ ...u, organization: u?.organization?.orgName }));
         await Promise.all(adminUsers.map(async (admin) => {
