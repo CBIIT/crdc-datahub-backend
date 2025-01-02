@@ -3,10 +3,9 @@ const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-
 const ERROR = require("../constants/error-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 class DashboardService {
-    constructor(userService, awsService, configurationService, {dashboardUserID, sessionTimeout}) {
+    constructor(userService, awsService, configurationService, {sessionTimeout}) {
         this.userService = userService;
         this.awsService = awsService;
-        this.dashboardUserID = dashboardUserID;
         this.sessionTimeout = sessionTimeout;
         this.configurationService = configurationService;
     }
@@ -14,7 +13,7 @@ class DashboardService {
     async getDashboardURL(params, context) {
         verifySession(context)
             .verifyInitialized()
-            .verifyRole([ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN]);
+            .verifyRole([ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN, ROLES.FEDERAL_MONITOR]);
 
         const aDashboardConf = await this.configurationService.findByType(params?.type);
         const dashboardID = aDashboardConf?.dashboardID;
@@ -24,7 +23,7 @@ class DashboardService {
         }
 
         return {
-            url: await this.awsService.getQuickInsightURL(this.dashboardUserID, dashboardID, this.sessionTimeout),
+            url: await this.awsService.getQuickInsightURL(dashboardID, this.sessionTimeout),
             expiresIn: this.sessionTimeout
         };
     }

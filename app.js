@@ -11,7 +11,8 @@ const statusRouter = require("./routers/status-endpoints-router");
 const graphqlRouter = require("./routers/graphql-router");
 const {MongoDBCollection} = require("./crdc-datahub-database-drivers/mongodb-collection");
 const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, LOG_COLLECTION, APPROVED_STUDIES_COLLECTION,
-    ORGANIZATION_COLLECTION, SUBMISSIONS_COLLECTION, BATCH_COLLECTION, DATA_RECORDS_COLLECTION, VALIDATION_COLLECTION
+    ORGANIZATION_COLLECTION, SUBMISSIONS_COLLECTION, BATCH_COLLECTION, DATA_RECORDS_COLLECTION, VALIDATION_COLLECTION,
+    CONFIGURATION_COLLECTION, DATA_RECORDS_ARCHIVE_COLLECTION
 } = require("./crdc-datahub-database-drivers/database-constants");
 const {Application} = require("./services/application");
 const {Submission} = require("./services/submission");
@@ -32,6 +33,7 @@ const {BatchService} = require("./services/batch-service");
 const {AWSService} = require("./services/aws-request");
 const {UtilityService} = require("./services/utility");
 const authenticationMiddleware = require("./middleware/authentication-middleware");
+const {ConfigurationService} = require("./services/configurationService");
 // print environment variables to log
 console.info(config);
 
@@ -56,19 +58,19 @@ app.use("/", statusRouter);
 // create session
 app.use(createSession(config.session_secret, config.session_timeout, config.mongo_db_connection_string));
 
-// authentication middleware
-app.use(async (req, res, next) => {
-    try{
-        await authenticationMiddleware(req, res, next);
-    }
-    catch(error){
-        next(error);
-    }
-});
+// // authentication middleware
+// app.use(async (req, res, next) => {
+//     try{
+//         await authenticationMiddleware(req, res, next);
+//     }
+//     catch(error){
+//         next(error);
+//     }
+// });
 
 // add graphql endpoint
 app.use("/api/graphql", graphqlRouter);
-
+const INACTIVE_SUBMISSION_DAYS = "Inactive_Submission_Notify_Days";
 cronJob.schedule(config.schedule_job, async () => {
     const dbConnector = new DatabaseConnector(config.mongo_db_connection_string);
     const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
@@ -77,8 +79,14 @@ cronJob.schedule(config.schedule_job, async () => {
     dbConnector.connect().then( async () => {
         const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
         const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
+
+        const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
+        const configurationService = new ConfigurationService(configurationCollection)
+        const inactiveSubmissionConf = await configurationService.findByType(INACTIVE_SUBMISSION_DAYS);
+        const inactiveSubmissionsTimeout = Array.isArray(inactiveSubmissionConf?.timeout) && inactiveSubmissionConf?.timeout?.length > 0 ? inactiveSubmissionConf?.timeout : [7, 30, 60];
         const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days,
-            submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk, remindSubmissionDay: config.inactive_submission_days_notify};
+            submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk, remindSubmissionDay: inactiveSubmissionsTimeout,
+            finalRemindSubmissionDay: config.inactive_submission_days || 120};
         const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
         const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
         const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection);
@@ -94,12 +102,13 @@ cronJob.schedule(config.schedule_job, async () => {
         const batchService = new BatchService(s3Service, batchCollection, config.sqs_loader_queue, awsService);
 
         const dataRecordCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_COLLECTION);
-        const dataRecordService = new DataRecordService(dataRecordCollection, config.file_queue, config.metadata_queue, awsService);
+        const dataRecordArchiveCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_ARCHIVE_COLLECTION);
+        const dataRecordService = new DataRecordService(dataRecordCollection, dataRecordArchiveCollection, config.file_queue, config.metadata_queue, awsService);
 
         const utilityService = new UtilityService();
         const dataModelInfo = await utilityService.fetchJsonFromUrl(config.model_url);
         const validationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, VALIDATION_COLLECTION);
-        const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, dataModelInfo, awsService, config.export_queue, s3Service, emailParams, config.dataCommonsList, validationCollection);
+        const submissionService = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, config.tier, dataModelInfo, awsService, config.export_queue, s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection);
         const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.tier, emailParams);
 
         console.log("Running a scheduled background task to delete inactive application at " + getCurrentTime());
@@ -108,9 +117,12 @@ cronJob.schedule(config.schedule_job, async () => {
         await runDeactivateInactiveUsers(userService, notificationsService);
         console.log("Running a scheduled background task to remind inactive application at " + getCurrentTime());
         await dataInterface.remindApplicationSubmission();
+        console.log("Running a scheduled background task to remind inactive submission at " + getCurrentTime());
+        await submissionService.remindInactiveSubmission();
         console.log("Running a scheduled job to delete inactive data submission and related data ann files at " + getCurrentTime());
-        const subInterface = new Submission(logCollection, submissionCollection, batchService, userService, organizationService, notificationsService, dataRecordService, null, null, null, null, s3Service )
-        await subInterface.deleteInactiveSubmissions()
+        await submissionService.deleteInactiveSubmissions();
+        console.log("Running a scheduled job to archive completed submissions at " + getCurrentTime());
+        await submissionService.archiveCompletedSubmissions();
         await dbConnector.disconnect();
     });
 });

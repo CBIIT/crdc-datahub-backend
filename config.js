@@ -8,7 +8,6 @@ let config = {
     inactive_user_days : process.env.INACTIVE_USER_DAYS || 60,
     remind_application_days: process.env.REMIND_APPLICATION_DAYS || 30,
     inactive_application_days : process.env.INACTIVE_APPLICATION_DAYS || 45,
-    inactive_submission_days_notify: process.env.INACTIVE_SUBMISSION_DAYS_NOTIFY || 60,
     //Mongo DB
     mongo_db_user: process.env.MONGO_DB_USER,
     mongo_db_password: process.env.MONGO_DB_PASSWORD,
@@ -30,6 +29,7 @@ let config = {
     // temp url for email
     submission_doc_url: process.env.SUBMISSION_DOC_URL || "",
     submission_helpdesk: "CRDCSubmissions@nih.gov",
+    techSupportEmail: process.env.TECH_SUPPORT_EMAIL || "NCICRDCTechSupport@mail.nih.gov",
     submission_system_portal: "https://datacommons.cancer.gov/",
     prod_url: process.env.PROD_URL || "https://hub.datacommons.cancer.gov/",
     submission_bucket: process.env.SUBMISSION_BUCKET, 
@@ -48,12 +48,19 @@ let config = {
     model_url: getModelUrl(),
     //uploader configuration file template
     uploaderCLIConfigs: readUploaderCLIConfigTemplate(),
-    dataCommonsList: process.env.DATA_COMMONS_LIST ? JSON.parse(process.env.DATA_COMMONS_LIST) : ["CDS", "ICDC", "CTDC"],
+    dataCommonsList: process.env.DATA_COMMONS_LIST ? JSON.parse(process.env.DATA_COMMONS_LIST) : ["CDS", "ICDC", "CTDC", "CCDI", "Test MDF", "Hidden Model"],
+    hiddenModels: process.env.HIDDEN_MODELS ? parseHiddenModels(process.env.HIDDEN_MODELS) : [],
     inactive_submission_days: process.env.INACTIVE_SUBMISSION_DAYS_DELETE || 120,
+    completed_submission_days: process.env.COMPLETED_RETENTION_DAYS || 30,
     dashboardSessionTimeout: process.env.DASHBOARD_SESSION_TIMEOUT || 3600, // 60 minutes by default
-    dashboardUserID: process.env.DASHBOARD_USER_ID
 };
 config.mongo_db_connection_string = `mongodb://${config.mongo_db_user}:${config.mongo_db_password}@${config.mongo_db_host}:${process.env.MONGO_DB_PORT}`;
+
+function parseHiddenModels(hiddenModels) {
+    return hiddenModels.split(',')
+        .filter(item => item?.trim().length > 0)
+        .map(item => item?.trim());
+}
 
 function getTransportConfig() {
     return {
@@ -95,7 +102,7 @@ function getModelUrl() {
 }
 
 function extractTierName() {
-    return process.env.TIER?.replace(/[^a-zA-Z\d]/g, '').trim();
+    return process.env.TIER?.replace(/prod(uction)?/gi, '')?.replace(/[^a-zA-Z\d]/g, '')?.trim();
 }
 
 function getTier() {

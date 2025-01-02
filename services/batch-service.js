@@ -6,22 +6,23 @@ const {USER} = require("../crdc-datahub-database-drivers/constants/user-constant
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {SUBMISSIONS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
+const {replaceErrorString} = require("../utility/string-util");
 const LOAD_METADATA = "Load Metadata";
 const OMIT_DCF_PREFIX = 'omit-DCF-prefix';
 class BatchService {
-    constructor(s3Service, batchCollection, sqsLoaderQueue, awsService, prodURL, dataModelInfo) {
+    constructor(s3Service, batchCollection, sqsLoaderQueue, awsService, prodURL, fetchDataModelInfo) {
         this.s3Service = s3Service;
         this.batchCollection = batchCollection;
         this.sqsLoaderQueue = sqsLoaderQueue;
         this.awsService = awsService;
         this.prodURL = prodURL;
-        this.dataModelInfo = dataModelInfo;
+        this.fetchDataModelInfo = fetchDataModelInfo;
     }
 
-    async createBatch(params, aSubmission) {
+    async createBatch(params, aSubmission, user) {
         const prefix = createPrefix(params, aSubmission?.rootPath);
         const newDisplayID = await this.#getBatchDisplayID(params.submissionID);
-        const newBatch = Batch.createNewBatch(params.submissionID, newDisplayID, aSubmission?.bucketName, prefix, params.type.toLowerCase());
+        const newBatch = Batch.createNewBatch(params.submissionID, newDisplayID, aSubmission?.bucketName, prefix, params.type.toLowerCase(), user._id, user.firstName + " " + user.lastName);
         if (BATCH.TYPE.METADATA === params.type.toLowerCase()) {
             await Promise.all(params.files.map(async (file) => {
                 if (file.fileName) {
@@ -31,7 +32,8 @@ class BatchService {
             }));
         } else {
             // The prefix "dg.4DFC" added if "omit-dcf-prefix" is null or set to false in the data model
-            const isOmitPrefix = Boolean(this.dataModelInfo?.[aSubmission?.dataCommons]?.[OMIT_DCF_PREFIX]);
+            const dataModelInfo = await this.fetchDataModelInfo();
+            const isOmitPrefix = Boolean(dataModelInfo?.[aSubmission?.dataCommons]?.[OMIT_DCF_PREFIX]);
             params.files.forEach((file) => {
                 if (file.fileName) {
                     newBatch.addDataFile(file.fileName, file.size, this.prodURL, aSubmission?.studyID, isOmitPrefix);
@@ -45,7 +47,7 @@ class BatchService {
         }
         return newBatch;
     }
-    async updateBatch(aBatch, files) {
+    async updateBatch(aBatch, bucketName, files) {
         const uploadFiles = new Map(files
             .filter(aFile => (aFile?.fileName) && aFile?.fileName.trim().length > 0)
             .map(file => [file?.fileName, file]));
@@ -53,25 +55,31 @@ class BatchService {
         const skippedFiles = files.filter(f=>f.skipped === true);
         const skippedCount = skippedFiles.length
         const isAllSkipped = skippedCount === files.length;
-        
+
+        const s3Files = await this.s3Service.listFileInDir(bucketName, aBatch?.filePrefix);
+        const s3UploadedFiles = new Set(s3Files
+            ?.map((f)=> f.Key?.replace(`${aBatch?.filePrefix}/`, ""))
+            .filter((f)=>f !== ""));
+
         if (!isAllSkipped) {
             let updatedFiles = [];
             for (const aFile of aBatch.files) {
-                if (!uploadFiles.has(aFile.fileName)) {
-                    continue;
-                }
                 const aUploadFile = uploadFiles.get(aFile.fileName);
-                if( aUploadFile.skipped === true){
+                if(Boolean(aUploadFile?.skipped) === true){
                     continue;
                 }
                 aFile.updatedAt = getCurrentTime();
-                if (aUploadFile?.succeeded) {
+                if (aUploadFile?.succeeded && s3UploadedFiles.has(aFile.fileName)) {
                     aFile.status = FILE.UPLOAD_STATUSES.UPLOADED;
                     succeededFiles.push(aFile);
-                }
-                else {
+                } else {
                     aFile.status = FILE.UPLOAD_STATUSES.FAILED;
                     aFile.errors = aUploadFile?.errors || [];
+                    const invalidUploadAttempt = aUploadFile?.succeeded && !s3UploadedFiles.has(aFile.fileName) || !aUploadFile?.succeeded && s3UploadedFiles.has(aFile.fileName);
+                    if (invalidUploadAttempt) {
+                        aBatch.errors = aBatch?.errors || [];
+                        aBatch.errors.push(replaceErrorString(ERROR.INVALID_UPLOAD_ATTEMPT, aFile.fileName));
+                    }
                 }
                 updatedFiles.push(aFile) 
             }
@@ -86,12 +94,33 @@ class BatchService {
         // Count how many batch files updated from FE match the uploaded files.
         const isAllUploaded = files?.length > 0 && (succeededFiles.length + skippedCount  === files?.length);
         aBatch.status = isAllUploaded ? (aBatch.type=== BATCH.TYPE.METADATA && !isAllSkipped? BATCH.STATUSES.UPLOADING : BATCH.STATUSES.UPLOADED) : BATCH.STATUSES.FAILED;
+        // Store error files that were not uploaded to the S3 bucket
+        if (aBatch.status !== BATCH.STATUSES.UPLOADING) {
+            const noUploadedFiles = files
+                .filter(file => !s3UploadedFiles.has(file.fileName))
+                .map(file => file.fileName);
+            if (noUploadedFiles.length > 0) {
+                aBatch.errors = aBatch.errors || [];
+                aBatch.errors.push(replaceErrorString(ERROR.NO_UPLOADED_FILES, `'${noUploadedFiles.join(", ")}'`));
+                aBatch.status = BATCH.STATUSES.FAILED;
+            }
+
+            for (const aFileName of uploadFiles?.keys()) {
+                const file = uploadFiles.get(aFileName);
+                // File already uploaded, but it marked the file as failed.
+                if (!Boolean(file?.succeeded) && s3UploadedFiles.has(aFileName)) {
+                    aBatch.errors = aBatch.errors || [];
+                    aBatch.errors.push(replaceErrorString(ERROR.INVALID_UPLOAD_ATTEMPT, aFileName));
+                    aBatch.status = BATCH.STATUSES.FAILED;
+                }
+            }
+        }
         await asyncUpdateBatch(this.awsService, this.batchCollection, aBatch, this.sqsLoaderQueue, isAllUploaded, isAllSkipped);
         return await this.findByID(aBatch._id);
     }
 
     async listBatches(params, context) {
-        let pipeline = listBatchConditions(context.userInfo._id, context.userInfo?.role, context.userInfo?.organization, params.submissionID, context.userInfo?.dataCommons);
+        let pipeline = listBatchConditions(context.userInfo._id, params?.collaboratorUserIDs, context.userInfo?.role, context.userInfo?.organization, params.submissionID, context.userInfo?.dataCommons);
         const pagination = [
             {"$sort": { [params.orderBy]: getSortDirection(params.sortDirection)}}, // default by displayID & Desc
             {"$skip": params.offset},
@@ -146,7 +175,7 @@ class BatchService {
         return (batches && batches.length > 0)? batches[0].batchID : null;
     }
 }
-const listBatchConditions = (userID, userRole, aUserOrganization, submissionID, userDataCommonsNames) => {
+const listBatchConditions = (userID, collaboratorUserIDs, userRole, aUserOrganization, submissionID, userDataCommonsNames) => {
     const submissionJoin = [
         {"$lookup": {
             from: SUBMISSIONS_COLLECTION,
@@ -160,8 +189,8 @@ const listBatchConditions = (userID, userRole, aUserOrganization, submissionID, 
     ];
 
     const validStatusAndSubmissionID = {"submissionID": submissionID, "batch.status": {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED, REJECTED, WITHDRAWN]}};
-    const listAllSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR];
-    if (listAllSubmissionRoles.includes(userRole)) {
+    const listAllSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR, USER.ROLES.FEDERAL_MONITOR];
+    if (listAllSubmissionRoles.includes(userRole) || collaboratorUserIDs.length > 0) {
         return [...submissionJoin, {"$match": {...validStatusAndSubmissionID}}];
     }
 

@@ -13,33 +13,25 @@
   </head>
   <body>
     <p>Dear {{ firstName }},</p>
-    <p>{{ message }}</p>
-    {{#if secondMessage}}
-      <p>{{ secondMessage }}</p>
-    {{/if}}
-    {{#if additionalMsg}}
-      {{#each additionalMsg}}
-        <p>{{{ this }}}</p>
-      {{/each}}
-    {{/if}}
-
-      {{#if users}}
-      <ul>
-        {{#each users}}
-        <li>{{{ this }}}</li>
-        {{/each}}
-      </ul>
-      {{/if}}
-
+    <p>{{ topMessage }}</p>
     {{#if additionalInfo}}
     <p>
     {{#each additionalInfo}}
       {{#if this.[0]}}<span><strong>{{{ this.[0] }}}:</strong></span>{{/if}}
-      {{#if this.[1]}}<span> {{{ this.[1] }}}</span>{{/if}}<br>
+      {{#if this.[1]}}
+        {{#if (isArray this.[1])}}
+          {{#each this.[1]}}
+            <br><span>- {{ this }}</span>
+          {{/each}}
+        {{else}}
+          <span> {{{ this.[1] }}}</span>
+        {{/if}}
+      {{/if}}<br>
     {{/each}}
     </p>
     {{/if}}
+    <p>{{ bottomMessage }}</p>
     <p>Sincerely,</p>
-    <p>CRDC Submission Portal Admin Team</p>
+    <p>{{senderName}}</p>
   </body>
 </html>

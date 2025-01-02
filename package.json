@@ -1,7 +1,7 @@
 {
   "name": "crdcdh-backend",
-  "version": "1.0.0",
-  "description": "The authorization service for the CRDC Data Hub",
+  "version": "3.1.0",
+  "description": "The CRDC DataHub Backend API service",
   "private": true,
   "scripts": {
     "start": "node ./bin/www",
@@ -25,6 +25,7 @@
     "morgan": "^1.10.0",
     "node-cron": "^3.0.2",
     "nodemailer": "^6.9.3",
+    "sanitize-html": "^2.13.1",
     "semver": "^7.5.4",
     "uuid": "^9.0.0"
   },

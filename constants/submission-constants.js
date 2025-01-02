@@ -54,5 +54,10 @@ module.exports = Object.freeze({
     },
     CONSTRAINTS: {
         NAME_MAX_LENGTH: 25
+    },
+    COLLABORATOR_PERMISSIONS: {
+        CAN_VIEW: "Can View", 
+        CAN_EDIT: "Can Edit"
     }
+
 });
