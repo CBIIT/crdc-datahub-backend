@@ -795,7 +795,25 @@ class UserService {
             user.studies = await this.#findApprovedStudies(user.studies);
         }
         return users
-    }  
+    }
+
+    /**
+     * Fetches a list of users based on specified notifications and optional roles.
+     *
+     * @param {Array} notifications - An array of notification.
+     * @param {Array} [roles=[]] - An optional array of user roles.
+     * @returns {Promise<Array>} - An array of user documents.
+     */
+    async getUsersByNotifications(notifications, roles = []) {
+        return await this.userCollection.aggregate([{"$match": {
+                "userStatus": USER.STATUSES.ACTIVE,
+                "notifications": {
+                    "$in": notifications
+                },
+                ...(roles?.length > 0 && { "role": { "$in": roles } })
+            }
+        }]);
+    }
 }
 
 
