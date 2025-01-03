@@ -55,11 +55,7 @@ class UserService {
     async requestAccess(params, context) {
         verifySession(context)
             .verifyInitialized()
-            .verifyRole([USER.ROLES.USER, USER.ROLES.ORG_OWNER, USER.ROLES.SUBMITTER]);
-
-        if (![USER.ROLES.SUBMITTER, USER.ROLES.ORG_OWNER].includes(params.role)) {
-            return new Error(replaceErrorString(ERROR.INVALID_REQUEST_ROLE, params?.role));
-        }
+            .verifyPermission(DATA_SUBMISSION.REQUEST_ACCESS);
 
         const approvedStudies = params?.studies?.length > 0 ?
             await this.approvedStudiesService.listApprovedStudies({_id: {$in: params?.studies}})
