@@ -49,7 +49,7 @@ class ConfigurationService {
      */
     async getAccessControl(role) {
         const usersPermissions = await this.getPBACByRoles([role]);
-        if (usersPermissions.length === 0) {
+        if (usersPermissions?.length === 0) {
             return null;
         }
         // Only one user
