@@ -177,7 +177,8 @@ const ERROR = {
     INVALID_PERMISSION_NAME: "Invalid user permission is requested: $item$",
     // User Notifications
     INVALID_NOTIFICATION_NAME: "Invalid email notification is requested: $item$",
-    INVALID_PRIMARY_CONTACT: "No user found with the primary contact ID"
+    INVALID_PRIMARY_CONTACT: "No primary contact found with the primary contact ID",
+    INVALID_PRIMARY_CONTACT_ROLE: "The user role for a primary contact must be Data Commons Personnel",
 }
 
 module.exports = ERROR;

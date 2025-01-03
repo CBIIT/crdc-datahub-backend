@@ -56,7 +56,7 @@ dbConnector.connect().then(async () => {
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
     const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
     const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection, approvedStudiesCollection);
-    const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, organizationService);
+    const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, organizationService, userCollection);
 
     const userService = new UserService(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, config.tier, approvedStudiesService, config.inactive_user_days);
     const s3Service = new S3Service();
