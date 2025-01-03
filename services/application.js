@@ -14,6 +14,7 @@ const {parseJsonString} = require("../crdc-datahub-database-drivers/utility/stri
 const {formatName} = require("../utility/format-name");
 const {isUndefined, replaceErrorString} = require("../utility/string-util");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
+const {EMAIL_NOTIFICATIONS} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 
 class Application {
     constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, tier, institutionService) {
@@ -221,7 +222,7 @@ class Application {
         const logEvent = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, SUBMITTED);
         await Promise.all([
             await this.logCollection.insert(logEvent),
-            await sendEmails.submitApplication(this.notificationService,this.emailParams,context, application)
+            await sendEmails.submitApplication(this.notificationService, this.userService, this.emailParams, context.userInfo, application)
         ]);
         return application;
     }
@@ -278,11 +279,6 @@ class Application {
 
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, APPROVED, document.comment);
         const questionnaire = getApplicationQuestionnaire(application);
-
-        if (!questionnaire || (!questionnaire?.program?.name?.trim())) {
-            throw new Error(ERROR.MISSING_PROGRAM_INFO);
-        }
-
         const approvalConditional = (questionnaire?.accessTypes?.includes("Controlled Access") && !questionnaire?.study?.dbGaPPPHSNumber);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
@@ -298,19 +294,22 @@ class Application {
                 const approvedStudies = await saveApprovedStudies(this.approvedStudiesService, this.organizationService, application, questionnaire);
                 // added approved studies into user collection
                 const { _id, ...updateUser } = context?.userInfo || {};
+                const currStudyIDs = context?.userInfo?.studies?.map((study)=> study?._id) || [];
+                const newStudiesIDs = [approvedStudies?._id].concat(currStudyIDs);
                 promises.push(this.userService.updateUserInfo(
-                    context?.userInfo, updateUser, _id, context?.userInfo?.userStatus, context?.userInfo?.role, [approvedStudies?._id]));
+                    context?.userInfo, updateUser, _id, context?.userInfo?.userStatus, context?.userInfo?.role, newStudiesIDs));
+
+                const [name, abbreviation, description] = [application?.programName, application?.programAbbreviation, application?.programDescription];
+                if (name?.trim()?.length > 0) {
+                    const programs = await this.organizationService.findOneByProgramName(name);
+                    if (programs?.length === 0) {
+                        promises.push(this.organizationService.upsertByProgramName(name, abbreviation, description, [approvedStudies]));
+                    }
+                }
             }
             promises.push(this.logCollection.insert(
                 UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, APPROVED)
             ));
-
-            const {name, abbreviation, description} = questionnaire?.program;
-            const programs = await this.organizationService.findOneByProgramName(name);
-            if (programs?.length === 0) {
-                // added programs including the approved studies into program collection
-                promises.push(this.organizationService.upsertByProgramName(name, abbreviation, description));
-            }
         }
         return await Promise.all(promises).then(results => {
             return results[0];
@@ -534,23 +533,32 @@ const sendEmails = {
             url: emailParams.url
         })
     },
-    submitApplication: async (notificationService, emailParams, context, application) => {
+    submitApplication: async (notificationService, userService, emailParams, userInfo, application) => {
+        const allowedNotifyUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_SUBMIT],
+            [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]);
+
+        await notificationService.submitRequestReceivedNotification(application?.applicant?.applicantEmail,
+            {helpDesk: emailParams.conditionalSubmissionContact},
+            {userName: application?.applicant?.applicantName},
+            getUserEmails(allowedNotifyUsers)
+        );
+
         const programName = application?.programName?.trim() ?? "";
         const associate = `the ${application?.studyAbbreviation} study` + (programName.length > 0 ? ` associated with the ${programName} program` : '');
         await notificationService.submitQuestionNotification({
-            pi: `${context.userInfo.firstName} ${context.userInfo.lastName}`,
+            pi: `${userInfo.firstName} ${userInfo.lastName}`,
             associate,
             url: emailParams.url
         })
     },
-    inquireApplication: async(notificationService, emailParams, context, application, emailCCs, tier) => {
+    inquireApplication: async(notificationService, emailParams, _, application, emailCCs, tier) => {
         await notificationService.inquireQuestionNotification(application?.applicant?.applicantEmail, emailCCs,{
             firstName: application?.applicant?.applicantName
         }, {
             officialEmail: emailParams.submissionHelpdesk
         }, tier);
     },
-    rejectApplication: async(notificationService, emailParams, context, application) => {
+    rejectApplication: async(notificationService, emailParams, _, application) => {
         await notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, {
             firstName: application?.applicant?.applicantName
         }, {
