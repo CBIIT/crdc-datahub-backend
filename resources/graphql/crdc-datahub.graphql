@@ -582,9 +582,10 @@ type Query {
         submissionID: ID!,
         severity: String = "all"
         # "all", "error", "warning"
-        first: Int = -1,
-        # -1 will return all
+        first: Int = 20,
+        # any value less than 1 will return all
         offset: Int = 0,
+        # any value less than 1 will have no offset
         orderBy: String = "count"
         # ["count", "title", "code", "severity"]
         sortDirection: String = "DESC"
