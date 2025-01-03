@@ -499,7 +499,7 @@ type Collaborator {
 
 input CollaboratorInput {
    collaboratorID: ID! 
-   permission: String! # ["Can View" and "Can Edit"] 
+   permission: String! # ["Can Edit"] 
 }
 
 type aggregatedQCResults {
