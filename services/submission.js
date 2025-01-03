@@ -27,6 +27,7 @@ const {NODE_RELATION_TYPES} = require("./data-record-service");
 const {verifyToken} = require("../verifier/token-verifier");
 const {verifyValidationResultsReadPermissions} = require("../verifier/permissions-verifier");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
+const {EMAIL_NOTIFICATIONS: EN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -1410,22 +1411,34 @@ String.prototype.format = function(placeholders) {
 async function submissionActionNotification(userInfo, action, aSubmission, userService, organizationService, notificationService, emailParams, tier) {
     switch(action) {
         case ACTIONS.SUBMIT:
-            await sendEmails.submitSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.SUBMIT)) {
+                await sendEmails.submitSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            }
             break;
         case ACTIONS.RELEASE:
-            await sendEmails.releaseSubmission(emailParams, userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.RELEASE)) {
+                await sendEmails.releaseSubmission(emailParams, userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            }
             break;
         case ACTIONS.WITHDRAW:
-            await sendEmails.withdrawSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.WITHDRAW)) {
+                await sendEmails.withdrawSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            }
             break;
         case ACTIONS.REJECT:
-            await sendEmails.rejectSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.REJECT)) {
+                await sendEmails.rejectSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            }
             break;
         case ACTIONS.COMPLETE:
-            await sendEmails.completeSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.COMPLETE)) {
+                await sendEmails.completeSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            }
             break;
         case ACTIONS.CANCEL:
-            await sendEmails.cancelSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.CANCEL)) {
+                await sendEmails.cancelSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            }
             break;
         case ACTIONS.ARCHIVE:
             //todo TBD send archived email
@@ -1658,16 +1671,19 @@ const sendEmails = {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
             return;
         }
-        const [ccEmails, aOrganization] = await inactiveSubmissionEmailInfo(aSubmission, userService, organizationService);
-        await notificationService.inactiveSubmissionNotification(aSubmitter?.email, ccEmails, {
-            firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
-        }, {
-            title: aSubmission?.name,
-            expiredDays: expiredDays || NA,
-            studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
-            pastDays: pastDays || NA,
-            url: emailParams.url || NA
-        }, tier);
+
+        if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.REMIND_EXPIRE)) {
+            const [ccEmails, aOrganization] = await inactiveSubmissionEmailInfo(aSubmission, userService, organizationService);
+            await notificationService.inactiveSubmissionNotification(aSubmitter?.email, ccEmails, {
+                firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
+            }, {
+                title: aSubmission?.name,
+                expiredDays: expiredDays || NA,
+                studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                pastDays: pastDays || NA,
+                url: emailParams.url || NA
+            }, tier);
+        }
     },
     finalRemindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService, tier) => {
         const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
@@ -1675,15 +1691,18 @@ const sendEmails = {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
             return;
         }
-        const [ccEmails, aOrganization] = await inactiveSubmissionEmailInfo(aSubmission, userService, organizationService);
-        await notificationService.finalInactiveSubmissionNotification(aSubmitter?.email, ccEmails, {
-            firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
-        }, {
-            title: aSubmission?.name,
-            studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
-            days: emailParams.finalRemindSubmissionDay || NA,
-            url: emailParams.url || NA
-        }, tier);
+
+        if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.REMIND_EXPIRE)) {
+            const [ccEmails, aOrganization] = await inactiveSubmissionEmailInfo(aSubmission, userService, organizationService);
+            await notificationService.finalInactiveSubmissionNotification(aSubmitter?.email, ccEmails, {
+                firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
+            }, {
+                title: aSubmission?.name,
+                studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                days: emailParams.finalRemindSubmissionDay || NA,
+                url: emailParams.url || NA
+            }, tier);
+        }
     }
 }
 
