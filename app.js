@@ -135,10 +135,10 @@ cronJob.schedule(configuration.schedule_job, async () => {
 const runDeactivateInactiveUsers = async (userService, notificationsService, inactiveUserDays, emailParams, tier) => {
     const usersToBeInactivated = await userService.checkForInactiveUsers([LOGIN, REACTIVATE_USER]);
     const disabledUsers = await userService.disableInactiveUsers(usersToBeInactivated);
-    if (disabledUsers.length > 0) {
+    if (disabledUsers?.length > 0) {
         // Email disabled user(s) with PBAC enabled
         await Promise.all(disabledUsers.map(async (user) => {
-            if (user?.permissions?.includes(EMAIL_NOTIFICATIONS.USER_ACCOUNT.USER_INACTIVATED)) {
+            if (user?.notifications?.includes(EMAIL_NOTIFICATIONS.USER_ACCOUNT.USER_INACTIVATED)) {
                 await notificationsService.inactiveUserNotification(user.email,
                     {firstName: user.firstName},
                     {inactiveDays: inactiveUserDays, officialEmail: emailParams.officialEmail},
@@ -155,7 +155,7 @@ const runDeactivateInactiveUsers = async (userService, notificationsService, ina
             if (admin.role === USER.ROLES.ORG_OWNER) {
                 disabledUserList = users.filter((u)=> u && u?.organization === admin?.organization?.orgName);
             }
-            if (disabledUserList.length > 0) {
+            if (disabledUserList?.length > 0) {
                 const commaJoinedUsers = extractAndJoinFields(disabledUserList, ["firstName", "lastName", "email", "role", "organization"]);
                 await notificationsService.inactiveUserAdminNotification(admin.email,
                     {firstName: admin.firstName,users: commaJoinedUsers},

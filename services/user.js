@@ -523,7 +523,7 @@ class UserService {
         if (isUserActivated && isStatusChange) {
             const adminEmails = await this.getAdminPBACUsers();
             const CCs = adminEmails.filter((u)=> u.email).map((u)=> u.email);
-            if (prevUser?.permissions?.includes(EN.USER_ACCOUNT.USER_INACTIVATED)) {
+            if (prevUser?.notifications?.includes(EN.USER_ACCOUNT.USER_INACTIVATED)) {
                 await this.notificationsService.deactivateUserNotification(prevUser.email,
                     CCs, {firstName: prevUser.firstName},
                     {officialEmail: this.officialEmail}
@@ -562,7 +562,7 @@ class UserService {
     async getAdminPBACUsers() {
         const orgOwnerOrAdminRole = {
             "userStatus": USER.STATUSES.ACTIVE,
-            "permissions": {"$in": [EN.USER_ACCOUNT.USER_INACTIVATED_ADMIN]},
+            "notifications": {"$in": [EN.USER_ACCOUNT.USER_INACTIVATED_ADMIN]},
             // TODO org owners to be removed since org owner no longer exists
             "$or": [{"role": USER.ROLES.ADMIN}, {"role": USER.ROLES.ORG_OWNER}]
         };

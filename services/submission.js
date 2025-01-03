@@ -1411,32 +1411,32 @@ String.prototype.format = function(placeholders) {
 async function submissionActionNotification(userInfo, action, aSubmission, userService, organizationService, notificationService, emailParams, tier) {
     switch(action) {
         case ACTIONS.SUBMIT:
-            if (userInfo?.permissions?.includes(EN.DATA_SUBMISSION.SUBMIT)) {
+            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.SUBMIT)) {
                 await sendEmails.submitSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
             }
             break;
         case ACTIONS.RELEASE:
-            if (userInfo?.permissions?.includes(EN.DATA_SUBMISSION.RELEASE)) {
+            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.RELEASE)) {
                 await sendEmails.releaseSubmission(emailParams, userInfo, aSubmission, userService, organizationService, notificationService, tier);
             }
             break;
         case ACTIONS.WITHDRAW:
-            if (userInfo?.permissions?.includes(EN.DATA_SUBMISSION.WITHDRAW)) {
+            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.WITHDRAW)) {
                 await sendEmails.withdrawSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
             }
             break;
         case ACTIONS.REJECT:
-            if (userInfo?.permissions?.includes(EN.DATA_SUBMISSION.REJECT)) {
+            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.REJECT)) {
                 await sendEmails.rejectSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
             }
             break;
         case ACTIONS.COMPLETE:
-            if (userInfo?.permissions?.includes(EN.DATA_SUBMISSION.COMPLETE)) {
+            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.COMPLETE)) {
                 await sendEmails.completeSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
             }
             break;
         case ACTIONS.CANCEL:
-            if (userInfo?.permissions?.includes(EN.DATA_SUBMISSION.CANCEL)) {
+            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.CANCEL)) {
                 await sendEmails.cancelSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
             }
             break;
@@ -1672,7 +1672,7 @@ const sendEmails = {
             return;
         }
 
-        if (aSubmitter?.permissions?.includes(EN.DATA_SUBMISSION.REMIND_EXPIRE)) {
+        if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.REMIND_EXPIRE)) {
             const [ccEmails, aOrganization] = await inactiveSubmissionEmailInfo(aSubmission, userService, organizationService);
             await notificationService.inactiveSubmissionNotification(aSubmitter?.email, ccEmails, {
                 firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
@@ -1692,7 +1692,7 @@ const sendEmails = {
             return;
         }
 
-        if (aSubmitter?.permissions?.includes(EN.DATA_SUBMISSION.REMIND_EXPIRE)) {
+        if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.REMIND_EXPIRE)) {
             const [ccEmails, aOrganization] = await inactiveSubmissionEmailInfo(aSubmission, userService, organizationService);
             await notificationService.finalInactiveSubmissionNotification(aSubmitter?.email, ccEmails, {
                 firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
