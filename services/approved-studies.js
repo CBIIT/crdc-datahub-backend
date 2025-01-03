@@ -10,9 +10,10 @@ const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
 const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN, CONTROLLED_ACCESS_CONTROLLED];
 class ApprovedStudiesService {
 
-    constructor(approvedStudiesCollection, organizationService) {
+    constructor(approvedStudiesCollection, organizationService, userService) {
         this.approvedStudiesCollection = approvedStudiesCollection;
         this.organizationService = organizationService;
+        this.userService = userService;
     }
 
     async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName) {
@@ -201,7 +202,8 @@ class ApprovedStudiesService {
             openAccess, 
             dbGaPID,
             ORCID, 
-            PI
+            PI,
+            primaryContactID
         } = params;
         if (!name) {
             throw new Error(ERROR.MISSING_STUDY_NAME);
@@ -215,13 +217,21 @@ class ApprovedStudiesService {
         }
         // check if name is unique
         await this.#validateStudyName(name)
+        // check primaryContactID 
+        let primaryContact = null;
+        if (primaryContactID) {
+            primaryContact = await this.userService.getUserByID(primaryContactID);
+            if (!primaryContact) {
+                throw new Error(ERROR.INVALID_PRIMARY_CONTACT);
+            }
+        }
         const current_date = new Date();
-        let newStudy = {_id: v4(), studyName: name, studyAbbreviation: acronym, controlledAccess: controlledAccessVal, openAccess: openAccess, dbGaPID: dbGaPID, ORCID: ORCID, PI: PI, createdAt: current_date, updatedAt: current_date};
+        let newStudy = {_id: v4(), studyName: name, studyAbbreviation: acronym, controlledAccess: controlledAccessVal, openAccess: openAccess, dbGaPID: dbGaPID, ORCID: ORCID, PI: PI, primaryContactID: primaryContactID, createdAt: current_date, updatedAt: current_date};
         const result = await this.approvedStudiesCollection.insert(newStudy);
         if (!result?.acknowledged) {
             throw new Error(ERROR.FAILED_APPROVED_STUDIES_INSERTION);
         }
-        return newStudy;
+        return {...newStudy, primaryContact: primaryContact};
     }
     /**
      * Edit Approved Study API
@@ -246,7 +256,8 @@ class ApprovedStudiesService {
             openAccess,
             dbGaPID,
             ORCID, 
-            PI
+            PI,
+            primaryContactID
         } = params;
         let updateStudy = await this.approvedStudiesCollection.find(studyID);
         if (!updateStudy || updateStudy.length === 0) {
@@ -284,12 +295,20 @@ class ApprovedStudiesService {
         if (PI !== undefined) {
             updateStudy.PI = PI;
         }
+        let primaryContact = null;
+        if (primaryContactID) {
+            primaryContact = await this.userService.getUserByID(primaryContactID);
+            if (!primaryContact) {
+                throw new Error(ERROR.INVALID_PRIMARY_CONTACT);
+            }
+            updateStudy.primaryContactID = primaryContactID;
+        }
         updateStudy.updatedAt = new Date();
         const result = await this.approvedStudiesCollection.update(updateStudy);
         if (!result?.acknowledged) {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_UPDATE);
         }
-        return updateStudy;  
+        return {...updateStudy, primaryContact: primaryContact};  
     }
     /**
      * Validate the identifier format.

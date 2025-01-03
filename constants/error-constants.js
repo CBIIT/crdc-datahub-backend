@@ -176,7 +176,8 @@ const ERROR = {
     // User Permissions
     INVALID_PERMISSION_NAME: "Invalid user permission is requested: $item$",
     // User Notifications
-    INVALID_NOTIFICATION_NAME: "Invalid email notification is requested: $item$"
+    INVALID_NOTIFICATION_NAME: "Invalid email notification is requested: $item$",
+    INVALID_PRIMARY_CONTACT: "No user found with the primary contact ID"
 }
 
 module.exports = ERROR;

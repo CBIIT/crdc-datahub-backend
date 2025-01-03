@@ -206,6 +206,7 @@ type ApprovedStudy {
     ORCID: String
     createdAt: Date
     programName: String
+    primaryContact: User
 }
 
 type ApprovedStudyList {
@@ -768,7 +769,8 @@ type Mutation {
         openAccess: Boolean, #optional 
         dbGaPID: String, # required only Controlled
         ORCID: String, #optional in format of 0000-1234-2345-3456
-        PI: String #optional 
+        PI: String #optional
+        primaryContactID: String! #primary contact user ID
     ): ApprovedStudy
 
     updateApprovedStudy(
@@ -780,6 +782,7 @@ type Mutation {
         dbGaPID: String, # required only Controlled
         ORCID: String, #optional in format of 0000-1234-2345-3456
         PI: String #optional 
+        primaryContactID: String! #primary contact user ID
     ): ApprovedStudy
 
     requestAccess(
