@@ -499,7 +499,7 @@ type Collaborator {
 
 input CollaboratorInput {
    collaboratorID: ID! 
-   permission: String! # ["Can View" and "Can Edit"] 
+   permission: String! # ["Can Edit"] 
 }
 
 type aggregatedQCResults {
@@ -512,6 +512,28 @@ type aggregatedQCResult {
     severity: String,
     count: Int,
     code: String
+}
+
+type Permission {
+    _id: String!,  #Permission Internal Name, unique 
+    group: String!, #permission group
+    name: String!, #permission name
+    checked: Boolean,
+    disabled: Boolean
+}
+
+type Notification {
+    _id: String!,  #Notification Internal Name, unique 
+    group: String!, #Notification group
+    name: String!, #Notification name
+    checked: Boolean, 
+    disabled: Boolean
+}
+
+type PBACDefaults {
+    role: String!, #user role in ["Federal Lease", "Data Common Personnel", "Admin", "Submitter", "User"]
+    permissions: [Permission], 
+    notifications: [Notification]
 }
 
 type Query {
@@ -664,6 +686,8 @@ type Query {
     listPotentialCollaborators(submissionID: String!): [User]
     
     collaborators: [Collaborator]
+
+    retrievePBACDefaults (roles: [String!]!) : [PBACDefaults] #To retrieve all roles' permissions and notifications, use roles: ["All"] as parameter.
 }
 type Mutation {
     "User initiated operations"
