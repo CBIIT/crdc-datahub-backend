@@ -267,12 +267,16 @@ class QcResultService{
             }
         });
         // Paginate
-        paginationPipeline.push({
-            $skip: offset
-        });
-        paginationPipeline.push({
-            $limit: first
-        });
+        if (offset > 0){
+            paginationPipeline.push({
+                $skip: offset
+            });
+        }
+        if (first > 0){
+            paginationPipeline.push({
+                $limit: first
+            });
+        }
         // Run pipelines
         const countPipelineResult = await this.qcResultCollection.aggregate(countPipeline);
         const totalRecords = countPipelineResult[0]?.total;
