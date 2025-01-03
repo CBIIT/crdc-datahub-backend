@@ -10,10 +10,10 @@ const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
 const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN, CONTROLLED_ACCESS_CONTROLLED];
 class ApprovedStudiesService {
 
-    constructor(approvedStudiesCollection, organizationService, userService) {
+    constructor(approvedStudiesCollection, organizationService, userCollection) {
         this.approvedStudiesCollection = approvedStudiesCollection;
         this.organizationService = organizationService;
-        this.userService = userService;
+        this.userCollection = userCollection;
     }
 
     async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName) {
@@ -218,18 +218,18 @@ class ApprovedStudiesService {
         // check if name is unique
         await this.#validateStudyName(name)
         // check primaryContactID 
-        let primaryContact = null;
-        if (primaryContactID) {
-            primaryContact = await this.userService.getUserByID(primaryContactID);
-            if (!primaryContact) {
-                throw new Error(ERROR.INVALID_PRIMARY_CONTACT);
-            }
+        const primaryContact = await this.#findUserByID(primaryContactID);
+        if (!primaryContact) {
+            throw new Error(ERROR.INVALID_PRIMARY_CONTACT);
+        }
+        if (primaryContact.role !== USER.ROLES.DATA_COMMONS_PERSONNEL){
+            throw new Error(ERROR.INVALID_PRIMARY_CONTACT_ROLE);
         }
         const current_date = new Date();
         let newStudy = {_id: v4(), studyName: name, studyAbbreviation: acronym, controlledAccess: controlledAccessVal, openAccess: openAccess, dbGaPID: dbGaPID, ORCID: ORCID, PI: PI, primaryContactID: primaryContactID, createdAt: current_date, updatedAt: current_date};
         const result = await this.approvedStudiesCollection.insert(newStudy);
         if (!result?.acknowledged) {
-            throw new Error(ERROR.FAILED_APPROVED_STUDIES_INSERTION);
+            throw new Error(ERROR.FAILED_APPROVED_STUDY_INSERTION);
         }
         return {...newStudy, primaryContact: primaryContact};
     }
@@ -295,20 +295,25 @@ class ApprovedStudiesService {
         if (PI !== undefined) {
             updateStudy.PI = PI;
         }
-        let primaryContact = null;
-        if (primaryContactID) {
-            primaryContact = await this.userService.getUserByID(primaryContactID);
-            if (!primaryContact) {
-                throw new Error(ERROR.INVALID_PRIMARY_CONTACT);
-            }
-            updateStudy.primaryContactID = primaryContactID;
+        const primaryContact = await this.#findUserByID(primaryContactID);
+        if (!primaryContact) {
+            throw new Error(ERROR.INVALID_PRIMARY_CONTACT);
         }
+        if (primaryContact.role !== USER.ROLES.DATA_COMMONS_PERSONNEL){
+            throw new Error(ERROR.INVALID_PRIMARY_CONTACT_ROLE);
+        }
+        updateStudy.primaryContactID = primaryContactID;
+        
         updateStudy.updatedAt = new Date();
         const result = await this.approvedStudiesCollection.update(updateStudy);
         if (!result?.acknowledged) {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_UPDATE);
         }
         return {...updateStudy, primaryContact: primaryContact};  
+    }
+    async #findUserByID(userID){
+        const result = await this.userCollection.aggregate([{"$match": {"_id": userID, "userStatus": USER.STATUSES.ACTIVE}}]);
+        return (result && result.length > 0)? result[0]: null;
     }
     /**
      * Validate the identifier format.
