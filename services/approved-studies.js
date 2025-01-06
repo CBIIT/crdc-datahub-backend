@@ -311,6 +311,11 @@ class ApprovedStudiesService {
         }
         return {...updateStudy, primaryContact: primaryContact};  
     }
+    /**
+     * internal method to find user by ID since can't use the userService to avoid cross-referencing
+     * @param {*} userID 
+     * @returns 
+     */
     async #findUserByID(userID){
         const result = await this.userCollection.aggregate([{"$match": {"_id": userID, "userStatus": USER.STATUSES.ACTIVE}}]);
         return (result && result.length > 0)? result[0]: null;
