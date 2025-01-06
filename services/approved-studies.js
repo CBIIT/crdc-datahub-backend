@@ -4,15 +4,15 @@ const ERROR = require("../constants/error-constants");
 const { verifySession } = require('../verifier/user-info-verifier');
 const {ApprovedStudies} = require("../crdc-datahub-database-drivers/domain/approved-studies");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
+const {ADMIN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const CONTROLLED_ACCESS_ALL = "All";
 const CONTROLLED_ACCESS_OPEN = "Open";
 const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
 const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN, CONTROLLED_ACCESS_CONTROLLED];
 class ApprovedStudiesService {
 
-    constructor(approvedStudiesCollection, organizationService, userCollection) {
+    constructor(approvedStudiesCollection, userCollection) {
         this.approvedStudiesCollection = approvedStudiesCollection;
-        this.organizationService = organizationService;
         this.userCollection = userCollection;
     }
 
@@ -48,7 +48,7 @@ class ApprovedStudiesService {
     async getApprovedStudyAPI(params, context) {
         verifySession(context)
           .verifyInitialized()
-          .verifyRole([USER.ROLES.ADMIN]);
+          .verifyPermission(ADMIN.MANAGE_STUDIES)
 
         return this.getApprovedStudy(params);
     }
@@ -89,9 +89,6 @@ class ApprovedStudiesService {
 
     /**
      * List Approved Studies API Interface
-     *
-     * - This is an ADMIN only operation.
-     *
      * @api
      * @param {Object} params Endpoint parameters
      * @param {{ cookie: Object, userInfo: Object }} context request context
@@ -182,10 +179,6 @@ class ApprovedStudiesService {
 
     /**
      * Add Approved Study API Interface.
-     *
-     * Note:
-     * - This is an ADMIN only operation.
-     *
      * @api
      * @param {Object} params Endpoint parameters
      * @param {{ cookie: Object, userInfo: Object }} context request context
@@ -194,8 +187,8 @@ class ApprovedStudiesService {
     async addApprovedStudyAPI(params, context) {
         verifySession(context)
           .verifyInitialized()
-          .verifyRole([USER.ROLES.ADMIN]);
-        const {
+          .verifyPermission(ADMIN.MANAGE_STUDIES);
+        let {
             name,
             acronym,
             controlledAccess,
@@ -204,17 +197,7 @@ class ApprovedStudiesService {
             ORCID, 
             PI,
             primaryContactID
-        } = params;
-        if (!name) {
-            throw new Error(ERROR.MISSING_STUDY_NAME);
-        }
-        const controlledAccessVal = (controlledAccess !== true)? false: true;
-        if (controlledAccess === true && !dbGaPID){
-            throw new Error(ERROR.MISSING_DB_GAP_ID);
-        }
-        if (ORCID && !this.#validateIdentifier(ORCID)) {
-            throw new Error(ERROR.INVALID_ORCID);
-        }
+        } = this.#verifyAndFormatStudyParams(params);
         // check if name is unique
         await this.#validateStudyName(name)
         // check primaryContactID 
@@ -226,7 +209,10 @@ class ApprovedStudiesService {
             throw new Error(ERROR.INVALID_PRIMARY_CONTACT_ROLE);
         }
         const current_date = new Date();
-        let newStudy = {_id: v4(), studyName: name, studyAbbreviation: acronym, controlledAccess: controlledAccessVal, openAccess: openAccess, dbGaPID: dbGaPID, ORCID: ORCID, PI: PI, primaryContactID: primaryContactID, createdAt: current_date, updatedAt: current_date};
+        if (!acronym){
+            acronym = name;
+        }
+        let newStudy = {_id: v4(), studyName: name, studyAbbreviation: acronym, controlledAccess: controlledAccess, openAccess: openAccess, dbGaPID: dbGaPID, ORCID: ORCID, PI: PI, primaryContactID: primaryContactID, createdAt: current_date, updatedAt: current_date};
         const result = await this.approvedStudiesCollection.insert(newStudy);
         if (!result?.acknowledged) {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_INSERTION);
@@ -235,10 +221,6 @@ class ApprovedStudiesService {
     }
     /**
      * Edit Approved Study API
-     * 
-     * Note:
-     * - This is an ADMIN only operation.
-     *
      * @param {*} params 
      * @param {*} context 
      * @returns 
@@ -246,7 +228,7 @@ class ApprovedStudiesService {
     async editApprovedStudyAPI(params, context) {
         verifySession(context)
           .verifyInitialized()
-          .verifyRole([USER.ROLES.ADMIN]);
+          .verifyPermission(ADMIN.MANAGE_STUDIES);
 
         const {
             studyID,
@@ -258,29 +240,18 @@ class ApprovedStudiesService {
             ORCID, 
             PI,
             primaryContactID
-        } = params;
+        } = this.#verifyAndFormatStudyParams(params);
         let updateStudy = await this.approvedStudiesCollection.find(studyID);
         if (!updateStudy || updateStudy.length === 0) {
             throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
         }
         updateStudy = updateStudy[0];
-        if (!name) {
-            throw new Error(ERROR.MISSING_STUDY_NAME);
-        }
-        const controlledAccessVal = (controlledAccess !== true)? false: true;
-        
-        if (controlledAccess === true && !dbGaPID){
-            throw new Error(ERROR.MISSING_DB_GAP_ID);
-        }
-        if (ORCID && !this.#validateIdentifier(ORCID)) {
-            throw new Error(ERROR.INVALID_ORCID);
-        }  
         // check if name is unique
         if (name !== updateStudy.studyName)
             await this.#validateStudyName(name)
         updateStudy.studyName = name;
-        updateStudy.controlledAccess = controlledAccessVal;
-        if (acronym !== undefined) {
+        updateStudy.controlledAccess = controlledAccess;
+        if (!!acronym) {
             updateStudy.studyAbbreviation = acronym;
         }
         if(openAccess !== undefined){
@@ -336,6 +307,32 @@ class ApprovedStudiesService {
             throw new Error(ERROR.DUPLICATE_STUDY_NAME);
         } 
         return true;  
+    }
+
+    #verifyAndFormatStudyParams(params) {
+        // trim name if it exists
+        if (!!params.name && params.name.length > 0) {
+            params.name = params.name.trim();
+        }
+        // trim acronym if it exists
+        if (!!params.acronym && params.acronym.length > 0) {
+            params.acronym = params.acronym.trim();
+        }
+        // ensure controlledAccess has a boolean value
+        params.controlledAccess = params.controlledAccess === true;
+        // verify name exists and is not an empty string
+        if (!params.name) {
+            throw new Error(ERROR.MISSING_STUDY_NAME);
+        }
+        // verify that dbGaPID exists if the study is controlledAccess
+        if (!!params.controlledAccess && !params.dbGaPID){
+            throw new Error(ERROR.MISSING_DB_GAP_ID);
+        }
+        // validate that ORCID if it exists
+        if (!!params.ORCID && !this.#validateIdentifier(params.ORCID)) {
+            throw new Error(ERROR.INVALID_ORCID);
+        }
+        return params;
     }
 }
 

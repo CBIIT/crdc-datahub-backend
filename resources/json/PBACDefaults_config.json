@@ -162,6 +162,13 @@
             "disabled": false
           },
           {
+            "_id": "data_submission:rejected",
+            "group": "Data Submission Emails",
+            "name": "Data Submission is rejected",
+            "checked": false,
+            "disabled": false
+          },
+          {
             "_id": "data_submission:completed",
             "group": "Data Submission Emails",
             "name": "data submission is completed",
@@ -202,13 +209,6 @@
             "name": "Account Disabled due to inactivity (consolidated)",
             "checked": false,
             "disabled": true
-          },
-          {
-            "_id": "account:disabled",
-            "group": "Miscellaneous",
-            "name": "Account Disabled by admin (individual)",
-            "checked": true,
-            "disabled": false
           }
         ]
       },
@@ -372,6 +372,13 @@
             "disabled": false
           },
           {
+            "_id": "data_submission:rejected",
+            "group": "Data Submission Emails",
+            "name": "Data Submission is rejected",
+            "checked": true,
+            "disabled": false
+          },
+          {
             "_id": "data_submission:completed",
             "group": "Data Submission Emails",
             "name": "data submission is completed",
@@ -412,13 +419,6 @@
             "name": "Account Disabled due to inactivity (consolidated)",
             "checked": false,
             "disabled": true
-          },
-          {
-            "_id": "account:disabled",
-            "group": "Miscellaneous",
-            "name": "Account Disabled by admin (individual)",
-            "checked": true,
-            "disabled": false
           }
         ]
       },
@@ -582,6 +582,13 @@
             "disabled": false
           },
           {
+            "_id": "data_submission:rejected",
+            "group": "Data Submission Emails",
+            "name": "Data Submission is rejected",
+            "checked": false,
+            "disabled": false
+          },
+          {
             "_id": "data_submission:completed",
             "group": "Data Submission Permissions",
             "name": "data submission is completed",
@@ -620,13 +627,6 @@
             "_id": "account:users_inactivated",
             "group": "Miscellaneous",
             "name": "Account Disabled due to inactivity (consolidated)",
-            "checked": true,
-            "disabled": false
-          },
-          {
-            "_id": "account:disabled",
-            "group": "Miscellaneous",
-            "name": "Account Disabled by admin (individual)",
             "checked": true,
             "disabled": false
           }
@@ -792,6 +792,13 @@
             "disabled": false
           },
           {
+            "_id": "data_submission:rejected",
+            "group": "Data Submission Emails",
+            "name": "Data Submission is rejected",
+            "checked": true,
+            "disabled": true
+          },
+          {
             "_id": "data_submission:completed",
             "group": "Data Submission Permissions",
             "name": "data submission is completed",
@@ -832,13 +839,6 @@
             "name": "Account Disabled due to inactivity (consolidated)",
             "checked": false,
             "disabled": true
-          },
-          {
-            "_id": "account:disabled",
-            "group": "Miscellaneous",
-            "name": "Account Disabled by admin (individual)",
-            "checked": true,
-            "disabled": false
           }
         ]
       },
@@ -1002,6 +1002,13 @@
             "disabled": true
           },
           {
+            "_id": "data_submission:rejected",
+            "group": "Data Submission Emails",
+            "name": "Data Submission is rejected",
+            "checked": false,
+            "disabled": true
+          },
+          {
             "_id": "data_submission:completed",
             "group": "Data Submission Permissions",
             "name": "data submission is completed",
@@ -1042,13 +1049,6 @@
             "name": "Account Disabled due to inactivity (consolidated)",
             "checked": false,
             "disabled": true
-          },
-          {
-            "_id": "account:disabled",
-            "group": "Miscellaneous",
-            "name": "Account Disabled by admin (individual)",
-            "checked": true,
-            "disabled": false
           }
         ]
       }

@@ -9,13 +9,14 @@ const {getCurrentTime, subtractDaysFromNowTimestamp} = require("../crdc-datahub-
 const {UpdateProfileEvent, ReactivateUserEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const {LOG_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const jwt = require("jsonwebtoken");
+const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+
 const {
     SUBMISSION_REQUEST,
     ADMIN,
     DATA_SUBMISSION,
     EMAIL_NOTIFICATIONS: EN,
 } = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
-
 
 const isLoggedInOrThrow = (context) => {
     if (!context?.userInfo?.email || !context?.userInfo?.IDP) throw new Error(SUBMODULE_ERROR.NOT_LOGGED_IN);
@@ -37,7 +38,7 @@ const createToken = (userInfo, token_secret, token_timeout)=> {
 class UserService {
     #allPermissionNamesSet = new Set([...Object.values(SUBMISSION_REQUEST), ...Object.values(DATA_SUBMISSION), ...Object.values(ADMIN)]);
     #allEmailNotificationNamesSet = new Set([...Object.values(EN.SUBMISSION_REQUEST), ...Object.values(EN.DATA_SUBMISSION)]);
-    constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, tier, approvedStudiesService, inactiveUserDays) {
+    constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, tier, approvedStudiesService, inactiveUserDays, configurationService) {
         this.userCollection = userCollection;
         this.logCollection = logCollection;
         this.organizationCollection = organizationCollection;
@@ -50,16 +51,18 @@ class UserService {
         this.approvedStudiesService = approvedStudiesService;
         this.approvedStudiesCollection = approvedStudiesService.approvedStudiesCollection;
         this.inactiveUserDays = inactiveUserDays;
+        this.configurationService = configurationService;
     }
 
     async requestAccess(params, context) {
         verifySession(context)
             .verifyInitialized()
-            .verifyRole([USER.ROLES.USER, USER.ROLES.ORG_OWNER, USER.ROLES.SUBMITTER]);
+            .verifyPermission(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REQUEST_ACCESS);
 
-        if (![USER.ROLES.SUBMITTER, USER.ROLES.ORG_OWNER].includes(params.role)) {
+        // USER.ROLES.ORG_OWNER needs to be removed after the role is retired finally
+        if (![USER.ROLES.SUBMITTER, USER.ROLES.USER, USER.ROLES.ORG_OWNER].includes(params.role)) {
             return new Error(replaceErrorString(ERROR.INVALID_REQUEST_ROLE, params?.role));
-        }
+        } 
 
         const approvedStudies = params?.studies?.length > 0 ?
             await this.approvedStudiesService.listApprovedStudies({_id: {$in: params?.studies}})
@@ -218,14 +221,14 @@ class UserService {
     }
 
     async getUser(params, context) {
-        isLoggedInOrThrow(context);
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+        
         if (!params?.userID) {
-            const eee= SUBMODULE_ERROR.INVALID_USERID;
             throw new Error(SUBMODULE_ERROR.INVALID_USERID);
         }
-        if (context?.userInfo?.role !== USER.ROLES.ADMIN && context?.userInfo.role !== USER.ROLES.ORG_OWNER) {
-            throw new Error(SUBMODULE_ERROR.INVALID_ROLE);
-        }
+        // The following block of codes need to removed after USER.ROLES.ORG_OWNER is retired.
         if (context?.userInfo?.role === USER.ROLES.ORG_OWNER && !context?.userInfo?.organization?.orgID) {
             throw new Error(SUBMODULE_ERROR.NO_ORG_ASSIGNED);
         }
@@ -250,10 +253,10 @@ class UserService {
     }
 
     async listUsers(params, context) {
-        isLoggedInOrThrow(context);
-        if (context?.userInfo?.role !== USER.ROLES.ADMIN && context?.userInfo?.role !== USER.ROLES.ORG_OWNER) {
-            throw new Error(SUBMODULE_ERROR.INVALID_ROLE);
-        }
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+        // The following block of codes need to removed after USER.ROLES.ORG_OWNER is retired.
         if (context?.userInfo?.role === USER.ROLES.ORG_OWNER && !context?.userInfo?.organization?.orgID) {
             throw new Error(SUBMODULE_ERROR.NO_ORG_ASSIGNED);
         }
@@ -284,12 +287,9 @@ class UserService {
      * @returns {Promise<Object[]>} An array of Curator Users mapped to the `UserInfo` type
      */
     async listActiveCuratorsAPI(params, context) {
-        if (!context?.userInfo?.email || !context?.userInfo?.IDP) {
-            throw new Error(SUBMODULE_ERROR.NOT_LOGGED_IN);
-        }
-        if (context?.userInfo?.role !== USER.ROLES.ADMIN) {
-            throw new Error(SUBMODULE_ERROR.INVALID_ROLE);
-        }
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
 
         const curators = await this.getActiveCurators();
         return curators?.map((user) => ({
@@ -415,10 +415,10 @@ class UserService {
     }
 
     async editUser(params, context) {
-        isLoggedInOrThrow(context);
-        if (![USER.ROLES.ADMIN].includes(context?.userInfo?.role)) {
-            throw new Error(SUBMODULE_ERROR.INVALID_ROLE);
-        }
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+
         if (!params.userID) {
             throw new Error(SUBMODULE_ERROR.INVALID_USERID);
         }
@@ -452,7 +452,7 @@ class UserService {
         }
 
         updatedUser.dataCommons = DataCommon.get(user[0]?.role, user[0]?.dataCommons, params?.role, params?.dataCommons);
-        this.#setUserPermissions(user[0]?.role, params?.role, params?.permissions, params?.notifications, updatedUser);
+        await this.#setUserPermissions(user[0]?.role, params?.role, params?.permissions, params?.notifications, updatedUser);
         return await this.updateUserInfo(user[0], updatedUser, params.userID, params.status, params.role, params?.studies);
     }
     async updateUserInfo(prevUser, updatedUser, userID, status, role, approvedStudyIDs) {
@@ -522,12 +522,14 @@ class UserService {
         const isUserActivated = prevUser?.userStatus !== USER.STATUSES.INACTIVE;
         const isStatusChange = newStatus && newStatus?.toLowerCase() === USER.STATUSES.INACTIVE.toLowerCase();
         if (isUserActivated && isStatusChange) {
-            const adminEmails = await this.getAdminUserEmails();
+            const adminEmails = await this.getAdminPBACUsers();
             const CCs = adminEmails.filter((u)=> u.email).map((u)=> u.email);
-            await this.notificationsService.deactivateUserNotification(prevUser.email,
-                CCs, {firstName: prevUser.firstName},
-                {officialEmail: this.officialEmail}
-                ,this.tier);
+            if (prevUser?.notifications?.includes(EN.USER_ACCOUNT.USER_INACTIVATED)) {
+                await this.notificationsService.deactivateUserNotification(prevUser.email,
+                    CCs, {firstName: prevUser.firstName},
+                    {officialEmail: this.officialEmail}
+                    ,this.tier);
+            }
         }
     }
 
@@ -558,9 +560,11 @@ class UserService {
         }
     }
 
-    async getAdminUserEmails() {
+    async getAdminPBACUsers() {
         const orgOwnerOrAdminRole = {
             "userStatus": USER.STATUSES.ACTIVE,
+            "notifications": {"$in": [EN.USER_ACCOUNT.USER_INACTIVATED_ADMIN]},
+            // TODO org owners to be removed since org owner no longer exists
             "$or": [{"role": USER.ROLES.ADMIN}, {"role": USER.ROLES.ORG_OWNER}]
         };
         return await this.userCollection.aggregate([{"$match": orgOwnerOrAdminRole}]) || [];
@@ -764,34 +768,59 @@ class UserService {
         }
     }
 
-    /**
-     * Retrieves user permissions based on the specified role and permissions list.
-     *
-     * @param {string} role - The user's role
-     * @param {Array<string>} permissions - An array of permission strings to validate and retrieve.
-     * @returns {Array<string>} - A list of validated permissions associated with the role.
-     *
-     * @throws {Error} Throws an error if the provided permissions are invalid.
-     */
-
-     getUserPermissions = (role, permissions) => {
-        this.#validateUserPermission(permissions)
-        return UserActionPermissions.get(role, permissions);
-    }
-
-    #setUserPermissions(currRole, newRole, permissions, notifications, updatedUser) {
+    async #setUserPermissions(currRole, newRole, permissions, notifications, updatedUser) {
         this.#validateUserPermission(permissions, notifications);
         const isUserRoleChange = (newRole && (currRole !== newRole));
         const userRole = isUserRoleChange ? newRole : currRole;
-        const userPermissions = UserActionPermissions.get(userRole, permissions);
-        if ((isUserRoleChange || permissions) && !isIdenticalArrays(currRole?.permissions, userPermissions)) {
-            updatedUser.permissions = userPermissions;
+
+        const accessControl = await this.configurationService.getAccessControl(userRole);
+        const validPermissions = new Set(accessControl?.permissions?.permitted);
+        const disabledPermissions = new Set(accessControl?.permissions?.disabled);
+        const invalidPermissions = permissions.filter(permission =>
+            !validPermissions.has(permission) && !disabledPermissions.has(permission));
+        // The request permission is not allowed for the requested role
+        if (invalidPermissions?.length > 0) {
+            throw new Error(replaceErrorString(ERROR.INVALID_PERMISSION_NAME, `${invalidPermissions.join(',')}`));
         }
 
-        const userNotifications = UserNotifications.get(userRole, notifications);
-        if ((isUserRoleChange || notifications) && !isIdenticalArrays(currRole?.notifications, userNotifications)) {
-            updatedUser.notifications = userNotifications;
+        const actionPermissions = UserPermissions.get(userRole, accessControl?.permissions?.permitted, accessControl?.permissions?.disabled);
+        const emailPermissions = UserPermissions.get(userRole, accessControl?.notifications?.permitted, accessControl?.notifications?.disabled);
+        if ((isUserRoleChange || permissions) && !isIdenticalArrays(currRole?.permissions, actionPermissions) && actionPermissions) {
+            updatedUser.permissions = actionPermissions;
         }
+
+        if ((isUserRoleChange || notifications) && !isIdenticalArrays(currRole?.notifications, emailPermissions) && emailPermissions) {
+            updatedUser.notifications = emailPermissions;
+        }
+    } 
+    async getCollaboratorsByStudyID(studyID, submitterID) {
+        const query = {
+            "role": USER.ROLES.SUBMITTER, _id: {"$ne": submitterID},
+            "$or": [{"studies": {"$in": [studyID, "All"]}}, {"studies._id": {"$in": [studyID, "All"]}}]
+        }; // user's studies contains studyID
+        const users = await this.userCollection.aggregate([{"$match": query}]);
+        for (const user of users) {
+            user.studies = await this.#findApprovedStudies(user.studies);
+        }
+        return users
+    }
+
+    /**
+     * Fetches a list of users based on specified notifications and optional roles.
+     *
+     * @param {Array} notifications - An array of notification.
+     * @param {Array} [roles=[]] - An optional array of user roles.
+     * @returns {Promise<Array>} - An array of user documents.
+     */
+    async getUsersByNotifications(notifications, roles = []) {
+        return await this.userCollection.aggregate([{"$match": {
+                "userStatus": USER.STATUSES.ACTIVE,
+                "notifications": {
+                    "$in": notifications
+                },
+                ...(roles?.length > 0 && { "role": { "$in": roles } })
+            }
+        }]);
     }
 }
 
@@ -855,135 +884,26 @@ class DataCommon {
 }
 
 
-class UserActionPermissions {
-    constructor(role) {
+class UserPermissions {
+    constructor(role, permitted, disabled) {
         this.role = role;
+        this.permitted = permitted;
+        this.disabled = disabled;
     }
 
     static get(role, permissions) {
-        const userPermissions = new UserActionPermissions(role);
+        const userPermissions = new UserPermissions(role);
         return userPermissions.#getPermissions(permissions);
-    }
-
-    static getNewUserPermission(role) {
-        const permissions = new UserActionPermissions(role);
-        return permissions.#getDefaultPermissionsByRole();
     }
 
     #getPermissions(permissions) {
         const editableUserRoles = [USER.ROLES.FEDERAL_LEAD, USER.ROLES.FEDERAL_MONITOR, USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.CURATOR, USER.ROLES.DC_POC];
-        const defaultPermissions = UserActionPermissions.getNewUserPermission(this.role);
         if (editableUserRoles.includes(this.role)) {
-            const bannedPermissions = this.#getBannedPermissionsByRole(this.role);
-            const bannedPermissionsSet = new Set(bannedPermissions);
-            return permissions ? permissions.filter(permission => !bannedPermissionsSet.has(permission)) : defaultPermissions;
+            const bannedPermissionsSet = new Set(this.disabled);
+            return permissions ? permissions.filter(permission => !bannedPermissionsSet.has(permission)) : this.permitted;
         }
-        return defaultPermissions;
+        return this.permitted;
     }
-
-    #getDefaultPermissionsByRole() {
-        switch (this.role) {
-            case USER.ROLES.FEDERAL_LEAD:
-                return [SUBMISSION_REQUEST.VIEW, ADMIN.VIEW_DASHBOARD, DATA_SUBMISSION.VIEW];
-            case USER.ROLES.DATA_COMMONS_PERSONNEL:
-                return [DATA_SUBMISSION.VIEW, DATA_SUBMISSION.REVIEW, DATA_SUBMISSION.CONFIRM];
-            case USER.ROLES.ADMIN:
-                return [SUBMISSION_REQUEST.VIEW, DATA_SUBMISSION.VIEW, DATA_SUBMISSION.REVIEW, DATA_SUBMISSION.ADMIN_SUBMIT, DATA_SUBMISSION.CONFIRM,
-                ADMIN.MANAGE_USER, ADMIN.MANAGE_PROGRAMS, ADMIN.MANAGE_STUDIES, ADMIN.VIEW_DASHBOARD];
-            case USER.ROLES.SUBMITTER:
-                return [SUBMISSION_REQUEST.CREATE, DATA_SUBMISSION.REQUEST_ACCESS, DATA_SUBMISSION.VIEW, DATA_SUBMISSION.CREATE];
-            default:
-                // For USER.ROLES.USER:
-                return [SUBMISSION_REQUEST.CREATE, DATA_SUBMISSION.REQUEST_ACCESS];
-        }
-    }
-
-    #getBannedPermissionsByRole() {
-        switch (this.role) {
-            case USER.ROLES.FEDERAL_LEAD:
-                return [DATA_SUBMISSION.ADMIN_SUBMIT, DATA_SUBMISSION.REQUEST_ACCESS];
-            case USER.ROLES.DATA_COMMONS_PERSONNEL:
-                return [DATA_SUBMISSION.REQUEST_ACCESS, ADMIN.MANAGE_USER];
-            default:
-                return [];
-        }
-    }
-}
-
-class UserNotifications {
-    constructor(role) {
-        this.role = role;
-    }
-
-    static get(role, notifications) {
-        const userNotifications = new UserNotifications(role);
-        return userNotifications.#getNotifications(notifications);
-    }
-
-    #getNotifications(notifications) {
-        const editableUserRoles = [USER.ROLES.FEDERAL_LEAD, USER.ROLES.FEDERAL_MONITOR, USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.CURATOR, USER.ROLES.DC_POC];
-        const defaultNotifications = UserNotifications.getNewUserEmailNotifications(this.role);
-        if (editableUserRoles.includes(this.role)) {
-            const bannedNotifications = this.#getBannedNotificationsByRole(this.role);
-            const bannedNotificationSet = new Set(bannedNotifications);
-            return notifications ? notifications.filter(notification => !bannedNotificationSet.has(notification)) : defaultNotifications;
-        }
-        return defaultNotifications;
-    }
-
-    #getDefaultNotificationsByRole(role) {
-        switch (role) {
-            case USER.ROLES.FEDERAL_LEAD:
-                return [EN.SUBMISSION_REQUEST.REQUEST_READY_REVIEW, EN.USER_ACCOUNT.USER_INACTIVATED, EN.USER_ACCOUNT.USER_INACTIVATED_ADMIN];
-            case USER.ROLES.DATA_COMMONS_PERSONNEL:
-                return [EN.DATA_SUBMISSION.SUBMIT, EN.DATA_SUBMISSION.CANCEL, EN.DATA_SUBMISSION.WITHDRAW,
-                    EN.DATA_SUBMISSION.RELEASE, EN.DATA_SUBMISSION.COMPLETE, EN.DATA_SUBMISSION.REMIND_EXPIRE,
-                    EN.DATA_SUBMISSION.DELETE
-                ];
-            case USER.ROLES.ADMIN:
-                return [EN.SUBMISSION_REQUEST.REQUEST_READY_REVIEW, EN.SUBMISSION_REQUEST.REQUEST_REVIEW, EN.SUBMISSION_REQUEST.REQUEST_DELETE,
-                    EN.DATA_SUBMISSION.CANCEL, EN.DATA_SUBMISSION.RELEASE, EN.DATA_SUBMISSION.COMPLETE,
-                    EN.DATA_SUBMISSION.REMIND_EXPIRE, EN.DATA_SUBMISSION.DELETE, EN.USER_ACCOUNT.REQUEST_ACCESS,
-                    EN.USER_ACCOUNT.USER_INACTIVATED_ADMIN, EN.USER_ACCOUNT.USER_DISABLED_BY_ADMIN];
-            case USER.ROLES.SUBMITTER:
-                return [EN.SUBMISSION_REQUEST.REQUEST_SUBMIT, EN.SUBMISSION_REQUEST.REQUEST_REVIEW, EN.SUBMISSION_REQUEST.REQUEST_DELETE,
-                    EN.DATA_SUBMISSION.SUBMIT, EN.DATA_SUBMISSION.CANCEL, EN.DATA_SUBMISSION.WITHDRAW,
-                    EN.DATA_SUBMISSION.RELEASE, EN.DATA_SUBMISSION.COMPLETE, EN.DATA_SUBMISSION.REMIND_EXPIRE,
-                    EN.DATA_SUBMISSION.DELETE, EN.USER_ACCOUNT.USER_INACTIVATED, EN.USER_ACCOUNT.USER_DISABLED_BY_ADMIN];
-            default:
-                // For USER.ROLES.USER:
-                return [EN.SUBMISSION_REQUEST.REQUEST_SUBMIT, EN.SUBMISSION_REQUEST.REQUEST_REVIEW, EN.SUBMISSION_REQUEST.REQUEST_DELETE,
-                    EN.USER_ACCOUNT.USER_INACTIVATED, EN.USER_ACCOUNT.USER_DISABLED_BY_ADMIN];
-        }
-    }
-
-    #getBannedNotificationsByRole(role) {
-        switch (role) {
-            case USER.ROLES.FEDERAL_LEAD:
-            case USER.ROLES.DATA_COMMONS_PERSONNEL:
-                return [EN.USER_ACCOUNT.REQUEST_ACCESS, EN.USER_ACCOUNT.USER_INACTIVATED_ADMIN];
-            case USER.ROLES.ADMIN:
-                return [EN.USER_ACCOUNT.USER_INACTIVATED];
-            default:
-                return [];
-        }
-    }
-
-    // Disabled
-    // Checked by default
-
-    static getNewUserEmailNotifications(role) {
-        const permissions = new UserNotifications();
-        return permissions.#getDefaultNotificationsByRole(role);
-    }
-}
-
-const getNewUserPermission = (role) => {
-    return UserActionPermissions.getNewUserPermission(role);
-}
-
-const getNewUserEmailNotifications = (role) => {
-    return UserNotifications.getNewUserEmailNotifications(role);
 }
 
 function isIdenticalArrays(arr1, arr2) {
@@ -992,7 +912,5 @@ function isIdenticalArrays(arr1, arr2) {
 }
 
 module.exports = {
-    UserService,
-    getNewUserPermission,
-    getNewUserEmailNotifications
+    UserService
 };
