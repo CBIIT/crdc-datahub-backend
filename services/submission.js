@@ -101,7 +101,9 @@ class Submission {
         if (approvedStudy.controlledAccess && !approvedStudy?.dbGaPID) {
             throw new Error(ERROR.MISSING_CREATE_SUBMISSION_DBGAPID);
         }
-        approvedStudy.primaryContact = this.userService.getUserByID(approvedStudy?.primaryContactIO);
+        if(approvedStudy?.primaryContactID){
+            approvedStudy.primaryContact = await this.userService.getUserByID(approvedStudy?.primaryContactID)
+        }
         const latestDataModel = await this.fetchDataModelInfo();
         const modelVersion = this.#getModelVersion(latestDataModel, params.dataCommons);
 
@@ -1857,8 +1859,8 @@ class DataSubmission {
         };
         this.bucketName = config.bucketName;
         this.rootPath = studyID;
-        this.conciergeName = approvedStudy?.primaryContact.fileName + " " + approvedStudy?.primaryContact.lastName;
-        this.conciergeEmail = approvedStudy?.primaryContact.email;
+        this.conciergeName = DataSubmission.getConciergeName(approvedStudy, aProgram);
+        this.conciergeEmail = DataSubmission.getConciergeEmail(approvedStudy, aProgram);
         this.createdAt = this.updatedAt = getCurrentTime();
         // no metadata to be validated
         this.metadataValidationStatus = this.fileValidationStatus = this.crossSubmissionStatus = null;
@@ -1876,6 +1878,25 @@ class DataSubmission {
 
     static createSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization) {
         return new DataSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization);
+    }
+
+    static getConciergeName(approvedStudy, aProgram){
+        if (approvedStudy?.primaryContact) {
+            return approvedStudy.primaryContact.firstName + " " + approvedStudy.primaryContact.lastName;
+        } else if (aProgram) {
+            return aProgram?.conciergeName;
+        } else {
+            return null;
+        }
+    }
+    static getConciergeEmail(approvedStudy, aProgram){
+        if (approvedStudy?.primaryContact) {
+            return approvedStudy.primaryContact.email;
+        } else if (aProgram) {
+            return aProgram?.conciergeEmail;
+        } else {
+            return null;
+        }
     }
 }
 
