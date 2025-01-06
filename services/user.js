@@ -9,6 +9,8 @@ const {getCurrentTime, subtractDaysFromNowTimestamp} = require("../crdc-datahub-
 const {UpdateProfileEvent, ReactivateUserEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const {LOG_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const jwt = require("jsonwebtoken");
+const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+
 const {
     SUBMISSION_REQUEST,
     ADMIN,
@@ -55,7 +57,12 @@ class UserService {
     async requestAccess(params, context) {
         verifySession(context)
             .verifyInitialized()
-            .verifyPermission(DATA_SUBMISSION.REQUEST_ACCESS);
+            .verifyPermission(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REQUEST_ACCESS);
+
+        // USER.ROLES.ORG_OWNER needs to be removed after the role is retired finally
+        if (![USER.ROLES.SUBMITTER, USER.ROLES.USER, USER.ROLES.ORG_OWNER].includes(params.role)) {
+            return new Error(replaceErrorString(ERROR.INVALID_REQUEST_ROLE, params?.role));
+        } 
 
         const approvedStudies = params?.studies?.length > 0 ?
             await this.approvedStudiesService.listApprovedStudies({_id: {$in: params?.studies}})
@@ -214,14 +221,14 @@ class UserService {
     }
 
     async getUser(params, context) {
-        isLoggedInOrThrow(context);
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+        
         if (!params?.userID) {
-            const eee= SUBMODULE_ERROR.INVALID_USERID;
             throw new Error(SUBMODULE_ERROR.INVALID_USERID);
         }
-        if (context?.userInfo?.role !== USER.ROLES.ADMIN && context?.userInfo.role !== USER.ROLES.ORG_OWNER) {
-            throw new Error(SUBMODULE_ERROR.INVALID_ROLE);
-        }
+        // The following block of codes need to removed after USER.ROLES.ORG_OWNER is retired.
         if (context?.userInfo?.role === USER.ROLES.ORG_OWNER && !context?.userInfo?.organization?.orgID) {
             throw new Error(SUBMODULE_ERROR.NO_ORG_ASSIGNED);
         }
@@ -246,10 +253,10 @@ class UserService {
     }
 
     async listUsers(params, context) {
-        isLoggedInOrThrow(context);
-        if (context?.userInfo?.role !== USER.ROLES.ADMIN && context?.userInfo?.role !== USER.ROLES.ORG_OWNER) {
-            throw new Error(SUBMODULE_ERROR.INVALID_ROLE);
-        }
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+        // The following block of codes need to removed after USER.ROLES.ORG_OWNER is retired.
         if (context?.userInfo?.role === USER.ROLES.ORG_OWNER && !context?.userInfo?.organization?.orgID) {
             throw new Error(SUBMODULE_ERROR.NO_ORG_ASSIGNED);
         }
@@ -280,12 +287,9 @@ class UserService {
      * @returns {Promise<Object[]>} An array of Curator Users mapped to the `UserInfo` type
      */
     async listActiveCuratorsAPI(params, context) {
-        if (!context?.userInfo?.email || !context?.userInfo?.IDP) {
-            throw new Error(SUBMODULE_ERROR.NOT_LOGGED_IN);
-        }
-        if (context?.userInfo?.role !== USER.ROLES.ADMIN) {
-            throw new Error(SUBMODULE_ERROR.INVALID_ROLE);
-        }
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
 
         const curators = await this.getActiveCurators();
         return curators?.map((user) => ({
@@ -411,10 +415,10 @@ class UserService {
     }
 
     async editUser(params, context) {
-        isLoggedInOrThrow(context);
-        if (![USER.ROLES.ADMIN].includes(context?.userInfo?.role)) {
-            throw new Error(SUBMODULE_ERROR.INVALID_ROLE);
-        }
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+
         if (!params.userID) {
             throw new Error(SUBMODULE_ERROR.INVALID_USERID);
         }
