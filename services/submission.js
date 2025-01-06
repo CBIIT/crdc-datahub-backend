@@ -105,12 +105,11 @@ class Submission {
         const modelVersion = this.#getModelVersion(latestDataModel, params.dataCommons);
 
         const programs = await this.organizationService.findOneByStudyID(params?.studyID);
-        if (programs?.length === 0) {
-            throw new Error(replaceErrorString(ERROR.CREATE_SUBMISSION_MISSING_PROGRAM, params?.studyID));
-        }
+        const program = (programs?.length === 0) ? null: programs[0];
+
 
         const newSubmission = DataSubmission.createSubmission(
-            params.name, context.userInfo, params.dataCommons, params.studyID, approvedStudy?.dbGaPID, programs[0], modelVersion, intention, dataType, approvedStudy);
+            params.name, context.userInfo, params.dataCommons, params.studyID, approvedStudy?.dbGaPID, program, modelVersion, intention, dataType, approvedStudy);
         const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
@@ -1846,10 +1845,10 @@ class DataSubmission {
         this.submitterID = userInfo._id;
         this.collaborators = [];
         this.submitterName = formatName(userInfo);
-        this.organization = {
-            _id: userInfo?.organization?.orgID,
-            name: userInfo?.organization?.orgName
-        };
+        // this.organization = {
+        //     _id: userInfo?.organization?.orgID,
+        //     name: userInfo?.organization?.orgName
+        // };
         this.dataCommons = dataCommons;
         this.modelVersion = modelVersion;
         this.studyID = studyID;
@@ -1857,13 +1856,15 @@ class DataSubmission {
         this.status = NEW;
         this.history = [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)];
         this.organization = {
-            _id: aProgram._id ?? aProgram?._id,
-            name: aProgram.name ?? aProgram?.name
+            _id: (aProgram && aProgram?._id) ?? aProgram?._id,
+            name: (aProgram && aProgram?.name) ?? aProgram?.name
         };
-        this.bucketName = aProgram.bucketName;
-        this.rootPath = `${this.#SUBMISSIONS}/${this._id}`;
-        this.conciergeName = aProgram.conciergeName;
-        this.conciergeEmail = aProgram.conciergeEmail;
+        // this.bucketName = aProgram.bucketName;
+        this.bucketName = config.bucketName;
+        // this.rootPath = `${this.#SUBMISSIONS}/${this._id}`;
+        this.rootPath = studyID;
+        this.conciergeName = approvedStudy.conciergeName;
+        this.conciergeEmail = approvedStudy.conciergeEmail;
         this.createdAt = this.updatedAt = getCurrentTime();
         // no metadata to be validated
         this.metadataValidationStatus = this.fileValidationStatus = this.crossSubmissionStatus = null;
