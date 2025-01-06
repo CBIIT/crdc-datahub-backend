@@ -522,12 +522,14 @@ class UserService {
         const isUserActivated = prevUser?.userStatus !== USER.STATUSES.INACTIVE;
         const isStatusChange = newStatus && newStatus?.toLowerCase() === USER.STATUSES.INACTIVE.toLowerCase();
         if (isUserActivated && isStatusChange) {
-            const adminEmails = await this.getAdminUserEmails();
+            const adminEmails = await this.getAdminPBACUsers();
             const CCs = adminEmails.filter((u)=> u.email).map((u)=> u.email);
-            await this.notificationsService.deactivateUserNotification(prevUser.email,
-                CCs, {firstName: prevUser.firstName},
-                {officialEmail: this.officialEmail}
-                ,this.tier);
+            if (prevUser?.notifications?.includes(EN.USER_ACCOUNT.USER_INACTIVATED)) {
+                await this.notificationsService.deactivateUserNotification(prevUser.email,
+                    CCs, {firstName: prevUser.firstName},
+                    {officialEmail: this.officialEmail}
+                    ,this.tier);
+            }
         }
     }
 
@@ -558,9 +560,11 @@ class UserService {
         }
     }
 
-    async getAdminUserEmails() {
+    async getAdminPBACUsers() {
         const orgOwnerOrAdminRole = {
             "userStatus": USER.STATUSES.ACTIVE,
+            "notifications": {"$in": [EN.USER_ACCOUNT.USER_INACTIVATED_ADMIN]},
+            // TODO org owners to be removed since org owner no longer exists
             "$or": [{"role": USER.ROLES.ADMIN}, {"role": USER.ROLES.ORG_OWNER}]
         };
         return await this.userCollection.aggregate([{"$match": orgOwnerOrAdminRole}]) || [];
