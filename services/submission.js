@@ -1858,9 +1858,9 @@ class DataSubmission {
             name: (aProgram && aProgram?.name) ? aProgram?.name : null
         };
         this.bucketName = config.bucketName;
-        this.rootPath = studyID;
-        this.conciergeName = DataSubmission.getConciergeName(approvedStudy, aProgram);
-        this.conciergeEmail = DataSubmission.getConciergeEmail(approvedStudy, aProgram);
+        this.rootPath = `${this.#SUBMISSIONS}/${this._id}`;
+        this.conciergeName = this.#getConciergeName(approvedStudy, aProgram);
+        this.conciergeEmail = this.#getConciergeEmail(approvedStudy, aProgram);
         this.createdAt = this.updatedAt = getCurrentTime();
         // no metadata to be validated
         this.metadataValidationStatus = this.fileValidationStatus = this.crossSubmissionStatus = null;
@@ -1880,7 +1880,7 @@ class DataSubmission {
         return new DataSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization);
     }
 
-    static getConciergeName(approvedStudy, aProgram){
+    #getConciergeName(approvedStudy, aProgram){
         if (approvedStudy?.primaryContact) {
             return approvedStudy.primaryContact.firstName + " " + approvedStudy.primaryContact.lastName;
         } else if (aProgram) {
@@ -1889,7 +1889,7 @@ class DataSubmission {
             return null;
         }
     }
-    static getConciergeEmail(approvedStudy, aProgram){
+    #getConciergeEmail(approvedStudy, aProgram){
         if (approvedStudy?.primaryContact) {
             return approvedStudy.primaryContact.email;
         } else if (aProgram) {
