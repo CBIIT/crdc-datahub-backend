@@ -34,13 +34,6 @@
             "disabled": false
           },
           {
-            "_id": "submission_request:delete",
-            "group": "Submission Request Permissions",
-            "name": "Delete",
-            "checked": true,
-            "disabled": false
-          },
-          {
             "_id": "access:request",
             "group": "Request Access",
             "name": "Request Access",
@@ -138,13 +131,6 @@
             "group": "Submission Request Emails",
             "name": "Delete Due to Inactivity",
             "checked": false,
-            "disabled": false
-          },
-          {
-            "_id": "submission_request:expiring",
-            "group": "Submission Request Emails",
-            "name": "Submission Request is about to expire",
-            "checked": true,
             "disabled": false
           },
           {
@@ -258,13 +244,6 @@
             "disabled": false
           },
           {
-            "_id": "submission_request:delete",
-            "group": "Submission Request Permissions",
-            "name": "Delete",
-            "checked": false,
-            "disabled": false
-          },
-          {
             "_id": "access:request",
             "group": "Request Access",
             "name": "Request Access",
@@ -361,13 +340,6 @@
             "_id": "submission_request:deleted",
             "group": "Submission Request Emails",
             "name": "Delete Due to Inactivity",
-            "checked": false,
-            "disabled": false
-          },
-          {
-            "_id": "submission_request:expiring",
-            "group": "Submission Request Emails",
-            "name": "Submission Request is about to expire",
             "checked": false,
             "disabled": false
           },
@@ -482,13 +454,6 @@
             "disabled": true
           },
           {
-            "_id": "submission_request:delete",
-            "group": "Submission Request Permissions",
-            "name": "Delete",
-            "checked": false,
-            "disabled": false
-          },
-          {
             "_id": "access:request",
             "group": "Request Access",
             "name": "Request Access",
@@ -586,13 +551,6 @@
             "group": "Submission Request Emails",
             "name": "Delete Due to Inactivity",
             "checked": true,
-            "disabled": false
-          },
-          {
-            "_id": "submission_request:expiring",
-            "group": "Submission Request Emails",
-            "name": "Submission Request is about to expire",
-            "checked": false,
             "disabled": false
           },
           {
@@ -706,13 +664,6 @@
             "disabled": true
           },
           {
-            "_id": "submission_request:delete",
-            "group": "Submission Request Permissions",
-            "name": "Delete",
-            "checked": true,
-            "disabled": true
-          },
-          {
             "_id": "access:request",
             "group": "Request Access",
             "name": "Request Access",
@@ -809,13 +760,6 @@
             "_id": "submission_request:deleted",
             "group": "Submission Request Emails",
             "name": "Delete Due to Inactivity",
-            "checked": true,
-            "disabled": true
-          },
-          {
-            "_id": "submission_request:expiring",
-            "group": "Submission Request Emails",
-            "name": "Submission Request is about to expire",
             "checked": true,
             "disabled": true
           },
@@ -930,13 +874,6 @@
             "disabled": true
           },
           {
-            "_id": "submission_request:delete",
-            "group": "Submission Request Permissions",
-            "name": "Delete",
-            "checked": true,
-            "disabled": true
-          },
-          {
             "_id": "access:request",
             "group": "Request Access",
             "name": "Request Access",
@@ -1033,13 +970,6 @@
             "_id": "submission_request:deleted",
             "group": "Submission Request Emails",
             "name": "Delete Due to Inactivity",
-            "checked": true,
-            "disabled": true
-          },
-          {
-            "_id": "submission_request:expiring",
-            "group": "Submission Request Emails",
-            "name": "Submission Request is about to expire",
             "checked": true,
             "disabled": true
           },
