@@ -6,7 +6,6 @@ const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifyApplication} = require("../verifier/application-verifier");
 const {verifySession} = require("../verifier/user-info-verifier");
 const ERROR = require("../constants/error-constants");
-const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
@@ -14,6 +13,9 @@ const ROLES = USER_CONSTANTS.USER.ROLES;
 const {parseJsonString} = require("../crdc-datahub-database-drivers/utility/string-utility");
 const {formatName} = require("../utility/format-name");
 const {isUndefined, replaceErrorString} = require("../utility/string-util");
+const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
+const {EMAIL_NOTIFICATIONS} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 
 class Application {
     constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, tier, institutionService) {
@@ -31,14 +33,30 @@ class Application {
 
     async getApplication(params, context) {
         verifySession(context)
-            .verifyInitialized();
-        const application = await this.getApplicationById(params._id);
-        const isAdminOrFedLead = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD].includes(context.userInfo?.role);
-        const isSubmitter = application?.applicant?.applicantID === context?.userInfo?._id;
-        if (!isAdminOrFedLead && !isSubmitter){
-            throw new Error(ERROR.INVALID_PERMISSION);
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
+        let application = await this.getApplicationById(params._id);
+        // add logics to check if conditional approval
+        if (application.status === APPROVED){
+            await this.#checkConditionalApproval(application);
         }
         return application;
+    }
+
+    async #checkConditionalApproval(application) {
+        // 1) controlled study missing dbGaPID
+        const study_arr = await this.approvedStudiesService.findByStudyName(application.studyName);
+        if (!study_arr || study_arr.length < 1) {
+            return;
+        }
+        const study = study_arr[0];
+        if(study?.controlledAccess && !study?.dbGaPID){
+            application.conditional = true;
+            application.pendingConditions = (!application?.pendingConditions)? [ERROR.CONTROLLED_STUDY_NO_DBGAPID] : application.pendingConditions.push(CONTROLLED_STUDY_NO_DBGAPID);
+        }
+        else {
+            application.conditional = false;
+        }
     }
 
     async getApplicationById(id) {
@@ -48,6 +66,7 @@ class Application {
     }
 
     async reviewApplication(params, context) {
+        verifyReviewerPermission(context);
         const application = await this.getApplication(params, context);
         verifyApplication(application)
             .notEmpty()
@@ -91,7 +110,9 @@ class Application {
             },
             history: [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)],
             createdAt: timestamp,
-            updatedAt: timestamp
+            updatedAt: timestamp,
+            programAbbreviation: application?.programAbbreviation,
+            programDescription: application?.programDescription
         };
         application = {
             ...application,
@@ -104,7 +125,8 @@ class Application {
 
     async saveApplication(params, context) {
         verifySession(context)
-            .verifyInitialized();
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CREATE);
         let inputApplication = params.application;
         const id = inputApplication?._id;
         if (!id) {
@@ -122,7 +144,8 @@ class Application {
 
     async getMyLastApplication(params, context) {
         verifySession(context)
-            .verifyInitialized();
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
         const userID = context.userInfo._id;
         const matchApplicantIDToUser = {"$match": {"applicant.applicantID": userID, status: APPROVED}};
         const sortCreatedAtDescending = {"$sort": {createdAt: -1}};
@@ -148,36 +171,42 @@ class Application {
 
     async listApplications(params, context) {
         verifySession(context)
-            .verifyInitialized();
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
         let pipeline = this.listApplicationConditions(context.userInfo._id, context.userInfo?.role);
-        if (params.orderBy) pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
-
-        const pagination = [];
-        if (params.offset) pagination.push({"$skip": params.offset});
-        const disablePagination = Number.isInteger(params.first) && params.first === -1;
-        if (!disablePagination) {
-            pagination.push({"$limit": params.first});
-        }
+        const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
+        const noPaginationPipe = pipeline.concat(paginationPipe.getNoLimitPipeline());
         const promises = [
-            await this.applicationCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline),
-            await this.applicationCollection.aggregate(pipeline)
+            this.applicationCollection.aggregate(pipeline.concat(paginationPipe.getPaginationPipeline())),
+            this.applicationCollection.aggregate(noPaginationPipe)
         ];
 
-        return await Promise.all(promises).then(function(results) {
+        const applications = await Promise.all(promises).then(function(results) {
             return {
                 applications: (results[0] || []).map((app)=>(app)),
                 total: results[1]?.length || 0
             }
         });
+        for (let app of applications.applications.filter(a=>a.status === APPROVED)) {
+            await this.#checkConditionalApproval(app);
+        }
+        return applications;
     }
 
     async submitApplication(params, context) {
         verifySession(context)
-            .verifyInitialized();
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.SUBMIT);
         const application = await this.getApplicationById(params._id);
+        let validStatus = [];
+        if (context?.userInfo?.role === USER.ROLES.SUBMITTER) {
+            validStatus = [NEW, IN_PROGRESS];
+        } else if (context?.userInfo?.role === USER.ROLES.FEDERAL_LEAD) {
+            validStatus = [INQUIRED, IN_PROGRESS];
+        }
         verifyApplication(application)
             .notEmpty()
-            .state([NEW, IN_PROGRESS]);
+            .state(validStatus);
         // In Progress -> In Submitted
         const history = application.history || [];
         const historyEvent = HistoryEventBuilder.createEvent(context.userInfo._id, SUBMITTED, null);
@@ -194,12 +223,15 @@ class Application {
         const logEvent = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, SUBMITTED);
         await Promise.all([
             await this.logCollection.insert(logEvent),
-            await sendEmails.submitApplication(this.notificationService,this.emailParams,context, application)
+            await sendEmails.submitApplication(this.notificationService, this.userService, this.emailParams, context.userInfo, application)
         ]);
         return application;
     }
 
     async reopenApplication(document, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CREATE);
         const application = await this.getApplicationById(document._id);
         // TODO 1. If Reviewer opened the application, the status changes to IN_REVIEW
         if (application && application.status) {
@@ -222,7 +254,7 @@ class Application {
     }
 
     async deleteApplication(document, context) {
-        // TODO Deleting the application requires permission control.
+        // wait until delete/restore permission is added into PBAC
         const aApplication = await this.getApplicationById(document._id);
         const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED, INQUIRED];
         if (validApplicationStatus.includes(aApplication.status)) {
@@ -250,16 +282,35 @@ class Application {
         }
 
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, APPROVED, document.comment);
+        const questionnaire = getApplicationQuestionnaire(application);
+        const approvalConditional = (questionnaire?.accessTypes?.includes("Controlled Access") && !questionnaire?.study?.dbGaPPPHSNumber);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
             $push: {history}
         });
+
         let promises = [];
-        promises.push(this.institutionService.addNewInstitutions(document.institutions));
-        promises.push(this.sendEmailAfterApproveApplication(context, application));
+        promises.push(this.institutionService.addNewInstitutions(document?.institutions));
+        promises.push(this.sendEmailAfterApproveApplication(context, application, this.tier, document?.comment, approvalConditional));
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             promises.unshift(this.getApplicationById(document._id));
-            promises.push(saveApprovedStudies(this.approvedStudiesService, this.organizationService, application));
+            if(questionnaire) {
+                const approvedStudies = await saveApprovedStudies(this.approvedStudiesService, this.organizationService, application, questionnaire);
+                // added approved studies into user collection
+                const { _id, ...updateUser } = context?.userInfo || {};
+                const currStudyIDs = context?.userInfo?.studies?.map((study)=> study?._id) || [];
+                const newStudiesIDs = [approvedStudies?._id].concat(currStudyIDs);
+                promises.push(this.userService.updateUserInfo(
+                    context?.userInfo, updateUser, _id, context?.userInfo?.userStatus, context?.userInfo?.role, newStudiesIDs));
+
+                const [name, abbreviation, description] = [application?.programName, application?.programAbbreviation, application?.programDescription];
+                if (name?.trim()?.length > 0) {
+                    const programs = await this.organizationService.findOneByProgramName(name);
+                    if (programs?.length === 0) {
+                        promises.push(this.organizationService.upsertByProgramName(name, abbreviation, description, [approvedStudies]));
+                    }
+                }
+            }
             promises.push(this.logCollection.insert(
                 UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, APPROVED)
             ));
@@ -380,59 +431,59 @@ class Application {
         }
     }
 
-    async sendEmailAfterApproveApplication(context, application) {
-        // org owner email
-        let org_owner_email = ""
-        let orgOwner = await this.userService.getOrgOwner(application?.organization?._id)
-        for(let i of orgOwner){
-            org_owner_email  += i.email + " ; "
-        }
-        // concierge email
-        let concierge = await this.userService.getConcierge(application?.organization?._id)
-        let concierge_email = ""
-        for(let i of concierge){
-            concierge_email += i.email + " ; "
-        }
-        // admin email
-        let admin_user = await this.userService.getAdmin();
-        let admin_email = ""
-        for(let i of admin_user){
-            admin_email += i.email + " ; "
-        }
-        // cc emil
-        let cc_email
-        if(concierge_email){
-            cc_email = concierge_email
-        }else{
-            cc_email = admin_email
-        }
+    async sendEmailAfterApproveApplication(context, application, tier, comment, conditional = false) {
+        const res = await Promise.all([
+            this.userService.getOrgOwner(application?.organization?._id),
+            this.userService.getConcierge(application?.organization?._id),
+            this.userService.getAdmin(),
+            this.userService.getFedLeads()
+        ]);
+        const [orgOwners, concierges, adminUsers, fedLeads] = res;
+        const [orgOwnerEmails, conciergesEmails,adminUsersEmails,fedLeadsEmails]
+            = [getUserEmails(orgOwners), getUserEmails(concierges), getUserEmails(adminUsers), getUserEmails(fedLeads)];
 
-        // contact detail
-        let contact_detail = `either your organization ${org_owner_email} or your CRDC Data Team member ${concierge_email}.`
-        if(!org_owner_email &&!concierge_email ){
-            contact_detail = `the Submission Helpdesk ${this.emailParams.submissionHelpdesk}`
-        } else if(!org_owner_email){
-            contact_detail = `your CRDC Data Team member ${concierge_email}`
-        } else if(!concierge_email){
-            contact_detail = `either your organization ${org_owner_email} or the Submission Helpdesk ${this.emailParams.submissionHelpdesk}`
+        if (!conditional) {
+            // contact detail
+            let contactDetail = `either your organization ${orgOwnerEmails?.join(";")} or your CRDC Data Team member ${conciergesEmails?.join(";")}.`
+            if(orgOwnerEmails.length === 0 && conciergesEmails.length === 0){
+                contactDetail = `the Submission Helpdesk ${this.emailParams?.submissionHelpdesk}`
+            } else if(orgOwnerEmails.length === 0) {
+                contactDetail = `your CRDC Data Team member ${conciergesEmails.join(";")}`
+            } else if(conciergesEmails.length === 0) {
+                contactDetail = `either your organization ${orgOwnerEmails.join(";")} or the Submission Helpdesk ${this.emailParams?.submissionHelpdesk}`
+            }
+            const ccEmails =[...conciergesEmails, ...orgOwnerEmails];
+            const toCCs = ccEmails.length > 0 ? ccEmails : adminUsersEmails
+            await this.notificationService.approveQuestionNotification(application?.applicant?.applicantEmail,
+                // Organization Owner and concierges assigned/Super Admin
+                new Set([...toCCs]).toArray(),
+                {firstName: application?.applicant?.applicantName},
+                {
+                    study: application?.studyAbbreviation,
+                    doc_url: this.emailParams.url,
+                    contact_detail: contactDetail,
+                },
+                tier);
+            return;
         }
-        await this.notificationService.approveQuestionNotification(application?.applicant?.applicantEmail,
-            // Organization Owner and concierge assigned/Super Admin
-            `${org_owner_email} ${cc_email}`,
-        {
-            firstName: application?.applicant?.applicantName
-        }, {
-            study: application?.studyAbbreviation,
-            doc_url: this.emailParams.url,
-            contact_detail: contact_detail
-        })
+        await this.notificationService.conditionalApproveQuestionNotification(application?.applicant?.applicantEmail,
+            new Set([...fedLeadsEmails, ...orgOwnerEmails, ...adminUsersEmails]).toArray(),
+            {
+                firstName: application?.applicant?.applicantName,
+                contactEmail: this.emailParams?.conditionalSubmissionContact,
+                url: this.emailParams?.submissionGuideURL,
+                approverNotes: comment
+            },
+            {study: setDefaultIfNoName(application?.studyName)},
+            tier
+        );
     }
 }
 
 function verifyReviewerPermission(context){
     verifySession(context)
         .verifyInitialized()
-        .verifyRole([ROLES.ADMIN, ROLES.FEDERAL_LEAD]);
+        .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.REVIEW);
 }
 
 async function updateApplication(applicationCollection, application, prevStatus, userID) {
@@ -486,23 +537,32 @@ const sendEmails = {
             url: emailParams.url
         })
     },
-    submitApplication: async (notificationService, emailParams, context, application) => {
+    submitApplication: async (notificationService, userService, emailParams, userInfo, application) => {
+        const allowedNotifyUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_SUBMIT],
+            [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]);
+
+        await notificationService.submitRequestReceivedNotification(application?.applicant?.applicantEmail,
+            {helpDesk: emailParams.conditionalSubmissionContact},
+            {userName: application?.applicant?.applicantName},
+            getUserEmails(allowedNotifyUsers)
+        );
+
         const programName = application?.programName?.trim() ?? "";
         const associate = `the ${application?.studyAbbreviation} study` + (programName.length > 0 ? ` associated with the ${programName} program` : '');
         await notificationService.submitQuestionNotification({
-            pi: `${context.userInfo.firstName} ${context.userInfo.lastName}`,
+            pi: `${userInfo.firstName} ${userInfo.lastName}`,
             associate,
             url: emailParams.url
         })
     },
-    inquireApplication: async(notificationService, emailParams, context, application, emailCCs, tier) => {
+    inquireApplication: async(notificationService, emailParams, _, application, emailCCs, tier) => {
         await notificationService.inquireQuestionNotification(application?.applicant?.applicantEmail, emailCCs,{
             firstName: application?.applicant?.applicantName
         }, {
             officialEmail: emailParams.submissionHelpdesk
         }, tier);
     },
-    rejectApplication: async(notificationService, emailParams, context, application) => {
+    rejectApplication: async(notificationService, emailParams, _, application) => {
         await notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, {
             firstName: application?.applicant?.applicantName
         }, {
@@ -512,12 +572,7 @@ const sendEmails = {
     }
 }
 
-const saveApprovedStudies = async (approvedStudiesService, organizationService, aApplication) => {
-    const questionnaire = parseJsonString(aApplication?.questionnaireData);
-    if (!questionnaire) {
-        console.error(ERROR.FAILED_STORE_APPROVED_STUDIES + ` id=${aApplication?._id}`);
-        return;
-    }
+const saveApprovedStudies = async (approvedStudiesService, organizationService, aApplication, questionnaire) => {
     // use study name when study abbreviation is not available
     const studyAbbreviation = !!aApplication?.studyAbbreviation?.trim() ? aApplication?.studyAbbreviation : questionnaire?.study?.name;
     const controlledAccess = aApplication?.controlledAccess;
@@ -526,10 +581,26 @@ const saveApprovedStudies = async (approvedStudiesService, organizationService, 
     }
     const savedApprovedStudy = await approvedStudiesService.storeApprovedStudies(
         aApplication?.studyName, studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name, controlledAccess, aApplication?.ORCID,
-        aApplication?.PI, aApplication?.openAccess
+        aApplication?.PI, aApplication?.openAccess, aApplication.programName
     );
 
     await organizationService.storeApprovedStudies(aApplication?.organization?._id, savedApprovedStudy?._id);
+    return savedApprovedStudy;
+}
+
+const getUserEmails = (users) => {
+    return users
+        ?.filter((aUser) => aUser?.email)
+        ?.map((aUser)=> aUser.email);
+}
+
+const getApplicationQuestionnaire = (aApplication) => {
+    const questionnaire = parseJsonString(aApplication?.questionnaireData);
+    if (!questionnaire) {
+        console.error(ERROR.FAILED_STORE_APPROVED_STUDIES + ` id=${aApplication?._id}`);
+        return null;
+    }
+    return questionnaire;
 }
 
 module.exports = {

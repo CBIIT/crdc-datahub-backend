@@ -1,22 +1,21 @@
 const {v4} = require("uuid");
-const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ERROR = require("../constants/error-constants");
 const { verifySession } = require('../verifier/user-info-verifier');
 const {ApprovedStudies} = require("../crdc-datahub-database-drivers/domain/approved-studies");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
+const {ADMIN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const CONTROLLED_ACCESS_ALL = "All";
 const CONTROLLED_ACCESS_OPEN = "Open";
 const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
 const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN, CONTROLLED_ACCESS_CONTROLLED];
 class ApprovedStudiesService {
 
-    constructor(approvedStudiesCollection, organizationService) {
+    constructor(approvedStudiesCollection) {
         this.approvedStudiesCollection = approvedStudiesCollection;
-        this.organizationService = organizationService;
     }
 
-    async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess) {
-        const approvedStudies = ApprovedStudies.createApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess);
+    async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName) {
+        const approvedStudies = ApprovedStudies.createApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName);
         const res = await this.approvedStudiesCollection.findOneAndUpdate({ studyName }, approvedStudies, {returnDocument: 'after', upsert: true});
         if (!res?.value) {
             console.error(ERROR.APPROVED_STUDIES_INSERTION + ` studyName: ${studyName}`);
@@ -47,7 +46,7 @@ class ApprovedStudiesService {
     async getApprovedStudyAPI(params, context) {
         verifySession(context)
           .verifyInitialized()
-          .verifyRole([USER.ROLES.ADMIN]);
+          .verifyPermission(ADMIN.MANAGE_STUDIES)
 
         return this.getApprovedStudy(params);
     }
@@ -76,41 +75,6 @@ class ApprovedStudiesService {
     }
 
     /**
-     * List Approved Studies of My Org API Interface.
-     *
-     * Note:
-     * - This is open to any authenticated user, but returns only approved studies tied
-     *   to the user's organization.
-     * - If no organization is associated with the user, an empty array is returned.
-     * - If no studies are associated with the user's organization, an empty array is returned.
-     *
-     * @api
-     * @param {Object} params Endpoint parameters
-     * @param {{ cookie: Object, userInfo: Object }} context request context
-     * @returns {Promise<Object[]>} An array of ApprovedStudies
-     */
-    async listApprovedStudiesOfMyOrganizationAPI(params, context) {
-        verifySession(context)
-          .verifyInitialized();
-
-        if (!context.userInfo?.organization?.orgID) {
-            return [];
-        }
-
-        const organization = await this.organizationService.getOrganizationByID(context.userInfo.organization.orgID);
-        if (!organization || !organization?.studies?.length) {
-            return [];
-        }
-
-        const filters = {
-            _id: {
-                $in: organization.studies?.filter((s) => s?._id).map((s) => s?._id)
-            }
-        };
-        return this.listApprovedStudies(filters);
-    }
-
-    /**
      * List all approved studies in the collection. Supports filtering.
      *
      * @typedef {Object<string, any>} Filters K:V pairs of filters
@@ -123,9 +87,6 @@ class ApprovedStudiesService {
 
     /**
      * List Approved Studies API Interface
-     *
-     * - This is an ADMIN only operation.
-     *
      * @api
      * @param {Object} params Endpoint parameters
      * @param {{ cookie: Object, userInfo: Object }} context request context
@@ -133,8 +94,7 @@ class ApprovedStudiesService {
      */
     async listApprovedStudiesAPI(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyRole([USER.ROLES.ADMIN]);
+            .verifyInitialized();
         
         const {
             controlledAccess,
@@ -217,10 +177,6 @@ class ApprovedStudiesService {
 
     /**
      * Add Approved Study API Interface.
-     *
-     * Note:
-     * - This is an ADMIN only operation.
-     *
      * @api
      * @param {Object} params Endpoint parameters
      * @param {{ cookie: Object, userInfo: Object }} context request context
@@ -229,7 +185,7 @@ class ApprovedStudiesService {
     async addApprovedStudyAPI(params, context) {
         verifySession(context)
           .verifyInitialized()
-          .verifyRole([USER.ROLES.ADMIN]);
+          .verifyPermission(ADMIN.MANAGE_STUDIES);
         let {
             name,
             acronym,
@@ -254,10 +210,6 @@ class ApprovedStudiesService {
     }
     /**
      * Edit Approved Study API
-     * 
-     * Note:
-     * - This is an ADMIN only operation.
-     *
      * @param {*} params 
      * @param {*} context 
      * @returns 
@@ -265,7 +217,7 @@ class ApprovedStudiesService {
     async editApprovedStudyAPI(params, context) {
         verifySession(context)
           .verifyInitialized()
-          .verifyRole([USER.ROLES.ADMIN]);
+          .verifyPermission(ADMIN.MANAGE_STUDIES);
 
         const {
             studyID,

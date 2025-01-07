@@ -78,6 +78,19 @@ const toPascalCase = (string) => {
       .replace(new RegExp(/\w/), s => s.toUpperCase());
 }
 
+/**
+ * Ensuring it has a valid extension (with a dot and non-whitespace characters as a file extension)
+ * @param {String} name
+ * @returns
+ */
+const isValidFileExtension = (name) => {
+    if (!name || (name?.trim()?.length === 0)) {
+        return false;
+    }
+    const regex = /^\S+.*[.][A-Za-z0-9]+$/;
+    return regex.test(name);
+}
+
 module.exports = {
     isCaseInsensitiveEqual,
     isElementInArray,
@@ -88,5 +101,6 @@ module.exports = {
     replaceMessageVariables,
     extractAndJoinFields,
     toPascalCase,
-    replaceErrorString
+    replaceErrorString,
+    isValidFileExtension
 }

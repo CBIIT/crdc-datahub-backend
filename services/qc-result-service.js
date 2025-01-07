@@ -19,6 +19,20 @@ function replaceNaN(results, replacement){
     return results;
 }
 
+function formatSeverityFilter(severity){
+    if (!severity || typeof severity !== "string"){
+        return null;
+    }
+    severity = severity.toLowerCase();
+    if (severity === VALIDATION_STATUS.ERROR.toLowerCase()){
+        return VALIDATION_STATUS.ERROR;
+    }
+    if (severity === VALIDATION_STATUS.WARNING.toLowerCase()){
+        return VALIDATION_STATUS.WARNING;
+    }
+    return null;
+}
+
 class QcResultService{
     constructor(qcResultCollection, submissionCollection){
         this.qcResultCollection = qcResultCollection;
@@ -40,11 +54,10 @@ class QcResultService{
             throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS);
         }
 
-        return await this.submissionQCResults(params._id, params.nodeTypes, params.batchIDs, params.severities, params.first, params.offset, params.orderBy, params.sortDirection);
+        return await this.submissionQCResults(params._id, params.nodeTypes, params.batchIDs, params.severities, params.issueCode, params.first, params.offset, params.orderBy, params.sortDirection);
     }
 
-
-    async submissionQCResults(submissionID, nodeTypes, batchIDs, severities, first, offset, orderBy, sortDirection){
+    async submissionQCResults(submissionID, nodeTypes, batchIDs, severities, issueCode, first, offset, orderBy, sortDirection){
         // Create lookup pipeline
         let pipeline = [];
         // Filter by submission ID
@@ -80,6 +93,18 @@ class QcResultService{
                     type: {
                         $in: nodeTypes
                     }
+                }
+            })
+        }
+        // Filter by issueCode
+        if (!!issueCode){
+            // Check if the specified issueCode is in any of the qcResult's errors or warnings
+            pipeline.push({
+                $match:{
+                    $or: [
+                        {"errors.code": issueCode},
+                        {"warnings.code": issueCode}
+                    ]
                 }
             })
         }
@@ -129,9 +154,11 @@ class QcResultService{
         const qcResultErrors = qcRecords?.map((record) => {
             const errorMsg = QCResultError.create(
                 record.error.title,
-                replaceErrorString(record.error.desc, `'${record.fileName}'`)
+                replaceErrorString(record.error.desc, `'${record.fileName}'`),
+                record.error.code,
+                record.error.severity
             );
-            return QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, record.fileName, null, null, VALIDATION_STATUS.ERROR, getCurrentTime(), getCurrentTime(), [errorMsg], [], record.dataRecordID);
+            return QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, record.fileName, null, null, VALIDATION_STATUS.ERROR, getCurrentTime(), getCurrentTime(), [errorMsg], [], record.dataRecordID, record?.origin);
         });
 
         await Promise.all(qcResultErrors.map(async (qcResult) => {
@@ -150,10 +177,119 @@ class QcResultService{
         ]);
         return result || [];
     }
+
+    async aggregatedSubmissionQCResultsAPI(params, context) {
+        // Check that the specified submissionID exists
+        const submission = await this.submissionCollection.findOne(params.submissionID);
+        if(!submission){
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
+        }
+        // Check that the user is authorized to view the QC results
+        if (!verifyValidationResultsReadPermissions(context.userInfo, submission)){
+            throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS);
+        }
+        return await this.aggregatedSubmissionQCResults(params.submissionID, params.severity, params.first, params.offset, params.orderBy, params.sortDirection);
+    }
+
+    async aggregatedSubmissionQCResults(submissionID, severity, first, offset, orderBy, sortDirection) {
+        // Create lookup pipeline
+        let basePipeline = [];
+        // Filter by submission ID
+        basePipeline.push({
+            $match: {
+                submissionID: submissionID
+            }
+        });
+        // Set severity field
+        basePipeline.push({
+            $set: {
+                "errors.severity": VALIDATION_STATUS.ERROR,
+                "warnings.severity": VALIDATION_STATUS.WARNING
+            }
+        })
+        // Combine warnings and errors arrays
+        basePipeline.push({
+            $set: {
+                issues: {
+                    $concatArrays: ["$warnings", "$errors"]
+                }
+            }
+        })
+        // Unwind issues array
+        basePipeline.push({
+            $unwind:{
+                path: "$issues"
+            }
+        });
+        // Filter by severity
+        // Format severity filter
+        let severityFilter = formatSeverityFilter(severity);
+        // Add the severity filter to the pipeline
+        if (!!severityFilter) {
+            basePipeline.push({
+                $match:{
+                    "issues.severity": severityFilter
+                }
+            });
+        }
+        // Aggregate and count the results
+        basePipeline.push({
+            $group:{
+                _id: {
+                    title: "$issues.title",
+                    severity: "$issues.severity"
+                },
+                count: {
+                    $sum: 1
+                }
+            }
+        });
+        // Format the output
+        basePipeline.push({
+            $project:{
+                _id: 0,
+                    title: "$_id.title",
+                severity: "$_id.severity",
+                count: "$count"
+            }
+        });
+        // Create count pipeline
+        let countPipeline = [...basePipeline];
+        countPipeline.push({
+            $count: "total"
+        });
+        // Create pagination pipeline
+        let paginationPipeline = [...basePipeline];
+        // Sort the results
+        paginationPipeline.push({
+            $sort: {
+                [orderBy]: getSortDirection(sortDirection)
+            }
+        });
+        // Paginate
+        if (offset > 0){
+            paginationPipeline.push({
+                $skip: offset
+            });
+        }
+        if (first > 0){
+            paginationPipeline.push({
+                $limit: first
+            });
+        }
+        // Run pipelines
+        const countPipelineResult = await this.qcResultCollection.aggregate(countPipeline);
+        const totalRecords = countPipelineResult[0]?.total;
+        const paginatedPipelineResult = await this.qcResultCollection.aggregate(paginationPipeline);
+        return {
+            total: totalRecords,
+            results: paginatedPipelineResult
+        };
+    }
 }
 
 class QCResult {
-    constructor(type, validationType, submittedID, batchID, displayID, severity, uploadedDate, validatedDate, errors, warnings, dataRecordID) {
+    constructor(type, validationType, submittedID, batchID, displayID, severity, uploadedDate, validatedDate, errors, warnings, dataRecordID, origin) {
         this.type = type;
         this.validationType = validationType;
         this.submittedID = submittedID;
@@ -165,22 +301,27 @@ class QCResult {
         this.errors = errors || [];
         this.warnings = warnings || [];
         this.dataRecordID = dataRecordID;
+        if (origin) {
+            this.origin = origin;
+        }
     }
 
-    static create(type, validationType, submittedID, batchID, displayID, severity, uploadedDate, validatedDate, errors, warnings, dataRecordID) {
-        return new QCResult(type, validationType, submittedID, batchID, displayID, severity, uploadedDate, validatedDate, errors, warnings, dataRecordID);
+    static create(type, validationType, submittedID, batchID, displayID, severity, uploadedDate, validatedDate, errors, warnings, dataRecordID, origin) {
+        return new QCResult(type, validationType, submittedID, batchID, displayID, severity, uploadedDate, validatedDate, errors, warnings, dataRecordID, origin);
     }
 
 }
 
 class QCResultError {
-    constructor(title, description) {
+    constructor(title, description, severity, code) {
         this.title = title;
         this.description = description;
+        this.severity = severity;
+        this.code = code;
     }
 
-    static create(title, description) {
-        return new QCResultError(title, description);
+    static create(title, description, severity, code) {
+        return new QCResultError(title, description, severity, code);
     }
 }
 
