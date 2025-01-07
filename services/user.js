@@ -289,7 +289,7 @@ class UserService {
     async listActiveCuratorsAPI(params, context) {
         verifySession(context)
             .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_PROGRAMS);
+            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_STUDIES, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_PROGRAMS);
 
         const curators = await this.getActiveCurators();
         return curators?.map((user) => ({
