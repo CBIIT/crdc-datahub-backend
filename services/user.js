@@ -37,7 +37,7 @@ const createToken = (userInfo, token_secret, token_timeout)=> {
 
 class UserService {
     #allPermissionNamesSet = new Set([...Object.values(SUBMISSION_REQUEST), ...Object.values(DATA_SUBMISSION), ...Object.values(ADMIN)]);
-    #allEmailNotificationNamesSet = new Set([...Object.values(EN.SUBMISSION_REQUEST), ...Object.values(EN.DATA_SUBMISSION)]);
+    #allEmailNotificationNamesSet = new Set([...Object.values(EN.SUBMISSION_REQUEST), ...Object.values(EN.DATA_SUBMISSION), ...Object.values(EN.USER_ACCOUNT)]);
     constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, tier, approvedStudiesService, inactiveUserDays, configurationService) {
         this.userCollection = userCollection;
         this.logCollection = logCollection;
@@ -751,46 +751,67 @@ class UserService {
         return await this.userCollection.aggregate(pipeline);
     }
 
-    #validateUserPermission(permissions, notifications) {
-        // Only Valid User Permissions
-        if (permissions) {
-            const filteredPermissions = permissions?.filter(permission => !this.#allPermissionNamesSet.has(permission));
-            if (filteredPermissions.length > 0) {
-                throw new Error(replaceErrorString(ERROR.INVALID_PERMISSION_NAME, `${filteredPermissions.join(',')}`));
-            }
-        }
-
-        if (notifications) {
-            const filteredNotifications = notifications?.filter(permission => !this.#allEmailNotificationNamesSet.has(permission));
-            if (filteredNotifications.length > 0) {
-                throw new Error(replaceErrorString(ERROR.INVALID_NOTIFICATION_NAME, `${filteredNotifications.join(',')}`));
-            }
-        }
-    }
-
-    async #setUserPermissions(currRole, newRole, permissions, notifications, updatedUser) {
-        this.#validateUserPermission(permissions, notifications);
-        const isUserRoleChange = (newRole && (currRole !== newRole));
-        const userRole = isUserRoleChange ? newRole : currRole;
-
-        const accessControl = await this.configurationService.getAccessControl(userRole);
-        const validPermissions = new Set(accessControl?.permissions?.permitted);
+    #validateUserPermission(isUserRoleChange, userRole, permissions, notifications, accessControl) {
         const disabledPermissions = new Set(accessControl?.permissions?.disabled);
-        const invalidPermissions = permissions.filter(permission =>
-            !validPermissions.has(permission) && !disabledPermissions.has(permission));
-        // The request permission is not allowed for the requested role
+        const invalidPermissions = permissions?.filter(permission =>
+            (disabledPermissions.has(permission)) || !this.#allPermissionNamesSet.has(permission));
+
         if (invalidPermissions?.length > 0) {
             throw new Error(replaceErrorString(ERROR.INVALID_PERMISSION_NAME, `${invalidPermissions.join(',')}`));
         }
 
-        const actionPermissions = UserPermissions.get(userRole, accessControl?.permissions?.permitted, accessControl?.permissions?.disabled);
-        const emailPermissions = UserPermissions.get(userRole, accessControl?.notifications?.permitted, accessControl?.notifications?.disabled);
-        if ((isUserRoleChange || permissions) && !isIdenticalArrays(currRole?.permissions, actionPermissions) && actionPermissions) {
-            updatedUser.permissions = actionPermissions;
+        const disabledNotifications = new Set(accessControl?.notifications?.disabled);
+        const invalidNotifications = notifications?.filter(notification =>
+            (disabledNotifications.has(notification)) || !this.#allEmailNotificationNamesSet.has(notification));
+
+        if (invalidNotifications?.length > 0) {
+            throw new Error(replaceErrorString(ERROR.INVALID_NOTIFICATION_NAME, `${invalidNotifications.join(',')}`));
         }
 
-        if ((isUserRoleChange || notifications) && !isIdenticalArrays(currRole?.notifications, emailPermissions) && emailPermissions) {
-            updatedUser.notifications = emailPermissions;
+        const requiredPermissions = [...accessControl?.permissions?.permitted].filter(p => disabledPermissions.has(p));
+        const requiredNotifications = [...accessControl?.notifications?.permitted].filter(p => disabledNotifications.has(p));
+        return {
+            filteredPermissions: this.#setFilteredPermissions(isUserRoleChange, userRole, permissions, requiredPermissions, accessControl?.permissions?.permitted),
+            filteredNotifications: this.#setFilteredNotifications(isUserRoleChange, userRole, notifications, requiredNotifications, accessControl?.notifications?.permitted)
+        }
+    }
+
+    #setFilteredPermissions(isUserRoleChange, userRole, permissions, requiredPermissions, defaultPermissions) {
+        const editableUserRoles = [USER.ROLES.FEDERAL_LEAD, USER.ROLES.FEDERAL_MONITOR, USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.CURATOR, USER.ROLES.DC_POC, USER.ROLES.ADMIN];
+        const updatedPermissions = permissions !== undefined ? permissions : defaultPermissions;
+        // final notification settings
+        const updatePermissions = isUserRoleChange ? updatedPermissions : permissions;
+        const finalPermissions = [...(updatePermissions || []), ...requiredPermissions];
+        return editableUserRoles.includes(userRole) ? finalPermissions : defaultPermissions;
+    }
+
+    #setFilteredNotifications(isUserRoleChange, userRole, notifications, requiredNotifications, defaultNotifications) {
+        const editableUserRoles = [USER.ROLES.FEDERAL_LEAD, USER.ROLES.FEDERAL_MONITOR, USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.CURATOR, USER.ROLES.DC_POC, USER.ROLES.ADMIN];
+        const updatedNotifications = notifications !== undefined ? notifications : defaultNotifications;
+
+        // final notification settings
+        const updateNotifications = isUserRoleChange ? updatedNotifications : notifications;
+        const finalNotifications = [...(updateNotifications || []), ...requiredNotifications];
+        return editableUserRoles.includes(userRole) ? finalNotifications : defaultNotifications;
+    }
+
+    async #setUserPermissions(currRole, newRole, permissions, notifications, updatedUser) {
+        const isUserRoleChange = (newRole && (currRole !== newRole));
+        const userRole = isUserRoleChange ? newRole : currRole;
+        const accessControl = await this.configurationService.getAccessControl(userRole);
+        const {filteredPermissions, filteredNotifications} =
+            this.#validateUserPermission(isUserRoleChange, userRole, permissions, notifications, accessControl);
+
+        if (isUserRoleChange || (!isUserRoleChange && permissions !== undefined)) {
+            if (!isIdenticalArrays(currRole?.permissions, filteredPermissions) && filteredPermissions) {
+                updatedUser.permissions = filteredPermissions;
+            }
+        }
+
+        if (isUserRoleChange || (!isUserRoleChange && notifications !== undefined)) {
+            if (!isIdenticalArrays(currRole?.notifications, filteredNotifications) && filteredNotifications) {
+                updatedUser.notifications = filteredNotifications;
+            }
         }
     } 
     async getCollaboratorsByStudyID(studyID, submitterID) {
@@ -891,16 +912,16 @@ class UserPermissions {
         this.disabled = disabled;
     }
 
-    static get(role, permissions) {
-        const userPermissions = new UserPermissions(role);
+    static get(role, permissions, defaultPermissions, disabled) {
+        const userPermissions = new UserPermissions(role, defaultPermissions, disabled);
         return userPermissions.#getPermissions(permissions);
     }
 
     #getPermissions(permissions) {
-        const editableUserRoles = [USER.ROLES.FEDERAL_LEAD, USER.ROLES.FEDERAL_MONITOR, USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.CURATOR, USER.ROLES.DC_POC];
+        // TODO some roles must be removed.
+        const editableUserRoles = [USER.ROLES.FEDERAL_LEAD, USER.ROLES.FEDERAL_MONITOR, USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.CURATOR, USER.ROLES.DC_POC, USER.ROLES.ADMIN];
         if (editableUserRoles.includes(this.role)) {
-            const bannedPermissionsSet = new Set(this.disabled);
-            return permissions ? permissions.filter(permission => !bannedPermissionsSet.has(permission)) : this.permitted;
+            return permissions;
         }
         return this.permitted;
     }
