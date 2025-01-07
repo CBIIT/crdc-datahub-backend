@@ -102,7 +102,7 @@ class Submission {
             throw new Error(ERROR.MISSING_CREATE_SUBMISSION_DBGAPID);
         }
         if(approvedStudy?.primaryContactID){
-            approvedStudy.primaryContact = await this.userService.getUserByID(approvedStudy?.primaryContactID)
+            approvedStudy.primaryContact = await this.userService.getUserByID(approvedStudy.primaryContactID)
         }
         const latestDataModel = await this.fetchDataModelInfo();
         const modelVersion = this.#getModelVersion(latestDataModel, params.dataCommons);
