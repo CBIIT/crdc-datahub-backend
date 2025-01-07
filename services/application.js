@@ -221,9 +221,10 @@ class Application {
         const updated = await this.applicationCollection.update(aApplication);
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) throw new Error(ERROR.UPDATE_FAILED);
         const logEvent = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, SUBMITTED);
+        const applicantInfo = (await this.userService.userCollection.find(application?.applicant?.applicantID))?.pop();
         await Promise.all([
             await this.logCollection.insert(logEvent),
-            await sendEmails.submitApplication(this.notificationService, this.userService, this.emailParams, context.userInfo, application)
+            await sendEmails.submitApplication(this.notificationService, this.userService, this.emailParams, context.userInfo, application, applicantInfo)
         ]);
         return application;
     }
@@ -364,7 +365,9 @@ class Application {
         const adminEmails = (await this.userService.getAdmin())
             ?.filter((aUser) => aUser?.email)
             ?.map((aUser)=> aUser.email);
-        await sendEmails.inquireApplication(this.notificationService, this.emailParams, context.userInfo, application, adminEmails, this.tier);
+
+        const applicantInfo = (await this.userService.userCollection.find(application?.applicant?.applicantID))?.pop();
+        await sendEmails.inquireApplication(this.notificationService, this.emailParams, application, adminEmails, this.tier, applicantInfo);
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, INQUIRED);
             const promises = [
@@ -566,7 +569,7 @@ const sendEmails = {
             });
         }
     },
-    inquireApplication: async(notificationService, emailParams, _, application, emailCCs, tier, applicantInfo) => {
+    inquireApplication: async(notificationService, emailParams, application, emailCCs, tier, applicantInfo) => {
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW)) {
             await notificationService.inquireQuestionNotification(application?.applicant?.applicantEmail, emailCCs,{
                 firstName: application?.applicant?.applicantName
