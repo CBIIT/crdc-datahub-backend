@@ -1,15 +1,9 @@
 const AWS = require('aws-sdk');
 require('aws-sdk/lib/maintenance_mode_message').suppress = true;
 const {v4} = require('uuid');
-const path = require("path");
 const config = require('../config');
 const ERROR = require("../constants/error-constants");
 
-const S3_GET = 'getObject';
-const S3_KEY = 'Key';
-const S3_SIZE= 'Size';
-const S3_CONTENTS = 'Contents';
-const S3_LAST_MODIFIED_DATE = "LastModified";
 /**
  * This class provides services for aWS requests
  */
@@ -68,48 +62,6 @@ class AWSService {
                 }
             });
         });
-    }
-    /**
-     * getLastFileFromS3
-     * @param {*} bucket s3 bucket name
-     * @param {*} prefix s3 bucket file prefix
-     * @returns file
-     */
-    async  getLastFileFromS3(bucket, prefix, uploadType, filter){
-        const data = await this.s3.listObjects(getS3Params(bucket, prefix)).promise();
-        const files = data[S3_CONTENTS].filter(k=>k[S3_KEY].indexOf(filter)> 0).sort((a,b) => a[S3_LAST_MODIFIED_DATE]- b[S3_LAST_MODIFIED_DATE]);
-        if(files.length > 0)
-        {
-            const lastFile = files[files.length-1];
-            let key = lastFile[S3_KEY];
-            let fileName = path.basename(key);
-            let downloadUrl = await this.createDownloadURL(bucket, key);
-            let size = lastFile[S3_SIZE];
-            return {fileName: fileName, uploadType: uploadType, downloadUrl: downloadUrl, fileSize: size};
-        }
-        else return null;
-    }
-    /**
-     * createDownloadURL
-     * @param {*} bucketName 
-     * @param {*} key 
-     * @returns url as string 
-     */
-    async  createDownloadURL(bucketName, key) {
-        const params = {
-            Bucket: bucketName,
-            Key: `${key}`,
-            Expires: config.presign_expiration, 
-        };
-        return new Promise((resolve, reject) => {
-            this.s3.getSignedUrl(S3_GET, params, (error, url) => {
-                if (error) {
-                    reject(error);
-                } else {
-                    resolve(url);
-                }
-            });
-        });  
     }
 
     /**
@@ -197,13 +149,6 @@ const getQueueUrl = async (sqs, queueName, messageBody) => {
     });
 }
 
-function getS3Params(bucket, prefix){
-    return {
-        Bucket: bucket,
-        Delimiter: '/',
-        Prefix: `${prefix}/`
-    };
-}
 module.exports = {
     AWSService
 };

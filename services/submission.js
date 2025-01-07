@@ -1,13 +1,12 @@
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
-    REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, EXPORT, INTENTION, DATA_TYPE, DELETED, DATA_FILE,
+    REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, INTENTION, DATA_TYPE, DELETED, DATA_FILE,
     CONSTRAINTS, COLLABORATOR_PERMISSIONS
 } = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
-const {verifySession, verifySubmitter} = require("../verifier/user-info-verifier");
+const {verifySession} = require("../verifier/user-info-verifier");
 const {verifySubmissionAction} = require("../verifier/submission-verifier");
-const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {formatName} = require("../utility/format-name");
 const ERROR = require("../constants/error-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
@@ -15,7 +14,6 @@ const {SubmissionActionEvent, DeleteRecordEvent} = require("../crdc-datahub-data
 const {verifyBatch} = require("../verifier/batch-verifier");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
-const {AWSService} = require("../services/aws-request");
 // const {write2file} = require("../utility/io-util") //keep the line for future testing.
 
 const ROLES = USER_CONSTANTS.USER.ROLES;
@@ -24,16 +22,14 @@ const NA = "NA"
 const config = require("../config");
 const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
-const {isUndefined, replaceErrorString} = require("../utility/string-util");
+const {isUndefined, replaceErrorString, isValidFileExtension} = require("../utility/string-util");
 const {NODE_RELATION_TYPES} = require("./data-record-service");
 const {verifyToken} = require("../verifier/token-verifier");
 const {verifyValidationResultsReadPermissions} = require("../verifier/permissions-verifier");
+const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
+const {EMAIL_NOTIFICATIONS: EN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const FILE = "file";
 
-const UPLOAD_TYPES = ['file','metadata'];
-const LOG_DIR = 'logs';
-const LOG_FILE_EXT_ZIP ='.zip';
-const LOG_FILE_EXT_LOG ='.log';
 const DATA_MODEL_SEMANTICS = 'semantics';
 const DATA_MODEL_FILE_NODES = 'file-nodes';
 const COMPLETE_SUBMISSION = "Complete Submission";
@@ -45,13 +41,16 @@ const FINAL_INACTIVE_REMINDER = "finalInactiveReminder";
 const SUBMISSION_ID = "Submission ID";
 const DATA_SUBMISSION_TYPE = "Data Submission Type";
 const DESTINATION_LOCATION = "Destination Location";
+const SUBMISSION_STATS_ORIGIN_API = "API: submissionStats";
 // Set to array
 Set.prototype.toArray = function() {
     return Array.from(this);
 };
 
 class Submission {
-    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService, dataRecordService, tier, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList, hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService) {
+    constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService,
+                dataRecordService, tier, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList,
+                hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -70,6 +69,7 @@ class Submission {
         this.validationCollection = validationCollection;
         this.sqsLoaderQueue = sqsLoaderQueue;
         this.qcResultsService = qcResultsService;
+        this.uploaderCLIConfigs = uploaderCLIConfigs;
     }
 
     async createSubmission(params, context) {
@@ -81,23 +81,51 @@ class Submission {
         const dataType = [DATA_TYPE.METADATA_AND_DATA_FILES, DATA_TYPE.METADATA_ONLY].find((i) => i.toLowerCase() === params?.dataType.toLowerCase());
         validateCreateSubmissionParams(params, this.allowedDataCommons, this.hiddenDataCommons, intention, dataType, context?.userInfo);
 
-        const aUserOrganization = await this.organizationService.getOrganizationByID(context.userInfo?.organization?.orgID, false);
-        const approvedStudy = aUserOrganization.studies.find((study) => study?._id === params.studyID);
-        if (!approvedStudy) {
+        const user = await this.userService.userCollection.find(context.userInfo._id);
+        if (!user[0]?.studies || user[0].studies.length === 0){
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
         }
-        if (approvedStudy.controlledAccess && !params.dbGaPID?.trim()?.length) {
+        // check if user has all studies
+        const allStudy = (user[0].studies[0] instanceof Object)? user[0].studies.find((study) => study._id === "All") : user[0].studies.find((study) => study === "All");
+        if (!allStudy) {
+            const study = (user[0].studies[0] instanceof Object)? user[0].studies.find((study) => study._id === params.studyID) : user[0].studies.find((study) => study === params.studyID);
+            if (!study) {
+                throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
+            }
+        }
+        const approvedStudies = await this.#findApprovedStudies([params.studyID]); 
+        if (approvedStudies.length === 0) {
+            throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
+        }
+        const approvedStudy = approvedStudies[0];
+        if (approvedStudy.controlledAccess && !approvedStudy?.dbGaPID) {
             throw new Error(ERROR.MISSING_CREATE_SUBMISSION_DBGAPID);
         }
         const latestDataModel = await this.fetchDataModelInfo();
         const modelVersion = this.#getModelVersion(latestDataModel, params.dataCommons);
+
+        const programs = await this.organizationService.findOneByStudyID(params?.studyID);
+        if (programs?.length === 0) {
+            throw new Error(replaceErrorString(ERROR.CREATE_SUBMISSION_MISSING_PROGRAM, params?.studyID));
+        }
+
         const newSubmission = DataSubmission.createSubmission(
-            params.name, context.userInfo, params.dataCommons, params.studyID, params.dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy);
+            params.name, context.userInfo, params.dataCommons, params.studyID, approvedStudy?.dbGaPID, programs[0], modelVersion, intention, dataType, approvedStudy);
         const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
         }
         return newSubmission;
+    }
+    async #findApprovedStudies(studies) {
+        if (!studies || studies.length === 0) return [];
+        const studiesIDs = (studies[0] instanceof Object) ? studies.map((study) => study?._id) : studies;
+        const approvedStudies = await this.userService.approvedStudiesCollection.aggregate([{
+            "$match": {
+                "_id": { "$in": studiesIDs } 
+            }
+        }]);
+        return approvedStudies;
     }
 
     async listSubmissions(params, context) {
@@ -121,19 +149,11 @@ class Submission {
 
         const [listConditions, dataCommonsCondition, submitterNameCondition, organizationCondition] = filterConditions;
         const pipeline = [{"$match": listConditions}];
-        if (params.orderBy) {
-            pipeline.push({"$sort": { [params.orderBy]: getSortDirection(params.sortDirection) } });
-        }
-
-        const pagination = [];
-        if (params.offset) pagination.push({"$skip": params.offset});
-        const disablePagination = Number.isInteger(params.first) && params.first === -1;
-        if (!disablePagination) {
-            pagination.push({"$limit": params.first});
-        }
+        const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
+        const noPaginationPipeline = pipeline.concat(paginationPipe.getNoLimitPipeline());
         const promises = [
-            await this.submissionCollection.aggregate((!disablePagination) ? pipeline.concat(pagination) : pipeline),
-            await this.submissionCollection.aggregate(pipeline.concat([{ $group: { _id: "$_id" } }, { $count: "count" }])),
+            await this.submissionCollection.aggregate(pipeline.concat(paginationPipe.getPaginationPipeline())),
+            await this.submissionCollection.aggregate(noPaginationPipeline.concat([{ $group: { _id: "$_id" } }, { $count: "count" }])),
             await this.submissionCollection.distinct("dataCommons", dataCommonsCondition),
             // note: Submitter name filter is omitted
             await this.submissionCollection.distinct("submitterName", submitterNameCondition),
@@ -180,6 +200,13 @@ class Submission {
 
         if (params?.type === BATCH.TYPE.DATA_FILE && (!aSubmission.dataCommons || !aSubmission.studyID)) {
             throw new Error(ERROR.MISSING_REQUIRED_SUBMISSION_DATA);
+        }
+
+        const invalidFiles = params?.files
+            .filter((fileName) => !isValidFileExtension(fileName))
+            .map((fileName) => `'${fileName}'`);
+        if (invalidFiles.length > 0) {
+            throw new Error(replaceErrorString(ERROR.INVALID_FILE_EXTENSION, invalidFiles?.join(",")));
         }
 
         const result = await this.batchService.createBatch(params, aSubmission, userInfo);
@@ -367,6 +394,7 @@ class Submission {
             completePromise.push(this.#sendCompleteMessage({type: COMPLETE_SUBMISSION, submissionID}, submissionID));
         }
         if (action === ACTIONS.RELEASE) {
+            completePromise.push(this.dataRecordService.exportMetadata(submissionID));
             completePromise.push(this.#sendCompleteMessage({type: GENERATE_DCF_MANIFEST, submissionID}, submissionID));
         }
 
@@ -531,51 +559,6 @@ class Submission {
             submissionID: submissionStats?.submissionID || aSubmission._id,
             stats: submissionStats?.stats || []
         };
-    }
-
-    /**
-     * API to get list of upload log files
-     * @param {*} params 
-     * @param {*} context 
-     * @returns dictionary
-     */
-    async listLogs(params, context){
-        //1) verify session
-        verifySession(context)
-            .verifyInitialized();
-        //2) verify submitter
-        const submission = await verifySubmitter(context.userInfo, params?.submissionID, this.submissionCollection, this.userService);
-        //3) get upload log files
-        const rootPath = submission.rootPath;
-        try {
-            const fileList = await this.getLogFiles(config.submission_bucket, rootPath);
-            return {logFiles: fileList} 
-        }
-        catch(err)
-        {
-            throw new Error(`${ERROR.FAILED_LIST_LOG}, ${params.submissionID}! ${err}`);
-        }
-    }
-    /**
-     * 
-     * @param {*} bucket as object {} contains submission ID
-     * @param {*} rootPath
-     * @returns fileList []
-     */
-    async getLogFiles(bucket, rootPath){
-        this.aws = new AWSService();
-        let fileList = []; 
-        for (let type of UPLOAD_TYPES){
-            //check if zip existing
-            let file = await this.aws.getLastFileFromS3(bucket, `${rootPath}/${type}/${LOG_DIR}`, type, LOG_FILE_EXT_ZIP);
-            // if not, check log file.
-            if (!file || !file.downloadUrl) {
-                file = await this.aws.getLastFileFromS3(bucket, `${rootPath}/${type}/${LOG_DIR}`, type, LOG_FILE_EXT_LOG);
-            }
-
-            if(file) fileList.push(file);
-        }
-        return fileList;
     }
 
     async validateSubmission(params, context) {
@@ -961,7 +944,7 @@ class Submission {
             manifest: (params.manifest)? params.manifest: "/Users/my_name/my_manifest.tsv"
         }
         //get the uploader CLI config template as string
-        var configString = config.uploaderCLIConfigs;
+        var configString = this.uploaderCLIConfigs;
         //insert params values into the string
         configString = configString.format(parameters);
         //insert data model file node properties into the string
@@ -1129,28 +1112,28 @@ class Submission {
      * description: overnight job to set completed submission after retention with "archived = true", archive related data and delete s3 files
      */
     async archiveCompletedSubmissions(){
-        var target_retention_date = new Date();
-        target_retention_date.setDate(target_retention_date.getDate() - config.completed_submission_days);
-        const query = [{"$match": {"status": COMPLETED, "updatedAt": { "$lte": target_retention_date}}}];
+        var targetRetentionDate = new Date();
+        targetRetentionDate.setDate(targetRetentionDate.getDate() - this.emailParams.completedSubmissionDays);
+        const query = [{"$match": {"status": COMPLETED, "updatedAt": { "$lte": targetRetentionDate}}}];
         try {
-            const archive_subs = await this.submissionCollection.aggregate(query);
-            if (!archive_subs || archive_subs.length === 0) {
+            const archiveSubs = await this.submissionCollection.aggregate(query);
+            if (!archiveSubs || archiveSubs.length === 0) {
                 console.debug("No completed submissions need to be archived.")
                 return "No completed submissions need to be archived";
             }
            
-            let failed_delete_subs = []
+            let failedDeleteSubs = []
             //archive related data and delete files in s3
-            for (const sub of archive_subs) {
+            for (const sub of archiveSubs) {
                 try {
                     await this.#archiveSubmission(sub._id, sub.bucketName, sub.rootPath);
                     console.debug(`Successfully archive completed submissions: ${sub._id}.`);
                 } catch (e) {
                     console.error(`Failed to delete files under archived completed submission: ${sub._id} with error: ${e.message}.`);
-                    failed_delete_subs.push(sub._id);
+                    failedDeleteSubs.push(sub._id);
                 }
             }
-            return (failed_delete_subs.length === 0 )? "successful!" : `Failed to delete files archived completed submission submissions: ${failed_delete_subs.toString()}.  please contact admin.`;
+            return (failedDeleteSubs.length === 0 )? "successful!" : `Failed to delete files archived completed submission submissions: ${failedDeleteSubs.toString()}.  please contact admin.`;
         }
         catch (e){
             console.error("Failed to archive completed submission(s) with error:" + e.message);
@@ -1175,18 +1158,18 @@ class Submission {
      */
      async deleteInactiveSubmissions(){
         //get target inactive date, current date - config.inactive_submission_days (default 120 days)
-        var target_inactive_date = new Date();
-        target_inactive_date.setDate(target_inactive_date.getDate() - config.inactive_submission_days - 1);
-        const query = [{"$match": {"status": {"$in":[IN_PROGRESS, NEW, REJECTED, WITHDRAWN]}, "accessedAt": {"$exists": true, "$ne": null, "$lte": target_inactive_date}}}];
+        var targetInactiveDate = new Date();
+        targetInactiveDate.setDate(targetInactiveDate.getDate() - this.emailParams.inactiveSubmissionDays - 1);
+        const query = [{"$match": {"status": {"$in":[IN_PROGRESS, NEW, REJECTED, WITHDRAWN]}, "accessedAt": {"$exists": true, "$ne": null, "$lte": targetInactiveDate}}}];
         try {
-            const inactive_subs = await this.submissionCollection.aggregate(query);
-            if (!inactive_subs || inactive_subs.length === 0) {
+            const inactiveSubs = await this.submissionCollection.aggregate(query);
+            if (!inactiveSubs || inactiveSubs.length === 0) {
                 console.debug("No inactive submission found.")
                 return "No inactive submissions";
             }
-            let failed_delete_subs = []
+            let failedDeleteSubs = []
             //delete related data and files
-            for (const sub of inactive_subs) {
+            for (const sub of inactiveSubs) {
                 try {
                     const result = await this.s3Service.deleteDirectory(sub.bucketName, sub.rootPath);
                     if (result === true) {
@@ -1197,10 +1180,10 @@ class Submission {
                     }
                 } catch (e) {
                     console.error(`Failed to delete files under inactive submission: ${sub._id} with error: ${e.message}.`);
-                    failed_delete_subs.push(sub._id);
+                    failedDeleteSubs.push(sub._id);
                 }
             }
-            return (failed_delete_subs.length === 0 )? "successful!" : `Failed to delete files under submissions: ${failed_delete_subs.toString()}.  please contact admin.`;
+            return (failedDeleteSubs.length === 0 )? "successful!" : `Failed to delete files under submissions: ${failedDeleteSubs.toString()}.  please contact admin.`;
         }
         catch (e){
             console.error("Failed to delete inactive submission(s) with error:" + e.message);
@@ -1266,10 +1249,8 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        const organizationIDs = await this.organizationService.findByStudyID(aSubmission?.studyID);
-        const users = await this.userService.getUsersByOrganizationIDs(organizationIDs);
-        return users
-            .filter(u=> u._id !== aSubmission?.submitterID && u.role === ROLES.SUBMITTER);
+        // find Collaborators with aSubmission.studyID
+        return await this.userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
     }
 
     async verifySubmitter(submissionID, context) {
@@ -1359,8 +1340,11 @@ class Submission {
             .filter(fileName => !qcResultFileNames.has(fileName))
             .map(fileName => ({
                 fileName,
+                origin: SUBMISSION_STATS_ORIGIN_API,
                 dataRecordID: null,
                 error: {
+                    severity: ERRORS.QC_RESULT.ERROR_TYPE.ERROR,
+                    code: ERRORS.CODES.F008_MISSING_DATA_NODE_FILE,
                     title: ERROR.MISSING_DATA_NODE_FILE_TITLE,
                     desc: ERROR.MISSING_DATA_NODE_FILE_DESC
                 }
@@ -1466,27 +1450,40 @@ String.prototype.format = function(placeholders) {
  * @param {*} userService 
  * @param {*} organizationService
  * @param {*} notificationService
+ * @param {*} emailParams
  * @param {*} tier
  */
 async function submissionActionNotification(userInfo, action, aSubmission, userService, organizationService, notificationService, emailParams, tier) {
     switch(action) {
         case ACTIONS.SUBMIT:
-            await sendEmails.submitSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.SUBMIT)) {
+                await sendEmails.submitSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            }
             break;
         case ACTIONS.RELEASE:
-            await sendEmails.releaseSubmission(emailParams, userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.RELEASE)) {
+                await sendEmails.releaseSubmission(emailParams, userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            }
             break;
         case ACTIONS.WITHDRAW:
-            await sendEmails.withdrawSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.WITHDRAW)) {
+                await sendEmails.withdrawSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            }
             break;
         case ACTIONS.REJECT:
-            await sendEmails.rejectSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.REJECT)) {
+                await sendEmails.rejectSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            }
             break;
         case ACTIONS.COMPLETE:
-            await sendEmails.completeSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.COMPLETE)) {
+                await sendEmails.completeSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            }
             break;
         case ACTIONS.CANCEL:
-            await sendEmails.cancelSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.CANCEL)) {
+                await sendEmails.cancelSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            }
             break;
         case ACTIONS.ARCHIVE:
             //todo TBD send archived email
@@ -1719,16 +1716,19 @@ const sendEmails = {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
             return;
         }
-        const [ccEmails, aOrganization] = await inactiveSubmissionEmailInfo(aSubmission, userService, organizationService);
-        await notificationService.inactiveSubmissionNotification(aSubmitter?.email, ccEmails, {
-            firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
-        }, {
-            title: aSubmission?.name,
-            expiredDays: expiredDays || NA,
-            studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
-            pastDays: pastDays || NA,
-            url: emailParams.url || NA
-        }, tier);
+
+        if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.REMIND_EXPIRE)) {
+            const [ccEmails, aOrganization] = await inactiveSubmissionEmailInfo(aSubmission, userService, organizationService);
+            await notificationService.inactiveSubmissionNotification(aSubmitter?.email, ccEmails, {
+                firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
+            }, {
+                title: aSubmission?.name,
+                expiredDays: expiredDays || NA,
+                studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                pastDays: pastDays || NA,
+                url: emailParams.url || NA
+            }, tier);
+        }
     },
     finalRemindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService, tier) => {
         const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
@@ -1736,15 +1736,18 @@ const sendEmails = {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
             return;
         }
-        const [ccEmails, aOrganization] = await inactiveSubmissionEmailInfo(aSubmission, userService, organizationService);
-        await notificationService.finalInactiveSubmissionNotification(aSubmitter?.email, ccEmails, {
-            firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
-        }, {
-            title: aSubmission?.name,
-            studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
-            days: emailParams.finalRemindSubmissionDay || NA,
-            url: emailParams.url || NA
-        }, tier);
+
+        if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.REMIND_EXPIRE)) {
+            const [ccEmails, aOrganization] = await inactiveSubmissionEmailInfo(aSubmission, userService, organizationService);
+            await notificationService.finalInactiveSubmissionNotification(aSubmitter?.email, ccEmails, {
+                firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
+            }, {
+                title: aSubmission?.name,
+                studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                days: emailParams.finalRemindSubmissionDay || NA,
+                url: emailParams.url || NA
+            }, tier);
+        }
     }
 }
 
@@ -1881,7 +1884,8 @@ class DataValidation {
 }
 
 class DataSubmission {
-    constructor(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy) {
+    #SUBMISSIONS = "submissions";
+    constructor(name, userInfo, dataCommons, studyID, dbGaPID, aProgram, modelVersion, intention, dataType, approvedStudy) {
         this._id = v4();
         this.name = name;
         this.submitterID = userInfo._id;
@@ -1897,10 +1901,14 @@ class DataSubmission {
         this.dbGaPID = dbGaPID;
         this.status = NEW;
         this.history = [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)];
-        this.bucketName = aUserOrganization.bucketName;
-        this.rootPath = aUserOrganization.rootPath.concat(`/${this._id}`);
-        this.conciergeName = aUserOrganization.conciergeName;
-        this.conciergeEmail = aUserOrganization.conciergeEmail;
+        this.organization = {
+            _id: aProgram._id ?? aProgram?._id,
+            name: aProgram.name ?? aProgram?.name
+        };
+        this.bucketName = aProgram.bucketName;
+        this.rootPath = `${this.#SUBMISSIONS}/${this._id}`;
+        this.conciergeName = aProgram.conciergeName;
+        this.conciergeEmail = aProgram.conciergeEmail;
         this.createdAt = this.updatedAt = getCurrentTime();
         // no metadata to be validated
         this.metadataValidationStatus = this.fileValidationStatus = this.crossSubmissionStatus = null;
@@ -1916,8 +1924,8 @@ class DataSubmission {
         this.accessedAt = getCurrentTime();
     }
 
-    static createSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy) {
-        return new DataSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy);
+    static createSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization) {
+        return new DataSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization);
     }
 }
 

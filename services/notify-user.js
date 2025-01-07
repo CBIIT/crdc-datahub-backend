@@ -3,13 +3,12 @@ const fs = require('fs');
 const {createEmailTemplate} = require("../lib/create-email-template");
 const sanitizeHtml = require('sanitize-html');
 const {replaceMessageVariables} = require("../utility/string-util");
-const config = require("../config");
 const NOTIFICATION_USER_HTML_TEMPLATE = "notification-template-user.html";
 const ROLE = "Role";
 const DATA_COMMONS = "Data Commons";
 const STUDIES = "Studies";
 const CRDC_PORTAL_USER = "CRDC Submission Portal User";
-const CRDC_PORTAL_TEAM ="CRDC Submission Portal Team";
+const CRDC_SUBMISSION_PORTAL ="CRDC Submission Portal";
 const USER_NAME = "User Name"
 const ACCOUNT_TYPE = "Account Type";
 const ACCOUNT_EMAIL = "Account Email";
@@ -19,7 +18,7 @@ const AFFILIATED_ORGANIZATION = "Affiliated Organization";
 const CRDC_PORTAL_ADMIN = "CRDC Submission Portal Admins";
 class NotifyUser {
 
-    constructor(emailService) {
+    constructor(emailService, committeeEmails) {
         this.emailService = emailService;
         this.email_constants = undefined
         try {
@@ -27,6 +26,7 @@ class NotifyUser {
         } catch (e) {
             console.error(e)
         }
+        this.committeeEmails = committeeEmails;
     }
 
     async send(fn){
@@ -43,9 +43,28 @@ class NotifyUser {
                 await createEmailTemplate("notification-template.html", {
                     message, firstName: this.email_constants.APPLICATION_COMMITTEE_NAME
                 }),
-                //this.email_constants.APPLICATION_COMMITTEE_EMAIL
-                config.committee_emails
+                this.committeeEmails
             );
+        });
+    }
+
+    async submitRequestReceivedNotification(email, messageVariables, templateParams, BCCs) {
+        const message = replaceMessageVariables(this.email_constants.SUBMISSION_SUBMIT_RECEIVE_CONTENT_FIRST, {});
+        const secondMessage = replaceMessageVariables(this.email_constants.SUBMISSION_SUBMIT_RECEIVE_CONTENT_SECOND, messageVariables);
+        return await this.send(async () => {
+            const res = await this.emailService.sendNotification(
+                this.email_constants.NOTIFICATION_SENDER,
+                this.email_constants.SUBMISSION_SUBMIT_RECEIVE_SUBJECT,
+                await createEmailTemplate("notification-template.html", {
+                    message, secondMessage, firstName: templateParams.userName
+                }),
+                email,
+                [],
+                BCCs
+            );
+            if (res?.accepted?.length === 0) {
+                console.error(`Failed to send Submission Request Email Notifications: ${email}`);
+            }
         });
     }
 
@@ -94,14 +113,38 @@ class NotifyUser {
         });
     }
 
-    async approveQuestionNotification(email, emailCCs,template_params, messageVariables) {
+    async approveQuestionNotification(email, emailCCs,templateParams, messageVariables, tier) {
         const message = replaceMessageVariables(this.email_constants.APPROVE_CONTENT, messageVariables);
+        const subject = this.email_constants.APPROVE_SUBJECT;
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
-                this.email_constants.APPROVE_SUBJECT,
-                                await createEmailTemplate("notification-template.html", {
-                    message, ...template_params
+                isTierAdded(tier) ? `${tier} ${subject}` : subject,
+                await createEmailTemplate("notification-template.html", {
+                    message, ...templateParams
+                }),
+                email,
+                emailCCs
+            );
+        });
+    }
+
+    async conditionalApproveQuestionNotification(email, emailCCs, templateParams, messageVariables, tier) {
+        const message = replaceMessageVariables(this.email_constants.CONDITIONAL_APPROVE_CONTENT_FIRST, messageVariables);
+        const secondMessage = replaceMessageVariables(this.email_constants.CONDITIONAL_APPROVE_CONTENT_SECOND, messageVariables);
+        const subject = this.email_constants.CONDITIONAL_APPROVE_SUBJECT;
+        const approverNotes = templateParams?.approverNotes?.trim();
+        return await this.send(async () => {
+            await this.emailService.sendNotification(
+                this.email_constants.NOTIFICATION_SENDER,
+                isTierAdded(tier) ? `${tier} ${subject}` : subject,
+                await createEmailTemplate("notification-template-submission-request.html", {
+                    firstName: templateParams?.firstName,
+                    message,
+                    secondMessage,
+                    url: templateParams?.url,
+                    approverNotes: approverNotes?.length > 0 ? approverNotes : "N/A",
+                    contactEmail: templateParams?.contactEmail
                 }),
                 email,
                 emailCCs
@@ -128,7 +171,7 @@ class NotifyUser {
                 await createEmailTemplate(NOTIFICATION_USER_HTML_TEMPLATE, {
                     topMessage, bottomMessage, ...{
                         firstName: CRDC_PORTAL_USER,
-                        senderName: CRDC_PORTAL_TEAM,
+                        senderName: CRDC_SUBMISSION_PORTAL,
                         ...templateParams, additionalInfo}
                 }),
                 email,
@@ -317,7 +360,6 @@ class NotifyUser {
 
     async requestUserAccessNotification(email, CCs, templateParams, tier) {
         const sanitizedAdditionalInfo = sanitizeHtml(templateParams.additionalInfo, {allowedTags: [],allowedAttributes: {}});
-        const sanitizedOrgName = sanitizeHtml(templateParams.org, {allowedTags: [],allowedAttributes: {}});
         const topMessage = replaceMessageVariables(this.email_constants.USER_REQUEST_ACCESS_CONTENT, {});
         const subject = this.email_constants.USER_REQUEST_ACCESS_SUBJECT;
         const additionalInfo = [
@@ -325,7 +367,7 @@ class NotifyUser {
             [ACCOUNT_TYPE, templateParams.accountType?.toUpperCase()],
             [ACCOUNT_EMAIL, templateParams.email],
             ...(templateParams.role) ? [[REQUESTED_ROLE, templateParams.role]] : [],
-            ...(sanitizedOrgName) ? [[AFFILIATED_ORGANIZATION, sanitizedOrgName]] : [],
+            ...(templateParams.studies) ? [[STUDIES, templateParams.studies]] : [],
             ...(sanitizedAdditionalInfo) ? [[ADDITIONAL_INFO, sanitizedAdditionalInfo]] : []
         ];
         return await this.send(async () => {
@@ -335,7 +377,7 @@ class NotifyUser {
                 await createEmailTemplate(NOTIFICATION_USER_HTML_TEMPLATE, {
                     topMessage, ...{
                         firstName: CRDC_PORTAL_ADMIN,
-                        senderName: CRDC_PORTAL_TEAM,
+                        senderName: CRDC_SUBMISSION_PORTAL,
                         ...templateParams, additionalInfo}
                 }),
                 email,

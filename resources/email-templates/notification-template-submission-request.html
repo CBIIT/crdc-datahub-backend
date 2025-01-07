@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body,
+    pre {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <p>Dear {{ firstName }},</p>
+  <p>{{ message }}</p>
+  <p>
+    Once the condition is cleared, you can begin the data submission process. Please review the Data Submission Instructions <a href="{{url}}" target="_blank">here</a>
+    If you need assistance with your data submission, please contact {{contactEmail}}.
+  </p>
+  <p>
+    <span>
+      <strong>[Pending Condition]:</strong>
+    </span>
+  </p>
+  <p>
+    Your study's dbGaP ID was not provided. Please contact {{contactEmail}} to submit your dbGaP ID once you have registered your study on dbGap.
+  </p>
+  <p>
+    <span>
+      <strong>[Approver Notes]:</strong>
+    </span>
+  </p>
+  <p>
+    {{approverNotes}}
+  </p>
+  <p>Thank you for your attention to this matter.</p>
+  <p>Sincerely,</p>
+  <p>CRDC Submission Portal Admin Team</p>
+</body>
+</html>

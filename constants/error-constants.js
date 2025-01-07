@@ -5,6 +5,7 @@ const ERROR = {
     // Application
     APPLICATION_NOT_FOUND: "The provided application ID was not found in the database. Provided _id: ",
     APPLICATION_CONTROLLED_ACCESS_NOT_FOUND: "The application does not store controlled access property.",
+    MISSING_PROGRAM_INFO: "The program property is required to approve the submission request.",
     UPDATE_FAILED: "Update unsuccessful",
     VERIFY: {
         UNDEFINED_APPLICATION: "Application array is undefined",
@@ -29,7 +30,8 @@ const ERROR = {
         EMPTY_ROOT_PATH: "RootPath is missing in the submission",
         REJECT_ACTION_COMMENT_REQUIRED: "Reject submission action must include a comment.",
         SUBMIT_ACTION_COMMENT_REQUIRED: "Submit action must include a comment.",
-        INVALID_ORGANIZATION_STATUS: "No organization assigned, or your organization is currently inactive and needs reactivation for use"
+        INVALID_ORGANIZATION_STATUS: "No organization assigned, or your organization is currently inactive and needs reactivation for use",
+        INVALID_PERMISSION: "You do not have permission to perform this action."
     },
     // Batch
     FAILED_NEW_BATCH_INSERTION: "An error occurred while creating a new batch",
@@ -43,6 +45,7 @@ const ERROR = {
     INVALID_BATCH_INTENTION: "Uploading data files is not allowed for a Delete submission",
     INVALID_BATCH_DATA_TYPE: "Uploading data files is not allowed for a Metadata Only submission",
     MISSING_REQUIRED_SUBMISSION_DATA: "To create a batch, please ensure that both the study ID and the metadata are included in the submission.",
+    INVALID_FILE_EXTENSION: "The $item$ file(s) extension is invalid. Please try again.",
     // Approved Studies
     APPROVED_STUDIES_INSERTION: "An error occurred while attempting to insert the approved studies into the database.",
     ORGANIZATION_APPROVED_STUDIES_INSERTION: "An error occurred while attempting to insert the approved studies for the organization into the database.",
@@ -60,8 +63,9 @@ const ERROR = {
     CREATE_SUBMISSION_INVALID_DELETE_INTENTION: "when intention is Delete, only 'Metadata Only' is allowed",
     UPDATE_SUBMISSION_ERROR:"An error occurred while attempting to update the submission in the database",
     CREATE_SUBMISSION_INVALID_DATA_COMMONS: "Requested data commons $item$ is not supported",
-    CREATE_SUBMISSION_NO_MATCHING_STUDY: "The study provided does not match an approved study within the user's organization",
-    MISSING_CREATE_SUBMISSION_DBGAPID: "Submission dbGaPID is required for creating a data submission with a controlled access study.",
+    CREATE_SUBMISSION_NO_MATCHING_STUDY: "The study provided does not match an approved study within the user's studies",
+    MISSING_CREATE_SUBMISSION_DBGAPID: "dbGapID is required for controlled-access studies.",
+    CREATE_SUBMISSION_MISSING_PROGRAM: "Study $item$ is not associated with any programs.",
     // List Submissions
     LIST_SUBMISSION_INVALID_STATUS_FILTER: "The status filter is invalid",
     INVALID_SUBMISSION_PERMISSION: "You do not have the correct permissions to list submissions",
@@ -97,7 +101,6 @@ const ERROR = {
     INVALID_NODE_NOT_FOUND: "Cant find the node by nodeID, nodeType and submissionID",
     INVALID_SUBMITTER: "The user has no permissions to upload data for the submission",
     INVALID_SESSION_OR_TOKEN: "No valid session or valid API token",
-    FAILED_LIST_LOG: "Failed to get log file(s) for submission",
     // AWS
     FAILED_SQS_SEND: "Failed to send a message to aws SQS queue",
     //export dataRecords
@@ -153,10 +156,27 @@ const ERROR = {
     // User
     ORGANIZATION_NOT_FOUND: "The provided organization name does not exist in the organization record",
     INVALID_REQUEST_ROLE: "Invalid user role is requested: $item$",
+    FAILED_TO_NOTIFY_ACCESS_REQUEST: "Failed to send notification for user role access request; $item$",
+    INVALID_APPROVED_STUDIES_ACCESS_REQUEST: "Failed to request an access request because of invalid or missing approved study IDs.",
     DUPLICATE_ORGANIZATION_NAME: "Duplicate organization name found: $item$",
     NO_ADMIN_USER: "No admin user found",
     // QC Results
-    FAILED_INSERT_QC_RESULT: "An error occurred while attempting to insert the qc-result into the database."
+    FAILED_INSERT_QC_RESULT: "An error occurred while attempting to insert the qc-result into the database.",
+    CONTROLLED_STUDY_NO_DBGAPID: "dbGaP ID must be provided before data submissions can begin.",
+    QC_RESULT: {
+        ERROR_TYPE: {
+            ERROR: "Error",
+            WARNING: "Warning"
+        }
+    },
+    CODES: {
+        F001_FILE_MISSING_FROM_BUCKET: "F001",
+        F008_MISSING_DATA_NODE_FILE: "F008"
+    },
+    // User Permissions
+    INVALID_PERMISSION_NAME: "Invalid user permission is requested: $item$",
+    // User Notifications
+    INVALID_NOTIFICATION_NAME: "Invalid email notification is requested: $item$"
 }
 
 module.exports = ERROR;
