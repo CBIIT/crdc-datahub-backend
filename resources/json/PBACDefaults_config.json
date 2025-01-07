@@ -430,98 +430,98 @@
             "group": "Submission Request Permissions",
             "name": "View",
             "checked": true,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "submission_request:create",
             "group": "Submission Request Permissions",
             "name": "Create",
             "checked": false,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "submission_request:review",
             "group": "Submission Request Permissions",
             "name": "Review",
             "checked": false,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "submission_request:submit",
             "group": "Submission Request Permissions",
             "name": "Submit",
             "checked": false,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "access:request",
             "group": "Request Access",
             "name": "Request Access",
             "checked": false,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "data_submission:view",
             "group": "Data Submission Permissions",
             "name": "View",
             "checked": true,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "data_submission:create",
             "group": "Data Submission Permissions",
             "name": "Create",
             "checked": false,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "data_submission:review",
             "group": "Data Submission Permissions",
             "name": "Review",
             "checked": true,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "data_submission:admin_submit",
             "group": "Data Submission Permissions",
             "name": "Admin Submit",
             "checked": true,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "data_submission:confirm",
             "group": "Data Submission Permissions",
             "name": "Confirm",
             "checked": true,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "user:manage",
             "group": "Admin Permissions",
             "name": "Manage User",
             "checked": true,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "program:manage",
             "group": "Admin Permissions",
             "name": "Manage Program",
             "checked": true,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "study:manage",
             "group": "Admin Permissions",
             "name": "Manage Study",
             "checked": true,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "dashboard:view",
             "group": "Admin Permissions",
             "name": "View Operation Dashboard",
             "checked": true,
-            "disabled": true
+            "disabled": false
           }
         ],
         "notifications": [
@@ -536,7 +536,7 @@
             "_id": "submission_request:to_be_reviewed",
             "group": "Submission Request Emails",
             "name": "Request Available for Review",
-            "checked": true,
+            "checked": false,
             "disabled": false
           },
           {
@@ -544,7 +544,7 @@
             "group": "Submission Request Emails",
             "name": "Request Review Decision",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "submission_request:deleted",
@@ -621,14 +621,14 @@
             "group": "Miscellaneous",
             "name": "Account Disabled due to inactivity (individual)",
             "checked": false,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "account:users_inactivated",
             "group": "Miscellaneous",
             "name": "Account Disabled due to inactivity (consolidated)",
             "checked": true,
-            "disabled": true
+            "disabled": false
           }
         ]
       },
