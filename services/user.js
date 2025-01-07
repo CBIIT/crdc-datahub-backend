@@ -9,6 +9,8 @@ const {getCurrentTime, subtractDaysFromNowTimestamp} = require("../crdc-datahub-
 const {UpdateProfileEvent, ReactivateUserEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const {LOG_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const jwt = require("jsonwebtoken");
+const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+
 const {
     SUBMISSION_REQUEST,
     ADMIN,
@@ -35,7 +37,7 @@ const createToken = (userInfo, token_secret, token_timeout)=> {
 
 class UserService {
     #allPermissionNamesSet = new Set([...Object.values(SUBMISSION_REQUEST), ...Object.values(DATA_SUBMISSION), ...Object.values(ADMIN)]);
-    #allEmailNotificationNamesSet = new Set([...Object.values(EN.SUBMISSION_REQUEST), ...Object.values(EN.DATA_SUBMISSION)]);
+    #allEmailNotificationNamesSet = new Set([...Object.values(EN.SUBMISSION_REQUEST), ...Object.values(EN.DATA_SUBMISSION), ...Object.values(EN.USER_ACCOUNT)]);
     constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, tier, approvedStudiesService, inactiveUserDays, configurationService) {
         this.userCollection = userCollection;
         this.logCollection = logCollection;
@@ -55,7 +57,12 @@ class UserService {
     async requestAccess(params, context) {
         verifySession(context)
             .verifyInitialized()
-            .verifyPermission(DATA_SUBMISSION.REQUEST_ACCESS);
+            .verifyPermission(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REQUEST_ACCESS);
+
+        // USER.ROLES.ORG_OWNER needs to be removed after the role is retired finally
+        if (![USER.ROLES.SUBMITTER, USER.ROLES.USER, USER.ROLES.ORG_OWNER].includes(params.role)) {
+            return new Error(replaceErrorString(ERROR.INVALID_REQUEST_ROLE, params?.role));
+        } 
 
         const approvedStudies = params?.studies?.length > 0 ?
             await this.approvedStudiesService.listApprovedStudies({_id: {$in: params?.studies}})
@@ -214,14 +221,14 @@ class UserService {
     }
 
     async getUser(params, context) {
-        isLoggedInOrThrow(context);
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+        
         if (!params?.userID) {
-            const eee= SUBMODULE_ERROR.INVALID_USERID;
             throw new Error(SUBMODULE_ERROR.INVALID_USERID);
         }
-        if (context?.userInfo?.role !== USER.ROLES.ADMIN && context?.userInfo.role !== USER.ROLES.ORG_OWNER) {
-            throw new Error(SUBMODULE_ERROR.INVALID_ROLE);
-        }
+        // The following block of codes need to removed after USER.ROLES.ORG_OWNER is retired.
         if (context?.userInfo?.role === USER.ROLES.ORG_OWNER && !context?.userInfo?.organization?.orgID) {
             throw new Error(SUBMODULE_ERROR.NO_ORG_ASSIGNED);
         }
@@ -246,10 +253,10 @@ class UserService {
     }
 
     async listUsers(params, context) {
-        isLoggedInOrThrow(context);
-        if (context?.userInfo?.role !== USER.ROLES.ADMIN && context?.userInfo?.role !== USER.ROLES.ORG_OWNER) {
-            throw new Error(SUBMODULE_ERROR.INVALID_ROLE);
-        }
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+        // The following block of codes need to removed after USER.ROLES.ORG_OWNER is retired.
         if (context?.userInfo?.role === USER.ROLES.ORG_OWNER && !context?.userInfo?.organization?.orgID) {
             throw new Error(SUBMODULE_ERROR.NO_ORG_ASSIGNED);
         }
@@ -280,12 +287,9 @@ class UserService {
      * @returns {Promise<Object[]>} An array of Curator Users mapped to the `UserInfo` type
      */
     async listActiveCuratorsAPI(params, context) {
-        if (!context?.userInfo?.email || !context?.userInfo?.IDP) {
-            throw new Error(SUBMODULE_ERROR.NOT_LOGGED_IN);
-        }
-        if (context?.userInfo?.role !== USER.ROLES.ADMIN) {
-            throw new Error(SUBMODULE_ERROR.INVALID_ROLE);
-        }
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
 
         const curators = await this.getActiveCurators();
         return curators?.map((user) => ({
@@ -411,10 +415,10 @@ class UserService {
     }
 
     async editUser(params, context) {
-        isLoggedInOrThrow(context);
-        if (![USER.ROLES.ADMIN].includes(context?.userInfo?.role)) {
-            throw new Error(SUBMODULE_ERROR.INVALID_ROLE);
-        }
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+
         if (!params.userID) {
             throw new Error(SUBMODULE_ERROR.INVALID_USERID);
         }
@@ -518,12 +522,14 @@ class UserService {
         const isUserActivated = prevUser?.userStatus !== USER.STATUSES.INACTIVE;
         const isStatusChange = newStatus && newStatus?.toLowerCase() === USER.STATUSES.INACTIVE.toLowerCase();
         if (isUserActivated && isStatusChange) {
-            const adminEmails = await this.getAdminUserEmails();
+            const adminEmails = await this.getAdminPBACUsers();
             const CCs = adminEmails.filter((u)=> u.email).map((u)=> u.email);
-            await this.notificationsService.deactivateUserNotification(prevUser.email,
-                CCs, {firstName: prevUser.firstName},
-                {officialEmail: this.officialEmail}
-                ,this.tier);
+            if (prevUser?.notifications?.includes(EN.USER_ACCOUNT.USER_INACTIVATED)) {
+                await this.notificationsService.deactivateUserNotification(prevUser.email,
+                    CCs, {firstName: prevUser.firstName},
+                    {officialEmail: this.officialEmail}
+                    ,this.tier);
+            }
         }
     }
 
@@ -554,9 +560,11 @@ class UserService {
         }
     }
 
-    async getAdminUserEmails() {
+    async getAdminPBACUsers() {
         const orgOwnerOrAdminRole = {
             "userStatus": USER.STATUSES.ACTIVE,
+            "notifications": {"$in": [EN.USER_ACCOUNT.USER_INACTIVATED_ADMIN]},
+            // TODO org owners to be removed since org owner no longer exists
             "$or": [{"role": USER.ROLES.ADMIN}, {"role": USER.ROLES.ORG_OWNER}]
         };
         return await this.userCollection.aggregate([{"$match": orgOwnerOrAdminRole}]) || [];
@@ -743,46 +751,67 @@ class UserService {
         return await this.userCollection.aggregate(pipeline);
     }
 
-    #validateUserPermission(permissions, notifications) {
-        // Only Valid User Permissions
-        if (permissions) {
-            const filteredPermissions = permissions?.filter(permission => !this.#allPermissionNamesSet.has(permission));
-            if (filteredPermissions.length > 0) {
-                throw new Error(replaceErrorString(ERROR.INVALID_PERMISSION_NAME, `${filteredPermissions.join(',')}`));
-            }
-        }
-
-        if (notifications) {
-            const filteredNotifications = notifications?.filter(permission => !this.#allEmailNotificationNamesSet.has(permission));
-            if (filteredNotifications.length > 0) {
-                throw new Error(replaceErrorString(ERROR.INVALID_NOTIFICATION_NAME, `${filteredNotifications.join(',')}`));
-            }
-        }
-    }
-
-    async #setUserPermissions(currRole, newRole, permissions, notifications, updatedUser) {
-        this.#validateUserPermission(permissions, notifications);
-        const isUserRoleChange = (newRole && (currRole !== newRole));
-        const userRole = isUserRoleChange ? newRole : currRole;
-
-        const accessControl = await this.configurationService.getAccessControl(userRole);
-        const validPermissions = new Set(accessControl?.permissions?.permitted);
+    #validateUserPermission(isUserRoleChange, userRole, permissions, notifications, accessControl) {
         const disabledPermissions = new Set(accessControl?.permissions?.disabled);
-        const invalidPermissions = permissions.filter(permission =>
-            !validPermissions.has(permission) && !disabledPermissions.has(permission));
-        // The request permission is not allowed for the requested role
+        const invalidPermissions = permissions?.filter(permission =>
+            (disabledPermissions.has(permission)) || !this.#allPermissionNamesSet.has(permission));
+
         if (invalidPermissions?.length > 0) {
             throw new Error(replaceErrorString(ERROR.INVALID_PERMISSION_NAME, `${invalidPermissions.join(',')}`));
         }
 
-        const actionPermissions = UserPermissions.get(userRole, accessControl?.permissions?.permitted, accessControl?.permissions?.disabled);
-        const emailPermissions = UserPermissions.get(userRole, accessControl?.notifications?.permitted, accessControl?.notifications?.disabled);
-        if ((isUserRoleChange || permissions) && !isIdenticalArrays(currRole?.permissions, actionPermissions) && actionPermissions) {
-            updatedUser.permissions = actionPermissions;
+        const disabledNotifications = new Set(accessControl?.notifications?.disabled);
+        const invalidNotifications = notifications?.filter(notification =>
+            (disabledNotifications.has(notification)) || !this.#allEmailNotificationNamesSet.has(notification));
+
+        if (invalidNotifications?.length > 0) {
+            throw new Error(replaceErrorString(ERROR.INVALID_NOTIFICATION_NAME, `${invalidNotifications.join(',')}`));
         }
 
-        if ((isUserRoleChange || notifications) && !isIdenticalArrays(currRole?.notifications, emailPermissions) && emailPermissions) {
-            updatedUser.notifications = emailPermissions;
+        const requiredPermissions = [...accessControl?.permissions?.permitted].filter(p => disabledPermissions.has(p));
+        const requiredNotifications = [...accessControl?.notifications?.permitted].filter(p => disabledNotifications.has(p));
+        return {
+            filteredPermissions: this.#setFilteredPermissions(isUserRoleChange, userRole, permissions, requiredPermissions, accessControl?.permissions?.permitted),
+            filteredNotifications: this.#setFilteredNotifications(isUserRoleChange, userRole, notifications, requiredNotifications, accessControl?.notifications?.permitted)
+        }
+    }
+
+    #setFilteredPermissions(isUserRoleChange, userRole, permissions, requiredPermissions, defaultPermissions) {
+        const editableUserRoles = [USER.ROLES.FEDERAL_LEAD, USER.ROLES.FEDERAL_MONITOR, USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.CURATOR, USER.ROLES.DC_POC, USER.ROLES.ADMIN];
+        const updatedPermissions = permissions !== undefined ? permissions : defaultPermissions;
+        // final notification settings
+        const updatePermissions = isUserRoleChange ? updatedPermissions : permissions;
+        const finalPermissions = [...(updatePermissions || []), ...requiredPermissions];
+        return editableUserRoles.includes(userRole) ? finalPermissions : defaultPermissions;
+    }
+
+    #setFilteredNotifications(isUserRoleChange, userRole, notifications, requiredNotifications, defaultNotifications) {
+        const editableUserRoles = [USER.ROLES.FEDERAL_LEAD, USER.ROLES.FEDERAL_MONITOR, USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.CURATOR, USER.ROLES.DC_POC, USER.ROLES.ADMIN];
+        const updatedNotifications = notifications !== undefined ? notifications : defaultNotifications;
+
+        // final notification settings
+        const updateNotifications = isUserRoleChange ? updatedNotifications : notifications;
+        const finalNotifications = [...(updateNotifications || []), ...requiredNotifications];
+        return editableUserRoles.includes(userRole) ? finalNotifications : defaultNotifications;
+    }
+
+    async #setUserPermissions(currRole, newRole, permissions, notifications, updatedUser) {
+        const isUserRoleChange = (newRole && (currRole !== newRole));
+        const userRole = isUserRoleChange ? newRole : currRole;
+        const accessControl = await this.configurationService.getAccessControl(userRole);
+        const {filteredPermissions, filteredNotifications} =
+            this.#validateUserPermission(isUserRoleChange, userRole, permissions, notifications, accessControl);
+
+        if (isUserRoleChange || (!isUserRoleChange && permissions !== undefined)) {
+            if (!isIdenticalArrays(currRole?.permissions, filteredPermissions) && filteredPermissions) {
+                updatedUser.permissions = filteredPermissions;
+            }
+        }
+
+        if (isUserRoleChange || (!isUserRoleChange && notifications !== undefined)) {
+            if (!isIdenticalArrays(currRole?.notifications, filteredNotifications) && filteredNotifications) {
+                updatedUser.notifications = filteredNotifications;
+            }
         }
     } 
     async getCollaboratorsByStudyID(studyID, submitterID) {
@@ -872,29 +901,6 @@ class DataCommon {
         if (isValidRole && !isValidDataCommons) {
             throw new Error(SUBMODULE_ERROR.USER_DC_REQUIRED);
         }
-    }
-}
-
-
-class UserPermissions {
-    constructor(role, permitted, disabled) {
-        this.role = role;
-        this.permitted = permitted;
-        this.disabled = disabled;
-    }
-
-    static get(role, permissions) {
-        const userPermissions = new UserPermissions(role);
-        return userPermissions.#getPermissions(permissions);
-    }
-
-    #getPermissions(permissions) {
-        const editableUserRoles = [USER.ROLES.FEDERAL_LEAD, USER.ROLES.FEDERAL_MONITOR, USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.CURATOR, USER.ROLES.DC_POC];
-        if (editableUserRoles.includes(this.role)) {
-            const bannedPermissionsSet = new Set(this.disabled);
-            return permissions ? permissions.filter(permission => !bannedPermissionsSet.has(permission)) : this.permitted;
-        }
-        return this.permitted;
     }
 }
 

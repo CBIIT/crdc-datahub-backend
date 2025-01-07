@@ -27,6 +27,7 @@ const {NODE_RELATION_TYPES} = require("./data-record-service");
 const {verifyToken} = require("../verifier/token-verifier");
 const {verifyValidationResultsReadPermissions} = require("../verifier/permissions-verifier");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
+const {EMAIL_NOTIFICATIONS: EN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -361,7 +362,7 @@ class Submission {
         const verifier = verifySubmissionAction(submissionID, action);
         //verify if a submission can be find by submissionID.
         let submission = await verifier.exists(this.submissionCollection);
-        if (!await this.#isValidPermission(userInfo, submission)) {
+        if (!await this.#isValidPermission(userInfo, submission) && ![ROLES.DC_POC, ROLES.FEDERAL_LEAD, ROLES.FEDERAL_MONITOR].includes(userInfo?.role)) {
             throw new Error(ERROR.INVALID_ROLE);
         }
         let fromStatus = submission.status;
@@ -611,7 +612,52 @@ class Submission {
         }
         return result;
     }
-
+    /**
+     * API to export dataRecords of the submission to tsv file by async process
+     * @param {*} params 
+     * @param {*} context 
+     * @returns AsyncProcessResult
+     */
+    async exportSubmission(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyRole([ROLES.ADMIN, ROLES.CURATOR, ROLES.SUBMITTER]);
+        const aSubmission = await findByID(this.submissionCollection, params._id);
+        if(!aSubmission){
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
+        }
+        const userInfo = context.userInfo;
+        const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
+        const isCollaborator = collaboratorUserIDs.includes(userInfo._id);
+        const isPermitted = (this.userService.isAdmin(userInfo.role) ||
+            aSubmission?.submitterID === userInfo?._id || // Submitter
+            (userInfo.role === ROLES.CURATOR && userInfo?.dataCommons.includes(aSubmission?.dataCommons)) || isCollaborator)
+        if (!isPermitted) {
+            throw new Error(ERROR.INVALID_EXPORT_METADATA);
+        }
+        if (aSubmission.status !== SUBMITTED) {
+            throw new Error(`${ERROR.VERIFY.INVALID_SUBMISSION_ACTION_STATUS} ${EXPORT}!`);
+        }
+        return await this.dataRecordService.exportMetadata(params._id);
+    }
+    
+    async submissionQCResults(params, context) {
+        // Check if the submission exists
+        const submission = await findByID(this.submissionCollection, params._id);
+        if(!submission){
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
+        }
+        // Check if the user has permission to read this data
+        const userInfo = context.userInfo;
+        if (!verifyValidationResultsReadPermissions(userInfo, submission)) {
+            // A different error message is required if a Federal Monitor is unauthorized
+            if (userInfo.role === ROLES.FEDERAL_MONITOR){
+                throw new Error(ERROR.INVALID_ROLE_STUDY);
+            }
+            throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS);
+        }
+        return this.dataRecordService.submissionQCResults(params._id, params.nodeTypes, params.batchIDs, params.severities, params.first, params.offset, params.orderBy, params.sortDirection);
+    }
 
     async submissionCrossValidationResults(params, context){
         verifySession(context)
@@ -1410,22 +1456,34 @@ String.prototype.format = function(placeholders) {
 async function submissionActionNotification(userInfo, action, aSubmission, userService, organizationService, notificationService, emailParams, tier) {
     switch(action) {
         case ACTIONS.SUBMIT:
-            await sendEmails.submitSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.SUBMIT)) {
+                await sendEmails.submitSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            }
             break;
         case ACTIONS.RELEASE:
-            await sendEmails.releaseSubmission(emailParams, userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.RELEASE)) {
+                await sendEmails.releaseSubmission(emailParams, userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            }
             break;
         case ACTIONS.WITHDRAW:
-            await sendEmails.withdrawSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.WITHDRAW)) {
+                await sendEmails.withdrawSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            }
             break;
         case ACTIONS.REJECT:
-            await sendEmails.rejectSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.REJECT)) {
+                await sendEmails.rejectSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            }
             break;
         case ACTIONS.COMPLETE:
-            await sendEmails.completeSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.COMPLETE)) {
+                await sendEmails.completeSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            }
             break;
         case ACTIONS.CANCEL:
-            await sendEmails.cancelSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.CANCEL)) {
+                await sendEmails.cancelSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
+            }
             break;
         case ACTIONS.ARCHIVE:
             //todo TBD send archived email
@@ -1658,16 +1716,19 @@ const sendEmails = {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
             return;
         }
-        const [ccEmails, aOrganization] = await inactiveSubmissionEmailInfo(aSubmission, userService, organizationService);
-        await notificationService.inactiveSubmissionNotification(aSubmitter?.email, ccEmails, {
-            firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
-        }, {
-            title: aSubmission?.name,
-            expiredDays: expiredDays || NA,
-            studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
-            pastDays: pastDays || NA,
-            url: emailParams.url || NA
-        }, tier);
+
+        if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.REMIND_EXPIRE)) {
+            const [ccEmails, aOrganization] = await inactiveSubmissionEmailInfo(aSubmission, userService, organizationService);
+            await notificationService.inactiveSubmissionNotification(aSubmitter?.email, ccEmails, {
+                firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
+            }, {
+                title: aSubmission?.name,
+                expiredDays: expiredDays || NA,
+                studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                pastDays: pastDays || NA,
+                url: emailParams.url || NA
+            }, tier);
+        }
     },
     finalRemindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService, tier) => {
         const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
@@ -1675,15 +1736,18 @@ const sendEmails = {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
             return;
         }
-        const [ccEmails, aOrganization] = await inactiveSubmissionEmailInfo(aSubmission, userService, organizationService);
-        await notificationService.finalInactiveSubmissionNotification(aSubmitter?.email, ccEmails, {
-            firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
-        }, {
-            title: aSubmission?.name,
-            studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
-            days: emailParams.finalRemindSubmissionDay || NA,
-            url: emailParams.url || NA
-        }, tier);
+
+        if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.REMIND_EXPIRE)) {
+            const [ccEmails, aOrganization] = await inactiveSubmissionEmailInfo(aSubmission, userService, organizationService);
+            await notificationService.finalInactiveSubmissionNotification(aSubmitter?.email, ccEmails, {
+                firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
+            }, {
+                title: aSubmission?.name,
+                studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                days: emailParams.finalRemindSubmissionDay || NA,
+                url: emailParams.url || NA
+            }, tier);
+        }
     }
 }
 

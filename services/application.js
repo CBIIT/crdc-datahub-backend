@@ -15,6 +15,7 @@ const {formatName} = require("../utility/format-name");
 const {isUndefined, replaceErrorString} = require("../utility/string-util");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const {EMAIL_NOTIFICATIONS} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 
 class Application {
     constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, tier, institutionService) {
@@ -32,13 +33,9 @@ class Application {
 
     async getApplication(params, context) {
         verifySession(context)
-            .verifyInitialized();
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
         let application = await this.getApplicationById(params._id);
-        const isAdminOrFedLead = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD].includes(context.userInfo?.role);
-        const isSubmitter = application?.applicant?.applicantID === context?.userInfo?._id;
-        if (!isAdminOrFedLead && !isSubmitter){
-            throw new Error(ERROR.INVALID_PERMISSION);
-        }
         // add logics to check if conditional approval
         if (application.status === APPROVED){
             await this.#checkConditionalApproval(application);
@@ -69,6 +66,7 @@ class Application {
     }
 
     async reviewApplication(params, context) {
+        verifyReviewerPermission(context);
         const application = await this.getApplication(params, context);
         verifyApplication(application)
             .notEmpty()
@@ -127,7 +125,8 @@ class Application {
 
     async saveApplication(params, context) {
         verifySession(context)
-            .verifyInitialized();
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CREATE);
         let inputApplication = params.application;
         const id = inputApplication?._id;
         if (!id) {
@@ -145,7 +144,8 @@ class Application {
 
     async getMyLastApplication(params, context) {
         verifySession(context)
-            .verifyInitialized();
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
         const userID = context.userInfo._id;
         const matchApplicantIDToUser = {"$match": {"applicant.applicantID": userID, status: APPROVED}};
         const sortCreatedAtDescending = {"$sort": {createdAt: -1}};
@@ -171,7 +171,8 @@ class Application {
 
     async listApplications(params, context) {
         verifySession(context)
-            .verifyInitialized();
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
         let pipeline = this.listApplicationConditions(context.userInfo._id, context.userInfo?.role);
         const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
         const noPaginationPipe = pipeline.concat(paginationPipe.getNoLimitPipeline());
@@ -195,7 +196,7 @@ class Application {
     async submitApplication(params, context) {
         verifySession(context)
             .verifyInitialized()
-            .verifyRole([USER.ROLES.SUBMITTER, USER.ROLES.FEDERAL_LEAD])
+            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.SUBMIT);
         const application = await this.getApplicationById(params._id);
         let validStatus = [];
         if (context?.userInfo?.role === USER.ROLES.SUBMITTER) {
@@ -228,6 +229,9 @@ class Application {
     }
 
     async reopenApplication(document, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CREATE);
         const application = await this.getApplicationById(document._id);
         // TODO 1. If Reviewer opened the application, the status changes to IN_REVIEW
         if (application && application.status) {
@@ -250,7 +254,7 @@ class Application {
     }
 
     async deleteApplication(document, context) {
-        // TODO Deleting the application requires permission control.
+        // wait until delete/restore permission is added into PBAC
         const aApplication = await this.getApplicationById(document._id);
         const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED, INQUIRED];
         if (validApplicationStatus.includes(aApplication.status)) {
@@ -486,7 +490,7 @@ class Application {
 function verifyReviewerPermission(context){
     verifySession(context)
         .verifyInitialized()
-        .verifyRole([ROLES.ADMIN, ROLES.FEDERAL_LEAD]);
+        .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.REVIEW);
 }
 
 async function updateApplication(applicationCollection, application, prevStatus, userID) {
