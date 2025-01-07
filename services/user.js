@@ -289,7 +289,7 @@ class UserService {
     async listActiveCuratorsAPI(params, context) {
         verifySession(context)
             .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_PROGRAMS);
 
         const curators = await this.getActiveCurators();
         return curators?.map((user) => ({
@@ -753,16 +753,14 @@ class UserService {
 
     #validateUserPermission(isUserRoleChange, userRole, permissions, notifications, accessControl) {
         const disabledPermissions = new Set(accessControl?.permissions?.disabled);
-        const invalidPermissions = permissions?.filter(permission =>
-            (disabledPermissions.has(permission)) || !this.#allPermissionNamesSet.has(permission));
+        const invalidPermissions = permissions?.filter(permission => (!this.#allPermissionNamesSet.has(permission)));
 
         if (invalidPermissions?.length > 0) {
             throw new Error(replaceErrorString(ERROR.INVALID_PERMISSION_NAME, `${invalidPermissions.join(',')}`));
         }
 
         const disabledNotifications = new Set(accessControl?.notifications?.disabled);
-        const invalidNotifications = notifications?.filter(notification =>
-            (disabledNotifications.has(notification)) || !this.#allEmailNotificationNamesSet.has(notification));
+        const invalidNotifications = notifications?.filter(notification => !this.#allEmailNotificationNamesSet.has(notification));
 
         if (invalidNotifications?.length > 0) {
             throw new Error(replaceErrorString(ERROR.INVALID_NOTIFICATION_NAME, `${invalidNotifications.join(',')}`));
@@ -776,23 +774,18 @@ class UserService {
         }
     }
 
-    #setFilteredPermissions(isUserRoleChange, userRole, permissions, requiredPermissions, defaultPermissions) {
-        const editableUserRoles = [USER.ROLES.FEDERAL_LEAD, USER.ROLES.FEDERAL_MONITOR, USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.CURATOR, USER.ROLES.DC_POC, USER.ROLES.ADMIN];
+    #setFilteredPermissions(isUserRoleChange, permissions, requiredPermissions, defaultPermissions) {
         const updatedPermissions = permissions !== undefined ? permissions : defaultPermissions;
-        // final notification settings
         const updatePermissions = isUserRoleChange ? updatedPermissions : permissions;
-        const finalPermissions = [...(updatePermissions || []), ...requiredPermissions];
-        return editableUserRoles.includes(userRole) ? finalPermissions : defaultPermissions;
+        return [...(updatePermissions || []), ...requiredPermissions];
     }
 
-    #setFilteredNotifications(isUserRoleChange, userRole, notifications, requiredNotifications, defaultNotifications) {
-        const editableUserRoles = [USER.ROLES.FEDERAL_LEAD, USER.ROLES.FEDERAL_MONITOR, USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.CURATOR, USER.ROLES.DC_POC, USER.ROLES.ADMIN];
+    #setFilteredNotifications(isUserRoleChange, notifications, requiredNotifications, defaultNotifications) {
         const updatedNotifications = notifications !== undefined ? notifications : defaultNotifications;
 
         // final notification settings
         const updateNotifications = isUserRoleChange ? updatedNotifications : notifications;
-        const finalNotifications = [...(updateNotifications || []), ...requiredNotifications];
-        return editableUserRoles.includes(userRole) ? finalNotifications : defaultNotifications;
+        return [...(updateNotifications || []), ...requiredNotifications];
     }
 
     async #setUserPermissions(currRole, newRole, permissions, notifications, updatedUser) {
