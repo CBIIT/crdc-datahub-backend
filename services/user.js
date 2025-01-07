@@ -904,29 +904,6 @@ class DataCommon {
     }
 }
 
-
-class UserPermissions {
-    constructor(role, permitted, disabled) {
-        this.role = role;
-        this.permitted = permitted;
-        this.disabled = disabled;
-    }
-
-    static get(role, permissions, defaultPermissions, disabled) {
-        const userPermissions = new UserPermissions(role, defaultPermissions, disabled);
-        return userPermissions.#getPermissions(permissions);
-    }
-
-    #getPermissions(permissions) {
-        // TODO some roles must be removed.
-        const editableUserRoles = [USER.ROLES.FEDERAL_LEAD, USER.ROLES.FEDERAL_MONITOR, USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.CURATOR, USER.ROLES.DC_POC, USER.ROLES.ADMIN];
-        if (editableUserRoles.includes(this.role)) {
-            return permissions;
-        }
-        return this.permitted;
-    }
-}
-
 function isIdenticalArrays(arr1, arr2) {
     if (arr1?.length !== arr2?.length) return false;
     return arr1.every(value => arr2?.includes(value));
