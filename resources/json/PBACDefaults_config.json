@@ -804,14 +804,14 @@
             "group": "Submission Request Emails",
             "name": "When review decision made",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "submission_request:deleted",
             "group": "Submission Request Emails",
             "name": "When deleted",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "submission_request:expiring",
@@ -934,7 +934,7 @@
             "_id": "submission_request:delete",
             "group": "Submission Request Permissions",
             "name": "Cancel/Restore",
-            "checked": false,
+            "checked": true,
             "disabled": true
           },
           {
