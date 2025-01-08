@@ -413,8 +413,7 @@ class Application {
         const inactiveDuration = this.emailParams.remindDay;
         const remindCondition = {
             updatedAt: {
-                $lt: subtractDaysFromNow(inactiveDuration),
-                $gt: subtractDaysFromNow(inactiveDuration + 1),
+                $lt: subtractDaysFromNow(inactiveDuration)
             },
             status: {$in: [NEW, IN_PROGRESS, INQUIRED]},
             inactiveReminder: {$ne: true}
