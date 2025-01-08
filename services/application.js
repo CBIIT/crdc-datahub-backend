@@ -435,28 +435,26 @@ class Application {
         const res = await Promise.all([
             this.userService.getOrgOwner(application?.organization?._id),
             this.userService.getConcierge(application?.organization?._id),
-            this.userService.getAdmin(),
-            this.userService.getFedLeads()
+            this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW])
         ]);
-        const [orgOwners, concierges, adminUsers, fedLeads] = res;
-        const [orgOwnerEmails, conciergesEmails,adminUsersEmails,fedLeadsEmails]
-            = [getUserEmails(orgOwners), getUserEmails(concierges), getUserEmails(adminUsers), getUserEmails(fedLeads)];
+
+        const [orgOwners, concierges, adminUsers, fedLeads, bccEmailUsers] = res;
+        const [orgOwnerEmails, conciergesEmails, toBCCEmails]
+            = [getUserEmails(orgOwners), getUserEmails(concierges), getUserEmails(adminUsers), getUserEmails(fedLeads), getUserEmails(bccEmailUsers)];
 
         if (!conditional) {
             // contact detail
-            let contactDetail = `either your organization ${orgOwnerEmails?.join(";")} or your CRDC Data Team member ${conciergesEmails?.join(";")}.`
-            if(orgOwnerEmails.length === 0 && conciergesEmails.length === 0){
-                contactDetail = `the Submission Helpdesk ${this.emailParams?.submissionHelpdesk}`
-            } else if(orgOwnerEmails.length === 0) {
-                contactDetail = `your CRDC Data Team member ${conciergesEmails.join(";")}`
-            } else if(conciergesEmails.length === 0) {
-                contactDetail = `either your organization ${orgOwnerEmails.join(";")} or the Submission Helpdesk ${this.emailParams?.submissionHelpdesk}`
-            }
-            const ccEmails =[...conciergesEmails, ...orgOwnerEmails];
-            const toCCs = ccEmails.length > 0 ? ccEmails : adminUsersEmails
+            // let contactDetail = `either your organization ${orgOwnerEmails?.join(";")} or your CRDC Data Team member ${conciergesEmails?.join(";")}.`
+            // if(orgOwnerEmails.length === 0 && conciergesEmails.length === 0){
+            //     contactDetail = `the Submission Helpdesk ${this.emailParams?.submissionHelpdesk}`
+            // } else if(orgOwnerEmails.length === 0) {
+            //     contactDetail = `your CRDC Data Team member ${conciergesEmails.join(";")}`
+            // } else if(conciergesEmails.length === 0) {
+            //     contactDetail = `either your organization ${orgOwnerEmails.join(";")} or the Submission Helpdesk ${this.emailParams?.submissionHelpdesk}`
+            // }
             await this.notificationService.approveQuestionNotification(application?.applicant?.applicantEmail,
                 // Organization Owner and concierges assigned/Super Admin
-                new Set([...toCCs]).toArray(),
+                new Set([...toBCCEmails]).toArray(),
                 {firstName: application?.applicant?.applicantName},
                 {
                     study: application?.studyAbbreviation,
@@ -467,7 +465,7 @@ class Application {
             return;
         }
         await this.notificationService.conditionalApproveQuestionNotification(application?.applicant?.applicantEmail,
-            new Set([...fedLeadsEmails, ...orgOwnerEmails, ...adminUsersEmails]).toArray(),
+            new Set([...toBCCEmails]).toArray(),
             {
                 firstName: application?.applicant?.applicantName,
                 contactEmail: this.emailParams?.conditionalSubmissionContact,
@@ -547,13 +545,26 @@ const sendEmails = {
             getUserEmails(allowedNotifyUsers)
         );
 
-        const programName = application?.programName?.trim() ?? "";
-        const associate = `the ${application?.studyAbbreviation} study` + (programName.length > 0 ? ` associated with the ${programName} program` : '');
-        await notificationService.submitQuestionNotification({
-            pi: `${userInfo.firstName} ${userInfo.lastName}`,
-            associate,
-            url: emailParams.url
-        })
+        const programName = application?.programName?.trim()?.length > 0 ? application?.programName?.trim() : "NA";
+        const studyName = application?.studyAbbreviation?.trim()?.length > 0 ? application?.studyAbbreviation?.trim() : "NA";
+        const fedRoles = await this.userService.getFedLeads();
+        const fedEmails = fedRoles
+            ?.filter((u) => u?.notifications.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_READY_REVIEW))
+            ?.map((u) => u?.email);
+
+        const readyReviewUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW]);
+        const BCCUsers = readyReviewUsers?.filter((u) => u?.role !== ROLES.FEDERAL_LEAD);
+        const BCCEmails = getUserEmails(BCCUsers)
+        if (fedEmails?.length > 0) {
+            await notificationService.submitQuestionNotification(fedEmails,
+                BCCEmails,
+                {
+                    pi: `${userInfo.firstName} ${userInfo.lastName}`,
+                    study: studyName,
+                    program: programName,
+                    url: emailParams.url
+            });
+        }
     },
     inquireApplication: async(notificationService, emailParams, _, application, emailCCs, tier) => {
         await notificationService.inquireQuestionNotification(application?.applicant?.applicantEmail, emailCCs,{

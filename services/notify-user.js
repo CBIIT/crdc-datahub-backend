@@ -34,7 +34,7 @@ class NotifyUser {
         console.error("Unable to load email constants from file, email not sent");
     }
 
-    async submitQuestionNotification(messageVariables) {
+    async submitQuestionNotification(toEmails, BCCEmails, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.SUBMISSION_CONTENT, messageVariables);
         return await this.send(async () => {
             await this.emailService.sendNotification(
@@ -43,7 +43,9 @@ class NotifyUser {
                 await createEmailTemplate("notification-template.html", {
                     message, firstName: this.email_constants.APPLICATION_COMMITTEE_NAME
                 }),
-                this.committeeEmails
+                toEmails,
+                [],
+                BCCEmails
             );
         });
     }
@@ -113,7 +115,7 @@ class NotifyUser {
         });
     }
 
-    async approveQuestionNotification(email, emailCCs,templateParams, messageVariables, tier) {
+    async approveQuestionNotification(email, emailBCCs,templateParams, messageVariables, tier) {
         const message = replaceMessageVariables(this.email_constants.APPROVE_CONTENT, messageVariables);
         const subject = this.email_constants.APPROVE_SUBJECT;
         return await this.send(async () => {
@@ -124,7 +126,8 @@ class NotifyUser {
                     message, ...templateParams
                 }),
                 email,
-                emailCCs
+                [],
+                emailBCCs
             );
         });
     }
