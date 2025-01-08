@@ -1202,6 +1202,10 @@ class Submission {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
 
+        if (aSubmission.status === RELEASED) {
+            throw new Error(ERROR.INVALID_DELETE_SUBMISSION_STATUS);
+        }
+
         if (!await this.#isValidPermission(context?.userInfo, aSubmission)) {
             throw new Error(ERROR.INVALID_DELETE_DATA_RECORDS_PERMISSION)
         }
