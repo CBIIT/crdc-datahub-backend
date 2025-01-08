@@ -112,7 +112,7 @@ const ERROR = {
     // delete submission error file list
     DELETE_NO_FILE_SUBMISSION: "No extra file found",
     DELETE_NO_DATA_FILE_EXISTS: "No data files found for deletion in the bucket",
-    INVALID_DELETE_SUBMISSION_STATUS : "Requested submission is not allowed to delete",
+    INVALID_DELETE_SUBMISSION_STATUS : "Data Submissions that have been released cannot be deleted.",
     NO_UPLOADER_CLI_CONFIG_TEMPLATE: "Data file uploader CLI config template is not found.",
     INVALID_DATA_MODEL: "No file node properties in the data model.",
     NO_SUBMISSION_BUCKET: "Unable to create a batch, no submission bucket is stored",
