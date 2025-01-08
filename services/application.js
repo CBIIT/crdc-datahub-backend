@@ -254,7 +254,9 @@ class Application {
     }
 
     async deleteApplication(document, context) {
-        // wait until delete/restore permission is added into PBAC
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.DELETE);
         const aApplication = await this.getApplicationById(document._id);
         const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED, INQUIRED];
         if (validApplicationStatus.includes(aApplication.status)) {
