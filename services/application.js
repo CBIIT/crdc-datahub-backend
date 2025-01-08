@@ -413,7 +413,7 @@ class Application {
             updatedAt: {
                 $lt: subtractDaysFromNow(inactiveDuration)
             },
-            status: {$in: [NEW, IN_PROGRESS, INQUIRED]},
+            status: {$in: [SUBMITTED, APPROVED, REJECTED]},
             inactiveReminder: {$ne: true}
         };
         const applications = await this.applicationCollection.aggregate([{$match: remindCondition}]);

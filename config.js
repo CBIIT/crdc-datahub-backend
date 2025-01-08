@@ -109,7 +109,7 @@ let config = {
         return {
             ...config,
             inactive_user_days : inactiveUserDaysConf || (process.env.INACTIVE_USER_DAYS || 60),
-            remind_application_days: remindApplicationDaysConf || (process.env.REMIND_APPLICATION_DAYS || 30),
+            remind_application_days: remindApplicationDaysConf || (process.env.REMIND_APPLICATION_DAYS || 165),
             inactive_application_days : inactiveApplicationDaysConf || (process.env.INACTIVE_APPLICATION_DAYS || 180),
             // Email settings
             email_transport: getTransportConfig(emailSmtpHostConf, emailSmtpPortConf, emailSmtpUserConf, emailSmtpPasswordConf),
