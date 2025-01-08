@@ -18,6 +18,7 @@ const {EMAIL_NOTIFICATIONS} = require("../crdc-datahub-database-drivers/constant
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 
 class Application {
+    #ALL_FILTER = "All";
     constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, tier, institutionService) {
         this.logCollection = logCollection;
         this.applicationCollection = applicationCollection;
@@ -159,7 +160,7 @@ class Application {
         return result.length > 0 ? result[0] : null;
     }
 
-    listApplicationConditions(userID, userRole) {
+    #listApplicationConditions(userID, userRole) {
         // list all applications
         const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED]}};
         const listAllApplicationRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD];
@@ -173,9 +174,51 @@ class Application {
         verifySession(context)
             .verifyInitialized()
             .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
-        let pipeline = this.listApplicationConditions(context.userInfo._id, context.userInfo?.role);
+        let pipeline = this.#listApplicationConditions(context.userInfo._id, context.userInfo?.role, program, study, statues, submitter);
         const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
         const noPaginationPipe = pipeline.concat(paginationPipe.getNoLimitPipeline());
+
+        const filterConditions = [
+            // default filter for listing submissions
+            this.#listApplicationConditions(context?.userInfo, params.status, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName),
+            // no filter for dataCommons aggregation
+            this.#listApplicationConditions(context?.userInfo, this.#ALL_FILTER, this.#ALL_FILTER, null, null, this.ALL_FILTER, this.ALL_FILTER),
+            // note: Aggregation of Submitter name should not be filtered by a submitterName
+            this.#listApplicationConditions(context?.userInfo, params?.status, params.organization, params.name, params.dbGaPID, params.dataCommons, this.ALL_FILTER),
+            // note: Aggregation of Organization name should not be filtered by a organization
+            this.#listApplicationConditions(context?.userInfo, params?.status, this.ALL_FILTER, params.name, params.dbGaPID, params.dataCommons, params?.submitterName),
+        ]
+        const [listConditions, dataCommonsCondition, submitterNameCondition, organizationCondition] = filterConditions;
+        //
+        // const filterConditions = [
+        //     // default filter for listing submissions
+        //     this.#listConditions(context?.userInfo, params.status, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName),
+        //     // no filter for dataCommons aggregation
+        //     this.#listConditions(context?.userInfo, ALL_FILTER, ALL_FILTER, null, null, ALL_FILTER, ALL_FILTER),
+        //     // note: Aggregation of Submitter name should not be filtered by a submitterName
+        //     this.#listConditions(context?.userInfo, params?.status, params.organization, params.name, params.dbGaPID, params.dataCommons, ALL_FILTER),
+        //     // note: Aggregation of Organization name should not be filtered by a organization
+        //     this.#listConditions(context?.userInfo, params?.status, ALL_FILTER, params.name, params.dbGaPID, params.dataCommons, params?.submitterName),
+        // ]
+        //
+        // const [listConditions, dataCommonsCondition, submitterNameCondition, organizationCondition] = filterConditions;
+        // const pipeline = [{"$match": listConditions}];
+        // const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
+        // const noPaginationPipeline = pipeline.concat(paginationPipe.getNoLimitPipeline());
+        // const promises = [
+        //     await this.submissionCollection.aggregate(pipeline.concat(paginationPipe.getPaginationPipeline())),
+        //     await this.submissionCollection.aggregate(noPaginationPipeline.concat([{ $group: { _id: "$_id" } }, { $count: "count" }])),
+        //     await this.submissionCollection.distinct("dataCommons", dataCommonsCondition),
+        //     // note: Submitter name filter is omitted
+        //     await this.submissionCollection.distinct("submitterName", submitterNameCondition),
+        //     // note: Organization ID filter is omitted
+        //     await this.submissionCollection.distinct("organization", organizationCondition)
+        // ];
+        //
+        //
+
+
+
         const promises = [
             this.applicationCollection.aggregate(pipeline.concat(paginationPipe.getPaginationPipeline())),
             this.applicationCollection.aggregate(noPaginationPipe)
