@@ -1,6 +1,7 @@
 {
     "_id": "06e527d4-0040-48cd-a4a1-bd8d850ab828",
     "type": "PBAC",
+    "version": "1.0.0",
     "Defaults": [
       {
         "role": "Federal Lead",
@@ -34,8 +35,15 @@
             "disabled": false
           },
           {
+            "_id": "submission_request:delete",
+            "group": "Submission Request Permissions",
+            "name": "Cancel/Restore",
+            "checked": true,
+            "disabled": false
+          },
+          {
             "_id": "access:request",
-            "group": "Request Access",
+            "group": "Miscellaneous",
             "name": "Request Access",
             "checked": false,
             "disabled": true
@@ -108,84 +116,91 @@
           {
             "_id": "submission_request:submitted",
             "group": "Submission Request Emails",
-            "name": "Request Received",
+            "name": "When Submitted",
             "checked": false,
             "disabled": false
           },
           {
             "_id": "submission_request:to_be_reviewed",
             "group": "Submission Request Emails",
-            "name": "Request Available for Review",
+            "name": "When available for review",
             "checked": true,
             "disabled": false
           },
           {
             "_id": "submission_request:reviewed",
             "group": "Submission Request Emails",
-            "name": "Request Review Decision",
-            "checked": false,
+            "name": "When review decision made",
+            "checked": true,
             "disabled": false
           },
           {
             "_id": "submission_request:deleted",
             "group": "Submission Request Emails",
-            "name": "Delete Due to Inactivity",
-            "checked": false,
+            "name": "When deleted",
+            "checked": true,
+            "disabled": false
+          },
+          {
+            "_id": "submission_request:expiring",
+            "group": "Submission Request Emails",
+            "name": "When expiring",
+            "checked": true,
             "disabled": false
           },
           {
             "_id": "data_submission:submitted",
             "group": "Data Submission Emails",
-            "name": "Data Submission is submitted",
+            "name": "When submitted",
             "checked": false,
             "disabled": false
           },
           {
             "_id": "data_submission:cancelled",
             "group": "Data Submission Emails",
-            "name": "Data Submission is cancelled",
+            "name": "When cancelled",
             "checked": false,
             "disabled": false
           },
           {
             "_id": "data_submission:withdrawn",
             "group": "Data Submission Emails",
-            "name": "Data Submission is withdrawn",
+            "name": "When withdrawn",
             "checked": false,
             "disabled": false
           },
           {
             "_id": "data_submission:released",
             "group": "Data Submission Emails",
-            "name": "Data Submission is released",
+            "name": "When released",
             "checked": false,
             "disabled": false
           },
           {
             "_id": "data_submission:rejected",
             "group": "Data Submission Emails",
-            "name": "Data Submission is rejected",
+            "name": "When rejected ",
             "checked": false,
             "disabled": false
           },
           {
             "_id": "data_submission:completed",
             "group": "Data Submission Emails",
-            "name": "data submission is completed",
+            "name": "When completed",
             "checked": false,
             "disabled": false
           },
           {
             "_id": "data_submission:expiring",
             "group": "Data Submission Emails",
-            "name": "Data Submission is about to expire",
+            "name": "When expiring",
             "checked": false,
             "disabled": false
           },
           {
             "_id": "data_submission:deleted",
             "group": "Data Submission Emails",
-            "name": "Data Submission is deleted",
+            "name": "When deleted",
             "checked": false,
             "disabled": false
           },
@@ -201,7 +216,7 @@
             "group": "Miscellaneous",
             "name": "Account Disabled due to inactivity (individual)",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "account:users_inactivated",
@@ -244,8 +259,15 @@
             "disabled": false
           },
           {
+            "_id": "submission_request:delete",
+            "group": "Submission Request Permissions",
+            "name": "Cancel/Restore",
+            "checked": false,
+            "disabled": false
+          },
+          {
             "_id": "access:request",
-            "group": "Request Access",
+            "group": "Miscellaneous",
             "name": "Request Access",
             "checked": false,
             "disabled": true
@@ -275,7 +297,7 @@
             "_id": "data_submission:admin_submit",
             "group": "Data Submission Permissions",
             "name": "Admin Submit",
-            "checked": false,
+            "checked": true,
             "disabled": false
           },
           {
@@ -310,7 +332,7 @@
             "_id": "dashboard:view",
             "group": "Admin Permissions",
             "name": "View Operation Dashboard",
-            "checked": false,
+            "checked": true,
             "disabled": false
           }
         ],
@@ -318,84 +340,91 @@
           {
             "_id": "submission_request:submitted",
             "group": "Submission Request Emails",
-            "name": "Request Received",
+            "name": "When Submitted",
             "checked": false,
             "disabled": false
           },
           {
             "_id": "submission_request:to_be_reviewed",
             "group": "Submission Request Emails",
-            "name": "Request Available for Review",
+            "name": "When available for review",
             "checked": false,
             "disabled": false
           },
           {
             "_id": "submission_request:reviewed",
             "group": "Submission Request Emails",
-            "name": "Request Review Decision",
+            "name": "When review decision made",
             "checked": false,
             "disabled": false
           },
           {
             "_id": "submission_request:deleted",
             "group": "Submission Request Emails",
-            "name": "Delete Due to Inactivity",
+            "name": "When deleted",
+            "checked": false,
+            "disabled": false
+          },
+          {
+            "_id": "submission_request:expiring",
+            "group": "Submission Request Emails",
+            "name": "When expiring",
             "checked": false,
             "disabled": false
           },
           {
             "_id": "data_submission:submitted",
             "group": "Data Submission Emails",
-            "name": "Data Submission is submitted",
+            "name": "When submitted",
             "checked": true,
             "disabled": false
           },
           {
             "_id": "data_submission:cancelled",
             "group": "Data Submission Emails",
-            "name": "Data Submission is cancelled",
+            "name": "When cancelled",
             "checked": true,
             "disabled": false
           },
           {
             "_id": "data_submission:withdrawn",
             "group": "Data Submission Emails",
-            "name": "Data Submission is withdrawn",
+            "name": "When withdrawn",
             "checked": true,
             "disabled": false
           },
           {
             "_id": "data_submission:released",
             "group": "Data Submission Emails",
-            "name": "Data Submission is released",
+            "name": "When released",
             "checked": true,
             "disabled": false
           },
           {
             "_id": "data_submission:rejected",
             "group": "Data Submission Emails",
-            "name": "Data Submission is rejected",
+            "name": "When rejected ",
             "checked": true,
             "disabled": false
           },
           {
             "_id": "data_submission:completed",
             "group": "Data Submission Emails",
-            "name": "data submission is completed",
+            "name": "When completed",
             "checked": true,
             "disabled": false
           },
           {
             "_id": "data_submission:expiring",
             "group": "Data Submission Emails",
-            "name": "Data Submission is about to expire",
+            "name": "When expiring",
             "checked": true,
             "disabled": false
           },
           {
             "_id": "data_submission:deleted",
             "group": "Data Submission Emails",
-            "name": "Data Submission is deleted",
+            "name": "When deleted",
             "checked": true,
             "disabled": false
           },
@@ -411,7 +440,7 @@
             "group": "Miscellaneous",
             "name": "Account Disabled due to inactivity (individual)",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "account:users_inactivated",
@@ -430,7 +459,7 @@
             "group": "Submission Request Permissions",
             "name": "View",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "submission_request:create",
@@ -454,8 +483,15 @@
             "disabled": true
           },
           {
+            "_id": "submission_request:delete",
+            "group": "Submission Request Permissions",
+            "name": "Cancel/Restore",
+            "checked": false,
+            "disabled": false
+          },
+          {
             "_id": "access:request",
-            "group": "Request Access",
+            "group": "Miscellaneous",
             "name": "Request Access",
             "checked": false,
             "disabled": true
@@ -465,7 +501,7 @@
             "group": "Data Submission Permissions",
             "name": "View",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "data_submission:create",
@@ -479,133 +515,140 @@
             "group": "Data Submission Permissions",
             "name": "Review",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "data_submission:admin_submit",
             "group": "Data Submission Permissions",
             "name": "Admin Submit",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "data_submission:confirm",
             "group": "Data Submission Permissions",
             "name": "Confirm",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "user:manage",
             "group": "Admin Permissions",
             "name": "Manage User",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "program:manage",
             "group": "Admin Permissions",
             "name": "Manage Program",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "study:manage",
             "group": "Admin Permissions",
             "name": "Manage Study",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "dashboard:view",
             "group": "Admin Permissions",
             "name": "View Operation Dashboard",
             "checked": true,
-            "disabled": false
+            "disabled": true
           }
         ],
         "notifications": [
           {
             "_id": "submission_request:submitted",
             "group": "Submission Request Emails",
-            "name": "Request Received",
+            "name": "When Submitted",
             "checked": false,
             "disabled": false
           },
           {
             "_id": "submission_request:to_be_reviewed",
             "group": "Submission Request Emails",
-            "name": "Request Available for Review",
+            "name": "When available for review",
             "checked": true,
             "disabled": false
           },
           {
             "_id": "submission_request:reviewed",
             "group": "Submission Request Emails",
-            "name": "Request Review Decision",
+            "name": "When review decision made",
             "checked": true,
             "disabled": false
           },
           {
             "_id": "submission_request:deleted",
             "group": "Submission Request Emails",
-            "name": "Delete Due to Inactivity",
+            "name": "When deleted",
             "checked": true,
             "disabled": false
           },
           {
+            "_id": "submission_request:expiring",
+            "group": "Submission Request Emails",
+            "name": "When expiring",
+            "checked": false,
+            "disabled": false
+          },
+          {
             "_id": "data_submission:submitted",
-            "group": "Data Submission Permissions",
-            "name": "Data Submission is submitted",
+            "group": "Data Submission Emails",
+            "name": "When submitted",
             "checked": false,
             "disabled": false
           },
           {
             "_id": "data_submission:cancelled",
-            "group": "Data Submission Permissions",
-            "name": "Data Submission is cancelled",
+            "group": "Data Submission Emails",
+            "name": "When cancelled",
             "checked": true,
             "disabled": false
           },
           {
             "_id": "data_submission:withdrawn",
-            "group": "Data Submission Permissions",
-            "name": "Data Submission is withdrawn",
+            "group": "Data Submission Emails",
+            "name": "When withdrawn",
             "checked": false,
             "disabled": false
           },
           {
             "_id": "data_submission:released",
-            "group": "Data Submission Permissions",
-            "name": "Data Submission is released",
+            "group": "Data Submission Emails",
+            "name": "When released",
             "checked": true,
             "disabled": false
           },
           {
             "_id": "data_submission:rejected",
             "group": "Data Submission Emails",
-            "name": "Data Submission is rejected",
+            "name": "When rejected ",
             "checked": false,
             "disabled": false
           },
           {
             "_id": "data_submission:completed",
-            "group": "Data Submission Permissions",
-            "name": "data submission is completed",
+            "group": "Data Submission Emails",
+            "name": "When completed",
             "checked": true,
             "disabled": false
           },
           {
             "_id": "data_submission:expiring",
-            "group": "Data Submission Permissions",
-            "name": "Data Submission is about to expire",
+            "group": "Data Submission Emails",
+            "name": "When expiring",
             "checked": true,
             "disabled": false
           },
           {
             "_id": "data_submission:deleted",
-            "group": "Data Submission Permissions",
-            "name": "Data Submission is deleted",
+            "group": "Data Submission Emails",
+            "name": "When deleted",
             "checked": true,
             "disabled": false
           },
@@ -628,7 +671,7 @@
             "group": "Miscellaneous",
             "name": "Account Disabled due to inactivity (consolidated)",
             "checked": true,
-            "disabled": false
+            "disabled": true
           }
         ]
       },
@@ -639,7 +682,7 @@
             "_id": "submission_request:view",
             "group": "Submission Request Permissions",
             "name": "View",
-            "checked": false,
+            "checked": true,
             "disabled": true
           },
           {
@@ -647,7 +690,7 @@
             "group": "Submission Request Permissions",
             "name": "Create",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "submission_request:review",
@@ -660,29 +703,36 @@
             "_id": "submission_request:submit",
             "group": "Submission Request Permissions",
             "name": "Submit",
-            "checked": false,
+            "checked": true,
+            "disabled": true
+          },
+          {
+            "_id": "submission_request:delete",
+            "group": "Submission Request Permissions",
+            "name": "Cancel/Restore",
+            "checked": true,
             "disabled": true
           },
           {
             "_id": "access:request",
-            "group": "Request Access",
+            "group": "Miscellaneous",
             "name": "Request Access",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "data_submission:view",
             "group": "Data Submission Permissions",
             "name": "View",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "data_submission:create",
             "group": "Data Submission Permissions",
             "name": "Create",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "data_submission:review",
@@ -738,86 +788,93 @@
           {
             "_id": "submission_request:submitted",
             "group": "Submission Request Emails",
-            "name": "Request Received",
+            "name": "When Submitted",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "submission_request:to_be_reviewed",
             "group": "Submission Request Emails",
-            "name": "Request Available for Review",
+            "name": "When available for review",
             "checked": false,
             "disabled": true
           },
           {
             "_id": "submission_request:reviewed",
             "group": "Submission Request Emails",
-            "name": "Request Review Decision",
+            "name": "When review decision made",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "submission_request:deleted",
             "group": "Submission Request Emails",
-            "name": "Delete Due to Inactivity",
+            "name": "When deleted",
             "checked": true,
-            "disabled": false
+            "disabled": true
+          },
+          {
+            "_id": "submission_request:expiring",
+            "group": "Submission Request Emails",
+            "name": "When expiring",
+            "checked": true,
+            "disabled": true
           },
           {
             "_id": "data_submission:submitted",
-            "group": "Data Submission Permissions",
-            "name": "Data Submission is submitted",
+            "group": "Data Submission Emails",
+            "name": "When submitted",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "data_submission:cancelled",
-            "group": "Data Submission Permissions",
-            "name": "Data Submission is cancelled",
+            "group": "Data Submission Emails",
+            "name": "When cancelled",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "data_submission:withdrawn",
-            "group": "Data Submission Permissions",
-            "name": "Data Submission is withdrawn",
+            "group": "Data Submission Emails",
+            "name": "When withdrawn",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "data_submission:released",
-            "group": "Data Submission Permissions",
-            "name": "Data Submission is released",
+            "group": "Data Submission Emails",
+            "name": "When released",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "data_submission:rejected",
             "group": "Data Submission Emails",
-            "name": "Data Submission is rejected",
+            "name": "When rejected ",
             "checked": true,
             "disabled": true
           },
           {
             "_id": "data_submission:completed",
-            "group": "Data Submission Permissions",
-            "name": "data submission is completed",
+            "group": "Data Submission Emails",
+            "name": "When completed",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "data_submission:expiring",
-            "group": "Data Submission Permissions",
-            "name": "Data Submission is about to expire",
+            "group": "Data Submission Emails",
+            "name": "When expiring",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "data_submission:deleted",
-            "group": "Data Submission Permissions",
-            "name": "Data Submission is deleted",
+            "group": "Data Submission Emails",
+            "name": "When deleted",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "access:requested",
@@ -831,7 +888,7 @@
             "group": "Miscellaneous",
             "name": "Account Disabled due to inactivity (individual)",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "account:users_inactivated",
@@ -849,7 +906,7 @@
             "_id": "submission_request:view",
             "group": "Submission Request Permissions",
             "name": "View",
-            "checked": false,
+            "checked": true,
             "disabled": true
           },
           {
@@ -857,7 +914,7 @@
             "group": "Submission Request Permissions",
             "name": "Create",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "submission_request:review",
@@ -870,15 +927,22 @@
             "_id": "submission_request:submit",
             "group": "Submission Request Permissions",
             "name": "Submit",
-            "checked": false,
+            "checked": true,
+            "disabled": true
+          },
+          {
+            "_id": "submission_request:delete",
+            "group": "Submission Request Permissions",
+            "name": "Cancel/Restore",
+            "checked": true,
             "disabled": true
           },
           {
             "_id": "access:request",
-            "group": "Request Access",
+            "group": "Miscellaneous",
             "name": "Request Access",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "data_submission:view",
@@ -948,84 +1012,91 @@
           {
             "_id": "submission_request:submitted",
             "group": "Submission Request Emails",
-            "name": "Request Received",
+            "name": "When Submitted",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "submission_request:to_be_reviewed",
             "group": "Submission Request Emails",
-            "name": "Request Available for Review",
+            "name": "When available for review",
             "checked": false,
             "disabled": true
           },
           {
             "_id": "submission_request:reviewed",
             "group": "Submission Request Emails",
-            "name": "Request Review Decision",
+            "name": "When review decision made",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "submission_request:deleted",
             "group": "Submission Request Emails",
-            "name": "Delete Due to Inactivity",
+            "name": "When deleted",
             "checked": true,
-            "disabled": false
+            "disabled": true
+          },
+          {
+            "_id": "submission_request:expiring",
+            "group": "Submission Request Emails",
+            "name": "When expiring",
+            "checked": true,
+            "disabled": true
           },
           {
             "_id": "data_submission:submitted",
-            "group": "Data Submission Permissions",
-            "name": "Data Submission is submitted",
+            "group": "Data Submission Emails",
+            "name": "When submitted",
             "checked": false,
             "disabled": true
           },
           {
             "_id": "data_submission:cancelled",
-            "group": "Data Submission Permissions",
-            "name": "Data Submission is cancelled",
+            "group": "Data Submission Emails",
+            "name": "When cancelled",
             "checked": false,
             "disabled": true
           },
           {
             "_id": "data_submission:withdrawn",
-            "group": "Data Submission Permissions",
-            "name": "Data Submission is withdrawn",
+            "group": "Data Submission Emails",
+            "name": "When withdrawn",
             "checked": false,
             "disabled": true
           },
           {
             "_id": "data_submission:released",
-            "group": "Data Submission Permissions",
-            "name": "Data Submission is released",
+            "group": "Data Submission Emails",
+            "name": "When released",
             "checked": false,
             "disabled": true
           },
           {
             "_id": "data_submission:rejected",
             "group": "Data Submission Emails",
-            "name": "Data Submission is rejected",
+            "name": "When rejected ",
             "checked": false,
             "disabled": true
           },
           {
             "_id": "data_submission:completed",
-            "group": "Data Submission Permissions",
-            "name": "data submission is completed",
+            "group": "Data Submission Emails",
+            "name": "When completed",
             "checked": false,
             "disabled": true
           },
           {
             "_id": "data_submission:expiring",
-            "group": "Data Submission Permissions",
-            "name": "Data Submission is about to expire",
+            "group": "Data Submission Emails",
+            "name": "When expiring",
             "checked": false,
             "disabled": true
           },
           {
             "_id": "data_submission:deleted",
             "group": "Data Submission Permissions",
-            "name": "Data Submission is deleted",
+            "name": "When deleted",
             "checked": false,
             "disabled": true
           },
@@ -1041,7 +1112,7 @@
             "group": "Miscellaneous",
             "name": "Account Disabled due to inactivity (individual)",
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "account:users_inactivated",
