@@ -255,19 +255,36 @@ class Application {
 
     async deleteApplication(document, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.DELETE);
+            .verifyInitialized();
         const aApplication = await this.getApplicationById(document._id);
         const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED, INQUIRED];
-        if (validApplicationStatus.includes(aApplication.status)) {
-            const history = HistoryEventBuilder.createEvent(context.userInfo._id, DELETED, null);
-            const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-                $set: {status: DELETED, updatedAt: history.dateTime},
-                $push: {history}
-            });
-            return (updated?.modifiedCount && updated?.modifiedCount > 0) ? await this.getApplicationById(document._id) : null;
+        if (!validApplicationStatus.includes(aApplication.status)) {
+            throw new Error(ERROR.VERIFY.INVALID_STATE_APPLICATION);
         }
-        return aApplication;
+
+        const userInfo = context?.userInfo;
+        const isEnabledPBAC = userInfo?.permissions?.includes(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.DELETE);
+        const isPowerRole = [ROLES.FEDERAL_LEAD, ROLES.ADMIN, ROLES.DATA_COMMONS_PERSONNEL].includes(userInfo?.role);
+        const powerUserCond = [NEW, IN_PROGRESS, INQUIRED, SUBMITTED, IN_REVIEW].includes(aApplication?.status) && isEnabledPBAC;
+
+        const isNonPowerRole = [ROLES.USER, ROLES.SUBMITTER].includes(userInfo?.role);
+        const isValidCond = [NEW, IN_PROGRESS, INQUIRED].includes(aApplication?.status) && userInfo?._id === aApplication?.applicant?.applicantID;
+
+        if ((isPowerRole && !powerUserCond) || (isNonPowerRole && !isValidCond)) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
+        const history = HistoryEventBuilder.createEvent(context.userInfo._id, DELETED, null);
+        const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
+            $set: {status: DELETED, updatedAt: history.dateTime},
+            $push: {history}
+        });
+
+        if (!updated?.modifiedCount || !updated?.modifiedCount > 0) {
+            console.error(ERROR.FAILED_DELETE_APPLICATION, `${document._id}`);
+            throw new Error(ERROR.FAILED_DELETE_APPLICATION);
+        }
+        return await this.getApplicationById(document._id);
     }
 
     async approveApplication(document, context) {
