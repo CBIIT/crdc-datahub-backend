@@ -381,7 +381,7 @@ class Application {
             updatedAt: {
                 $lt: subtractDaysFromNow(this.emailParams.inactiveDays)
             },
-            status: {$in: [NEW, IN_PROGRESS, INQUIRED]}
+            status: {$in: [SUBMITTED, APPROVED, REJECTED]}
         };
         const applications = await this.applicationCollection.aggregate([{$match: inactiveCondition}]);
         verifyApplication(applications)
@@ -411,8 +411,7 @@ class Application {
         const inactiveDuration = this.emailParams.remindDay;
         const remindCondition = {
             updatedAt: {
-                $lt: subtractDaysFromNow(inactiveDuration),
-                $gt: subtractDaysFromNow(inactiveDuration + 1),
+                $lt: subtractDaysFromNow(inactiveDuration)
             },
             status: {$in: [NEW, IN_PROGRESS, INQUIRED]},
             inactiveReminder: {$ne: true}

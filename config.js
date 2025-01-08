@@ -110,7 +110,7 @@ let config = {
             ...config,
             inactive_user_days : inactiveUserDaysConf || (process.env.INACTIVE_USER_DAYS || 60),
             remind_application_days: remindApplicationDaysConf || (process.env.REMIND_APPLICATION_DAYS || 30),
-            inactive_application_days : inactiveApplicationDaysConf || (process.env.INACTIVE_APPLICATION_DAYS || 45),
+            inactive_application_days : inactiveApplicationDaysConf || (process.env.INACTIVE_APPLICATION_DAYS || 180),
             // Email settings
             email_transport: getTransportConfig(emailSmtpHostConf, emailSmtpPortConf, emailSmtpUserConf, emailSmtpPasswordConf),
             emails_enabled: process.env.EMAILS_ENABLED ? process.env.EMAILS_ENABLED.toLowerCase() === 'true' : true,
