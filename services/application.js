@@ -255,39 +255,9 @@ class Application {
 
     async deleteApplication(document, context) {
         verifySession(context)
-            .verifyInitialized();
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.DELETE);
         const aApplication = await this.getApplicationById(document._id);
-        const userInfo = context?.userInfo;
-        const isEnabledPBAC = userInfo?.permissions?.includes(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.DELETE);
-        const isPowerRole = [ROLES.FEDERAL_LEAD, ROLES.ADMIN, ROLES.DATA_COMMONS_PERSONNEL].includes(userInfo?.role);
-        const isNonPowerRole = [ROLES.USER, ROLES.SUBMITTER].includes(userInfo?.role);
-        const powerUserCond = [NEW, IN_PROGRESS, INQUIRED, SUBMITTED, IN_REVIEW].includes(aApplication?.status) && isEnabledPBAC;
-        const isOwnedApplication = userInfo?._id === aApplication?.applicant?.applicantID;
-        const isValidUser = [NEW, IN_PROGRESS, INQUIRED].includes(aApplication?.status) && isOwnedApplication;
-
-
-        if ((isPowerRole && !powerUserCond) || (isNonPowerRole && !isValidUser)) {
-            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
-        }
-
-        // if (!(isPowerRole && powerUserCond && !isNonPowerRole)
-        //     || !(isNonPowerRole && isValidUser && !isPowerRole)) {
-
-        // }
-
-        // if (!(powerUserRoles && powerUserCond)) {
-        //     throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
-        // }
-        // power user => valid conidtion
-
-        // non-power user => valud condtion
-
-        // power && valid
-
-        if (!isPowerUser && !isValidUser) {
-            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
-        }
-
         const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED, INQUIRED];
         if (validApplicationStatus.includes(aApplication.status)) {
             const history = HistoryEventBuilder.createEvent(context.userInfo._id, DELETED, null);
@@ -443,8 +413,7 @@ class Application {
         const inactiveDuration = this.emailParams.remindDay;
         const remindCondition = {
             updatedAt: {
-                $lt: subtractDaysFromNow(inactiveDuration),
-                $gt: subtractDaysFromNow(inactiveDuration + 1),
+                $lt: subtractDaysFromNow(inactiveDuration)
             },
             status: {$in: [NEW, IN_PROGRESS, INQUIRED]},
             inactiveReminder: {$ne: true}

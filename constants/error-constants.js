@@ -65,7 +65,6 @@ const ERROR = {
     CREATE_SUBMISSION_INVALID_DATA_COMMONS: "Requested data commons $item$ is not supported",
     CREATE_SUBMISSION_NO_MATCHING_STUDY: "The study provided does not match an approved study within the user's studies",
     MISSING_CREATE_SUBMISSION_DBGAPID: "dbGapID is required for controlled-access studies.",
-    CREATE_SUBMISSION_MISSING_PROGRAM: "Study $item$ is not associated with any programs.",
     // List Submissions
     LIST_SUBMISSION_INVALID_STATUS_FILTER: "The status filter is invalid",
     INVALID_SUBMISSION_PERMISSION: "You do not have the correct permissions to list submissions",
@@ -112,6 +111,7 @@ const ERROR = {
     // delete submission error file list
     DELETE_NO_FILE_SUBMISSION: "No extra file found",
     DELETE_NO_DATA_FILE_EXISTS: "No data files found for deletion in the bucket",
+    INVALID_DELETE_SUBMISSION_STATUS : "Data Submissions that have been released cannot be deleted.",
     NO_UPLOADER_CLI_CONFIG_TEMPLATE: "Data file uploader CLI config template is not found.",
     INVALID_DATA_MODEL: "No file node properties in the data model.",
     NO_SUBMISSION_BUCKET: "Unable to create a batch, no submission bucket is stored",
