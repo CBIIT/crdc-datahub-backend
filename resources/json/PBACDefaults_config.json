@@ -1,6 +1,7 @@
 {
     "_id": "06e527d4-0040-48cd-a4a1-bd8d850ab828",
     "type": "PBAC",
+    "version": "1.0.0",
     "Defaults": [
       {
         "role": "Federal Lead",
@@ -296,8 +297,8 @@
             "_id": "data_submission:admin_submit",
             "group": "Data Submission Permissions",
             "name": "Admin Submit",
-            "checked": false,
-            "disabled": true
+            "checked": true,
+            "disabled": false
           },
           {
             "_id": "data_submission:confirm",
