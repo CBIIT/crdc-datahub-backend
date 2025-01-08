@@ -37,7 +37,7 @@
           {
             "_id": "submission_request:delete",
             "group": "Submission Request Permissions",
-            "name": "Delete/Restore",
+            "name": "Cancel/Restore",
             "checked": true,
             "disabled": false
           },
@@ -261,7 +261,7 @@
           {
             "_id": "submission_request:delete",
             "group": "Submission Request Permissions",
-            "name": "Delete/Restore",
+            "name": "Cancel/Restore",
             "checked": false,
             "disabled": false
           },
@@ -485,7 +485,7 @@
           {
             "_id": "submission_request:delete",
             "group": "Submission Request Permissions",
-            "name": "Delete/Restore",
+            "name": "Cancel/Restore",
             "checked": false,
             "disabled": false
           },
@@ -709,7 +709,7 @@
           {
             "_id": "submission_request:delete",
             "group": "Submission Request Permissions",
-            "name": "Delete/Restore",
+            "name": "Cancel/Restore",
             "checked": true,
             "disabled": true
           },
@@ -933,7 +933,7 @@
           {
             "_id": "submission_request:delete",
             "group": "Submission Request Permissions",
-            "name": "Delete/Restore",
+            "name": "Cancel/Restore",
             "checked": false,
             "disabled": true
           },
