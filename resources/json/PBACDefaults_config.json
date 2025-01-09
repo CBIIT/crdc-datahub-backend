@@ -98,6 +98,7 @@
             "_id": "user:manage",
             "group": "Admin Permissions",
             "name": "Manage User",
+            "order": 3,
             "checked": false,
             "disabled": false
           },
@@ -105,6 +106,7 @@
             "_id": "program:manage",
             "group": "Admin Permissions",
             "name": "Manage Program",
+            "order": 1,
             "checked": false,
             "disabled": false
           },
@@ -112,6 +114,7 @@
             "_id": "study:manage",
             "group": "Admin Permissions",
             "name": "Manage Study",
+            "order": 2,
             "checked": false,
             "disabled": false
           },
@@ -119,6 +122,7 @@
             "_id": "dashboard:view",
             "group": "Admin Permissions",
             "name": "View Operation Dashboard",
+            "order": 4,
             "checked": true,
             "disabled": false
           }
@@ -333,6 +337,7 @@
             "_id": "user:manage",
             "group": "Admin Permissions",
             "name": "Manage User",
+            "order": 3,
             "checked": false,
             "disabled": true
           },
@@ -340,6 +345,7 @@
             "_id": "program:manage",
             "group": "Admin Permissions",
             "name": "Manage Program",
+            "order": 1,
             "checked": false,
             "disabled": false
           },
@@ -347,6 +353,7 @@
             "_id": "study:manage",
             "group": "Admin Permissions",
             "name": "Manage Study",
+            "order": 2,
             "checked": false,
             "disabled": false
           },
@@ -354,6 +361,7 @@
             "_id": "dashboard:view",
             "group": "Admin Permissions",
             "name": "View Operation Dashboard",
+            "order": 4,
             "checked": true,
             "disabled": false
           }
@@ -568,6 +576,7 @@
             "_id": "user:manage",
             "group": "Admin Permissions",
             "name": "Manage User",
+            "order": 3,
             "checked": true,
             "disabled": true
           },
@@ -575,6 +584,7 @@
             "_id": "program:manage",
             "group": "Admin Permissions",
             "name": "Manage Program",
+            "order": 1,
             "checked": true,
             "disabled": true
           },
@@ -582,6 +592,7 @@
             "_id": "study:manage",
             "group": "Admin Permissions",
             "name": "Manage Study",
+            "order": 2,
             "checked": true,
             "disabled": true
           },
@@ -589,6 +600,7 @@
             "_id": "dashboard:view",
             "group": "Admin Permissions",
             "name": "View Operation Dashboard",
+            "order": 4,
             "checked": true,
             "disabled": true
           }
@@ -803,6 +815,7 @@
             "_id": "user:manage",
             "group": "Admin Permissions",
             "name": "Manage User",
+            "order": 3,
             "checked": false,
             "disabled": true
           },
@@ -810,6 +823,7 @@
             "_id": "program:manage",
             "group": "Admin Permissions",
             "name": "Manage Program",
+            "order": 1,
             "checked": false,
             "disabled": true
           },
@@ -817,6 +831,7 @@
             "_id": "study:manage",
             "group": "Admin Permissions",
             "name": "Manage Study",
+            "order": 2,
             "checked": false,
             "disabled": true
           },
@@ -824,6 +839,7 @@
             "_id": "dashboard:view",
             "group": "Admin Permissions",
             "name": "View Operation Dashboard",
+            "order": 4,
             "checked": false,
             "disabled": true
           }
@@ -1038,6 +1054,7 @@
             "_id": "user:manage",
             "group": "Admin Permissions",
             "name": "Manage User",
+            "order": 3,
             "checked": false,
             "disabled": true
           },
@@ -1045,6 +1062,7 @@
             "_id": "program:manage",
             "group": "Admin Permissions",
             "name": "Manage Program",
+            "order": 1,
             "checked": false,
             "disabled": true
           },
@@ -1052,6 +1070,7 @@
             "_id": "study:manage",
             "group": "Admin Permissions",
             "name": "Manage Study",
+            "order": 2,
             "checked": false,
             "disabled": true
           },
@@ -1059,6 +1078,7 @@
             "_id": "dashboard:view",
             "group": "Admin Permissions",
             "name": "View Operation Dashboard",
+            "order": 4,
             "checked": false,
             "disabled": true
           }
