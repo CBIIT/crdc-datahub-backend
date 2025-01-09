@@ -519,7 +519,8 @@ type Permission {
     group: String!, #permission group
     name: String!, #permission name
     checked: Boolean,
-    disabled: Boolean
+    disabled: Boolean,
+    order: Int #action order for sorting
 }
 
 type Notification {
@@ -527,7 +528,8 @@ type Notification {
     group: String!, #Notification group
     name: String!, #Notification name
     checked: Boolean, 
-    disabled: Boolean
+    disabled: Boolean,
+    order: Int #action order for sorting
 }
 
 type PBACDefaults {
