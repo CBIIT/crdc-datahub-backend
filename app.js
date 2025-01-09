@@ -76,7 +76,7 @@ cronJob.schedule(configuration.schedule_job, async () => {
     dbConnector.connect().then( async () => {
         const config = await configuration.updateConfig(dbConnector);
         const emailService = new EmailService(config.email_transport, config.emails_enabled);
-        const notificationsService = new NotifyUser(emailService, config.committee_emails);
+        const notificationsService = new NotifyUser(emailService, config.committee_emails, config.tier);
         const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
         const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
 
