@@ -70,7 +70,8 @@ app.use(createSession(configuration.session_secret, configuration.session_timeou
 
 // add graphql endpoint
 app.use("/api/graphql", graphqlRouter);
-cronJob.schedule(configuration.schedule_job, async () => {
+// Start the cron job. The frequency time read from the database
+(async () => {
     const dbConnector = new DatabaseConnector(configuration.mongo_db_connection_string);
     const dbService = new MongoQueries(configuration.mongo_db_connection_string, DATABASE_NAME);
     dbConnector.connect().then( async () => {
@@ -115,21 +116,22 @@ cronJob.schedule(configuration.schedule_job, async () => {
             s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService, config.uploaderCLIConfigs);
 
         const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.tier, emailParams);
-        console.log("Running a scheduled background task to remind inactive application at " + getCurrentTime());
-        await dataInterface.remindApplicationSubmission();
-        console.log("Running a scheduled background task to delete inactive application at " + getCurrentTime());
-        await dataInterface.deleteInactiveApplications();
-        console.log("Running a scheduled job to disable user(s) because of no activities at " + getCurrentTime());
-        await runDeactivateInactiveUsers(userService, notificationsService, config.inactive_user_days, emailParams, config.tier);
-        console.log("Running a scheduled background task to remind inactive submission at " + getCurrentTime());
-        await submissionService.remindInactiveSubmission();
-        console.log("Running a scheduled job to delete inactive data submission and related data ann files at " + getCurrentTime());
-        await submissionService.deleteInactiveSubmissions();
-        console.log("Running a scheduled job to archive completed submissions at " + getCurrentTime());
-        await submissionService.archiveCompletedSubmissions();
-        await dbConnector.disconnect();
+        cronJob.schedule(config.scheduledJobTime, async () => {
+            console.log("Running a scheduled background task to remind inactive application at " + getCurrentTime());
+            await dataInterface.remindApplicationSubmission();
+            console.log("Running a scheduled background task to delete inactive application at " + getCurrentTime());
+            await dataInterface.deleteInactiveApplications();
+            console.log("Running a scheduled job to disable user(s) because of no activities at " + getCurrentTime());
+            await runDeactivateInactiveUsers(userService, notificationsService, config.inactive_user_days, emailParams, config.tier);
+            console.log("Running a scheduled background task to remind inactive submission at " + getCurrentTime());
+            await submissionService.remindInactiveSubmission();
+            console.log("Running a scheduled job to delete inactive data submission and related data ann files at " + getCurrentTime());
+            await submissionService.deleteInactiveSubmissions();
+            console.log("Running a scheduled job to archive completed submissions at " + getCurrentTime());
+            await submissionService.archiveCompletedSubmissions();
+        });
     });
-});
+})();
 
 const runDeactivateInactiveUsers = async (userService, notificationsService, inactiveUserDays, emailParams, tier) => {
     const usersToBeInactivated = await userService.checkForInactiveUsers([LOGIN, REACTIVATE_USER]);
