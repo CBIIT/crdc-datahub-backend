@@ -50,7 +50,7 @@ Set.prototype.toArray = function() {
 class Submission {
     constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService,
                 dataRecordService, tier, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList,
-                hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs) {
+                hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs, submissionBucketName) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -70,6 +70,7 @@ class Submission {
         this.sqsLoaderQueue = sqsLoaderQueue;
         this.qcResultsService = qcResultsService;
         this.uploaderCLIConfigs = uploaderCLIConfigs;
+        this.submissionBucketName = submissionBucketName;
     }
 
     async createSubmission(params, context) {
@@ -111,7 +112,7 @@ class Submission {
         const program = (programs && programs.length > 0) ? programs[0] : null;
 
         const newSubmission = DataSubmission.createSubmission(
-            params.name, context.userInfo, params.dataCommons, params.studyID, approvedStudy?.dbGaPID, program, modelVersion, intention, dataType, approvedStudy);
+            params.name, context.userInfo, params.dataCommons, params.studyID, approvedStudy?.dbGaPID, program, modelVersion, intention, dataType, approvedStudy, this.submissionBucketName);
         const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
@@ -1893,7 +1894,7 @@ class DataValidation {
 
 class DataSubmission {
     #SUBMISSIONS = "submissions";
-    constructor(name, userInfo, dataCommons, studyID, dbGaPID, aProgram, modelVersion, intention, dataType, approvedStudy) {
+    constructor(name, userInfo, dataCommons, studyID, dbGaPID, aProgram, modelVersion, intention, dataType, approvedStudy, submissionBucketName) {
         this._id = v4();
         this.name = name;
         this.submitterID = userInfo._id;
@@ -1909,7 +1910,7 @@ class DataSubmission {
             _id: (aProgram && aProgram?._id) ? aProgram?._id : null,
             name: (aProgram && aProgram?.name) ? aProgram?.name : null
         };
-        this.bucketName = config.bucketName;
+        this.bucketName = submissionBucketName;
         this.rootPath = `${this.#SUBMISSIONS}/${this._id}`;
         this.conciergeName = this.#getConciergeName(approvedStudy, aProgram);
         this.conciergeEmail = this.#getConciergeEmail(approvedStudy, aProgram);
@@ -1928,8 +1929,8 @@ class DataSubmission {
         this.accessedAt = getCurrentTime();
     }
 
-    static createSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization) {
-        return new DataSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization);
+    static createSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization, submissionBucketName) {
+        return new DataSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization, submissionBucketName);
     }
 
     #getConciergeName(approvedStudy, aProgram){
