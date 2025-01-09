@@ -172,6 +172,7 @@
             "_id": "data_submission:submitted",
             "group": "Data Submission Emails",
             "name": "When submitted",
+            "order": 1,
             "checked": false,
             "disabled": false
           },
@@ -179,6 +180,7 @@
             "_id": "data_submission:cancelled",
             "group": "Data Submission Emails",
             "name": "When cancelled",
+            "order": 2,
             "checked": false,
             "disabled": false
           },
@@ -186,6 +188,7 @@
             "_id": "data_submission:withdrawn",
             "group": "Data Submission Emails",
             "name": "When withdrawn",
+            "order": 3,
             "checked": false,
             "disabled": false
           },
@@ -193,13 +196,15 @@
             "_id": "data_submission:released",
             "group": "Data Submission Emails",
             "name": "When released",
+            "order": 5,
             "checked": false,
             "disabled": false
           },
           {
             "_id": "data_submission:rejected",
             "group": "Data Submission Emails",
-            "name": "When rejected ",
+            "name": "When rejected",
+            "order": 4,
             "checked": false,
             "disabled": false
           },
@@ -207,6 +212,7 @@
             "_id": "data_submission:completed",
             "group": "Data Submission Emails",
             "name": "When completed",
+            "order": 6,
             "checked": false,
             "disabled": false
           },
@@ -214,6 +220,7 @@
             "_id": "data_submission:expiring",
             "group": "Data Submission Emails",
             "name": "When expiring",
+            "order": 7,
             "checked": false,
             "disabled": false
           },
@@ -221,27 +228,31 @@
             "_id": "data_submission:deleted",
             "group": "Data Submission Emails",
             "name": "When deleted",
+            "order": 8,
             "checked": false,
             "disabled": false
           },
           {
             "_id": "access:requested",
             "group": "Miscellaneous",
-            "name": "User Request Access",
+            "name": "Request Access",
+            "order": 1,
             "checked": false,
             "disabled": true
           },
           {
             "_id": "account:inactivated",
             "group": "Miscellaneous",
-            "name": "Account Disabled due to inactivity (individual)",
+            "name": "Account Disabled",
+            "order": 2,
             "checked": true,
             "disabled": true
           },
           {
             "_id": "account:users_inactivated",
             "group": "Miscellaneous",
-            "name": "Account Disabled due to inactivity (consolidated)",
+            "name": "Account Disabled (Consolidated)",
+            "order": 3,
             "checked": false,
             "disabled": true
           }
@@ -416,6 +427,7 @@
             "_id": "data_submission:submitted",
             "group": "Data Submission Emails",
             "name": "When submitted",
+            "order": 1,
             "checked": true,
             "disabled": false
           },
@@ -423,6 +435,7 @@
             "_id": "data_submission:cancelled",
             "group": "Data Submission Emails",
             "name": "When cancelled",
+            "order": 2,
             "checked": true,
             "disabled": false
           },
@@ -430,6 +443,7 @@
             "_id": "data_submission:withdrawn",
             "group": "Data Submission Emails",
             "name": "When withdrawn",
+            "order": 3,
             "checked": true,
             "disabled": false
           },
@@ -437,13 +451,15 @@
             "_id": "data_submission:released",
             "group": "Data Submission Emails",
             "name": "When released",
+            "order": 5,
             "checked": true,
             "disabled": false
           },
           {
             "_id": "data_submission:rejected",
             "group": "Data Submission Emails",
-            "name": "When rejected ",
+            "name": "When rejected",
+            "order": 4,
             "checked": true,
             "disabled": false
           },
@@ -451,6 +467,7 @@
             "_id": "data_submission:completed",
             "group": "Data Submission Emails",
             "name": "When completed",
+            "order": 6,
             "checked": true,
             "disabled": false
           },
@@ -458,6 +475,7 @@
             "_id": "data_submission:expiring",
             "group": "Data Submission Emails",
             "name": "When expiring",
+            "order": 7,
             "checked": true,
             "disabled": false
           },
@@ -465,27 +483,31 @@
             "_id": "data_submission:deleted",
             "group": "Data Submission Emails",
             "name": "When deleted",
+            "order": 8,
             "checked": true,
             "disabled": false
           },
           {
             "_id": "access:requested",
             "group": "Miscellaneous",
-            "name": "User Request Access",
+            "name": "Request Access",
+            "order": 1,
             "checked": false,
             "disabled": true
           },
           {
             "_id": "account:inactivated",
             "group": "Miscellaneous",
-            "name": "Account Disabled due to inactivity (individual)",
+            "name": "Account Disabled",
+            "order": 2,
             "checked": true,
             "disabled": true
           },
           {
             "_id": "account:users_inactivated",
             "group": "Miscellaneous",
-            "name": "Account Disabled due to inactivity (consolidated)",
+            "name": "Account Disabled (Consolidated)",
+            "order": 3,
             "checked": false,
             "disabled": true
           }
@@ -660,6 +682,7 @@
             "_id": "data_submission:submitted",
             "group": "Data Submission Emails",
             "name": "When submitted",
+            "order": 1,
             "checked": false,
             "disabled": false
           },
@@ -667,6 +690,7 @@
             "_id": "data_submission:cancelled",
             "group": "Data Submission Emails",
             "name": "When cancelled",
+            "order": 2,
             "checked": true,
             "disabled": false
           },
@@ -674,6 +698,7 @@
             "_id": "data_submission:withdrawn",
             "group": "Data Submission Emails",
             "name": "When withdrawn",
+            "order": 3,
             "checked": false,
             "disabled": false
           },
@@ -681,13 +706,15 @@
             "_id": "data_submission:released",
             "group": "Data Submission Emails",
             "name": "When released",
+            "order": 5,
             "checked": true,
             "disabled": false
           },
           {
             "_id": "data_submission:rejected",
             "group": "Data Submission Emails",
-            "name": "When rejected ",
+            "name": "When rejected",
+            "order": 4,
             "checked": false,
             "disabled": false
           },
@@ -695,6 +722,7 @@
             "_id": "data_submission:completed",
             "group": "Data Submission Emails",
             "name": "When completed",
+            "order": 6,
             "checked": true,
             "disabled": false
           },
@@ -702,6 +730,7 @@
             "_id": "data_submission:expiring",
             "group": "Data Submission Emails",
             "name": "When expiring",
+            "order": 7,
             "checked": true,
             "disabled": false
           },
@@ -709,27 +738,31 @@
             "_id": "data_submission:deleted",
             "group": "Data Submission Emails",
             "name": "When deleted",
+            "order": 8,
             "checked": true,
             "disabled": false
           },
           {
             "_id": "access:requested",
             "group": "Miscellaneous",
-            "name": "User Request Access",
+            "name": "Request Access",
+            "order": 1,
             "checked": true,
             "disabled": false
           },
           {
             "_id": "account:inactivated",
             "group": "Miscellaneous",
-            "name": "Account Disabled due to inactivity (individual)",
+            "name": "Account Disabled",
+            "order": 2,
             "checked": false,
             "disabled": true
           },
           {
             "_id": "account:users_inactivated",
             "group": "Miscellaneous",
-            "name": "Account Disabled due to inactivity (consolidated)",
+            "name": "Account Disabled (Consolidated)",
+            "order": 3,
             "checked": true,
             "disabled": true
           }
@@ -904,6 +937,7 @@
             "_id": "data_submission:submitted",
             "group": "Data Submission Emails",
             "name": "When submitted",
+            "order": 1,
             "checked": true,
             "disabled": true
           },
@@ -911,6 +945,7 @@
             "_id": "data_submission:cancelled",
             "group": "Data Submission Emails",
             "name": "When cancelled",
+            "order": 2,
             "checked": true,
             "disabled": true
           },
@@ -918,6 +953,7 @@
             "_id": "data_submission:withdrawn",
             "group": "Data Submission Emails",
             "name": "When withdrawn",
+            "order": 3,
             "checked": true,
             "disabled": true
           },
@@ -925,13 +961,15 @@
             "_id": "data_submission:released",
             "group": "Data Submission Emails",
             "name": "When released",
+            "order": 5,
             "checked": true,
             "disabled": true
           },
           {
             "_id": "data_submission:rejected",
             "group": "Data Submission Emails",
-            "name": "When rejected ",
+            "name": "When rejected",
+            "order": 4,
             "checked": true,
             "disabled": true
           },
@@ -939,6 +977,7 @@
             "_id": "data_submission:completed",
             "group": "Data Submission Emails",
             "name": "When completed",
+            "order": 6,
             "checked": true,
             "disabled": true
           },
@@ -946,6 +985,7 @@
             "_id": "data_submission:expiring",
             "group": "Data Submission Emails",
             "name": "When expiring",
+            "order": 7,
             "checked": true,
             "disabled": true
           },
@@ -953,27 +993,31 @@
             "_id": "data_submission:deleted",
             "group": "Data Submission Emails",
             "name": "When deleted",
+            "order": 8,
             "checked": true,
             "disabled": true
           },
           {
             "_id": "access:requested",
             "group": "Miscellaneous",
-            "name": "User Request Access",
+            "name": "Request Access",
+            "order": 1,
             "checked": false,
             "disabled": true
           },
           {
             "_id": "account:inactivated",
             "group": "Miscellaneous",
-            "name": "Account Disabled due to inactivity (individual)",
+            "name": "Account Disabled",
+            "order": 2,
             "checked": true,
             "disabled": true
           },
           {
             "_id": "account:users_inactivated",
             "group": "Miscellaneous",
-            "name": "Account Disabled due to inactivity (consolidated)",
+            "name": "Account Disabled (Consolidated)",
+            "order": 3,
             "checked": false,
             "disabled": true
           }
@@ -1148,6 +1192,7 @@
             "_id": "data_submission:submitted",
             "group": "Data Submission Emails",
             "name": "When submitted",
+            "order": 1,
             "checked": false,
             "disabled": true
           },
@@ -1155,6 +1200,7 @@
             "_id": "data_submission:cancelled",
             "group": "Data Submission Emails",
             "name": "When cancelled",
+            "order": 2,
             "checked": false,
             "disabled": true
           },
@@ -1162,6 +1208,7 @@
             "_id": "data_submission:withdrawn",
             "group": "Data Submission Emails",
             "name": "When withdrawn",
+            "order": 3,
             "checked": false,
             "disabled": true
           },
@@ -1169,13 +1216,15 @@
             "_id": "data_submission:released",
             "group": "Data Submission Emails",
             "name": "When released",
+            "order": 5,
             "checked": false,
             "disabled": true
           },
           {
             "_id": "data_submission:rejected",
             "group": "Data Submission Emails",
-            "name": "When rejected ",
+            "name": "When rejected",
+            "order": 4,
             "checked": false,
             "disabled": true
           },
@@ -1183,6 +1232,7 @@
             "_id": "data_submission:completed",
             "group": "Data Submission Emails",
             "name": "When completed",
+            "order": 6,
             "checked": false,
             "disabled": true
           },
@@ -1190,34 +1240,39 @@
             "_id": "data_submission:expiring",
             "group": "Data Submission Emails",
             "name": "When expiring",
+            "order": 7,
             "checked": false,
             "disabled": true
           },
           {
             "_id": "data_submission:deleted",
-            "group": "Data Submission Permissions",
+            "group": "Data Submission Emails",
             "name": "When deleted",
+            "order": 8,
             "checked": false,
             "disabled": true
           },
           {
             "_id": "access:requested",
             "group": "Miscellaneous",
-            "name": "User Request Access",
+            "name": "Request Access",
+            "order": 1,
             "checked": false,
             "disabled": true
           },
           {
             "_id": "account:inactivated",
             "group": "Miscellaneous",
-            "name": "Account Disabled due to inactivity (individual)",
+            "name": "Account Disabled",
+            "order": 2,
             "checked": true,
             "disabled": true
           },
           {
             "_id": "account:users_inactivated",
             "group": "Miscellaneous",
-            "name": "Account Disabled due to inactivity (consolidated)",
+            "name": "Account Disabled (Consolidated)",
+            "order": 3,
             "checked": false,
             "disabled": true
           }
