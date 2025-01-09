@@ -748,47 +748,31 @@ class UserService {
     }
 
     #validateUserPermission(isUserRoleChange, userRole, permissions, notifications, accessControl) {
-        const disabledPermissions = new Set(accessControl?.permissions?.disabled);
-        const invalidPermissions = permissions?.filter(permission =>
-            (disabledPermissions.has(permission)) || !this.#allPermissionNamesSet.has(permission));
+        const invalidPermissions = permissions?.filter(permission => !this.#allPermissionNamesSet.has(permission));
 
         if (invalidPermissions?.length > 0) {
             throw new Error(replaceErrorString(ERROR.INVALID_PERMISSION_NAME, `${invalidPermissions.join(',')}`));
         }
-
-        const disabledNotifications = new Set(accessControl?.notifications?.disabled);
-        const invalidNotifications = notifications?.filter(notification =>
-            (disabledNotifications.has(notification)) || !this.#allEmailNotificationNamesSet.has(notification));
+        const invalidNotifications = notifications?.filter(notification => !this.#allEmailNotificationNamesSet.has(notification));
 
         if (invalidNotifications?.length > 0) {
             throw new Error(replaceErrorString(ERROR.INVALID_NOTIFICATION_NAME, `${invalidNotifications.join(',')}`));
         }
 
-        const requiredPermissions = [...accessControl?.permissions?.permitted].filter(p => disabledPermissions.has(p));
-        const requiredNotifications = [...accessControl?.notifications?.permitted].filter(p => disabledNotifications.has(p));
         return {
-            filteredPermissions: this.#setFilteredPermissions(isUserRoleChange, userRole, permissions, requiredPermissions, accessControl?.permissions?.permitted),
-            filteredNotifications: this.#setFilteredNotifications(isUserRoleChange, userRole, notifications, requiredNotifications, accessControl?.notifications?.permitted)
+            filteredPermissions: this.#setFilteredPermissions(isUserRoleChange, userRole, permissions, accessControl?.permissions?.permitted),
+            filteredNotifications: this.#setFilteredNotifications(isUserRoleChange, userRole, notifications, accessControl?.notifications?.permitted)
         }
     }
 
-    #setFilteredPermissions(isUserRoleChange, userRole, permissions, requiredPermissions, defaultPermissions) {
-        const editableUserRoles = [USER.ROLES.FEDERAL_LEAD, USER.ROLES.FEDERAL_MONITOR, USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.CURATOR, USER.ROLES.DC_POC, USER.ROLES.ADMIN];
-        const updatedPermissions = permissions !== undefined ? permissions : defaultPermissions;
-        // final notification settings
-        const updatePermissions = isUserRoleChange ? updatedPermissions : permissions;
-        const finalPermissions = [...(updatePermissions || []), ...requiredPermissions];
-        return editableUserRoles.includes(userRole) ? finalPermissions : defaultPermissions;
+    #setFilteredPermissions(isUserRoleChange, userRole, permissions, defaultPermissions) {
+        const updatedPermissions = isUserRoleChange && permissions === undefined ? defaultPermissions : permissions;
+        return [...(updatedPermissions || [])];
     }
 
-    #setFilteredNotifications(isUserRoleChange, userRole, notifications, requiredNotifications, defaultNotifications) {
-        const editableUserRoles = [USER.ROLES.FEDERAL_LEAD, USER.ROLES.FEDERAL_MONITOR, USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.CURATOR, USER.ROLES.DC_POC, USER.ROLES.ADMIN];
-        const updatedNotifications = notifications !== undefined ? notifications : defaultNotifications;
-
-        // final notification settings
-        const updateNotifications = isUserRoleChange ? updatedNotifications : notifications;
-        const finalNotifications = [...(updateNotifications || []), ...requiredNotifications];
-        return editableUserRoles.includes(userRole) ? finalNotifications : defaultNotifications;
+    #setFilteredNotifications(isUserRoleChange, userRole, notifications, defaultNotifications) {
+        const updatedNotifications = isUserRoleChange && notifications === undefined ? defaultNotifications : notifications;
+        return [...(updatedNotifications || [])];
     }
 
     async #setUserPermissions(currRole, newRole, permissions, notifications, updatedUser) {

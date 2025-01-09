@@ -56,7 +56,6 @@ let config = {
     session_timeout: parseInt(process.env.SESSION_TIMEOUT_SECONDS) * 1000 || 30 * 60 * 1000,
     token_secret: process.env.SESSION_SECRET,
     token_timeout: parseInt(process.env.TOKEN_TIMEOUT) * 1000 || 30 * 24 * 60 * 60 * 1000,
-    schedule_job: process.env.SCHEDULE_JOB || "1 0 1 * * *",
     //aws sts assume role
     role_arn: process.env.ROLE_ARN,
     updateConfig: async (dbConnector)=> {
@@ -70,6 +69,7 @@ let config = {
         const inactiveSubmissionDaysConf = scheduledJobsConf?.[INACTIVE_SUBMISSION_DAYS_DELETE];
         const completedSubmissionDaysConf = scheduledJobsConf?.[COMPLETED_RETENTION_DAYS];
         const inactiveSubmissionNotifyDaysConf = scheduledJobsConf?.[INACTIVE_SUBMISSION_NOTIFY_DAYS];
+        const scheduledJobTime = scheduledJobsConf?.[SCHEDULED_JOBS];
         // EMAIL_SMTP
         const emailSmtpConf = await configurationService.findByType(EMAIL_SMTP);
         const emailSmtpHostConf = emailSmtpConf?.[EMAIL_SMTP_HOST];
@@ -143,7 +143,8 @@ let config = {
             dashboardSessionTimeout: dashboardSessionTimeoutConf || (process.env.DASHBOARD_SESSION_TIMEOUT || 3600), // 60 minutes by default
             inactiveSubmissionNotifyDays: inactiveSubmissionNotifyDaysConf || [7, 30, 60], // 7, 30, 60 days by default
             conditionalSubmissionContact: submissionRequestEmailConf || "NCICRDC@mail.nih.gov",
-            submissionGuideUrl: submissionGuideURLConf || "https://datacommons.cancer.gov/data-submission-instructions"
+            submissionGuideUrl: submissionGuideURLConf || "https://datacommons.cancer.gov/data-submission-instructions",
+            scheduledJobTime: scheduledJobTime || "1 0 1 * * *"
         };
     }
 }
