@@ -38,7 +38,7 @@ const createToken = (userInfo, token_secret, token_timeout)=> {
 class UserService {
     #allPermissionNamesSet = new Set([...Object.values(SUBMISSION_REQUEST), ...Object.values(DATA_SUBMISSION), ...Object.values(ADMIN)]);
     #allEmailNotificationNamesSet = new Set([...Object.values(EN.SUBMISSION_REQUEST), ...Object.values(EN.DATA_SUBMISSION), ...Object.values(EN.USER_ACCOUNT)]);
-    constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, tier, approvedStudiesService, inactiveUserDays, configurationService) {
+    constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, approvedStudiesService, inactiveUserDays, configurationService) {
         this.userCollection = userCollection;
         this.logCollection = logCollection;
         this.organizationCollection = organizationCollection;
@@ -47,7 +47,6 @@ class UserService {
         this.applicationCollection = applicationCollection;
         this.officialEmail = officialEmail;
         this.appUrl = appUrl;
-        this.tier = tier;
         this.approvedStudiesService = approvedStudiesService;
         this.approvedStudiesCollection = approvedStudiesService.approvedStudiesCollection;
         this.inactiveUserDays = inactiveUserDays;
@@ -87,8 +86,7 @@ class UserService {
                 role: params?.role,
                 studies: approvedStudies?.map((study)=> study?.studyName),
                 additionalInfo: params?.additionalInfo?.trim()
-            }
-            ,this.tier);
+            });
 
         if (res?.accepted?.length > 0) {
             return ValidationHandler.success()
@@ -513,8 +511,7 @@ class UserService {
                     dataCommons: userDataCommons,
                     studies: studyNames
                 },
-                {url: this.appUrl, helpDesk: this.officialEmail}
-                ,this.tier);
+                {url: this.appUrl, helpDesk: this.officialEmail});
         }
     }
 
@@ -527,8 +524,7 @@ class UserService {
             if (prevUser?.notifications?.includes(EN.USER_ACCOUNT.USER_INACTIVATED)) {
                 await this.notificationsService.deactivateUserNotification(prevUser.email,
                     CCs, {firstName: prevUser.firstName},
-                    {officialEmail: this.officialEmail}
-                    ,this.tier);
+                    {officialEmail: this.officialEmail});
             }
         }
     }
