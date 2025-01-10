@@ -39,7 +39,7 @@
             "disabled": false
           },
           {
-            "_id": "submission_request:canceled",
+            "_id": "submission_request:cancel",
             "group": "Submission Request Permissions",
             "name": "Cancel/Restore",
             "order": 5,
@@ -302,7 +302,7 @@
             "disabled": false
           },
           {
-            "_id": "submission_request:canceled",
+            "_id": "submission_request:cancel",
             "group": "Submission Request Permissions",
             "name": "Cancel/Restore",
             "order": 5,
@@ -565,7 +565,7 @@
             "disabled": true
           },
           {
-            "_id": "submission_request:canceled",
+            "_id": "submission_request:cancel",
             "group": "Submission Request Permissions",
             "name": "Cancel/Restore",
             "order": 5,
@@ -828,7 +828,7 @@
             "disabled": true
           },
           {
-            "_id": "submission_request:canceled",
+            "_id": "submission_request:cancel",
             "group": "Submission Request Permissions",
             "name": "Cancel/Restore",
             "order": 5,
@@ -1091,7 +1091,7 @@
             "disabled": true
           },
           {
-            "_id": "submission_request:canceled",
+            "_id": "submission_request:cancel",
             "group": "Submission Request Permissions",
             "name": "Cancel/Restore",
             "order": 5,
