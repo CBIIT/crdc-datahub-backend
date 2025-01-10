@@ -34,6 +34,8 @@ const COMPLETED_RETENTION_DAYS = "COMPLETED_RETENTION_DAYS";
 const INACTIVE_SUBMISSION_DAYS_DELETE = "INACTIVE_SUBMISSION_DAYS_DELETE";
 const DASHBOARD_SESSION_TIMEOUT = "DASHBOARD_SESSION_TIMEOUT";
 const INACTIVE_SUBMISSION_NOTIFY_DAYS = "INACTIVE_SUBMISSION_NOTIFY_DAYS";
+const LIST_OF_S3_BUCKETS = "LIST_OF_S3_BUCKETS";
+const SUBMISSION_BUCKET = "SUBMISSION_BUCKET";
 
 const EMAIL_SMTP = "EMAIL_SMTP";
 const SCHEDULED_JOBS = "SCHEDULED_JOBS";
@@ -56,7 +58,6 @@ let config = {
     session_timeout: parseInt(process.env.SESSION_TIMEOUT_SECONDS) * 1000 || 30 * 60 * 1000,
     token_secret: process.env.SESSION_SECRET,
     token_timeout: parseInt(process.env.TOKEN_TIMEOUT) * 1000 || 30 * 24 * 60 * 60 * 1000,
-    schedule_job: process.env.SCHEDULE_JOB || "1 0 1 * * *",
     //aws sts assume role
     role_arn: process.env.ROLE_ARN,
     updateConfig: async (dbConnector)=> {
@@ -70,6 +71,7 @@ let config = {
         const inactiveSubmissionDaysConf = scheduledJobsConf?.[INACTIVE_SUBMISSION_DAYS_DELETE];
         const completedSubmissionDaysConf = scheduledJobsConf?.[COMPLETED_RETENTION_DAYS];
         const inactiveSubmissionNotifyDaysConf = scheduledJobsConf?.[INACTIVE_SUBMISSION_NOTIFY_DAYS];
+        const scheduledJobTime = scheduledJobsConf?.[SCHEDULED_JOBS];
         // EMAIL_SMTP
         const emailSmtpConf = await configurationService.findByType(EMAIL_SMTP);
         const emailSmtpHostConf = emailSmtpConf?.[EMAIL_SMTP_HOST];
@@ -106,6 +108,8 @@ let config = {
         // SUBMISSION
         const dataCommonsListConf = await configurationService.findByType(DATA_COMMONS_LIST);
         const hiddenModelsConf = await configurationService.findByType(HIDDEN_MODELS);
+        const listS3Buckets = await configurationService.findByType(LIST_OF_S3_BUCKETS);
+        const submissionBucketConf = listS3Buckets?.[SUBMISSION_BUCKET];
         return {
             ...config,
             inactive_user_days : inactiveUserDaysConf || (process.env.INACTIVE_USER_DAYS || 60),
@@ -122,7 +126,7 @@ let config = {
             techSupportEmail: techSupportEmailConf || (process.env.TECH_SUPPORT_EMAIL || "NCICRDCTechSupport@mail.nih.gov"),
             submission_system_portal: submissionSystemPortalConf || "https://datacommons.cancer.gov/",
             prod_url: prodUrlConf || (process.env.PROD_URL || "https://hub.datacommons.cancer.gov/"),
-            submission_bucket: process.env.SUBMISSION_BUCKET,
+            submission_bucket: submissionBucketConf,
             role_timeout: roleTimeoutConf || (parseInt(process.env.ROLE_TIMEOUT) || 12*3600),
             presign_expiration: preSignExpirationConf || (parseInt(process.env.PRESIGN_EXPIRATION) || 3600),
             tier: getTier(tierConf?.keys?.tier),
@@ -133,7 +137,7 @@ let config = {
             export_queue: exporterQueueConf?.keys?.sqs || process.env.EXPORTER_QUEUE,
             //CRDC Review Committee Emails, separated by ","
             committee_emails: reviewCommitteeEmailConf || (process.env.REVIEW_COMMITTEE_EMAIL ? (reviewCommitteeEmailConf || process.env.REVIEW_COMMITTEE_EMAIL)?.split(',') : ["CRDCSubmisison@nih.gov"]),
-            model_url: modelURLConf || getModelUrl(tierConf?.key),
+            model_url: modelURLConf || getModelUrl(tierConf?.keys?.tier),
             //uploader configuration file template
             uploaderCLIConfigs: readUploaderCLIConfigTemplate(),
             dataCommonsList: dataCommonsListConf?.key || (process.env.DATA_COMMONS_LIST ? JSON.parse(process.env.DATA_COMMONS_LIST) : ["CDS", "ICDC", "CTDC", "CCDI", "Test MDF", "Hidden Model"]),
@@ -143,7 +147,8 @@ let config = {
             dashboardSessionTimeout: dashboardSessionTimeoutConf || (process.env.DASHBOARD_SESSION_TIMEOUT || 3600), // 60 minutes by default
             inactiveSubmissionNotifyDays: inactiveSubmissionNotifyDaysConf || [7, 30, 60], // 7, 30, 60 days by default
             conditionalSubmissionContact: submissionRequestEmailConf || "NCICRDC@mail.nih.gov",
-            submissionGuideUrl: submissionGuideURLConf || "https://datacommons.cancer.gov/data-submission-instructions"
+            submissionGuideUrl: submissionGuideURLConf || "https://datacommons.cancer.gov/data-submission-instructions",
+            scheduledJobTime: scheduledJobTime || "1 0 1 * * *"
         };
     }
 }
@@ -185,7 +190,7 @@ function getModelUrl(dbTier) {
     if (process.env.MODEL_URL) {
         return process.env.MODEL_URL;
     }
-    const tier = process.env.TIER?.replace(/[^a-zA-Z\d]/g, '')?.trim();
+    const tier = dbTier?.replace(/[^a-zA-Z\d]/g, '')?.trim();
     // By default url
     const modelUrl = ['https://raw.githubusercontent.com/CBIIT/crdc-datahub-models/', tier || 'master', '/cache/content.json']
     if (tier?.length > 0) {
