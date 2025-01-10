@@ -63,6 +63,10 @@ type Organization {
 type ListApplications {
     total: Int
     applications: [Application]
+    programs: [String],
+    studies: [String]
+    status: [String],
+    submitterNames: [String]
 }
 
 type ListSubmissions {
@@ -542,7 +546,16 @@ type Query {
     getMyLastApplication: Application
 
     "Result depends on user's permission"
-    listApplications(first: Int = -1, offset: Int = 0, orderBy: String = "Submitted Date", sortDirection: String = "DESC"): ListApplications
+    listApplications(
+        programName: String,
+        studyName: String,
+        statues: [String],
+        submitterName: String,
+        first: Int = -1,
+        offset: Int = 0,
+        orderBy: String = "Submitted Date",
+        sortDirection: String = "DESC"
+    ): ListApplications
     # when first parameter is set to -1, we should return all applications (no pagination)
     # sortDirection in ["ASC", "DESC"]
     # orderBy in ["Submitter Name", "Organization", "Study", "Program", "Status", "Submitted Date"]
