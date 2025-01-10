@@ -518,6 +518,7 @@ type Permission {
     _id: String!,  #Permission Internal Name, unique 
     group: String!, #permission group
     name: String!, #permission name
+    order: Int,
     checked: Boolean,
     disabled: Boolean
 }
@@ -526,6 +527,7 @@ type Notification {
     _id: String!,  #Notification Internal Name, unique 
     group: String!, #Notification group
     name: String!, #Notification name
+    order: Int,
     checked: Boolean, 
     disabled: Boolean
 }
