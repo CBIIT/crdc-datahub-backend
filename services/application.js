@@ -161,23 +161,18 @@ class Application {
     }
 
     #listApplicationConditions(userID, userRole, programName, studyName, statues, submitterName) {
-
         const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED];
-        const statuesParamSet = new Set(statues);
-        // TODO filter valid application multiple statues
         const statusCondition = statues !== this.#ALL_FILTER ?
-            { status: statues } : { status: { $in: validApplicationStatus } };
+            { status: { $in: statues } } : { status: { $in: validApplicationStatus } };
 
-        const submitterNameCondition = (submitterName && submitterName !== this.#ALL_FILTER) ? {submitterName: submitterName?.trim()} : {};
+        const submitterNameCondition = (submitterName && submitterName !== this.#ALL_FILTER) ? {"applicant.applicantName": submitterName?.trim()} : {};
         const programNameCondition = (programName && programName !== this.#ALL_FILTER) ? {programName: programName?.trim()} : {};
         const studyNameCondition = (studyName && studyName !== this.#ALL_FILTER) ? {studyName: studyName?.trim()} : {};
 
         const baseConditions = {...statusCondition, ...programNameCondition, ...studyNameCondition, ...submitterNameCondition};
-        // search by applicant's user id
         const conditions = [{$and: [{"applicant.applicantID": userID}, validApplicationStatus]}];
-        // TODO PBAC Settings
         return (() => {
-            switch (role) {
+            switch (userRole) {
                 case ROLES.ADMIN:
                 case ROLES.FEDERAL_LEAD:
                     return baseConditions;
@@ -192,42 +187,60 @@ class Application {
         verifySession(context)
             .verifyInitialized()
             .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
+        const userInfo = context?.userInfo;
+        const statuesSet = new Set(params?.statues);
+        const invalidStatues = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED]
+            .filter((i) => !statuesSet.has(i));
+        if (invalidStatues?.length > 0) {
+            throw new Error(replaceErrorString(ERROR.VERIFY.INVALID_STATE_APPLICATION, `'${invalidStatues.join(",")}'`));
+        }
 
         const filterConditions = [
             // default filter for listing submissions
-            this.#listApplicationConditions(context?.userInfo, params.status, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName),
-            // no filter for dataCommons aggregation
-            this.#listApplicationConditions(context?.userInfo, this.#ALL_FILTER, this.#ALL_FILTER, null, null, this.#ALL_FILTER, this.#ALL_FILTER),
-            this.#listApplicationConditions(context?.userInfo, params?.status, params.organization, params.name, params.dbGaPID, params.dataCommons, this.#ALL_FILTER),
-            this.#listApplicationConditions(context?.userInfo, params?.status, params.organization, params.name, params.dbGaPID, params.dataCommons, this.#ALL_FILTER),
-            this.#listApplicationConditions(context?.userInfo, params?.status, this.#ALL_FILTER, params.name, params.dbGaPID, params.dataCommons, params?.submitterName),
+            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, params.studyName, params.statues, params?.submitterName),
+            // note: Aggregation of Program name should not be filtered by its name
+            this.#listApplicationConditions(userInfo?._id, userInfo?.role, this.#ALL_FILTER, params.studyName, params.statues, params?.submitterName),
+            // note: Aggregation of Study name should not be filtered by its name
+            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, this.#ALL_FILTER, params.statues, params?.submitterName),
+            // note: Aggregation of Statues name should not be filtered by its name
+            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, params.studyName, this.#ALL_FILTER, params?.submitterName),
+            // note: Aggregation of Submitter name should not be filtered by its name
+            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, params.studyName, params.statues, this.#ALL_FILTER),
         ]
-        const [listConditions, programCondition, studyNameCondition, submitterNameCondition] = filterConditions;
+        const [listConditions, programCondition, studyNameCondition, statuesCondition, submitterNameCondition] = filterConditions;
         let pipeline = [{"$match": listConditions}];
         const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
         const noPaginationPipe = pipeline.concat(paginationPipe.getNoLimitPipeline());
 
         const promises = [
             this.applicationCollection.aggregate(pipeline.concat(paginationPipe.getPaginationPipeline())),
-            this.applicationCollection.aggregate(noPaginationPipe),
+            this.applicationCollection.aggregate(noPaginationPipe.concat([{ $group: { _id: "$_id" } }, { $count: "count" }])),
             // note: Program name filter is omitted
-            await this.applicationCollection.distinct("program", programCondition),
+            this.applicationCollection.distinct("programName", programCondition),
             // note: Study name filter is omitted
-            await this.applicationCollection.distinct("study", studyNameCondition),
+            this.applicationCollection.distinct("studyName", studyNameCondition),
+            // note: Statues filter is omitted
+            this.applicationCollection.distinct("status", statuesCondition),
             // note: Submitter name filter is omitted
-            await this.applicationCollection.distinct("submitterName", submitterNameCondition)
+            this.applicationCollection.distinct("applicant.applicantName", submitterNameCondition)
         ];
 
-        const applications = await Promise.all(promises).then(function(results) {
-            return {
-                applications: (results[0] || []).map((app)=>(app)),
-                total: results[1]?.length || 0
-            }
-        });
+        const results = await Promise.all(promises);
+        const applications = (results[0] || []);
         for (let app of applications.applications.filter(a=>a.status === APPROVED)) {
             await this.#checkConditionalApproval(app);
         }
-        return applications;
+
+        return await Promise.all(promises).then(function(results) {
+            return {
+                applications: applications,
+                total: results[1]?.length > 0 ? results[1][0]?.count : 0,
+                programs: results[2] || [],
+                studies: results[3] || [],
+                status: results[4] || [],
+                submitterNames: results[5] || []
+            }
+        });
     }
 
     async submitApplication(params, context) {
