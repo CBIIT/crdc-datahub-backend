@@ -683,7 +683,7 @@
             "group": "Submission Request Emails",
             "name": "When canceled/restored",
             "order": 4,
-            "checked": true,
+            "checked": false,
             "disabled": false
           },
           {
