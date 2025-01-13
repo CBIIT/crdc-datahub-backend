@@ -706,6 +706,8 @@ type Query {
     collaborators: [Collaborator]
 
     retrievePBACDefaults (roles: [String!]!) : [PBACDefaults] #To retrieve all roles' permissions and notifications, use roles: ["All"] as parameter.
+
+    retrieveReleasedDataByID(submissionID: String!, nodeType: String!, nodeID: String!, status: String = "Released") : Released_Node
 }
 type Mutation {
     "User initiated operations"

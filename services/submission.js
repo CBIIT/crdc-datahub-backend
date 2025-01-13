@@ -27,7 +27,7 @@ const {NODE_RELATION_TYPES} = require("./data-record-service");
 const {verifyToken} = require("../verifier/token-verifier");
 const {verifyValidationResultsReadPermissions} = require("../verifier/permissions-verifier");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
-const {EMAIL_NOTIFICATIONS: EN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+const {EMAIL_NOTIFICATIONS: EN, DATA_SUBMISSION: DS_PERMISSION} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -1257,6 +1257,39 @@ class Submission {
         }
         // find Collaborators with aSubmission.studyID
         return await this.userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
+    }
+
+    /**
+     * API: get releases data
+     * @param {*} params 
+     * @param {*} context 
+     * @returns 
+     */
+    async getReleasedNodeByIDs(params, context)
+    {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission(DS_PERMISSION.VIEW);
+        const {
+            submissionID = submissionID,
+            nodeType = nodeType,
+            nodeID = nodeID,
+            status = status
+        } = params; // all three parameters are required in GraphQL API
+        const results = await this.dataRecordService.getReleasedNode(submissionID, nodeType, nodeID, status);
+        if(results && results.length > 0) 
+        {
+            const result = results[0];
+            if(result?.props)
+            {
+                result.props = JSON.stringify(result.props);
+            }
+            return result;
+        }
+        else
+        {
+            return null;
+        }
     }
 
     async verifySubmitter(submissionID, context) {
