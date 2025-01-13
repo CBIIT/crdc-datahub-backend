@@ -192,7 +192,7 @@ class Application {
         const invalidStatues = (params?.statues || [])
             .filter((i) => !validStatuesSet.has(i));
         if (invalidStatues?.length > 0) {
-            throw new Error(replaceErrorString(ERROR.VERIFY.INVALID_STATE_APPLICATION, `'${invalidStatues.join(",")}'`));
+            throw new Error(replaceErrorString(ERROR.APPLICATION_INVALID_STATUES, `'${invalidStatues.join(",")}'`));
         }
 
         const filterConditions = [
