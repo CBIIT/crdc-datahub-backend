@@ -1,4 +1,4 @@
-const {SUBMITTED, APPROVED, REJECTED, IN_PROGRESS, IN_REVIEW, DELETED, NEW, INQUIRED} = require("../constants/application-constants");
+const {SUBMITTED, APPROVED, REJECTED, IN_PROGRESS, IN_REVIEW, DELETED, CANCELED, NEW, INQUIRED} = require("../constants/application-constants");
 const {APPLICATION_COLLECTION: APPLICATION} = require("../crdc-datahub-database-drivers/database-constants");
 const {v4} = require('uuid')
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
@@ -264,7 +264,7 @@ class Application {
         }
 
         const userInfo = context?.userInfo;
-        const isEnabledPBAC = userInfo?.permissions?.includes(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.DELETE);
+        const isEnabledPBAC = userInfo?.permissions?.includes(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
         const isPowerRole = [ROLES.FEDERAL_LEAD, ROLES.ADMIN, ROLES.DATA_COMMONS_PERSONNEL].includes(userInfo?.role);
         const powerUserCond = [NEW, IN_PROGRESS, INQUIRED, SUBMITTED, IN_REVIEW].includes(aApplication?.status) && isEnabledPBAC;
 
@@ -275,9 +275,9 @@ class Application {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
-        const history = HistoryEventBuilder.createEvent(context.userInfo._id, DELETED, null);
+        const history = HistoryEventBuilder.createEvent(context.userInfo._id, CANCELED, null);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-            $set: {status: DELETED, updatedAt: history.dateTime},
+            $set: {status: CANCELED, updatedAt: history.dateTime},
             $push: {history}
         });
 
