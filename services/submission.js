@@ -50,7 +50,7 @@ Set.prototype.toArray = function() {
 class Submission {
     constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService,
                 dataRecordService, tier, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList,
-                hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs) {
+                hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs, submissionBucketName) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -70,6 +70,7 @@ class Submission {
         this.sqsLoaderQueue = sqsLoaderQueue;
         this.qcResultsService = qcResultsService;
         this.uploaderCLIConfigs = uploaderCLIConfigs;
+        this.submissionBucketName = submissionBucketName;
     }
 
     async createSubmission(params, context) {
@@ -111,7 +112,7 @@ class Submission {
         const program = (programs && programs.length > 0) ? programs[0] : null;
 
         const newSubmission = DataSubmission.createSubmission(
-            params.name, context.userInfo, params.dataCommons, params.studyID, approvedStudy?.dbGaPID, program, modelVersion, intention, dataType, approvedStudy);
+            params.name, context.userInfo, params.dataCommons, params.studyID, approvedStudy?.dbGaPID, program, modelVersion, intention, dataType, approvedStudy, this.submissionBucketName);
         const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
@@ -1461,34 +1462,22 @@ String.prototype.format = function(placeholders) {
 async function submissionActionNotification(userInfo, action, aSubmission, userService, organizationService, notificationService, emailParams, tier) {
     switch(action) {
         case ACTIONS.SUBMIT:
-            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.SUBMIT)) {
-                await sendEmails.submitSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
-            }
+            await sendEmails.submitSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
             break;
         case ACTIONS.RELEASE:
-            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.RELEASE)) {
-                await sendEmails.releaseSubmission(emailParams, userInfo, aSubmission, userService, organizationService, notificationService, tier);
-            }
+            await sendEmails.releaseSubmission(emailParams, userInfo, aSubmission, userService, organizationService, notificationService, tier);
             break;
         case ACTIONS.WITHDRAW:
-            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.WITHDRAW)) {
-                await sendEmails.withdrawSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
-            }
+            await sendEmails.withdrawSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
             break;
         case ACTIONS.REJECT:
-            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.REJECT)) {
-                await sendEmails.rejectSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
-            }
+            await sendEmails.rejectSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
             break;
         case ACTIONS.COMPLETE:
-            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.COMPLETE)) {
-                await sendEmails.completeSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
-            }
+            await sendEmails.completeSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
             break;
         case ACTIONS.CANCEL:
-            if (userInfo?.notifications?.includes(EN.DATA_SUBMISSION.CANCEL)) {
-                await sendEmails.cancelSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
-            }
+            await sendEmails.cancelSubmission(userInfo, aSubmission, userService, organizationService, notificationService, tier);
             break;
         case ACTIONS.ARCHIVE:
             //todo TBD send archived email
@@ -1543,7 +1532,11 @@ const releaseSubmissionEmailInfo = async (userInfo, aSubmission, userService, or
     const ccEmails = new Set([...submitterEmails, ...orgOwnerEmails, ...adminEmails, ...fedMonitorEmails]).toArray();
     const POCs = results[3] || [];
     const curators = results[6] || [];
-    const toEmails = getUserEmails([...POCs, ...curators] || []);
+
+    const toEmails = [...POCs, ...curators]
+        ?.filter((aUser) => aUser?.email && aUser?.notifications?.includes(EN.DATA_SUBMISSION.RELEASE))
+        ?.map((aUser)=> aUser.email);
+
     const aOrganization = results[4] || {};
     return [ccEmails, toEmails, aOrganization];
 }
@@ -1585,31 +1578,32 @@ const cancelOrRejectSubmissionEmailInfo = async (aSubmission, userService, organ
 const sendEmails = {
     submitSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService, tier) => {
         const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
+        if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.SUBMIT)) {
+            const promises = [
+                await userService.getOrgOwner(aSubmission?.organization?._id),
+                await organizationService.getOrganizationByID(aSubmitter?.organization?.orgID),
+                await userService.getAdmin(),
+                await userService.getFederalMonitors(aSubmission?.studyID),
+                await userService.getCurators(aSubmission?.dataCommons)
+            ];
+            const results = await Promise.all(promises);
+            const aOrganization = results[1] || {};
 
-        const promises = [
-            await userService.getOrgOwner(aSubmission?.organization?._id),
-            await organizationService.getOrganizationByID(aSubmitter?.organization?.orgID),
-            await userService.getAdmin(),
-            await userService.getFederalMonitors(aSubmission?.studyID),
-            await userService.getCurators(aSubmission?.dataCommons)
-        ];
-        const results = await Promise.all(promises);
-        const aOrganization = results[1] || {};
+            const orgOwnerEmails = getUserEmails(results[0] || []);
+            const adminEmails = getUserEmails(results[2] || []);
+            const fedMonitorEmails = getUserEmails(results[3] || []);
+            const curatorEmails = getUserEmails(results[4] || []);
+            // CCs for org owner, Data Curator (or admins if not yet assigned exists)
+            const ccEmailsVar = !aOrganization?.conciergeEmail ? adminEmails : curatorEmails;
+            const ccEmails = new Set([...orgOwnerEmails, ...ccEmailsVar, ...fedMonitorEmails, ...curatorEmails]).toArray();
+            await notificationService.submitDataSubmissionNotification(aSubmitter?.email, ccEmails, {
+                    firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
+                }, {
+                    concierge: `${aSubmission?.conciergeName || 'NA'} via ${aSubmission?.conciergeEmail||'NA'}.`
+                },tier
 
-        const orgOwnerEmails = getUserEmails(results[0] || []);
-        const adminEmails = getUserEmails(results[2] || []);
-        const fedMonitorEmails = getUserEmails(results[3] || []);
-        const curatorEmails = getUserEmails(results[4] || []);
-        // CCs for org owner, Data Curator (or admins if not yet assigned exists)
-        const ccEmailsVar = !aOrganization?.conciergeEmail ? adminEmails : curatorEmails;
-        const ccEmails = new Set([...orgOwnerEmails, ...ccEmailsVar, ...fedMonitorEmails, ...curatorEmails]).toArray();
-        await notificationService.submitDataSubmissionNotification(aSubmitter?.email, ccEmails, {
-            firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
-            }, {
-                concierge: `${aSubmission?.conciergeName || 'NA'} via ${aSubmission?.conciergeEmail||'NA'}.`
-            },tier
-            
-        );
+            );
+        }
     },
     completeSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, tier) => {
         const [ccEmails, aSubmitter, aOrganization] = await completeSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
@@ -1618,15 +1612,17 @@ const sendEmails = {
             return;
         }
 
-        await notificationsService.completeSubmissionNotification(aSubmitter?.email, ccEmails, {
-            firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
-        }, {
-            submissionName: aSubmission?.name,
-            // only one study
-            studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
-            conciergeName: aOrganization?.conciergeName || NA,
-            conciergeEmail: aOrganization?.conciergeEmail || NA
-        }, tier)
+        if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.COMPLETE)) {
+            await notificationsService.completeSubmissionNotification(aSubmitter?.email, ccEmails, {
+                firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
+            }, {
+                submissionName: aSubmission?.name,
+                // only one study
+                studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                conciergeName: aOrganization?.conciergeName || NA,
+                conciergeEmail: aOrganization?.conciergeEmail || NA
+            }, tier);
+        }
     },
     cancelSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService, tier) => {
         const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
@@ -1634,17 +1630,20 @@ const sendEmails = {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
             return;
         }
-        const [ccEmails, aOrganization] = await cancelOrRejectSubmissionEmailInfo(aSubmission, userService, organizationService);
-        await notificationService.cancelSubmissionNotification(aSubmitter?.email, ccEmails, {
-            firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
-        }, {
-            submissionID: aSubmission?._id,
-            submissionName: aSubmission?.name,
-            studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
-            canceledBy: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
-            conciergeEmail: aOrganization?.conciergeEmail || NA,
-            conciergeName: aOrganization?.conciergeName || NA
-        }, tier);
+
+        if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.CANCEL)) {
+            const [ccEmails, aOrganization] = await cancelOrRejectSubmissionEmailInfo(aSubmission, userService, organizationService);
+            await notificationService.cancelSubmissionNotification(aSubmitter?.email, ccEmails, {
+                firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
+            }, {
+                submissionID: aSubmission?._id,
+                submissionName: aSubmission?.name,
+                studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                canceledBy: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
+                conciergeEmail: aOrganization?.conciergeEmail || NA,
+                conciergeName: aOrganization?.conciergeName || NA
+            }, tier);
+        }
     },
     withdrawSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService, tier) => {
         const aOrganization = await organizationService.getOrganizationByID(aSubmission?.organization?._id);
@@ -1653,34 +1652,36 @@ const sendEmails = {
             console.error(ERROR.NO_SUBMISSION_RECEIVER, `id=${aSubmission?._id}`);
             return;
         }
-        const promises = [
-            await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
-            await userService.getUserByID(aSubmission?.submitterID),
-            await userService.getFederalMonitors(aSubmission?.studyID),
-            await userService.getCurators(aSubmission?.dataCommons)
-        ];
-        const results = await Promise.all(promises);
-        const orgOwnerEmails = getUserEmails(results[0] || []);
-        const submitterEmails = getUserEmails([results[1]] || []);
-        const fedMonitorEmails = getUserEmails(results[2] || []);
-        const curatorEmails = getUserEmails(results[3] || [])?.filter((i) => i !== aCurator?.email);
 
-        const ccEmails = new Set([...orgOwnerEmails, ...submitterEmails, ...fedMonitorEmails, ...curatorEmails]).toArray();
-        await notificationsService.withdrawSubmissionNotification(aCurator?.email, ccEmails, {
-            firstName: `${aCurator.firstName} ${aCurator?.lastName || ''}`
-        }, {
-            submissionID: aSubmission?._id,
-            submissionName: aSubmission?.name,
-            // only one study
-            studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
-            withdrawnByName: `${userInfo.firstName} ${userInfo?.lastName || ''}.`,
-            withdrawnByEmail: `${userInfo?.email}`
-        }, tier);
+        if (aCurator?.notifications?.includes(EN.DATA_SUBMISSION.WITHDRAW)) {
+            const promises = [
+                await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
+                await userService.getUserByID(aSubmission?.submitterID),
+                await userService.getFederalMonitors(aSubmission?.studyID),
+                await userService.getCurators(aSubmission?.dataCommons)
+            ];
+            const results = await Promise.all(promises);
+            const orgOwnerEmails = getUserEmails(results[0] || []);
+            const submitterEmails = getUserEmails([results[1]] || []);
+            const fedMonitorEmails = getUserEmails(results[2] || []);
+            const curatorEmails = getUserEmails(results[3] || [])?.filter((i) => i !== aCurator?.email);
+
+            const ccEmails = new Set([...orgOwnerEmails, ...submitterEmails, ...fedMonitorEmails, ...curatorEmails]).toArray();
+            await notificationsService.withdrawSubmissionNotification(aCurator?.email, ccEmails, {
+                firstName: `${aCurator.firstName} ${aCurator?.lastName || ''}`
+            }, {
+                submissionID: aSubmission?._id,
+                submissionName: aSubmission?.name,
+                // only one study
+                studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                withdrawnByName: `${userInfo.firstName} ${userInfo?.lastName || ''}.`,
+                withdrawnByEmail: `${userInfo?.email}`
+            }, tier);
+        }
     },
     releaseSubmission: async (emailParams, userInfo, aSubmission, userService, organizationService, notificationsService, tier) => {
         const [ccEmails, toEmails, aOrganization] = await releaseSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
         if (toEmails.length === 0) {
-            console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
             return;
         }
         const additionalInfo = [
@@ -1705,15 +1706,18 @@ const sendEmails = {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
             return;
         }
-        const [ccEmails, aOrganization] = await cancelOrRejectSubmissionEmailInfo(aSubmission, userService, organizationService);
-        await notificationService.rejectSubmissionNotification(aSubmitter?.email, ccEmails, {
-            firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
-        }, {
-            submissionID: aSubmission?._id,
-            submissionName: aSubmission?.name,
-            conciergeEmail: aOrganization?.conciergeEmail || NA,
-            conciergeName: aOrganization?.conciergeName || NA
-        }, tier);
+
+        if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.REJECT)) {
+            const [ccEmails, aOrganization] = await cancelOrRejectSubmissionEmailInfo(aSubmission, userService, organizationService);
+            await notificationService.rejectSubmissionNotification(aSubmitter?.email, ccEmails, {
+                firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
+            }, {
+                submissionID: aSubmission?._id,
+                submissionName: aSubmission?.name,
+                conciergeEmail: aOrganization?.conciergeEmail || NA,
+                conciergeName: aOrganization?.conciergeName || NA
+            }, tier);
+        }
     },
     remindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService, expiredDays, pastDays, tier) => {
         const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
@@ -1890,7 +1894,7 @@ class DataValidation {
 
 class DataSubmission {
     #SUBMISSIONS = "submissions";
-    constructor(name, userInfo, dataCommons, studyID, dbGaPID, aProgram, modelVersion, intention, dataType, approvedStudy) {
+    constructor(name, userInfo, dataCommons, studyID, dbGaPID, aProgram, modelVersion, intention, dataType, approvedStudy, submissionBucketName) {
         this._id = v4();
         this.name = name;
         this.submitterID = userInfo._id;
@@ -1906,7 +1910,7 @@ class DataSubmission {
             _id: (aProgram && aProgram?._id) ? aProgram?._id : null,
             name: (aProgram && aProgram?.name) ? aProgram?.name : null
         };
-        this.bucketName = config.bucketName;
+        this.bucketName = submissionBucketName;
         this.rootPath = `${this.#SUBMISSIONS}/${this._id}`;
         this.conciergeName = this.#getConciergeName(approvedStudy, aProgram);
         this.conciergeEmail = this.#getConciergeEmail(approvedStudy, aProgram);
@@ -1925,8 +1929,8 @@ class DataSubmission {
         this.accessedAt = getCurrentTime();
     }
 
-    static createSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization) {
-        return new DataSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization);
+    static createSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization, submissionBucketName) {
+        return new DataSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization, submissionBucketName);
     }
 
     #getConciergeName(approvedStudy, aProgram){

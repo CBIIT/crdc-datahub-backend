@@ -289,7 +289,7 @@ class UserService {
     async listActiveCuratorsAPI(params, context) {
         verifySession(context)
             .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_STUDIES, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_PROGRAMS);
+            .verifyPermission([USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_STUDIES, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_PROGRAMS]);
 
         const curators = await this.getActiveCurators();
         return curators?.map((user) => ({
@@ -752,40 +752,31 @@ class UserService {
     }
 
     #validateUserPermission(isUserRoleChange, userRole, permissions, notifications, accessControl) {
-        const disabledPermissions = new Set(accessControl?.permissions?.disabled);
-        const invalidPermissions = permissions?.filter(permission => (!this.#allPermissionNamesSet.has(permission)));
+        const invalidPermissions = permissions?.filter(permission => !this.#allPermissionNamesSet.has(permission));
 
         if (invalidPermissions?.length > 0) {
             throw new Error(replaceErrorString(ERROR.INVALID_PERMISSION_NAME, `${invalidPermissions.join(',')}`));
         }
-
-        const disabledNotifications = new Set(accessControl?.notifications?.disabled);
         const invalidNotifications = notifications?.filter(notification => !this.#allEmailNotificationNamesSet.has(notification));
 
         if (invalidNotifications?.length > 0) {
             throw new Error(replaceErrorString(ERROR.INVALID_NOTIFICATION_NAME, `${invalidNotifications.join(',')}`));
         }
 
-        const requiredPermissions = [...accessControl?.permissions?.permitted].filter(p => disabledPermissions.has(p));
-        const requiredNotifications = [...accessControl?.notifications?.permitted].filter(p => disabledNotifications.has(p));
         return {
-            filteredPermissions: this.#setFilteredPermissions(isUserRoleChange, userRole, permissions, requiredPermissions, accessControl?.permissions?.permitted),
-            filteredNotifications: this.#setFilteredNotifications(isUserRoleChange, userRole, notifications, requiredNotifications, accessControl?.notifications?.permitted)
+            filteredPermissions: this.#setFilteredPermissions(isUserRoleChange, userRole, permissions, accessControl?.permissions?.permitted),
+            filteredNotifications: this.#setFilteredNotifications(isUserRoleChange, userRole, notifications, accessControl?.notifications?.permitted)
         }
     }
 
-    #setFilteredPermissions(isUserRoleChange, permissions, requiredPermissions, defaultPermissions) {
-        const updatedPermissions = permissions !== undefined ? permissions : defaultPermissions;
-        const updatePermissions = isUserRoleChange ? updatedPermissions : permissions;
-        return [...(updatePermissions || []), ...requiredPermissions];
+    #setFilteredPermissions(isUserRoleChange, userRole, permissions, defaultPermissions) {
+        const updatedPermissions = isUserRoleChange && permissions === undefined ? defaultPermissions : permissions;
+        return [...(updatedPermissions || [])];
     }
 
-    #setFilteredNotifications(isUserRoleChange, notifications, requiredNotifications, defaultNotifications) {
-        const updatedNotifications = notifications !== undefined ? notifications : defaultNotifications;
-
-        // final notification settings
-        const updateNotifications = isUserRoleChange ? updatedNotifications : notifications;
-        return [...(updateNotifications || []), ...requiredNotifications];
+    #setFilteredNotifications(isUserRoleChange, userRole, notifications, defaultNotifications) {
+        const updatedNotifications = isUserRoleChange && notifications === undefined ? defaultNotifications : notifications;
+        return [...(updatedNotifications || [])];
     }
 
     async #setUserPermissions(currRole, newRole, permissions, notifications, updatedUser) {

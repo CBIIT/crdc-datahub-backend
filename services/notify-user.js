@@ -34,6 +34,7 @@ class NotifyUser {
         console.error("Unable to load email constants from file, email not sent");
     }
 
+    // TODO federal lead receipent
     async submitQuestionNotification(messageVariables) {
         const message = replaceMessageVariables(this.email_constants.SUBMISSION_CONTENT, messageVariables);
         return await this.send(async () => {

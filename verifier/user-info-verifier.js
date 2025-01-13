@@ -31,7 +31,8 @@ class UserInfoVerifier {
     }
 
     verifyPermission(permission) {
-        if (!this?.userInfo?.permissions?.includes(permission)) {
+        if (permission instanceof String) permission = [permission];
+        if (!this?.userInfo?.permissions?.some(item => permission.includes(item))) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         return this;
