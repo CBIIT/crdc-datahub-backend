@@ -1,4 +1,4 @@
-const {SUBMITTED, APPROVED, REJECTED, IN_PROGRESS, IN_REVIEW, DELETED, NEW, INQUIRED} = require("../constants/application-constants");
+const {SUBMITTED, APPROVED, REJECTED, IN_PROGRESS, IN_REVIEW, DELETED, CANCELED, NEW, INQUIRED} = require("../constants/application-constants");
 const {APPLICATION_COLLECTION: APPLICATION} = require("../crdc-datahub-database-drivers/database-constants");
 const {v4} = require('uuid')
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
@@ -275,13 +275,13 @@ class Application {
         const aApplication = await this.getApplicationById(document._id);
         verifyApplication(aApplication)
             .notEmpty()
-            .state([DELETED]);
+            .state([CANCELED]);
 
-        if (!aApplication?.history?.length > 2 || aApplication?.history?.at(-1)?.status !== DELETED) {
+        if (!aApplication?.history?.length > 2 || aApplication?.history?.at(-1)?.status !== CANCELED) {
             throw new Error(ERROR.INVALID_APPLICATION_RESTORE_STATE);
         }
         const userInfo = context?.userInfo;
-        const isEnabledPBAC = userInfo?.permissions?.includes(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.DELETE);
+        const isEnabledPBAC = userInfo?.permissions?.includes(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
         const isPowerRole = [ROLES.FEDERAL_LEAD, ROLES.ADMIN, ROLES.DATA_COMMONS_PERSONNEL].includes(userInfo?.role);
 
         const isNonPowerRole = [ROLES.USER, ROLES.SUBMITTER].includes(userInfo?.role);
