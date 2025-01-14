@@ -247,14 +247,14 @@ class NotifyUser {
         });
     }
 
-    async submitDataSubmissionNotification(email, BCCEmails,templateParams, messageVariables, subjectVariables) {
-        const message = replaceMessageVariables(this.email_constants.SUBMIT_DATA_SUBMISSION_CONTENT_FIRST, {});
+    async submitDataSubmissionNotification(email, BCCEmails,templateParams, messageVariables, tier) {
+        const message = replaceMessageVariables(this.email_constants.SUBMIT_DATA_SUBMISSION_CONTENT_FIRST, messageVariables);
         const secondMessage = replaceMessageVariables(this.email_constants.SUBMIT_DATA_SUBMISSION_CONTENT_SECOND, messageVariables);
         const subject = this.email_constants.SUBMIT_DATA_SUBMISSION_SUBJECT;
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
-                isTierAdded(subjectVariables) ? `${subjectVariables} ${subject}` : subject,
+                isTierAdded(tier) ? `${tier} ${subject}` : subject,
                 await createEmailTemplate("notification-template.html", {
                     message, secondMessage, ...templateParams
                 }),
