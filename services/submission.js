@@ -996,13 +996,8 @@ class Submission {
                 if (user.role !== ROLES.SUBMITTER) {
                     throw new Error(ERROR.INVALID_COLLABORATOR_ROLE_SUBMITTER);
                 }
-                //check if user has the study the submission, 
-                if(!user?.studies || user.studies.length === 0 )
-                    throw new Error(ERROR.INVALID_COLLABORATOR_STUDY);
-                const userStudy = (user.studies[0] instanceof Object)? user.studies.find(s=>s._id === aSubmission.studyID || s._id === "All"):
-                    user.studies.find(s=> s === aSubmission.studyID || s === "All"); //backward compatible
-
-                if (!userStudy)
+                //check if user has the study the submission.
+                if (!this.#verifyStudyInUserStudies(user, aSubmission.studyID))
                     throw new Error(ERROR.INVALID_COLLABORATOR_STUDY);
                 // validate collaborator permission
                 if (!Object.values(COLLABORATOR_PERMISSIONS).includes(collaborator.permission)) {
@@ -1021,6 +1016,14 @@ class Submission {
         }
         else
             throw new Error(ERROR.FAILED_ADD_SUBMISSION_COLLABORATOR);
+    }
+
+    #verifyStudyInUserStudies(user, studyId){
+        if(!user?.studies || user.studies.length === 0 )
+            return false;
+        const userStudy = (user.studies[0] instanceof Object)? user.studies.find(s=>s._id === studyId || s._id === "All"):
+            user.studies.find(s=> s === studyId || s === "All"); //backward compatible
+        return (userStudy)? true: false;
     }
 
     #replaceFileNodeProps(aSubmission, configString, dataModelInfo){
