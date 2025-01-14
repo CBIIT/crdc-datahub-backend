@@ -28,6 +28,7 @@ const {verifyToken} = require("../verifier/token-verifier");
 const {verifyValidationResultsReadPermissions} = require("../verifier/permissions-verifier");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const {EMAIL_NOTIFICATIONS: EN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -77,19 +78,24 @@ class Submission {
         verifySession(context)
             .verifyInitialized()
             .verifyOrganization()
-            .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER]);
+            .verifyPermission(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
+        const userInfo = context?.userInfo;
+
+        if (!userInfo?.studies || userInfo.studies.length === 0){
+            throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
+        }
+
+        if (userInfo?.role !== ROLES.ADMIN && !isUserScope(userInfo?.role, userInfo?.studies, userInfo?.dataCommons, {studyID: "", dataCommons: "", submitterID: ""})) {
+
+        }
+
         const intention = [INTENTION.UPDATE, INTENTION.DELETE].find((i) => i.toLowerCase() === params?.intention.toLowerCase());
         const dataType = [DATA_TYPE.METADATA_AND_DATA_FILES, DATA_TYPE.METADATA_ONLY].find((i) => i.toLowerCase() === params?.dataType.toLowerCase());
         validateCreateSubmissionParams(params, this.allowedDataCommons, this.hiddenDataCommons, intention, dataType, context?.userInfo);
-
-        const user = await this.userService.userCollection.find(context.userInfo._id);
-        if (!user[0]?.studies || user[0].studies.length === 0){
-            throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
-        }
         // check if user has all studies
-        const allStudy = (user[0].studies[0] instanceof Object)? user[0].studies.find((study) => study._id === "All") : user[0].studies.find((study) => study === "All");
+        const allStudy = (userInfo.studies[0] instanceof Object)? userInfo.studies.find((study) => study._id === "All") : userInfo.studies.find((study) => study === "All");
         if (!allStudy) {
-            const study = (user[0].studies[0] instanceof Object)? user[0].studies.find((study) => study._id === params.studyID) : user[0].studies.find((study) => study === params.studyID);
+            const study = (userInfo.studies[0] instanceof Object)? userInfo.studies.find((study) => study._id === params.studyID) : userInfo.studies.find((study) => study === params.studyID);
             if (!study) {
                 throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
             }
@@ -112,7 +118,7 @@ class Submission {
         const program = (programs && programs.length > 0) ? programs[0] : null;
 
         const newSubmission = DataSubmission.createSubmission(
-            params.name, context.userInfo, params.dataCommons, params.studyID, approvedStudy?.dbGaPID, program, modelVersion, intention, dataType, approvedStudy, this.submissionBucketName);
+            params.name, userInfo, params.dataCommons, params.studyID, approvedStudy?.dbGaPID, program, modelVersion, intention, dataType, approvedStudy, this.submissionBucketName);
         const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
@@ -1757,6 +1763,26 @@ const sendEmails = {
                 url: emailParams.url || NA
             }, tier);
         }
+    }
+}
+
+const isUserScope = (userRole, userStudies, userDataCommons, aSubmission) => {
+    if (!aSubmission)
+        return false;
+    switch (userRole) {
+        case ROLES.ADMIN:
+            return true; // Admin has access to all data submissions.
+
+        case ROLES.FEDERAL_LEAD:
+            return userStudies.includes(aSubmission.studyID); // Access to assigned studies.
+
+        case ROLES.DATA_COMMONS_PERSONNEL:
+            return userDataCommons.includes(aSubmission.dataCommons); // Access to assigned data commons.
+
+        case ROLES.SUBMITTER:
+            return userDataCommons.includes(aSubmission.submitterID); // Access to own submissions.
+        default:
+            return false; // No access for other roles.
     }
 }
 
