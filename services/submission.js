@@ -996,16 +996,14 @@ class Submission {
                 if (user.role !== ROLES.SUBMITTER) {
                     throw new Error(ERROR.INVALID_COLLABORATOR_ROLE_SUBMITTER);
                 }
-                //check if the collaborator has the study
-                const organization = await findByID(this.organizationService.organizationCollection, user.organization.orgID);
-                if (!organization || organization?.studies.length === 0) {
+                //check if user has the study the submission, 
+                if(!user?.studies || user.studies.length === 0 )
                     throw new Error(ERROR.INVALID_COLLABORATOR_STUDY);
-                }
-                const collaborator_study = organization.studies.find(s => s._id ===  aSubmission.studyID);
-                if (!collaborator_study)
-                {
+                const userStudy = (user.studies[0] instanceof Object)? user.studies.find(s=>s._id === aSubmission.studyID || s._id === "All"):
+                    user.studies.find(s=> s === aSubmission.studyID || s === "All"); //backward compatible
+
+                if (!userStudy)
                     throw new Error(ERROR.INVALID_COLLABORATOR_STUDY);
-                }
                 // validate collaborator permission
                 if (!Object.values(COLLABORATOR_PERMISSIONS).includes(collaborator.permission)) {
                     throw new Error(ERROR.INVALID_COLLABORATOR_PERMISSION);
@@ -1019,7 +1017,7 @@ class Submission {
         aSubmission.updatedAt = new Date(); 
         const result = await this.submissionCollection.update( aSubmission);
         if (result?.modifiedCount === 1) {
-            return aSubmission
+            return aSubmission;
         }
         else
             throw new Error(ERROR.FAILED_ADD_SUBMISSION_COLLABORATOR);
