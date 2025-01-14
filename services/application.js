@@ -257,7 +257,7 @@ class Application {
     async deleteApplication(document, context) {
         verifySession(context)
             .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.DELETE);
+            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
         const aApplication = await this.getApplicationById(document._id);
         const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED, INQUIRED];
         if (validApplicationStatus.includes(aApplication.status)) {
