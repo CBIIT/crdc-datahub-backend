@@ -1497,7 +1497,7 @@ const inactiveSubmissionEmailInfo = async (aSubmission, userService, organizatio
             [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN])
     ]);
 
-    const filterBCCUsers = BCCUsers.filter((u) => u?._id !== aSubmitter?._id && isUserScope(u?.role, u?.studies, u?.dataCommons, aSubmission));
+    const filterBCCUsers = BCCUsers.filter((u) => u?._id !== aSubmitter?._id && isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
     const BCCUserEmails = getUserEmails(filterBCCUsers || []);
     return [aSubmitter, aOrganization, BCCUserEmails];
 }
@@ -1508,7 +1508,7 @@ const sendEmails = {
         if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.SUBMIT)) {
             const BCCUsers = await userService.getUsersByNotifications([EN.DATA_SUBMISSION.SUBMIT],
                 [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]);
-            const filterBCCUsers = BCCUsers.filter((u) => u?._id !== aSubmitter?._id && isUserScope(u?.role, u?.studies, u?.dataCommons, aSubmission));
+            const filterBCCUsers = BCCUsers.filter((u) => u?._id !== aSubmitter?._id && isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
             const BCCEmails = getUserEmails(filterBCCUsers || []);
             await notificationService.submitDataSubmissionNotification(aSubmitter?.email, BCCEmails, {
                     firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
@@ -1535,7 +1535,7 @@ const sendEmails = {
         }
 
         if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.COMPLETE)) {
-            const filterBCCUsers = BCCUsers.filter((u) => u?._id !== aSubmitter?._id && isUserScope(u?.role, u?.studies, u?.dataCommons, aSubmission));
+            const filterBCCUsers = BCCUsers.filter((u) => u?._id !== aSubmitter?._id && isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
             const BCCEmails = getUserEmails(filterBCCUsers || []);
             await notificationsService.completeSubmissionNotification(aSubmitter?.email, BCCEmails, {
                 firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
@@ -1562,7 +1562,7 @@ const sendEmails = {
         }
 
         if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.CANCEL)) {
-            const filterBCCUsers = BCCUsers.filter((u) => u?._id !== aSubmitter?._id && isUserScope(u?.role, u?.studies, u?.dataCommons, aSubmission));
+            const filterBCCUsers = BCCUsers.filter((u) => u?._id !== aSubmitter?._id && isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
             const BCCEmails = getUserEmails(filterBCCUsers || []);
             await notificationService.cancelSubmissionNotification(aSubmitter?.email, BCCEmails, {
                 firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
@@ -1593,7 +1593,7 @@ const sendEmails = {
         }
 
         const filteredBCCUsers = BCCUsers
-            .filter((u) => !toDCPsUserIDs.has(u?._id) && isUserScope(u?.role, u?.studies, u?.dataCommons, aSubmission));
+            .filter((u) => !toDCPsUserIDs.has(u?._id) && isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
         const BCCEmails = getUserEmails(filteredBCCUsers || []);
         await Promise.all(toDCPs.map(async (user) => {
             await notificationsService.withdrawSubmissionNotification(user?.email, BCCEmails, {
@@ -1626,7 +1626,7 @@ const sendEmails = {
         }
 
         const filteredBCCUsers = BCCUsers
-            .filter((u) => !toDCPsUserIDs.has(u?._id) && isUserScope(u?.role, u?.studies, u?.dataCommons, aSubmission));
+            .filter((u) => !toDCPsUserIDs.has(u?._id) && isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
 
         const additionalInfo = [
             [SUBMISSION_ID, aSubmission?._id],
@@ -1658,7 +1658,7 @@ const sendEmails = {
         }
 
         if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.REJECT)) {
-            const filterBCCUsers = BCCUsers.filter((u) => u?._id !== aSubmitter?._id && isUserScope(u?.role, u?.studies, u?.dataCommons, aSubmission));
+            const filterBCCUsers = BCCUsers.filter((u) => u?._id !== aSubmitter?._id && isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
             const BCCEmails = getUserEmails(filterBCCUsers || []);
             await notificationService.rejectSubmissionNotification(aSubmitter?.email, BCCEmails, {
                 firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
@@ -1709,7 +1709,7 @@ const sendEmails = {
     }
 }
 
-const isUserScope = (userRole, userStudies, userDataCommons, aSubmission) => {
+const isUserScope = (userID, userRole, userStudies, userDataCommons, aSubmission) => {
     if (!aSubmission)
         return false;
     switch (userRole) {
@@ -1723,7 +1723,7 @@ const isUserScope = (userRole, userStudies, userDataCommons, aSubmission) => {
             return userDataCommons.includes(aSubmission.dataCommons); // Access to assigned data commons.
 
         case ROLES.SUBMITTER:
-            return userDataCommons.includes(aSubmission.submitterID); // Access to own submissions.
+            return userID === aSubmission?.submitterID; // Access to own submissions.
         default:
             return false; // No access for other roles.
     }
