@@ -349,7 +349,7 @@ class UserService {
     async getDCP(dataCommons = []) {
         const result = await this.userCollection.aggregate([{
             "$match": {
-                role: USER.ROLES.DC_POC,
+                role: USER.ROLES.DATA_COMMONS_PERSONNEL,
                 userStatus: USER.STATUSES.ACTIVE,
                 ...(dataCommons?.length > 0 && { "dataCommons": { "$in": dataCommons } })
             }

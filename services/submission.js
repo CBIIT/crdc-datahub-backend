@@ -1158,6 +1158,7 @@ class Submission {
      * archiveCompletedSubmissions
      * description: overnight job to set inactive submission status to "Deleted", delete related data and files
      */
+     // TODO CRDCDH-2238 delete inactive email notification
      async deleteInactiveSubmissions(){
         //get target inactive date, current date - config.inactive_submission_days (default 120 days)
         var targetInactiveDate = new Date();
@@ -1494,7 +1495,6 @@ const inactiveSubmissionEmailInfo = async (aSubmission, userService, organizatio
         organizationService.getOrganizationByID(aSubmission?.organization?._id),
         userService.getUsersByNotifications([EN.DATA_SUBMISSION.REMIND_EXPIRE],
             [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN])
-            .then(getUserEmails)
     ]);
 
     const filterBCCUsers = BCCUsers.filter((u) => u?._id !== aSubmitter?._id && isUserScope(u?.role, u?.studies, u?.dataCommons, aSubmission));
@@ -1617,7 +1617,7 @@ const sendEmails = {
         ]);
 
         const filteredDCPs = DCPs
-            .filter((u) => u?.notifications?.includes(EN.DATA_SUBMISSION.WITHDRAW));
+            .filter((u) => u?.notifications?.includes(EN.DATA_SUBMISSION.RELEASE));
         const toDCPsUserIDs = new Set(filteredDCPs.map((u) => u?._id));
 
         const toEmails = getUserEmails(filteredDCPs);
@@ -1671,7 +1671,7 @@ const sendEmails = {
         }
     },
     remindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService, expiredDays, pastDays, tier) => {
-        const [aSubmitter, aOrganization, BCCEmails] = await inactiveSubmissionEmailInfo(aSubmission, organizationService, userService);
+        const [aSubmitter, aOrganization, BCCEmails] = await inactiveSubmissionEmailInfo(aSubmission, userService, organizationService);
         if (!aSubmitter?.email) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
             return;
@@ -1690,8 +1690,8 @@ const sendEmails = {
         }
     },
     finalRemindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService, tier) => {
-        const [aSubmitter, aOrganization, BCCEmails] = await inactiveSubmissionEmailInfo(aSubmission, organizationService, userService);
-        if (!aSubmitter?.email) {
+        const [aSubmitter, aOrganization, BCCEmails] = await inactiveSubmissionEmailInfo(aSubmission, userService, organizationService);
+        if (aSubmitter?.email) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
             return;
         }
