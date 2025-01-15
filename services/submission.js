@@ -642,24 +642,6 @@ class Submission {
         }
         return await this.dataRecordService.exportMetadata(params._id);
     }
-    
-    async submissionQCResults(params, context) {
-        // Check if the submission exists
-        const submission = await findByID(this.submissionCollection, params._id);
-        if(!submission){
-            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
-        }
-        // Check if the user has permission to read this data
-        const userInfo = context.userInfo;
-        if (!verifyValidationResultsReadPermissions(userInfo, submission)) {
-            // A different error message is required if a Federal Monitor is unauthorized
-            if (userInfo.role === ROLES.FEDERAL_MONITOR){
-                throw new Error(ERROR.INVALID_ROLE_STUDY);
-            }
-            throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS);
-        }
-        return this.dataRecordService.submissionQCResults(params._id, params.nodeTypes, params.batchIDs, params.severities, params.first, params.offset, params.orderBy, params.sortDirection);
-    }
 
     async submissionCrossValidationResults(params, context){
         verifySession(context)

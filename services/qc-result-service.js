@@ -108,6 +108,11 @@ class QcResultService{
                 }
             })
         }
+        pipeline.push({
+            $set:{
+                batchID: "$latestBatchID"
+            }
+        })
         // Create count pipeline
         let countPipeline = [...pipeline];
         countPipeline.push({
