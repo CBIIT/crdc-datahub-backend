@@ -85,8 +85,8 @@ class Submission {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
         }
 
-        if (userInfo?.role !== ROLES.ADMIN && !isUserScope(userInfo?.role, userInfo?.studies, userInfo?.dataCommons, {studyID: "", dataCommons: "", submitterID: ""})) {
-
+        if (!isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, {studyID: params.studyID, dataCommons: params.dataCommons, submitterID: userInfo?._id})) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
         const intention = [INTENTION.UPDATE, INTENTION.DELETE].find((i) => i.toLowerCase() === params?.intention.toLowerCase());
@@ -362,38 +362,35 @@ class Submission {
     async submissionAction(params, context){
         verifySession(context)
             .verifyInitialized()
-            .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.DC_POC, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN, ROLES.FEDERAL_MONITOR]);
-        const userInfo = context.userInfo;
-        const submissionID = params?.submissionID;
-        const action = params?.action;
-        //verify submission action
-        const verifier = verifySubmissionAction(submissionID, action);
-        //verify if a submission can be find by submissionID.
-        let submission = await verifier.exists(this.submissionCollection);
-        if (!await this.#isValidPermission(userInfo, submission) && ![ROLES.DC_POC, ROLES.FEDERAL_LEAD, ROLES.FEDERAL_MONITOR].includes(userInfo?.role)) {
-            throw new Error(ERROR.INVALID_ROLE);
+        const {submissionID, action, comment} = params;
+        const submission = await findByID(this.submissionCollection, submissionID);
+        if (!submission) {
+            throw new Error(ERROR.SUBMISSION_NOT_EXIST, submissionID);
         }
-        let fromStatus = submission.status;
-        //verify if the action is valid based on current submission status
-        verifier.isValidAction(params?.comment);
-        //verify if user's role is valid for the action
-        const newStatus = verifier.inRoles(userInfo, submission);
-        verifier.isValidSubmitAction(userInfo?.role, submission, params?.comment);
+        const userInfo = context.userInfo;
+        if (!this.#isPermittedSubmissionAction(userInfo, action, submission)) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+        // verify if the action is valid based on current submission status
+        const verifier = verifySubmissionAction(action, submission.status, comment);
+        const newStatus = verifier.getNewStatus(submission.status, comment);
+
+        verifier.isValidSubmitAction(userInfo?.role, submission, comment);
         await this.#isValidReleaseAction(action, submission?._id, submission?.studyID, submission?.crossSubmissionStatus);
         //update submission
-        let events = submission.history || [];
+        const events = submission.history || [];
         // admin role and submit action only can leave a comment
-        const isCommentRequired = ACTIONS.REJECT === action || (!verifier.isSubmitActionCommentRequired(submission, userInfo?.role, params?.comment));
-        events.push(HistoryEventBuilder.createEvent(userInfo._id, newStatus, isCommentRequired ? params?.comment : null));
-        submission = {
+        const isCommentRequired = ACTIONS.REJECT === action || (!verifier.isSubmitActionCommentRequired(submission, userInfo?.role, comment));
+        events.push(HistoryEventBuilder.createEvent(userInfo._id, newStatus, isCommentRequired ? comment : null));
+        const updated = await this.submissionCollection.update({
             ...submission,
             status: newStatus,
             history: events,
             updatedAt: getCurrentTime(),
             reviewComment: submission?.reviewComment || []
-        }
-        const updated = await this.submissionCollection.update(submission);
+        });
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
+            console.error(ERROR.UPDATE_SUBMISSION_ERROR, `SubmissionID: ${submissionID}`);
             throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
         }
         // Send complete action
@@ -406,10 +403,10 @@ class Submission {
             completePromise.push(this.#sendCompleteMessage({type: GENERATE_DCF_MANIFEST, submissionID}, submissionID));
         }
 
-        //log event and send notification
-        const logEvent = SubmissionActionEvent.create(userInfo._id, userInfo.email, userInfo.IDP, submission._id, action, fromStatus, newStatus);
         await Promise.all([
-            this.logCollection.insert(logEvent),
+            this.logCollection.insert(
+                SubmissionActionEvent.create(userInfo._id, userInfo.email, userInfo.IDP, submission._id, action, submission.status, newStatus)
+            ),
             submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService, this.emailParams, this.tier),
             this.#archiveCancelSubmission(action, submissionID, submission?.bucketName, submission?.rootPath)
         ].concat(completePromise));
@@ -571,13 +568,13 @@ class Submission {
 
     async validateSubmission(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyRole([ROLES.ADMIN, ROLES.ORG_OWNER, ROLES.CURATOR, ROLES.SUBMITTER]);
+            .verifyInitialized();
         const aSubmission = await findByID(this.submissionCollection, params._id);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        if (!await this.#isValidPermission(context?.userInfo, aSubmission)) {
+        const userInfo = context.userInfo;
+        if (!this.#isValidAction(userInfo, aSubmission)) {
             throw new Error(ERROR.INVALID_VALIDATE_METADATA)
         }
         // start validation, change validating status
@@ -626,6 +623,7 @@ class Submission {
      * @param {*} context 
      * @returns AsyncProcessResult
      */
+    // TODO this is unused. Should be deleted
     async exportSubmission(params, context) {
         verifySession(context)
             .verifyInitialized()
@@ -648,7 +646,7 @@ class Submission {
         }
         return await this.dataRecordService.exportMetadata(params._id);
     }
-    
+    // TODO this is unused. Should be deleted
     async submissionQCResults(params, context) {
         // Check if the submission exists
         const submission = await findByID(this.submissionCollection, params._id);
@@ -1202,8 +1200,7 @@ class Submission {
 
     async deleteDataRecords(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyRole([ROLES.ADMIN, ROLES.ORG_OWNER, ROLES.CURATOR, ROLES.SUBMITTER]);
+            .verifyInitialized();
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
@@ -1213,7 +1210,7 @@ class Submission {
             throw new Error(ERROR.INVALID_DELETE_SUBMISSION_STATUS);
         }
 
-        if (!await this.#isValidPermission(context?.userInfo, aSubmission)) {
+        if (!await this.#isCreatePermission(context?.userInfo, aSubmission)) {
             throw new Error(ERROR.INVALID_DELETE_DATA_RECORDS_PERMISSION)
         }
 
@@ -1288,16 +1285,6 @@ class Submission {
         const userName = `${userInfo?.lastName ? userInfo?.lastName + ',' : ''} ${userInfo?.firstName || NA}`;
         const logEvent = DeleteRecordEvent.create(userInfo._id, userInfo.email, userName, submissionID, nodeType, nodeIDs);
         await this.logCollection.insert(logEvent);
-    }
-
-    async #isValidPermission(userInfo, aSubmission) {
-        const orgOwners = await this.userService.getOrgOwnerByOrgName(aSubmission?.organization?.name) || [];
-        const isOrgOwners = orgOwners.some((aUser) => isPermittedUser(aUser, userInfo));
-        const isSubmitter = aSubmission?.submitterID === userInfo?._id;
-        const isDataCurator = ROLES.CURATOR === userInfo?.role && userInfo?.dataCommons.includes(aSubmission?.dataCommons);
-        const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
-        const isCollaborator = collaboratorUserIDs.includes(userInfo?._id);
-        return this.userService.isAdmin(userInfo?.role) || isOrgOwners || isSubmitter || isDataCurator || isCollaborator;
     }
 
     async #requestDeleteDataRecords(message, queueName, deDuplicationId, submissionID) {
@@ -1391,6 +1378,77 @@ class Submission {
             acc[`${INACTIVE_REMINDER}_${day}`] = status;
             return acc;
         }, {[`${FINAL_INACTIVE_REMINDER}`]: status});
+    }
+
+    #isCreatePermission(userInfo, aSubmission) {
+        const isCreatePermission = (
+            userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE) &&
+            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission) &&
+            aSubmission?.status === SUBMITTED
+        );
+        const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
+        const isCollaborator = (userInfo?.role === ROLES.SUBMITTER) && collaboratorUserIDs.includes(userInfo?._id);
+        return isCreatePermission || isCollaborator;
+    }
+
+
+    #isValidAction(userInfo, aSubmission) {
+        const isReviewPermission = (
+            userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW) &&
+            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission) &&
+            [SUBMITTED].includes(aSubmission?.status)
+        );
+        return this.#isCreatePermission || isReviewPermission;
+    }
+
+    #isPermittedSubmissionAction(userInfo, submissionAction, aSubmission) {
+        const validPermissions = {
+            create: [ACTIONS.SUBMIT, ACTIONS.WITHDRAW, ACTIONS.CANCEL],
+            release: [ACTIONS.RELEASE, ACTIONS.REJECT],
+            // complete, reject after release
+            complete: [ACTIONS.COMPLETE, ACTIONS.REJECT]
+        }
+
+        const isCreateAction = validPermissions.create.includes(submissionAction);
+        const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
+        // Has a Permission within the user-scope or a collaborator
+        const isCreatePermission = (
+            (userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE) &&
+            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, {
+                studyID: aSubmission?.studyID,
+                dataCommons: aSubmission?.dataCommons,
+                submitterID: userInfo?._id,
+            })) ||
+            // Collaborator
+            userInfo?.role === ROLES.SUBMITTER && collaboratorUserIDs.includes(userInfo?._id)
+        );
+
+        // TODO submitted statues check
+        const isReleaseAction = validPermissions.release.includes(submissionAction);
+        const isReleasePermission = (
+            userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW) &&
+            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, {
+                studyID: aSubmission?.studyID,
+                dataCommons: aSubmission?.dataCommons,
+                submitterID: userInfo?._id,
+            })
+        );
+
+        // Complete, TODO Reject (after released)
+        const isCompleteAction = validPermissions.complete.includes(submissionAction);
+        const isCompletePermission = (
+            userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CONFIRM) &&
+            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, {
+                studyID: aSubmission?.studyID,
+                dataCommons: aSubmission?.dataCommons,
+                submitterID: userInfo?._id,
+            })
+        );
+
+        const isAdminAction = submissionAction === ACTIONS.SUBMIT && userInfo?.role === ADMIN
+            && userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.ADMIN_SUBMIT);
+
+        return (isCreateAction && !isCreatePermission) || (isReleaseAction && !isReleasePermission) || (isCompleteAction && !isCompletePermission) || isAdminAction;
     }
 
     #listConditions(userInfo, status, organizationID, submissionName, dbGaPID, dataCommonsParams, submitterName){
@@ -1772,13 +1830,12 @@ const isUserScope = (userRole, userStudies, userDataCommons, aSubmission) => {
     switch (userRole) {
         case ROLES.ADMIN:
             return true; // Admin has access to all data submissions.
-
         case ROLES.FEDERAL_LEAD:
-            return userStudies.includes(aSubmission.studyID); // Access to assigned studies.
-
+            // TODO The user-all-studies data needs to be cleaned as it contains multiple structures; [study document, study document], ['All'], [{_id: "All", studyName: "All"}]
+            const allStudy = (userStudies[0] instanceof Object) ? userStudies.find((study) => study._id === "All") : userStudies.find((study) => study === "All");
+            return allStudy ? true : userStudies.includes(aSubmission.studyID);
         case ROLES.DATA_COMMONS_PERSONNEL:
             return userDataCommons.includes(aSubmission.dataCommons); // Access to assigned data commons.
-
         case ROLES.SUBMITTER:
             return userDataCommons.includes(aSubmission.submitterID); // Access to own submissions.
         default:
@@ -2008,6 +2065,7 @@ class Collaborators {
             .map(i => i?.collaboratorID) || [];
     }
 
+    // TODO check viewable collaborator exists
     #getViewableCollaborators(collaborators) {
         return collaborators
             .filter(i => i?.permission === COLLABORATOR_PERMISSIONS.CAN_EDIT || i?.permission === COLLABORATOR_PERMISSIONS.CAN_VIEW);

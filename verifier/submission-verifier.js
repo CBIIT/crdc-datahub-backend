@@ -58,7 +58,7 @@ class SubmissionActionVerifier {
 
     isSubmitActionCommentRequired(aSubmission, role, comment) {
             const isError = [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus].includes(VALIDATION_STATUS.ERROR);
-            return this.action === ACTIONS.SUBMIT && ROLES.ADMIN === role && isError && (!comment || comment?.trim()?.length === 0);
+            return this.actionName === ACTIONS.SUBMIT && ROLES.ADMIN === role && isError && (!comment || comment?.trim()?.length === 0);
     }
 
     // Private Function

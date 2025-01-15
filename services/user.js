@@ -801,6 +801,7 @@ class UserService {
     async getCollaboratorsByStudyID(studyID, submitterID) {
         const query = {
             "role": USER.ROLES.SUBMITTER, _id: {"$ne": submitterID},
+            "permissions": {"$in": [USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE]},
             "$or": [{"studies": {"$in": [studyID, "All"]}}, {"studies._id": {"$in": [studyID, "All"]}}]
         }; // user's studies contains studyID
         const users = await this.userCollection.aggregate([{"$match": query}]);
