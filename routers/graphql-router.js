@@ -142,6 +142,8 @@ dbConnector.connect().then(async () => {
         getRelatedNodes: submissionService.getRelatedNodes.bind(submissionService),
         retrieveCLIConfig: submissionService.getUploaderCLIConfigs.bind(submissionService),
         listPotentialCollaborators: submissionService.listPotentialCollaborators.bind(submissionService),
+        retrieveFileNodeConfig: submissionService.getDataFileConfigs.bind(submissionService),
+
         listInstitutions: institutionService.listInstitutions.bind(institutionService),
         // AuthZ
         getMyUser : userInitializationService.getMyUser.bind(userInitializationService),

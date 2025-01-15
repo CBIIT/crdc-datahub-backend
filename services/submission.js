@@ -646,24 +646,6 @@ class Submission {
         }
         return await this.dataRecordService.exportMetadata(params._id);
     }
-    // TODO this is unused. Should be deleted
-    async submissionQCResults(params, context) {
-        // Check if the submission exists
-        const submission = await findByID(this.submissionCollection, params._id);
-        if(!submission){
-            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
-        }
-        // Check if the user has permission to read this data
-        const userInfo = context.userInfo;
-        if (!verifyValidationResultsReadPermissions(userInfo, submission)) {
-            // A different error message is required if a Federal Monitor is unauthorized
-            if (userInfo.role === ROLES.FEDERAL_MONITOR){
-                throw new Error(ERROR.INVALID_ROLE_STUDY);
-            }
-            throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS);
-        }
-        return this.dataRecordService.submissionQCResults(params._id, params.nodeTypes, params.batchIDs, params.severities, params.first, params.offset, params.orderBy, params.sortDirection);
-    }
 
     async submissionCrossValidationResults(params, context){
         verifySession(context)
@@ -955,13 +937,38 @@ class Submission {
         configString = configString.format(parameters);
         //insert data model file node properties into the string
         const latestDataModel = await this.fetchDataModelInfo();
-        configString = this.#replaceFileNodeProps(aSubmission, configString, latestDataModel);
         //insert token into the string
         configString = await this.#replaceToken(context, configString);
         /** test code: write yaml string to file for verification of output **/
         // write2file(configString, "logs/userUploaderConfig.yaml")
         /** end test code **/
         return configString;
+    }
+
+    /**
+     * API: getDataFileConfigs for submitter to upload data file from CLI
+     * @param {*} params
+     * @param {*} context
+     * @returns data file config Object
+     */
+    async getDataFileConfigs(params, context) {
+        verifySession(context)
+            .verifyInitialized();
+        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        if (!aSubmission) {
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
+        }
+        //only the submitter of current submission can download the configuration file for data file uploading
+        await verifyBatchPermission(this.userService, aSubmission, context.userInfo);
+
+        // data model file node properties into the string
+        const latestDataModel = await this.fetchDataModelInfo();
+        const fileConfig = this.#getModelFileNodeInfo(aSubmission, latestDataModel);
+        return {id_field: fileConfig["id-field"],
+            name_field: fileConfig["name-field"],
+            size_field: fileConfig["size-field"],
+            md5_field: fileConfig["md5-field"],
+            omit_DCF_prefix: fileConfig["omit-DCF-prefix"]};
     }
 
     /**
@@ -1000,16 +1007,9 @@ class Submission {
                 if (user.role !== ROLES.SUBMITTER) {
                     throw new Error(ERROR.INVALID_COLLABORATOR_ROLE_SUBMITTER);
                 }
-                //check if the collaborator has the study
-                const organization = await findByID(this.organizationService.organizationCollection, user.organization.orgID);
-                if (!organization || organization?.studies.length === 0) {
+                //check if user has the study the submission.
+                if (!this.#verifyStudyInUserStudies(user, aSubmission.studyID))
                     throw new Error(ERROR.INVALID_COLLABORATOR_STUDY);
-                }
-                const collaborator_study = organization.studies.find(s => s._id ===  aSubmission.studyID);
-                if (!collaborator_study)
-                {
-                    throw new Error(ERROR.INVALID_COLLABORATOR_STUDY);
-                }
                 // validate collaborator permission
                 if (!Object.values(COLLABORATOR_PERMISSIONS).includes(collaborator.permission)) {
                     throw new Error(ERROR.INVALID_COLLABORATOR_PERMISSION);
@@ -1023,21 +1023,29 @@ class Submission {
         aSubmission.updatedAt = new Date(); 
         const result = await this.submissionCollection.update( aSubmission);
         if (result?.modifiedCount === 1) {
-            return aSubmission
+            return aSubmission;
         }
         else
             throw new Error(ERROR.FAILED_ADD_SUBMISSION_COLLABORATOR);
     }
 
-    #replaceFileNodeProps(aSubmission, configString, dataModelInfo){
+    #verifyStudyInUserStudies(user, studyId){
+        if(!user?.studies || user.studies.length === 0 )
+            return false;
+        const userStudy = (user.studies[0] instanceof Object)? user.studies.find(s=>s._id === studyId || s._id === "All"):
+            user.studies.find(s=> s === studyId || s === "All"); //backward compatible
+        return (userStudy)? true: false;
+    }
+
+    #getModelFileNodeInfo(aSubmission, dataModelInfo){
         const modelFileNodeInfos = Object.values(dataModelInfo?.[aSubmission.dataCommons]?.[DATA_MODEL_SEMANTICS]?.[DATA_MODEL_FILE_NODES]);
         const omit_DCF_prefix = dataModelInfo?.[aSubmission.dataCommons]?.['omit-DCF-prefix'];
-        if (modelFileNodeInfos.length > 0){
+        if (modelFileNodeInfos.length > 0) {
             let modelFileNodeInfo = modelFileNodeInfos[0];
-            modelFileNodeInfo['omit-DCF-prefix'] = (!omit_DCF_prefix)?false:omit_DCF_prefix;
-            return configString.format(modelFileNodeInfo);
+            modelFileNodeInfo['omit-DCF-prefix'] = (!omit_DCF_prefix) ? false : omit_DCF_prefix;
+            return modelFileNodeInfo;
         }
-        else{
+        else {
             throw new Error(ERROR.INVALID_DATA_MODEL);
         }
     }
@@ -1487,7 +1495,7 @@ class Submission {
                 default:
                     return {...baseConditions, "$or": [
                         {"submitterID": _id},
-                        {"collaborators.collaboratorID": _id, "collaborators.permission": {$in: [COLLABORATOR_PERMISSIONS.CAN_EDIT, COLLABORATOR_PERMISSIONS.CAN_VIEW]}}]};
+                        {"collaborators.collaboratorID": _id, "collaborators.permission": {$in: [COLLABORATOR_PERMISSIONS.CAN_EDIT]}}]};
             }
         })();
     }
@@ -2065,10 +2073,8 @@ class Collaborators {
             .map(i => i?.collaboratorID) || [];
     }
 
-    // TODO check viewable collaborator exists
     #getViewableCollaborators(collaborators) {
         return collaborators
-            .filter(i => i?.permission === COLLABORATOR_PERMISSIONS.CAN_EDIT || i?.permission === COLLABORATOR_PERMISSIONS.CAN_VIEW);
     }
 
     #getEditableCollaborators(collaborators) {
