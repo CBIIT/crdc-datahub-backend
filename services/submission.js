@@ -951,7 +951,6 @@ class Submission {
         configString = configString.format(parameters);
         //insert data model file node properties into the string
         const latestDataModel = await this.fetchDataModelInfo();
-        configString = this.#replaceFileNodeProps(aSubmission, configString, latestDataModel);
         //insert token into the string
         configString = await this.#replaceToken(context, configString);
         /** test code: write yaml string to file for verification of output **/
@@ -964,7 +963,7 @@ class Submission {
      * API: getDataFileConfigs for submitter to upload data file from CLI
      * @param {*} params
      * @param {*} context
-     * @returns yaml string
+     * @returns data file config Object
      */
     async getDataFileConfigs(params, context) {
         verifySession(context)
