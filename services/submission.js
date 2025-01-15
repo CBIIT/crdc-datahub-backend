@@ -1054,19 +1054,6 @@ class Submission {
         return (userStudy)? true: false;
     }
 
-    #verifyStudyInUserStudies(user, studyId){
-        if(!user?.studies || user.studies.length === 0 )
-            return false;
-        const userStudy = (user.studies[0] instanceof Object)? user.studies.find(s=>s._id === studyId || s._id === "All"):
-            user.studies.find(s=> s === studyId || s === "All"); //backward compatible
-        return (userStudy)? true: false;
-    }
-
-    #replaceFileNodeProps(aSubmission, configString, dataModelInfo) {
-        const modelFileNodeInfo = this.#getModelFileNodeInfo(aSubmission, dataModelInfo);
-        return configString.format(modelFileNodeInfo);
-    }
-
     #getModelFileNodeInfo(aSubmission, dataModelInfo){
         const modelFileNodeInfos = Object.values(dataModelInfo?.[aSubmission.dataCommons]?.[DATA_MODEL_SEMANTICS]?.[DATA_MODEL_FILE_NODES]);
         const omit_DCF_prefix = dataModelInfo?.[aSubmission.dataCommons]?.['omit-DCF-prefix'];
