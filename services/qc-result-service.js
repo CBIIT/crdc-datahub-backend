@@ -108,6 +108,11 @@ class QcResultService{
                 }
             })
         }
+        pipeline.push({
+            $set:{
+                batchID: "$latestBatchID"
+            }
+        })
         // Create count pipeline
         let countPipeline = [...pipeline];
         countPipeline.push({
@@ -237,7 +242,8 @@ class QcResultService{
             $group:{
                 _id: {
                     title: "$issues.title",
-                    severity: "$issues.severity"
+                    severity: "$issues.severity",
+                    code: "$issues.code"
                 },
                 count: {
                     $sum: 1
@@ -250,6 +256,7 @@ class QcResultService{
                 _id: 0,
                     title: "$_id.title",
                 severity: "$_id.severity",
+                code: "$_id.code",
                 count: "$count"
             }
         });
