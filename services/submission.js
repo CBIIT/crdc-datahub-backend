@@ -951,13 +951,38 @@ class Submission {
         configString = configString.format(parameters);
         //insert data model file node properties into the string
         const latestDataModel = await this.fetchDataModelInfo();
-        configString = this.#replaceFileNodeProps(aSubmission, configString, latestDataModel);
         //insert token into the string
         configString = await this.#replaceToken(context, configString);
         /** test code: write yaml string to file for verification of output **/
         // write2file(configString, "logs/userUploaderConfig.yaml")
         /** end test code **/
         return configString;
+    }
+
+    /**
+     * API: getDataFileConfigs for submitter to upload data file from CLI
+     * @param {*} params
+     * @param {*} context
+     * @returns data file config Object
+     */
+    async getDataFileConfigs(params, context) {
+        verifySession(context)
+            .verifyInitialized();
+        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        if (!aSubmission) {
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
+        }
+        //only the submitter of current submission can download the configuration file for data file uploading
+        await verifyBatchPermission(this.userService, aSubmission, context.userInfo);
+
+        // data model file node properties into the string
+        const latestDataModel = await this.fetchDataModelInfo();
+        const fileConfig = this.#getModelFileNodeInfo(aSubmission, latestDataModel);
+        return {id_field: fileConfig["id-field"],
+            name_field: fileConfig["name-field"],
+            size_field: fileConfig["size-field"],
+            md5_field: fileConfig["md5-field"],
+            omit_DCF_prefix: fileConfig["omit-DCF-prefix"]};
     }
 
     /**
@@ -1026,15 +1051,15 @@ class Submission {
         return (userStudy)? true: false;
     }
 
-    #replaceFileNodeProps(aSubmission, configString, dataModelInfo){
+    #getModelFileNodeInfo(aSubmission, dataModelInfo){
         const modelFileNodeInfos = Object.values(dataModelInfo?.[aSubmission.dataCommons]?.[DATA_MODEL_SEMANTICS]?.[DATA_MODEL_FILE_NODES]);
         const omit_DCF_prefix = dataModelInfo?.[aSubmission.dataCommons]?.['omit-DCF-prefix'];
-        if (modelFileNodeInfos.length > 0){
+        if (modelFileNodeInfos.length > 0) {
             let modelFileNodeInfo = modelFileNodeInfos[0];
-            modelFileNodeInfo['omit-DCF-prefix'] = (!omit_DCF_prefix)?false:omit_DCF_prefix;
-            return configString.format(modelFileNodeInfo);
+            modelFileNodeInfo['omit-DCF-prefix'] = (!omit_DCF_prefix) ? false : omit_DCF_prefix;
+            return modelFileNodeInfo;
         }
-        else{
+        else {
             throw new Error(ERROR.INVALID_DATA_MODEL);
         }
     }
@@ -1424,7 +1449,7 @@ class Submission {
                 default:
                     return {...baseConditions, "$or": [
                         {"submitterID": _id},
-                        {"collaborators.collaboratorID": _id, "collaborators.permission": {$in: [COLLABORATOR_PERMISSIONS.CAN_EDIT, COLLABORATOR_PERMISSIONS.CAN_VIEW]}}]};
+                        {"collaborators.collaboratorID": _id, "collaborators.permission": {$in: [COLLABORATOR_PERMISSIONS.CAN_EDIT]}}]};
             }
         })();
     }
@@ -1985,7 +2010,6 @@ class Collaborators {
 
     #getViewableCollaborators(collaborators) {
         return collaborators
-            .filter(i => i?.permission === COLLABORATOR_PERMISSIONS.CAN_EDIT || i?.permission === COLLABORATOR_PERMISSIONS.CAN_VIEW);
     }
 
     #getEditableCollaborators(collaborators) {
