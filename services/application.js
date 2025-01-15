@@ -198,12 +198,7 @@ class Application {
             .verifyInitialized()
             .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.SUBMIT);
         const application = await this.getApplicationById(params._id);
-        let validStatus = [];
-        if (context?.userInfo?.role === USER.ROLES.SUBMITTER) {
-            validStatus = [NEW, IN_PROGRESS];
-        } else if (context?.userInfo?.role === USER.ROLES.FEDERAL_LEAD) {
-            validStatus = [INQUIRED, IN_PROGRESS];
-        }
+        const validStatus = [IN_PROGRESS, INQUIRED]; //updated based on new requirement.
         verifyApplication(application)
             .notEmpty()
             .state(validStatus);
@@ -257,7 +252,7 @@ class Application {
     async deleteApplication(document, context) {
         verifySession(context)
             .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.DELETE);
+            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
         const aApplication = await this.getApplicationById(document._id);
         const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED, INQUIRED];
         if (validApplicationStatus.includes(aApplication.status)) {
