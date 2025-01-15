@@ -6,51 +6,38 @@ const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 
-function verifySubmissionAction(submissionId, action){ 
+function verifySubmissionAction(action, submissionStatus, comment){
+    if (action === ACTIONS.REJECT) {
+        if(!comment || comment?.trim()?.length === 0) {
+            throw new Error(ERROR.VERIFY.REJECT_ACTION_COMMENT_REQUIRED);
+        }
+    }
 
-    return new SubmissionActionVerifier(submissionId, action);
+    const actionMap = submissionActionMap?.filter((a)=>a.action === action);
+    if(!actionMap || actionMap.length === 0)
+        throw new Error(`${ERROR.VERIFY.INVALID_SUBMISSION_ACTION} Action: ${action}`);
+
+    const {actionName, fromStatus, toStatus} = actionMap[0];
+    if (fromStatus.indexOf(submissionStatus) < 0) {
+        throw new Error(`${ERROR.VERIFY.INVALID_SUBMISSION_ACTION_STATUS} ${action}!`);
+    }
+    return new SubmissionActionVerifier(actionName, fromStatus, toStatus);
 }
 
 class SubmissionActionVerifier {
-    constructor(submissionId, action){
-        if(!submissionId) throw Error(ERROR.VERIFY.INVALID_SUBMISSION_ID);
-        this.submissionId = submissionId;
-        if(!action) throw Error("action is required!");
-        this.action = action;
+    constructor(actionName, fromStatus, toStatus){
+        this.actionName = actionName === ACTIONS.REJECT ? `${actionName}_${fromStatus}` : actionName;
+        this.fromStatus = fromStatus;
+        this.toStatus = toStatus;
     }
 
-    async exists(submissionCollection){
-        const submission = await submissionCollection.find(this.submissionId);
-        if (!submission || submission.length === 0) {
-            throw new Error(`${ERROR.INVALID_SUBMISSION_NOT_FOUND}, ${this.submissionId }!`);
-        }
-        this.submission = submission[0];
-        return this.submission;
-    }
-
-    isValidAction(comment){
-        if(this.action === ACTIONS.REJECT) {
-            this.action = `${this.action}_${this.submission.status}`;
-            if(!comment || comment?.trim()?.length === 0) {
-                throw new Error(ERROR.VERIFY.REJECT_ACTION_COMMENT_REQUIRED);
-            }
-        }
-
-        let actionMap = submissionActionMap?.filter((a)=>a.action === this.action);
-        if(!actionMap || actionMap.length === 0)
-            throw new Error(`${ERROR.VERIFY.INVALID_SUBMISSION_ACTION} ${this.action}!`);
-
-        this.actionMap = actionMap[0];
-        const fromStatus = this.submission.status;
-        if(this.actionMap.fromStatus.indexOf(fromStatus) < 0)
-            throw new Error(`${ERROR.VERIFY.INVALID_SUBMISSION_ACTION_STATUS} ${this.action}!`);
-        this.newStatus = this.actionMap.toStatus;
+    getNewStatus(){
+        return this.toStatus;
     }
 
     isValidSubmitAction(role, aSubmission, comment) {
-        if(this.action === ACTIONS.SUBMIT) {
+        if(this.actionName === ACTIONS.SUBMIT) {
             const isInvalidAdminStatus = !this.#isValidAdminStatus(role, aSubmission);
-            const isValidRole = [USER.ROLES.CURATOR, USER.ROLES.ORG_OWNER, USER.ROLES.SUBMITTER].includes(role);
             const validStatus = [VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING];
             // if deleted intention, allow it to be submitted without any data files. Ignore any value if meta-data only data file
             const ignoreFileValidationStatus = aSubmission?.dataType === DATA_TYPE.METADATA_ONLY;
@@ -58,7 +45,7 @@ class SubmissionActionVerifier {
                 && (ignoreFileValidationStatus || validStatus.includes(aSubmission?.fileValidationStatus)));
 
             if (isInvalidAdminStatus) {
-                if (ROLES.ADMIN === role ||(![ROLES.ADMIN].includes(role) && (!isValidRole || !isValidatedStatus))) {
+                if (ROLES.ADMIN === role ||(![ROLES.ADMIN].includes(role) && (!isValidatedStatus))) {
                     throw new Error(ERROR.VERIFY.INVALID_SUBMIT_ACTION);
                 }
             }
@@ -74,19 +61,6 @@ class SubmissionActionVerifier {
             return this.action === ACTIONS.SUBMIT && ROLES.ADMIN === role && isError && (!comment || comment?.trim()?.length === 0);
     }
 
-    inRoles(userInfo, aSubmission){
-        const role = userInfo?.role;
-        const roleIndex = this.actionMap.roles.indexOf(role);
-        if (roleIndex < 0)
-            throw new Error(`Invalid user role for the action: ${this.action}!`);
-
-        if (roleIndex >= 0 && role === ROLES.CURATOR) {
-            if (!userInfo?.dataCommons || !userInfo?.dataCommons?.includes(aSubmission?.dataCommons)) {
-                throw new Error(`Invalid user role for the action: ${this.action}!`);
-            }
-        }
-        return this.newStatus;
-    }
     // Private Function
     #isValidAdminStatus(role, aSubmission) {
         const isRoleAdmin = role === USER.ROLES.ADMIN;
@@ -101,26 +75,16 @@ class SubmissionActionVerifier {
     }
 }
 
-//actions: NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, RESUME
 const submissionActionMap = [
-    {action:ACTIONS.SUBMIT, fromStatus: [IN_PROGRESS, WITHDRAWN, REJECTED],
-        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:SUBMITTED},
-    {action:ACTIONS.RELEASE, fromStatus: [SUBMITTED], 
-        roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:RELEASED},
-    {action:ACTIONS.WITHDRAW, fromStatus: [SUBMITTED], 
-        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER,], toStatus:WITHDRAWN},
-    {action:ACTIONS.REJECT_SUBMIT, fromStatus: [SUBMITTED], 
-        roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:REJECTED},
-    {action:ACTIONS.REJECT_RELEASE, fromStatus: [RELEASED], 
-        roles: [ROLES.ADMIN, ROLES.DC_POC], toStatus:REJECTED},
-    {action:ACTIONS.COMPLETE, fromStatus: [RELEASED], 
-        roles: [ROLES.CURATOR,ROLES.ADMIN, ROLES.DC_POC], toStatus:COMPLETED},
-    {action:ACTIONS.CANCEL, fromStatus: [NEW,IN_PROGRESS, REJECTED],
-        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:CANCELED},
-    {action:ACTIONS.ARCHIVE, fromStatus: [COMPLETED], 
-        roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:ARCHIVED},
-    {action:ACTIONS.RESUME, fromStatus: [REJECTED], 
-            roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER], toStatus:IN_PROGRESS},
+    {action:ACTIONS.SUBMIT, fromStatus: [IN_PROGRESS, WITHDRAWN, REJECTED], toStatus:SUBMITTED},
+    {action:ACTIONS.RELEASE, fromStatus: [SUBMITTED], toStatus:RELEASED},
+    {action:ACTIONS.WITHDRAW, fromStatus: [SUBMITTED], toStatus:WITHDRAWN},
+    {action:ACTIONS.REJECT_SUBMIT, fromStatus: [SUBMITTED], toStatus:REJECTED},
+    {action:ACTIONS.REJECT_RELEASE, fromStatus: [RELEASED], toStatus:REJECTED},
+    {action:ACTIONS.COMPLETE, fromStatus: [RELEASED], toStatus:COMPLETED},
+    {action:ACTIONS.CANCEL, fromStatus: [NEW,IN_PROGRESS, REJECTED], toStatus:CANCELED},
+    {action:ACTIONS.ARCHIVE, fromStatus: [COMPLETED], toStatus:ARCHIVED},
+    {action:ACTIONS.RESUME, fromStatus: [REJECTED], toStatus:IN_PROGRESS},
 ];
 
 module.exports = {
