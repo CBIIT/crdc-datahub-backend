@@ -1450,7 +1450,7 @@ class Submission {
                 default:
                     return {...baseConditions, "$or": [
                         {"submitterID": _id},
-                        {"collaborators.collaboratorID": _id, "collaborators.permission": {$in: [COLLABORATOR_PERMISSIONS.CAN_EDIT, COLLABORATOR_PERMISSIONS.CAN_VIEW]}}]};
+                        {"collaborators.collaboratorID": _id, "collaborators.permission": {$in: [COLLABORATOR_PERMISSIONS.CAN_EDIT]}}]};
             }
         })();
     }
@@ -2011,7 +2011,6 @@ class Collaborators {
 
     #getViewableCollaborators(collaborators) {
         return collaborators
-            .filter(i => i?.permission === COLLABORATOR_PERMISSIONS.CAN_EDIT || i?.permission === COLLABORATOR_PERMISSIONS.CAN_VIEW);
     }
 
     #getEditableCollaborators(collaborators) {
