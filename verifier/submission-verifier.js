@@ -39,6 +39,11 @@ class SubmissionActionVerifier {
         return this.#toStatus;
     }
 
+    getPrevStatus() {
+        return this.#fromStatus;
+    }
+
+
     isValidSubmitAction(role, aSubmission, comment) {
         if(this.#actionName === ACTIONS.SUBMIT) {
             const isInvalidAdminStatus = !this.#isValidAdminStatus(role, aSubmission);

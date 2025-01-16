@@ -373,7 +373,7 @@ class Submission {
         }
         // verify if the action is valid based on current submission status
         const verifier = verifySubmissionAction(action, submission.status, comment);
-        const newStatus = verifier.getNewStatus(submission.status, comment);
+        const newStatus = verifier.getNewStatus();
 
         verifier.isValidSubmitAction(userInfo?.role, submission, params?.comment);
         await this.#isValidReleaseAction(action, submission?._id, submission?.studyID, submission?.crossSubmissionStatus);
@@ -404,7 +404,7 @@ class Submission {
         }
 
         //log event and send notification
-        const logEvent = SubmissionActionEvent.create(userInfo._id, userInfo.email, userInfo.IDP, submission._id, action, fromStatus, newStatus);
+        const logEvent = SubmissionActionEvent.create(userInfo._id, userInfo.email, userInfo.IDP, submission._id, action, verifier.getPrevStatus(), newStatus);
         await Promise.all([
             this.logCollection.insert(logEvent),
             submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService, this.emailParams, this.tier),
@@ -1429,8 +1429,8 @@ class Submission {
         const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
         // Has a Permission within the user-scope or a collaborator
         const isCreatePermission = (
-            (userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE) &&
-            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission)) ||
+            ((userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE) &&
+            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission))) ||
             // Collaborator
             collaboratorUserIDs.includes(userInfo?._id)
         );
@@ -1841,7 +1841,7 @@ const isUserScope = (userID, userRole, userStudies, userDataCommons, aSubmission
                 (typeof study === 'object' && study._id === "All") ||
                 (typeof study === 'string' && study === "All")
             );
-            return isAllStudy ? true : userStudies?.includes(aSubmission.studyID);
+            return isAllStudy ? true : Boolean(studies?.find((s) => s?._id === aSubmission.studyID));
         case ROLES.DATA_COMMONS_PERSONNEL:
             return userDataCommons.includes(aSubmission.dataCommons); // Access to assigned data commons.
         case ROLES.SUBMITTER:
