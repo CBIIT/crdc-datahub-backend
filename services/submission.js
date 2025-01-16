@@ -366,19 +366,22 @@ class Submission {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST, submissionID);
         }
         const userInfo = context.userInfo;
-        if (!this.#isPermittedSubmissionAction(userInfo, action, submission)) {
-            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
-        }
         // verify if the action is valid based on current submission status
         const verifier = verifySubmissionAction(action, submission.status, comment);
+        const collaboratorUserIDs = Collaborators.createCollaborators(submission?.collaborators).getEditableCollaboratorIDs();
+        // User has valid permissions or collaborator, valid user scope
+        if (!(verifier.isValidPermissions(action, userInfo?._id, userInfo?.permissions, collaboratorUserIDs)
+            && isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, submission))) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
         const newStatus = verifier.getNewStatus();
-
-        verifier.isValidSubmitAction(userInfo?.role, submission, params?.comment);
+        const isAdminAction = userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
+        verifier.isValidSubmitAction(isAdminAction, submission, params?.comment);
         await this.#isValidReleaseAction(action, submission?._id, submission?.studyID, submission?.crossSubmissionStatus);
         //update submission
         let events = submission.history || [];
-        // admin role and submit action only can leave a comment
-        const isCommentRequired = ACTIONS.REJECT === action || (!verifier.isSubmitActionCommentRequired(submission, userInfo?.role, params?.comment));
+        // admin permission and submit action only can leave a comment
+        const isCommentRequired = ACTIONS.REJECT === action || (!verifier.isSubmitActionCommentRequired(submission, isAdminAction, params?.comment));
         events.push(HistoryEventBuilder.createEvent(userInfo._id, newStatus, isCommentRequired ? params?.comment : null));
         submission = {
             ...submission,
@@ -686,6 +689,7 @@ class Submission {
         const userInfo = context.userInfo;
         if (!verifyValidationResultsReadPermissions(userInfo, aSubmission)) {
             // A different error message is required if a Federal Monitor is unauthorized
+            // TODO Peter roles?
             if (userInfo.role === ROLES.FEDERAL_MONITOR){
                 throw new Error(ERROR.INVALID_ROLE_STUDY);
             }
@@ -1405,7 +1409,7 @@ class Submission {
             isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission)
         );
         const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
-        const isCollaborator = (userInfo?.role === ROLES.SUBMITTER) && collaboratorUserIDs.includes(userInfo?._id);
+        const isCollaborator = collaboratorUserIDs.includes(userInfo?._id);
         return isCreatePermission || isCollaborator;
     }
 
@@ -1415,44 +1419,6 @@ class Submission {
             isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission)
         );
         return this.#isCreatePermission || isReviewPermission;
-    }
-
-    #isPermittedSubmissionAction(userInfo, submissionAction, aSubmission) {
-        const validPermissions = {
-            create: [ACTIONS.SUBMIT, ACTIONS.WITHDRAW, ACTIONS.CANCEL],
-            release: [ACTIONS.RELEASE, ACTIONS.REJECT],
-            // complete, reject after release
-            complete: [ACTIONS.COMPLETE, ACTIONS.REJECT]
-        }
-
-        const isCreateAction = validPermissions.create.includes(submissionAction);
-        const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
-        // Has a Permission within the user-scope or a collaborator
-        const isCreatePermission = (
-            ((userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE) &&
-            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission))) ||
-            // Collaborator
-            collaboratorUserIDs.includes(userInfo?._id)
-        );
-
-        // TODO submitted statues check
-        const isReleaseAction = validPermissions.release.includes(submissionAction);
-        const isReleasePermission = (
-            userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW) &&
-            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission)
-        );
-
-        // Complete, TODO Reject (after released) double check if the release status before reject
-        const isCompleteAction = validPermissions.complete.includes(submissionAction);
-        const isCompletePermission = (
-            userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CONFIRM) &&
-            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission)
-        );
-
-        const isAdminAction = submissionAction === ACTIONS.SUBMIT && userInfo?.role === ROLES.ADMIN
-            && userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.ADMIN_SUBMIT);
-
-        return (isCreateAction && isCreatePermission) || (isReleaseAction && isReleasePermission) || (isCompleteAction && isCompletePermission) || isAdminAction;
     }
 
     #listConditions(userInfo, status, organizationID, submissionName, dbGaPID, dataCommonsParams, submitterName){
