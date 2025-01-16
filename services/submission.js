@@ -325,7 +325,7 @@ class Submission {
         }
 
         const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
-        if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
+        if (await this.#isViewablePermission(context?.userInfo, aSubmission)) {
             // Store the timestamp for the inactive submission purpose
             if (conditionSubmitter) {
                 const everyReminderDays = this.#getEveryReminderQuery(this.emailParams.remindSubmissionDay, false);
