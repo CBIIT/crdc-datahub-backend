@@ -665,7 +665,7 @@ class Submission {
         }
 
         const userInfo = context.userInfo;
-        if ((userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW) &&
+        if (!(userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW) &&
             isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission))) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
