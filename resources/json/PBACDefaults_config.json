@@ -538,7 +538,7 @@
             "name": "View",
             "order": 1,
             "checked": true,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "submission_request:create",
@@ -546,7 +546,7 @@
             "name": "Create",
             "order": 2,
             "checked": false,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "submission_request:review",
@@ -554,7 +554,7 @@
             "name": "Review",
             "order": 4,
             "checked": false,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "submission_request:submit",
@@ -562,7 +562,7 @@
             "name": "Submit",
             "order": 3,
             "checked": false,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "submission_request:cancel",
@@ -586,7 +586,7 @@
             "name": "View",
             "order": 1,
             "checked": true,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "data_submission:create",
@@ -594,15 +594,15 @@
             "name": "Create",
             "order": 2,
             "checked": false,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "data_submission:review",
             "group": "Data Submission Permissions",
             "name": "Review",
             "order": 3,
-            "checked": true,
-            "disabled": true
+            "checked": false,
+            "disabled": false
           },
           {
             "_id": "data_submission:admin_submit",
@@ -610,15 +610,15 @@
             "name": "Admin Submit",
             "order": 4,
             "checked": true,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "data_submission:confirm",
             "group": "Data Submission Permissions",
             "name": "Confirm",
             "order": 5,
-            "checked": true,
-            "disabled": true
+            "checked": false,
+            "disabled": false
           },
           {
             "_id": "user:manage",
@@ -626,7 +626,7 @@
             "name": "Manage User",
             "order": 3,
             "checked": true,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "program:manage",
@@ -634,7 +634,7 @@
             "name": "Manage Program",
             "order": 1,
             "checked": true,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "study:manage",
@@ -642,7 +642,7 @@
             "name": "Manage Study",
             "order": 2,
             "checked": true,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "dashboard:view",
@@ -650,7 +650,7 @@
             "name": "View Operation Dashboard",
             "order": 4,
             "checked": true,
-            "disabled": true
+            "disabled": false
           }
         ],
         "notifications": [
@@ -676,7 +676,7 @@
             "name": "When review decision made",
             "order": 3,
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "submission_request:canceled",
@@ -772,7 +772,7 @@
             "name": "Request Access",
             "order": 1,
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "account:inactivated",
@@ -780,7 +780,7 @@
             "name": "Account Disabled",
             "order": 2,
             "checked": false,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "account:users_inactivated",
@@ -788,7 +788,7 @@
             "name": "Account Disabled (Consolidated)",
             "order": 3,
             "checked": true,
-            "disabled": true
+            "disabled": false
           }
         ]
       },
