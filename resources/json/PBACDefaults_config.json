@@ -609,7 +609,7 @@
             "group": "Data Submission Permissions",
             "name": "Admin Submit",
             "order": 4,
-            "checked": false,
+            "checked": true,
             "disabled": false
           },
           {
