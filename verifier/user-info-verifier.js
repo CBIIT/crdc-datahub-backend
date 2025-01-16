@@ -38,7 +38,7 @@ class UserInfoVerifier {
         return this;
     }
 }
-
+// TODO remove unused function
 async function verifySubmitter(userInfo, submissionID, submissions, userService){
     if (!submissionID) {
         throw new Error(ERROR.INVALID_SUBMISSION_EMPTY);
