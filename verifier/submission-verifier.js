@@ -11,17 +11,30 @@ function verifySubmissionAction(action, submissionStatus, comment){
         if(!comment || comment?.trim()?.length === 0) {
             throw new Error(ERROR.VERIFY.REJECT_ACTION_COMMENT_REQUIRED);
         }
+        const submittedStatues = submissionActionMap
+            .filter((s) => (s.action === ACTIONS.REJECT_SUBMIT))
+            .map((s) => s.fromStatus)[0];
+
+        const releasedStatues = submissionActionMap
+            .filter((s) => (s.action === ACTIONS.REJECT_RELEASE))
+            .map((s) => s.fromStatus)[0];
+
+        if (!(submissionStatus === RELEASED && releasedStatues.includes(submissionStatus)) &&
+            !(submissionStatus === SUBMITTED && submittedStatues.includes(submissionStatus))) {
+            throw new Error(`${ERROR.VERIFY.INVALID_SUBMISSION_ACTION_STATUS} ${action}!`);
+        }
     }
 
-    const actionMap = submissionActionMap?.filter((a)=>a.action === action);
-    if(!actionMap || actionMap.length === 0)
+    const newName = action === ACTIONS.REJECT ? `${action}_${submissionStatus}` : action;
+    const actionMap = submissionActionMap?.filter((a)=>a.action === newName);
+    if (!actionMap || actionMap.length === 0)
         throw new Error(`${ERROR.VERIFY.INVALID_SUBMISSION_ACTION} Action: ${action}`);
 
-    const {actionName, fromStatus, toStatus} = actionMap[0];
+    const {fromStatus, toStatus} = actionMap[0];
     if (fromStatus.indexOf(submissionStatus) < 0) {
         throw new Error(`${ERROR.VERIFY.INVALID_SUBMISSION_ACTION_STATUS} ${action}!`);
     }
-    return new SubmissionActionVerifier(actionName, submissionStatus, toStatus);
+    return new SubmissionActionVerifier(newName, submissionStatus, toStatus);
 }
 
 class SubmissionActionVerifier {
@@ -30,7 +43,7 @@ class SubmissionActionVerifier {
     #fromStatus;
     #toStatus;
     constructor(actionName, fromStatus, toStatus){
-        this.#actionName = actionName === ACTIONS.REJECT ? `${actionName}_${fromStatus}` : actionName;
+        this.#actionName = actionName;
         this.#fromStatus = fromStatus;
         this.#toStatus = toStatus;
     }
