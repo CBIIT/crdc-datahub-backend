@@ -1411,10 +1411,16 @@ class Submission {
     #isValidAction(userInfo, aSubmission) {
         const isReviewPermission = (
             userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW) &&
-            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission) &&
-            [SUBMITTED].includes(aSubmission?.status)
+            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission)
         );
-        return this.#isCreatePermission || isReviewPermission;
+        // TODO double check
+        // The "Data Submission - Create" permission is checked for pre- submission (before the submission is "Submitted").
+        // The "Data Submission - Review" permission is checked for pre- or post-submission.
+        const isPermitted = this.#isCreatePermission(userInfo, aSubmission);
+        if (isPermitted && SUBMITTED !== aSubmission?.status) {
+            throw new Error(ERROR.INVALID_SUBMISSION_STATUES);
+        }
+        return isPermitted || isReviewPermission;
     }
 
     #isPermittedSubmissionAction(userInfo, submissionAction, aSubmission) {

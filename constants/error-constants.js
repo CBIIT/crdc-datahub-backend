@@ -90,6 +90,7 @@ const ERROR = {
     INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS: "You do not have permission to view the validation results for this submission",
     INVALID_PERMISSION_TO_VIEW_NODE_TYPES: "You do not have permission to view the node types included in this submission",
     MISSING_SUBMISSION_FILE_ERRORS: "The file errors property is missing from the submission",
+    INVALID_SUBMISSION_STATUES: "You have the permission to validate, but the current submission status is not valid",
     // Token
     INVALID_TOKEN_EMPTY: "Invalid token: it is empty string!",
     INVALID_TOKEN_NO_USER_ID: 'Invalid token: no user id!',
