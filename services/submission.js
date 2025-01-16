@@ -143,11 +143,9 @@ class Submission {
 
     async listSubmissions(params, context) {
         verifySession(context)
-            .verifyInitialized();
+            .verifyInitialized()
+            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
         validateListSubmissionsParams(params);
-        if (context.userInfo.role === ROLES.USER) {
-            return {submissions: [], total: 0};
-        }
 
         const filterConditions = [
             // default filter for listing submissions
@@ -719,14 +717,15 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
-            throw new Error(ERROR.INVALID_ROLE);
-        }
-
         // if user role is Federal Monitor, only can access his studies.
         if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
             throw new Error(ERROR.INVALID_ROLE_STUDY);
         }
+
+        if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
+            throw new Error(ERROR.INVALID_ROLE);
+        }
+
         if(!["All", "New", "Error", "Passed", "Warning"].includes(status)){
             throw new Error(ERROR.INVALID_NODE_STATUS_NOT_FOUND);
         }
@@ -877,14 +876,15 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
+        // if user role is Federal Monitor, only can access his studies.
+        if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
+            throw new Error(ERROR.INVALID_ROLE_STUDY);
+        }
+
         if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
             throw new Error(ERROR.INVALID_ROLE);
         }
 
-         // if user role is Federal Monitor, only can access his studies.
-         if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
-            throw new Error(ERROR.INVALID_ROLE_STUDY);
-        }
         return await this.dataRecordService.NodeDetail(params.submissionID, params.nodeType, params.nodeID);
     }
     /**
@@ -901,14 +901,15 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
-            throw new Error(ERROR.INVALID_ROLE);
-        }
-
         // if user role is Federal Monitor, only can access his studies.
         if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
             throw new Error(ERROR.INVALID_ROLE_STUDY);
         }
+
+        if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
+            throw new Error(ERROR.INVALID_ROLE);
+        }
+
         if (!NODE_RELATION_TYPES.includes(params.relationship)){
             throw new Error(ERROR.INVALID_NODE_RELATIONSHIP);
         }
@@ -1474,19 +1475,12 @@ class Submission {
         return (() => {
             switch (role) {
                 case ROLES.ADMIN:
+                    return baseConditions;
                 case ROLES.FEDERAL_LEAD:
-                    // List all submissions
-                    return baseConditions;
-                case ROLES.CURATOR:
-                case ROLES.DC_POC:
-                    return {...baseConditions, dataCommons: {$in: dataCommons}};
-                case ROLES.ORG_OWNER:
-                    if (organization?.orgName) {
-                        return {...baseConditions, "organization.name": organization.orgName};
-                    }
-                    return baseConditions;
-                case ROLES.FEDERAL_MONITOR:
                     return {...baseConditions, studyID: {$in: studies || []}};
+                case ROLES.DATA_COMMONS_PERSONNEL:
+                    return {...baseConditions, dataCommons: {$in: dataCommons}};
+                // Submitter or User role
                 default:
                     return {...baseConditions, "$or": [
                         {"submitterID": _id},
