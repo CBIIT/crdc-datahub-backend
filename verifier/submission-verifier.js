@@ -21,7 +21,7 @@ function verifySubmissionAction(action, submissionStatus, comment){
     if (fromStatus.indexOf(submissionStatus) < 0) {
         throw new Error(`${ERROR.VERIFY.INVALID_SUBMISSION_ACTION_STATUS} ${action}!`);
     }
-    return new SubmissionActionVerifier(actionName, fromStatus, toStatus);
+    return new SubmissionActionVerifier(actionName, submissionStatus, toStatus);
 }
 
 class SubmissionActionVerifier {
