@@ -601,7 +601,7 @@
             "group": "Data Submission Permissions",
             "name": "Review",
             "order": 3,
-            "checked": true,
+            "checked": false,
             "disabled": true
           },
           {
@@ -609,7 +609,7 @@
             "group": "Data Submission Permissions",
             "name": "Admin Submit",
             "order": 4,
-            "checked": true,
+            "checked": false,
             "disabled": true
           },
           {
@@ -617,7 +617,7 @@
             "group": "Data Submission Permissions",
             "name": "Confirm",
             "order": 5,
-            "checked": true,
+            "checked": false,
             "disabled": true
           },
           {
