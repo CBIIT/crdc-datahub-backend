@@ -25,18 +25,22 @@ function verifySubmissionAction(action, submissionStatus, comment){
 }
 
 class SubmissionActionVerifier {
+    // Private variable
+    #actionName;
+    #fromStatus;
+    #toStatus;
     constructor(actionName, fromStatus, toStatus){
-        this.actionName = actionName === ACTIONS.REJECT ? `${actionName}_${fromStatus}` : actionName;
-        this.fromStatus = fromStatus;
-        this.toStatus = toStatus;
+        this.#actionName = actionName === ACTIONS.REJECT ? `${actionName}_${fromStatus}` : actionName;
+        this.#fromStatus = fromStatus;
+        this.#toStatus = toStatus;
     }
 
-    getNewStatus(){
-        return this.toStatus;
+    getNewStatus() {
+        return this.#toStatus;
     }
 
     isValidSubmitAction(role, aSubmission, comment) {
-        if(this.actionName === ACTIONS.SUBMIT) {
+        if(this.#actionName === ACTIONS.SUBMIT) {
             const isInvalidAdminStatus = !this.#isValidAdminStatus(role, aSubmission);
             const validStatus = [VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING];
             // if deleted intention, allow it to be submitted without any data files. Ignore any value if meta-data only data file
@@ -58,7 +62,7 @@ class SubmissionActionVerifier {
 
     isSubmitActionCommentRequired(aSubmission, role, comment) {
             const isError = [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus].includes(VALIDATION_STATUS.ERROR);
-            return this.actionName === ACTIONS.SUBMIT && ROLES.ADMIN === role && isError && (!comment || comment?.trim()?.length === 0);
+            return this.#actionName === ACTIONS.SUBMIT && ROLES.ADMIN === role && isError && (!comment || comment?.trim()?.length === 0);
     }
 
     // Private Function
