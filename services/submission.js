@@ -1456,7 +1456,7 @@ class Submission {
     }
 
     #listConditions(userInfo, status, organizationID, submissionName, dbGaPID, dataCommonsParams, submitterName){
-        const {_id, role, dataCommons, organization, studies} = userInfo;
+        const {_id, role, dataCommons, studies} = userInfo;
         const validSubmissionStatus = [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
             REJECTED, WITHDRAWN, DELETED];
 
@@ -1477,7 +1477,9 @@ class Submission {
                 case ROLES.ADMIN:
                     return baseConditions;
                 case ROLES.FEDERAL_LEAD:
-                    return {...baseConditions, studyID: {$in: studies || []}};
+                    const userStudies = Array.isArray(studies) && studies.length > 0 ? studies : [];
+                    const studyQuery = isAllStudy(userStudies) ? {} : {studyID: {$in: userStudies?.map((s)=> s?._id)}};
+                    return {...baseConditions, ...studyQuery};
                 case ROLES.DATA_COMMONS_PERSONNEL:
                     return {...baseConditions, dataCommons: {$in: dataCommons}};
                 // Submitter or User role
@@ -1830,11 +1832,7 @@ const isUserScope = (userID, userRole, userStudies, userDataCommons, aSubmission
         case ROLES.FEDERAL_LEAD:
             // TODO rework for the shared function for the all studies
             const studies = Array.isArray(userStudies) && userStudies.length > 0 ? userStudies : [];
-            const isAllStudy = studies.find(study =>
-                (typeof study === 'object' && study._id === "All") ||
-                (typeof study === 'string' && study === "All")
-            );
-            return isAllStudy ? true : Boolean(studies?.find((s) => s?._id === aSubmission.studyID));
+            return isAllStudy(studies) ? true : Boolean(studies?.find((s) => s?._id === aSubmission.studyID));
         case ROLES.DATA_COMMONS_PERSONNEL:
             return userDataCommons.includes(aSubmission.dataCommons); // Access to assigned data commons.
         case ROLES.SUBMITTER:
@@ -1842,6 +1840,14 @@ const isUserScope = (userID, userRole, userStudies, userDataCommons, aSubmission
         default:
             return false; // No access for other roles.
     }
+}
+
+const isAllStudy = (userStudies) => {
+    const studies = Array.isArray(userStudies) && userStudies.length > 0 ? userStudies : [];
+    return studies.find(study =>
+        (typeof study === 'object' && study._id === "All") ||
+        (typeof study === 'string' && study === "All")
+    );
 }
 
 // only one study name
