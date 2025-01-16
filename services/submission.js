@@ -256,29 +256,28 @@ class Submission {
 
     async listBatches(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyRole([USER.ROLES.ADMIN, USER.ROLES.DC_POC, USER.ROLES.CURATOR, USER.ROLES.FEDERAL_LEAD, USER.ROLES.ORG_OWNER, USER.ROLES.SUBMITTER, USER.ROLES.FEDERAL_MONITOR]);
+            .verifyInitialized();
         const aSubmission = await findByID(this.submissionCollection,params?.submissionID);
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
 
-        if (!this.#isViewablePermission(context, aSubmission)) {
-            throw new Error(ERROR.INVALID_ROLE);
-        }
-        params.collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getViewableCollaboratorIDs();
-
         // if user role is Federal Monitor, only can access his studies.
         if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
             throw new Error(ERROR.INVALID_ROLE_STUDY);
         }
+
+        if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
+            throw new Error(ERROR.INVALID_ROLE);
+        }
+        const collaborativeUsers =  await this.userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
+        params.collaboratorUserIDs = collaborativeUsers.map(u => u._id);
         return this.batchService.listBatches(params, context);
     }
 
   async getSubmission(params, context){
         verifySession(context)
-            .verifyInitialized()
-            .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.DC_POC, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN, ROLES.FEDERAL_MONITOR]);
+            .verifyInitialized();
         let aSubmission = await findByID(this.submissionCollection, params._id);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
@@ -320,9 +319,9 @@ class Submission {
           }
         }
 
-        const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
-        if (this.#isViewablePermission(context, aSubmission)) {
+        if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
             // Store the timestamp for the inactive submission purpose
+            const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
             if (conditionSubmitter) {
                 const everyReminderDays = this.#getEveryReminderQuery(this.emailParams.remindSubmissionDay, false);
                 const updateSubmission = await this.submissionCollection.findOneAndUpdate({_id: aSubmission?._id},
@@ -342,15 +341,11 @@ class Submission {
         throw new Error(ERROR.INVALID_ROLE);
     }
 
-    #isViewablePermission(context, aSubmission) {
-        const collaboratorIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getViewableCollaboratorIDs();
-        const conditionCollaborator = collaboratorIDs.includes(context?.userInfo?._id);
-        const conditionDCPOC = (context?.userInfo?.role === ROLES.DC_POC) && (context?.userInfo?.dataCommons.includes(aSubmission?.dataCommons));
-        const conditionCurator = (context?.userInfo?.role === ROLES.CURATOR) && (context?.userInfo?.dataCommons.includes(aSubmission?.dataCommons));
-        const conditionORGOwner = (context?.userInfo?.role === ROLES.ORG_OWNER) && (context?.userInfo?.organization?.orgID === aSubmission?.organization?._id);
-        const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
-        const conditionAdmin = [ROLES.FEDERAL_LEAD, ROLES.ADMIN, USER.ROLES.FEDERAL_MONITOR].includes(context?.userInfo?.role);
-        return conditionDCPOC || conditionCurator || conditionORGOwner || conditionSubmitter || conditionAdmin || conditionCollaborator;
+    async #isViewablePermission(userInfo, aSubmission) {
+        const collaborativeUsers =  await this.userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
+        const collaborativeUserIDs = collaborativeUsers.map(u => u._id);
+        const conditionCollaborator = collaborativeUserIDs.includes(userInfo?._id);
+        return isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission) || conditionCollaborator;
     }
 
     /**
@@ -541,10 +536,14 @@ class Submission {
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
-        isSubmissionPermitted(aSubmission, context?.userInfo);
+
+        if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
+            throw new Error(ERROR.INVALID_ROLE);
+        }
+        // TODO double check
         // if user role is Federal Monitor, only can access his studies.
         if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
-            throw new Error(ERROR.INVALID_ROLE_STUDY);
+            throw new Error(ERROR.INVALID_STATS_SUBMISSION_PERMISSION);
         }
         const [orphanedFiles, submissionStats] = await this.dataRecordService.submissionStats(aSubmission);
         const isNodeError = await this.dataRecordService.isNodeErrorsBySubmissionID(aSubmission?._id);
@@ -646,7 +645,7 @@ class Submission {
         }
         return await this.dataRecordService.exportMetadata(params._id);
     }
-
+    // TODO check no roles permission
     async submissionCrossValidationResults(params, context){
         verifySession(context)
             .verifyInitialized()
@@ -665,15 +664,14 @@ class Submission {
 
     async listSubmissionNodeTypes(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.DC_POC, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN, ROLES.FEDERAL_MONITOR]);
+            .verifyInitialized();
         const submissionID = params?._id;
         const aSubmission = await findByID(this.submissionCollection, submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        if (!this.#isViewablePermission(context, aSubmission)) {
+        if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
             throw new Error(ERROR.INVALID_ROLE);
         }
 
@@ -695,8 +693,7 @@ class Submission {
      */
     async listSubmissionNodes(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.DC_POC, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN, ROLES.FEDERAL_MONITOR]);
+            .verifyInitialized();
         const {
             submissionID, 
             nodeType, 
@@ -712,7 +709,7 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        if (!this.#isViewablePermission(context, aSubmission)) {
+        if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
             throw new Error(ERROR.INVALID_ROLE);
         }
 
@@ -863,15 +860,14 @@ class Submission {
      */
     async getNodeDetail(params, context){
         verifySession(context)
-            .verifyInitialized()
-            .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.DC_POC, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN, ROLES.FEDERAL_MONITOR]);
+            .verifyInitialized();
 
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        if (!this.#isViewablePermission(context, aSubmission)) {
+        if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
             throw new Error(ERROR.INVALID_ROLE);
         }
 
@@ -889,14 +885,13 @@ class Submission {
      */
     async getRelatedNodes(params, context){
         verifySession(context)
-            .verifyInitialized()
-            .verifyRole([ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.DC_POC, ROLES.FEDERAL_LEAD, ROLES.CURATOR, ROLES.ADMIN, ROLES.FEDERAL_MONITOR]);
+            .verifyInitialized();
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        if (!this.#isViewablePermission(context, aSubmission)) {
+        if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
             throw new Error(ERROR.INVALID_ROLE);
         }
 
@@ -977,6 +972,7 @@ class Submission {
      * @param {*} context 
      * @returns 
      */
+    // TODO check verify role
     async editSubmissionCollaborators(params, context) {
         verifySession(context)
             .verifyInitialized()
@@ -1256,7 +1252,7 @@ class Submission {
         }
         return success;
     }
-
+    // TODO check role
     async listPotentialCollaborators(params, context) {
         verifySession(context)
             .verifyInitialized()
@@ -1422,41 +1418,29 @@ class Submission {
         // Has a Permission within the user-scope or a collaborator
         const isCreatePermission = (
             (userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE) &&
-            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, {
-                studyID: aSubmission?.studyID,
-                dataCommons: aSubmission?.dataCommons,
-                submitterID: userInfo?._id,
-            })) ||
+            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission)) ||
             // Collaborator
-            userInfo?.role === ROLES.SUBMITTER && collaboratorUserIDs.includes(userInfo?._id)
+            collaboratorUserIDs.includes(userInfo?._id)
         );
 
         // TODO submitted statues check
         const isReleaseAction = validPermissions.release.includes(submissionAction);
         const isReleasePermission = (
             userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW) &&
-            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, {
-                studyID: aSubmission?.studyID,
-                dataCommons: aSubmission?.dataCommons,
-                submitterID: userInfo?._id,
-            })
+            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission)
         );
 
         // Complete, TODO Reject (after released)
         const isCompleteAction = validPermissions.complete.includes(submissionAction);
         const isCompletePermission = (
             userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CONFIRM) &&
-            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, {
-                studyID: aSubmission?.studyID,
-                dataCommons: aSubmission?.dataCommons,
-                submitterID: userInfo?._id,
-            })
+            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission)
         );
 
-        const isAdminAction = submissionAction === ACTIONS.SUBMIT && userInfo?.role === ADMIN
+        const isAdminAction = submissionAction === ACTIONS.SUBMIT && userInfo?.role === ROLES.ADMIN
             && userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.ADMIN_SUBMIT);
 
-        return (isCreateAction && !isCreatePermission) || (isReleaseAction && !isReleasePermission) || (isCompleteAction && !isCompletePermission) || isAdminAction;
+        return (isCreateAction && isCreatePermission) || (isReleaseAction && isReleasePermission) || (isCompleteAction && isCompletePermission) || isAdminAction;
     }
 
     #listConditions(userInfo, status, organizationID, submissionName, dbGaPID, dataCommonsParams, submitterName){
@@ -1832,7 +1816,7 @@ const sendEmails = {
     }
 }
 
-const isUserScope = (userRole, userStudies, userDataCommons, aSubmission) => {
+const isUserScope = (userID, userRole, userStudies, userDataCommons, aSubmission) => {
     if (!aSubmission)
         return false;
     switch (userRole) {
@@ -1845,7 +1829,7 @@ const isUserScope = (userRole, userStudies, userDataCommons, aSubmission) => {
         case ROLES.DATA_COMMONS_PERSONNEL:
             return userDataCommons.includes(aSubmission.dataCommons); // Access to assigned data commons.
         case ROLES.SUBMITTER:
-            return userDataCommons.includes(aSubmission.submitterID); // Access to own submissions.
+            return aSubmission.submitterID === userID // Access to own submissions.
         default:
             return false; // No access for other roles.
     }
@@ -1877,20 +1861,18 @@ const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
     if (!aSubmission) {
         throw new Error(ERROR.SUBMISSION_NOT_EXIST);
     }
-    const isSubmitter = aSubmission?.submitterID === userInfo?._id;
-    const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
-    const isCollaborator = collaboratorUserIDs.includes(userInfo?._id);
-    if (isSubmitter || isCollaborator) {
-        return;
+    const collaborativeUsers =  await this.userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
+    const collaborativeUserIDs = collaborativeUsers.map(u => u._id);
+    const isCreatePermission = (
+        (userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE) &&
+            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission)) ||
+        // Collaborator
+        collaborativeUserIDs.includes(userInfo?._id)
+    );
+
+    if (!isCreatePermission) {
+        throw new Error(ERROR.INVALID_BATCH_PERMISSION);
     }
-    // verify submission's organization owner by an organization name
-    const organizationOwners = await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name);
-    for (const aUser of organizationOwners) {
-        if (isPermittedUser(aUser, userInfo)) {
-            return;
-        }
-    }
-    throw new Error(ERROR.INVALID_BATCH_PERMISSION);
 }
 
 const isPermittedUser = (aTargetUser, userInfo) => {
@@ -1930,22 +1912,6 @@ function validateListSubmissionsParams (params) {
     if (!validStatus.has(params.status)) {
         throw new Error(ERROR.LIST_SUBMISSION_INVALID_STATUS_FILTER);
     }
-}
-
-const isSubmissionPermitted = (aSubmission, userInfo) => {
-    const userRole = userInfo?.role;
-    const allSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.FEDERAL_MONITOR];
-    const isOrgOwner = userRole === USER.ROLES.ORG_OWNER && userInfo?.organization?.orgID === aSubmission?.organization?._id;
-    const isSubmitter = userRole === USER.ROLES.SUBMITTER && userInfo?._id === aSubmission?.submitterID;
-    const isPOC = userRole === USER.ROLES.DC_POC && userInfo?.dataCommons.includes(aSubmission?.dataCommons);
-    const isCurator = userRole === USER.ROLES.CURATOR && userInfo?.dataCommons.includes(aSubmission?.dataCommons);
-    const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getViewableCollaboratorIDs();
-    const isCollaborator = collaboratorUserIDs.includes(userInfo?._id);
-
-    if (allSubmissionRoles.includes(userRole) || isOrgOwner || isSubmitter || isPOC || isCurator || isCollaborator) {
-        return;
-    }
-    throw new Error(ERROR.INVALID_STATS_SUBMISSION_PERMISSION);
 }
 
 class ValidationRecord {
@@ -2063,18 +2029,9 @@ class Collaborators {
             .map(i => i?.collaboratorName) || [];
     }
 
-    getViewableCollaboratorIDs() {
-        return this.#getViewableCollaborators(this.collaborators)
-            .map(i => i?.collaboratorID) || [];
-    }
-
     getEditableCollaboratorIDs() {
         return this.#getEditableCollaborators(this.collaborators)
             .map(i => i?.collaboratorID) || [];
-    }
-
-    #getViewableCollaborators(collaborators) {
-        return collaborators
     }
 
     #getEditableCollaborators(collaborators) {
