@@ -38,37 +38,6 @@ class UserInfoVerifier {
         return this;
     }
 }
-// TODO remove unused function
-async function verifySubmitter(userInfo, submissionID, submissions, userService){
-    if (!submissionID) {
-        throw new Error(ERROR.INVALID_SUBMISSION_EMPTY);
-    }
-    const result = await submissions.find(submissionID);
-    if (!result || result.length === 0) {
-        throw new Error(`${ERROR.INVALID_SUBMISSION_NOT_FOUND}, ${submissionID}!`);
-    }
-    const submission = result[0]
-    //3. verify if user is submitter or organization owner
-    if(userInfo._id !== submission.submitterID) {
-        const org = submission.organization;
-        const orgName = (typeof org == "string")? org: org.name;
-        //check if the user is org owner of submitter
-        const orgOwners = await userService.getOrgOwnerByOrgName(orgName);
-        if(!orgOwners || orgOwners.length === 0) {
-            throw new Error(`${ERROR.INVALID_SUBMITTER}, ${submissionID}!`);
-        }
-        const matchedOwner = orgOwners.filter(o => o._id === userInfo._id );
-        if(!matchedOwner || matchedOwner.length === 0){
-            throw new Error(`${ERROR.INVALID_SUBMITTER}, ${submissionID}!`);
-        }
-    }
-    //4. verify submission rootPath
-    if(!submission.rootPath)
-        throw new Error(`${ERROR.VERIFY.EMPTY_ROOT_PATH}, ${submissionID}!`);
-
-    return submission;
-}
 module.exports = {
-    verifySession,
-    verifySubmitter
+    verifySession
 };
