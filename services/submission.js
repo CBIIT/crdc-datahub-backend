@@ -1843,10 +1843,6 @@ const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
     }
 }
 
-const isPermittedUser = (aTargetUser, userInfo) => {
-    return aTargetUser?.email === userInfo.email && aTargetUser?.IDP === userInfo.IDP
-}
-
 function validateCreateSubmissionParams (params, allowedDataCommons, hiddenDataCommons, intention, dataType, userInfo) {
     if (!params.name || params?.name?.trim().length === 0 || !params.studyID || !params.dataCommons) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
