@@ -92,10 +92,15 @@ class Submission {
         const intention = [INTENTION.UPDATE, INTENTION.DELETE].find((i) => i.toLowerCase() === params?.intention.toLowerCase());
         const dataType = [DATA_TYPE.METADATA_AND_DATA_FILES, DATA_TYPE.METADATA_ONLY].find((i) => i.toLowerCase() === params?.dataType.toLowerCase());
         validateCreateSubmissionParams(params, this.allowedDataCommons, this.hiddenDataCommons, intention, dataType, context?.userInfo);
+
+        const user = await this.userService.userCollection.find(context.userInfo._id);
+        if (!user[0]?.studies || user[0].studies.length === 0){
+            throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
+        }
         // check if user has all studies
-        const allStudy = (userInfo.studies[0] instanceof Object)? userInfo.studies.find((study) => study._id === "All") : userInfo.studies.find((study) => study === "All");
+        const allStudy = (user[0].studies[0] instanceof Object)? user[0].studies.find((study) => study._id === "All") : user[0].studies.find((study) => study === "All");
         if (!allStudy) {
-            const study = (userInfo.studies[0] instanceof Object)? userInfo.studies.find((study) => study._id === params.studyID) : userInfo.studies.find((study) => study === params.studyID);
+            const study = (user[0].studies[0] instanceof Object)? user[0].studies.find((study) => study._id === params.studyID) : user[0].studies.find((study) => study === params.studyID);
             if (!study) {
                 throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
             }
@@ -118,7 +123,7 @@ class Submission {
         const program = (programs && programs.length > 0) ? programs[0] : null;
 
         const newSubmission = DataSubmission.createSubmission(
-            params.name, userInfo, params.dataCommons, params.studyID, approvedStudy?.dbGaPID, program, modelVersion, intention, dataType, approvedStudy, this.submissionBucketName);
+            params.name, context.userInfo, params.dataCommons, params.studyID, approvedStudy?.dbGaPID, program, modelVersion, intention, dataType, approvedStudy, this.submissionBucketName);
         const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
@@ -319,9 +324,9 @@ class Submission {
           }
         }
 
+        const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
         if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
             // Store the timestamp for the inactive submission purpose
-            const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
             if (conditionSubmitter) {
                 const everyReminderDays = this.#getEveryReminderQuery(this.emailParams.remindSubmissionDay, false);
                 const updateSubmission = await this.submissionCollection.findOneAndUpdate({_id: aSubmission?._id},
@@ -358,7 +363,7 @@ class Submission {
         verifySession(context)
             .verifyInitialized()
         const {submissionID, action, comment} = params;
-        const submission = await findByID(this.submissionCollection, submissionID);
+        let submission = await findByID(this.submissionCollection, submissionID);
         if (!submission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST, submissionID);
         }
@@ -370,22 +375,22 @@ class Submission {
         const verifier = verifySubmissionAction(action, submission.status, comment);
         const newStatus = verifier.getNewStatus(submission.status, comment);
 
-        verifier.isValidSubmitAction(userInfo?.role, submission, comment);
+        verifier.isValidSubmitAction(userInfo?.role, submission, params?.comment);
         await this.#isValidReleaseAction(action, submission?._id, submission?.studyID, submission?.crossSubmissionStatus);
         //update submission
-        const events = submission.history || [];
+        let events = submission.history || [];
         // admin role and submit action only can leave a comment
-        const isCommentRequired = ACTIONS.REJECT === action || (!verifier.isSubmitActionCommentRequired(submission, userInfo?.role, comment));
-        events.push(HistoryEventBuilder.createEvent(userInfo._id, newStatus, isCommentRequired ? comment : null));
-        const updated = await this.submissionCollection.update({
+        const isCommentRequired = ACTIONS.REJECT === action || (!verifier.isSubmitActionCommentRequired(submission, userInfo?.role, params?.comment));
+        events.push(HistoryEventBuilder.createEvent(userInfo._id, newStatus, isCommentRequired ? params?.comment : null));
+        submission = {
             ...submission,
             status: newStatus,
             history: events,
             updatedAt: getCurrentTime(),
             reviewComment: submission?.reviewComment || []
-        });
+        }
+        const updated = await this.submissionCollection.update(submission);
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
-            console.error(ERROR.UPDATE_SUBMISSION_ERROR, `SubmissionID: ${submissionID}`);
             throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
         }
         // Send complete action
@@ -398,10 +403,10 @@ class Submission {
             completePromise.push(this.#sendCompleteMessage({type: GENERATE_DCF_MANIFEST, submissionID}, submissionID));
         }
 
+        //log event and send notification
+        const logEvent = SubmissionActionEvent.create(userInfo._id, userInfo.email, userInfo.IDP, submission._id, action, fromStatus, newStatus);
         await Promise.all([
-            this.logCollection.insert(
-                SubmissionActionEvent.create(userInfo._id, userInfo.email, userInfo.IDP, submission._id, action, submission.status, newStatus)
-            ),
+            this.logCollection.insert(logEvent),
             submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService, this.emailParams, this.tier),
             this.#archiveCancelSubmission(action, submissionID, submission?.bucketName, submission?.rootPath)
         ].concat(completePromise));
@@ -536,14 +541,15 @@ class Submission {
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
+        // if user role is Federal Monitor, only can access his studies.
+        if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
+            throw new Error(ERROR.INVALID_ROLE_STUDY);
+        }
 
         if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
             throw new Error(ERROR.INVALID_ROLE);
         }
-        // if user role is Federal Monitor, only can access his studies.
-        if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
-            throw new Error(ERROR.INVALID_STATS_SUBMISSION_PERMISSION);
-        }
+
         const [orphanedFiles, submissionStats] = await this.dataRecordService.submissionStats(aSubmission);
         const isNodeError = await this.dataRecordService.isNodeErrorsBySubmissionID(aSubmission?._id);
 
@@ -614,6 +620,35 @@ class Submission {
             }
         }
         return result;
+    }
+    /**
+     * API to export dataRecords of the submission to tsv file by async process
+     * @param {*} params
+     * @param {*} context
+     * @returns AsyncProcessResult
+     */
+    // TODO remove
+    async exportSubmission(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyRole([ROLES.ADMIN, ROLES.CURATOR, ROLES.SUBMITTER]);
+        const aSubmission = await findByID(this.submissionCollection, params._id);
+        if(!aSubmission){
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
+        }
+        const userInfo = context.userInfo;
+        const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
+        const isCollaborator = collaboratorUserIDs.includes(userInfo._id);
+        const isPermitted = (this.userService.isAdmin(userInfo.role) ||
+            aSubmission?.submitterID === userInfo?._id || // Submitter
+            (userInfo.role === ROLES.CURATOR && userInfo?.dataCommons.includes(aSubmission?.dataCommons)) || isCollaborator)
+        if (!isPermitted) {
+            throw new Error(ERROR.INVALID_EXPORT_METADATA);
+        }
+        if (aSubmission.status !== SUBMITTED) {
+            throw new Error(`${ERROR.VERIFY.INVALID_SUBMISSION_ACTION_STATUS} ${EXPORT}!`);
+        }
+        return await this.dataRecordService.exportMetadata(params._id);
     }
 
     async submissionCrossValidationResults(params, context){
@@ -1259,6 +1294,16 @@ class Submission {
         const logEvent = DeleteRecordEvent.create(userInfo._id, userInfo.email, userName, submissionID, nodeType, nodeIDs);
         await this.logCollection.insert(logEvent);
     }
+    // TODO remove
+    async #isValidPermission(userInfo, aSubmission) {
+        const orgOwners = await this.userService.getOrgOwnerByOrgName(aSubmission?.organization?.name) || [];
+        const isOrgOwners = orgOwners.some((aUser) => isPermittedUser(aUser, userInfo));
+        const isSubmitter = aSubmission?.submitterID === userInfo?._id;
+        const isDataCurator = ROLES.CURATOR === userInfo?.role && userInfo?.dataCommons.includes(aSubmission?.dataCommons);
+        const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
+        const isCollaborator = collaboratorUserIDs.includes(userInfo?._id);
+        return this.userService.isAdmin(userInfo?.role) || isOrgOwners || isSubmitter || isDataCurator || isCollaborator;
+    }
 
     async #requestDeleteDataRecords(message, queueName, deDuplicationId, submissionID) {
         try {
@@ -1363,7 +1408,6 @@ class Submission {
         return isCreatePermission || isCollaborator;
     }
 
-
     #isValidAction(userInfo, aSubmission) {
         const isReviewPermission = (
             userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW) &&
@@ -1398,7 +1442,7 @@ class Submission {
             isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission)
         );
 
-        // Complete, TODO Reject (after released)
+        // Complete, TODO Reject (after released) double check if the release status before reject
         const isCompleteAction = validPermissions.complete.includes(submissionAction);
         const isCompletePermission = (
             userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CONFIRM) &&
@@ -1791,9 +1835,13 @@ const isUserScope = (userID, userRole, userStudies, userDataCommons, aSubmission
         case ROLES.ADMIN:
             return true; // Admin has access to all data submissions.
         case ROLES.FEDERAL_LEAD:
-            // TODO The user-all-studies data needs to be cleaned as it contains multiple structures; [study document, study document], ['All'], [{_id: "All", studyName: "All"}]
-            const allStudy = (userStudies[0] instanceof Object) ? userStudies.find((study) => study._id === "All") : userStudies.find((study) => study === "All");
-            return allStudy ? true : userStudies.includes(aSubmission.studyID);
+            // TODO rework for the shared function for the all studies
+            const studies = Array.isArray(userStudies) && userStudies.length > 0 ? userStudies : [];
+            const isAllStudy = studies.find(study =>
+                (typeof study === 'object' && study._id === "All") ||
+                (typeof study === 'string' && study === "All")
+            );
+            return isAllStudy ? true : userStudies?.includes(aSubmission.studyID);
         case ROLES.DATA_COMMONS_PERSONNEL:
             return userDataCommons.includes(aSubmission.dataCommons); // Access to assigned data commons.
         case ROLES.SUBMITTER:
@@ -1842,6 +1890,10 @@ const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
         throw new Error(ERROR.INVALID_BATCH_PERMISSION);
     }
 }
+// TODO remove
+const isPermittedUser = (aTargetUser, userInfo) => {
+    return aTargetUser?.email === userInfo.email && aTargetUser?.IDP === userInfo.IDP
+}
 
 function validateCreateSubmissionParams (params, allowedDataCommons, hiddenDataCommons, intention, dataType, userInfo) {
     if (!params.name || params?.name?.trim().length === 0 || !params.studyID || !params.dataCommons) {
@@ -1876,6 +1928,22 @@ function validateListSubmissionsParams (params) {
     if (!validStatus.has(params.status)) {
         throw new Error(ERROR.LIST_SUBMISSION_INVALID_STATUS_FILTER);
     }
+}
+// TODO remove
+const isSubmissionPermitted = (aSubmission, userInfo) => {
+    const userRole = userInfo?.role;
+    const allSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.FEDERAL_MONITOR];
+    const isOrgOwner = userRole === USER.ROLES.ORG_OWNER && userInfo?.organization?.orgID === aSubmission?.organization?._id;
+    const isSubmitter = userRole === USER.ROLES.SUBMITTER && userInfo?._id === aSubmission?.submitterID;
+    const isPOC = userRole === USER.ROLES.DC_POC && userInfo?.dataCommons.includes(aSubmission?.dataCommons);
+    const isCurator = userRole === USER.ROLES.CURATOR && userInfo?.dataCommons.includes(aSubmission?.dataCommons);
+    const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getViewableCollaboratorIDs();
+    const isCollaborator = collaboratorUserIDs.includes(userInfo?._id);
+
+    if (allSubmissionRoles.includes(userRole) || isOrgOwner || isSubmitter || isPOC || isCurator || isCollaborator) {
+        return;
+    }
+    throw new Error(ERROR.INVALID_STATS_SUBMISSION_PERMISSION);
 }
 
 class ValidationRecord {
@@ -1992,10 +2060,19 @@ class Collaborators {
         return this.collaborators
             .map(i => i?.collaboratorName) || [];
     }
+    // TODO remove
+    getViewableCollaboratorIDs() {
+        return this.#getViewableCollaborators(this.collaborators)
+            .map(i => i?.collaboratorID) || [];
+    }
 
     getEditableCollaboratorIDs() {
         return this.#getEditableCollaborators(this.collaborators)
             .map(i => i?.collaboratorID) || [];
+    }
+    // TODO remove
+    #getViewableCollaborators(collaborators) {
+        return collaborators
     }
 
     #getEditableCollaborators(collaborators) {
