@@ -39,6 +39,8 @@ const {apiAuthorization, extractAPINames, PUBLIC} = require("./api-authorization
 const {QcResultService} = require("../services/qc-result-service");
 const {UserService} = require("../services/user");
 const sanitizeHtml = require("sanitize-html");
+const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+const ERROR = require("../constants/error-constants");
 const public_api_list = extractAPINames(schema, PUBLIC)
 const INACTIVE_SUBMISSION_DAYS = "Inactive_Submission_Notify_Days";
 let root;
@@ -127,7 +129,7 @@ dbConnector.connect().then(async () => {
         listSubmissions:  submissionService.listSubmissions.bind(submissionService),
         getSubmission:  submissionService.getSubmission.bind(submissionService),
         createTempCredentials: async (params, context)=> {
-            await submissionService.verifySubmitter(params?.submissionID, context);
+            await submissionService.verifySubmitter(params?.submissionID, context?.userInfo);
             return awsService.createTempCredentials(params?.submissionID);
         },
         submissionAction: submissionService.submissionAction.bind(submissionService),

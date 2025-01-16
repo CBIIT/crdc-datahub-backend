@@ -540,7 +540,6 @@ class Submission {
         if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
             throw new Error(ERROR.INVALID_ROLE);
         }
-        // TODO double check
         // if user role is Federal Monitor, only can access his studies.
         if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
             throw new Error(ERROR.INVALID_STATS_SUBMISSION_PERMISSION);
@@ -616,40 +615,10 @@ class Submission {
         }
         return result;
     }
-    /**
-     * API to export dataRecords of the submission to tsv file by async process
-     * @param {*} params 
-     * @param {*} context 
-     * @returns AsyncProcessResult
-     */
-    // TODO this is unused. Should be deleted
-    async exportSubmission(params, context) {
-        verifySession(context)
-            .verifyInitialized()
-            .verifyRole([ROLES.ADMIN, ROLES.CURATOR, ROLES.SUBMITTER]);
-        const aSubmission = await findByID(this.submissionCollection, params._id);
-        if(!aSubmission){
-            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
-        }
-        const userInfo = context.userInfo;
-        const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
-        const isCollaborator = collaboratorUserIDs.includes(userInfo._id);
-        const isPermitted = (this.userService.isAdmin(userInfo.role) ||
-            aSubmission?.submitterID === userInfo?._id || // Submitter
-            (userInfo.role === ROLES.CURATOR && userInfo?.dataCommons.includes(aSubmission?.dataCommons)) || isCollaborator)
-        if (!isPermitted) {
-            throw new Error(ERROR.INVALID_EXPORT_METADATA);
-        }
-        if (aSubmission.status !== SUBMITTED) {
-            throw new Error(`${ERROR.VERIFY.INVALID_SUBMISSION_ACTION_STATUS} ${EXPORT}!`);
-        }
-        return await this.dataRecordService.exportMetadata(params._id);
-    }
-    // TODO check no roles permission
+
     async submissionCrossValidationResults(params, context){
         verifySession(context)
             .verifyInitialized()
-            .verifyRole([ROLES.ADMIN, ROLES.CURATOR, ROLES.FEDERAL_MONITOR])
 
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         if(!aSubmission){
@@ -658,6 +627,12 @@ class Submission {
         // if user role is Federal Monitor, only can access his studies.
         if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
             throw new Error(ERROR.INVALID_ROLE_STUDY);
+        }
+
+        const userInfo = context.userInfo;
+        if ((userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW) &&
+            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission))) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         return this.dataRecordService.submissionCrossValidationResults(params.submissionID, params.nodeTypes, params.batchIDs, params.severities, params.first, params.offset, params.orderBy, params.sortDirection);
     }
@@ -972,11 +947,9 @@ class Submission {
      * @param {*} context 
      * @returns 
      */
-    // TODO check verify role
     async editSubmissionCollaborators(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyRole([ ROLES.ORG_OWNER, ROLES.SUBMITTER]);
+            .verifyInitialized();
         const {
             submissionID,
             collaborators, 
@@ -991,6 +964,7 @@ class Submission {
         if (!aSubmission.collaborators) 
             aSubmission.collaborators = [];
 
+        this.#verifySubmissionCreator(context?.userInfo, aSubmission);
         // validate collaborators one by one.
         for (const collaborator of collaborators) {
             //find a submitter with the collaborator ID
@@ -1252,36 +1226,31 @@ class Submission {
         }
         return success;
     }
-    // TODO check role
+
     async listPotentialCollaborators(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyRole([ROLES.ADMIN, ROLES.CURATOR, ROLES.ORG_OWNER, ROLES.SUBMITTER]);
-
+            .verifyInitialized();
         const aSubmission = await findByID(this.submissionCollection, params?.submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
+        this.#verifySubmissionCreator(context?.userInfo, aSubmission);
         // find Collaborators with aSubmission.studyID
         return await this.userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
     }
 
-    async verifySubmitter(submissionID, context) {
+    async verifySubmitter(submissionID, userInfo) {
         const aSubmission = await findByID(this.submissionCollection, submissionID);
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
-
-        const userInfo = context?.userInfo;
-        const orgOwners = await this.userService.getOrgOwnerByOrgName(aSubmission?.organization?.name) || [];
-        const isOrgOwners = orgOwners.some((aUser) => isPermittedUser(aUser, userInfo));
-        const isSubmitter = aSubmission?.submitterID === userInfo?._id;
-        const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
-        const isCollaborator = collaboratorUserIDs.includes(userInfo?._id);
-
-        const isPermitted = isOrgOwners || isSubmitter || isCollaborator;
-        if (!isPermitted) {
-            throw new Error(`${ERROR.INVALID_SUBMITTER}, ${submissionID}!`)
+        this.#verifySubmissionCreator(userInfo, aSubmission);
+    }
+    // Only owned submission and create permission.
+    #verifySubmissionCreator(userInfo, aSubmission) {
+        if (!(userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE) &&
+            aSubmission.submitterID === userInfo?._id)) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
     }
 
@@ -1387,8 +1356,7 @@ class Submission {
     #isCreatePermission(userInfo, aSubmission) {
         const isCreatePermission = (
             userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE) &&
-            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission) &&
-            aSubmission?.status === SUBMITTED
+            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission)
         );
         const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
         const isCollaborator = (userInfo?.role === ROLES.SUBMITTER) && collaboratorUserIDs.includes(userInfo?._id);
