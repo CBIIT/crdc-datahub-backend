@@ -564,8 +564,7 @@ class UserService {
         const orgOwnerOrAdminRole = {
             "userStatus": USER.STATUSES.ACTIVE,
             "notifications": {"$in": [EN.USER_ACCOUNT.USER_INACTIVATED_ADMIN]},
-            // TODO org owners to be removed since org owner no longer exists
-            "$or": [{"role": USER.ROLES.ADMIN}, {"role": USER.ROLES.ORG_OWNER}]
+            "$or": [{"role": USER.ROLES.ADMIN}]
         };
         return await this.userCollection.aggregate([{"$match": orgOwnerOrAdminRole}]) || [];
     }

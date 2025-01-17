@@ -621,35 +621,6 @@ class Submission {
         }
         return result;
     }
-    /**
-     * API to export dataRecords of the submission to tsv file by async process
-     * @param {*} params
-     * @param {*} context
-     * @returns AsyncProcessResult
-     */
-    // TODO remove
-    async exportSubmission(params, context) {
-        verifySession(context)
-            .verifyInitialized()
-            .verifyRole([ROLES.ADMIN, ROLES.CURATOR, ROLES.SUBMITTER]);
-        const aSubmission = await findByID(this.submissionCollection, params._id);
-        if(!aSubmission){
-            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
-        }
-        const userInfo = context.userInfo;
-        const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
-        const isCollaborator = collaboratorUserIDs.includes(userInfo._id);
-        const isPermitted = (this.userService.isAdmin(userInfo.role) ||
-            aSubmission?.submitterID === userInfo?._id || // Submitter
-            (userInfo.role === ROLES.CURATOR && userInfo?.dataCommons.includes(aSubmission?.dataCommons)) || isCollaborator)
-        if (!isPermitted) {
-            throw new Error(ERROR.INVALID_EXPORT_METADATA);
-        }
-        if (aSubmission.status !== SUBMITTED) {
-            throw new Error(`${ERROR.VERIFY.INVALID_SUBMISSION_ACTION_STATUS} ${EXPORT}!`);
-        }
-        return await this.dataRecordService.exportMetadata(params._id);
-    }
 
     async submissionCrossValidationResults(params, context){
         verifySession(context)
@@ -1289,16 +1260,6 @@ class Submission {
         const logEvent = DeleteRecordEvent.create(userInfo._id, userInfo.email, userName, submissionID, nodeType, nodeIDs);
         await this.logCollection.insert(logEvent);
     }
-    // TODO remove
-    async #isValidPermission(userInfo, aSubmission) {
-        const orgOwners = await this.userService.getOrgOwnerByOrgName(aSubmission?.organization?.name) || [];
-        const isOrgOwners = orgOwners.some((aUser) => isPermittedUser(aUser, userInfo));
-        const isSubmitter = aSubmission?.submitterID === userInfo?._id;
-        const isDataCurator = ROLES.CURATOR === userInfo?.role && userInfo?.dataCommons.includes(aSubmission?.dataCommons);
-        const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
-        const isCollaborator = collaboratorUserIDs.includes(userInfo?._id);
-        return this.userService.isAdmin(userInfo?.role) || isOrgOwners || isSubmitter || isDataCurator || isCollaborator;
-    }
 
     async #requestDeleteDataRecords(message, queueName, deDuplicationId, submissionID) {
         try {
@@ -1845,10 +1806,6 @@ const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
         throw new Error(ERROR.INVALID_BATCH_PERMISSION);
     }
 }
-// TODO remove
-const isPermittedUser = (aTargetUser, userInfo) => {
-    return aTargetUser?.email === userInfo.email && aTargetUser?.IDP === userInfo.IDP
-}
 
 function validateCreateSubmissionParams (params, allowedDataCommons, hiddenDataCommons, intention, dataType, userInfo) {
     if (!params.name || params?.name?.trim().length === 0 || !params.studyID || !params.dataCommons) {
@@ -1883,22 +1840,6 @@ function validateListSubmissionsParams (params) {
     if (!validStatus.has(params.status)) {
         throw new Error(ERROR.LIST_SUBMISSION_INVALID_STATUS_FILTER);
     }
-}
-// TODO remove
-const isSubmissionPermitted = (aSubmission, userInfo) => {
-    const userRole = userInfo?.role;
-    const allSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.FEDERAL_MONITOR];
-    const isOrgOwner = userRole === USER.ROLES.ORG_OWNER && userInfo?.organization?.orgID === aSubmission?.organization?._id;
-    const isSubmitter = userRole === USER.ROLES.SUBMITTER && userInfo?._id === aSubmission?.submitterID;
-    const isPOC = userRole === USER.ROLES.DC_POC && userInfo?.dataCommons.includes(aSubmission?.dataCommons);
-    const isCurator = userRole === USER.ROLES.CURATOR && userInfo?.dataCommons.includes(aSubmission?.dataCommons);
-    const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getViewableCollaboratorIDs();
-    const isCollaborator = collaboratorUserIDs.includes(userInfo?._id);
-
-    if (allSubmissionRoles.includes(userRole) || isOrgOwner || isSubmitter || isPOC || isCurator || isCollaborator) {
-        return;
-    }
-    throw new Error(ERROR.INVALID_STATS_SUBMISSION_PERMISSION);
 }
 
 class ValidationRecord {
@@ -2015,19 +1956,10 @@ class Collaborators {
         return this.collaborators
             .map(i => i?.collaboratorName) || [];
     }
-    // TODO remove
-    getViewableCollaboratorIDs() {
-        return this.#getViewableCollaborators(this.collaborators)
-            .map(i => i?.collaboratorID) || [];
-    }
 
     getEditableCollaboratorIDs() {
         return this.#getEditableCollaborators(this.collaborators)
             .map(i => i?.collaboratorID) || [];
-    }
-    // TODO remove
-    #getViewableCollaborators(collaborators) {
-        return collaborators
     }
 
     #getEditableCollaborators(collaborators) {
