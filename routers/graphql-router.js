@@ -55,7 +55,7 @@ dbConnector.connect().then(async () => {
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
     const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
     const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection, approvedStudiesCollection);
-    const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, userCollection);
+    const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, userCollection, organizationService);
 
     const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
     const configurationService = new ConfigurationService(configurationCollection)

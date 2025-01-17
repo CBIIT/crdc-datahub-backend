@@ -205,7 +205,7 @@ type ApprovedStudy {
     PI: String
     ORCID: String
     createdAt: Date
-    programName: String
+    program: UserOrganization
     primaryContact: User
 }
 

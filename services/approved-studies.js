@@ -11,9 +11,10 @@ const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
 const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN, CONTROLLED_ACCESS_CONTROLLED];
 class ApprovedStudiesService {
 
-    constructor(approvedStudiesCollection, userCollection) {
+    constructor(approvedStudiesCollection, userCollection, organizationService) {
         this.approvedStudiesCollection = approvedStudiesCollection;
         this.userCollection = userCollection;
+        this.organizationService = organizationService;
     }
 
     async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName) {
@@ -72,8 +73,25 @@ class ApprovedStudiesService {
         if (!study || !study.length) {
             throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
         }
+        let returnStudy = study[0];
+        // find organization by study ID
+        returnStudy.program = await this.#findOrganizationByStudyID(_id)
+        // file primaryContact
+        if (returnStudy?.primaryContactID)
+        {
+            returnStudy.primaryContact = await this.userCollection.findOne({ _id: study[0].primaryContactID });
+        }
 
-        return study[0];
+        return returnStudy;
+    }
+
+    async #findOrganizationByStudyID(studyID)
+    {
+        const orgIds = await this.organizationService.findByStudyID({ "studies._id": studyID });
+        if (orgIds && orgIds.length > 0 ) {
+            return await this.organizationService.organizationCollection.findOne(orgIds[0]);
+        }
+        return null;
     }
 
     /**
@@ -280,7 +298,9 @@ class ApprovedStudiesService {
         if (!result?.acknowledged) {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_UPDATE);
         }
-        return {...updateStudy, primaryContact: primaryContact};  
+        // find organization by study ID
+        const program = await this.#findOrganizationByStudyID(studyID)
+        return {...updateStudy, program: program, primaryContact: primaryContact};  
     }
     /**
      * internal method to find user by ID since can't use the userService to avoid cross-referencing
