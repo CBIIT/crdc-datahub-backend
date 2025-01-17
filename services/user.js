@@ -451,7 +451,7 @@ class UserService {
             updatedUser.organization = null;
         }
 
-        updatedUser.dataCommons = DataCommon.get(user[0]?.role, user[0]?.dataCommons, params?.role, params?.dataCommons);
+        updatedUser.dataCommons = DataCommon.get(user[0]?.dataCommons, params?.dataCommons);
         await this.#setUserPermissions(user[0]?.role, params?.role, params?.permissions, params?.notifications, updatedUser);
         return await this.updateUserInfo(user[0], updatedUser, params.userID, params.status, params.role, params?.studies);
     }
@@ -832,60 +832,26 @@ class UserService {
 
 
 class DataCommon {
-
-    constructor(currentRole, currentDataCommons, newRole, newDataCommons) {
-        this.currentRole = currentRole;
+    constructor(currentDataCommons, newDataCommons) {
         this.currentDataCommons = currentDataCommons;
-        this.newRole = newRole;
         this.newDataCommons = newDataCommons;
     }
 
     /**
      * Get the new data commons based on the user's role & data commons.
      *
-     * @param {string} currentRole - The user's current role.
      * @param {Array} currentDataCommons - The current data commons in the user collection.
-     * @param {string} newRole - The user's new role.
      * @param {Array} newDataCommons - The new data commons to update the user.
      * @returns {Array} - return a data commons array.
      */
-    static get(currentRole, currentDataCommons, newRole, newDataCommons) {
-        const dataCommons = new DataCommon(currentRole, currentDataCommons, newRole, newDataCommons);
+    // TODO check user role is required
+    static get(currentDataCommons, newDataCommons) {
+        const dataCommons = new DataCommon(currentDataCommons, newDataCommons);
         return dataCommons.#getDataCommons();
     }
 
     #getDataCommons() {
-        this.#validate(this.currentRole, this.currentDataCommons, this.newRole, this.newDataCommons);
-        const isValidRole = this.#isDcPOC(this.currentRole, this.newRole) || this.#isCurator(this.currentRole, this.newRole);
-        if (isValidRole) {
-            return this.newDataCommons === undefined ? this.currentDataCommons : this.newDataCommons;
-        }
-
-        if (!isValidRole && this.currentDataCommons?.length > 0) {
-            return [];
-        }
-        return [];
-    }
-
-    #isDcPOC(currentRole, newRole) {
-        return newRole === USER.ROLES.DC_POC || (!newRole && currentRole === USER.ROLES.DC_POC);
-    }
-
-    #isCurator(currentRole, newRole) {
-        return newRole === USER.ROLES.CURATOR || (!newRole && currentRole === USER.ROLES.CURATOR);
-    }
-
-    #validate(currentRole, currentDataCommons, newRole, newDataCommons) {
-        const isValidRole = this.#isDcPOC(currentRole, newRole) || this.#isCurator(currentRole, newRole);
-        if (isValidRole && newDataCommons?.length === 0) {
-            throw new Error(SUBMODULE_ERROR.USER_DC_REQUIRED);
-        }
-
-        // Check if Data Commons is required and missing for the user's role
-        const isValidDataCommons = newDataCommons?.length > 0 || (currentDataCommons?.length > 0 && newDataCommons === undefined);
-        if (isValidRole && !isValidDataCommons) {
-            throw new Error(SUBMODULE_ERROR.USER_DC_REQUIRED);
-        }
+        return this.newDataCommons === undefined ? this.currentDataCommons : this.newDataCommons;
     }
 }
 
