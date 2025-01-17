@@ -258,7 +258,8 @@ class Submission {
 
     async listBatches(params, context) {
         verifySession(context)
-            .verifyInitialized();
+            .verifyInitialized()
+            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
         const aSubmission = await findByID(this.submissionCollection,params?.submissionID);
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
@@ -279,7 +280,8 @@ class Submission {
 
   async getSubmission(params, context){
         verifySession(context)
-            .verifyInitialized();
+            .verifyInitialized()
+            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
         let aSubmission = await findByID(this.submissionCollection, params._id);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
@@ -536,7 +538,8 @@ class Submission {
 
     async submissionStats(params, context) {
         verifySession(context)
-            .verifyInitialized();
+            .verifyInitialized()
+            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
         const aSubmission = await findByID(this.submissionCollection, params?._id);
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
@@ -695,7 +698,8 @@ class Submission {
      */
     async listSubmissionNodes(params, context) {
         verifySession(context)
-            .verifyInitialized();
+            .verifyInitialized()
+            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
         const {
             submissionID, 
             nodeType, 
@@ -863,7 +867,8 @@ class Submission {
      */
     async getNodeDetail(params, context){
         verifySession(context)
-            .verifyInitialized();
+            .verifyInitialized()
+            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
 
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         if(!aSubmission){
@@ -889,7 +894,8 @@ class Submission {
      */
     async getRelatedNodes(params, context){
         verifySession(context)
-            .verifyInitialized();
+            .verifyInitialized()
+            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
