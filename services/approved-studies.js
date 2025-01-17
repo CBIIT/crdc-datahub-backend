@@ -79,7 +79,7 @@ class ApprovedStudiesService {
         // file primaryContact
         if (returnStudy?.primaryContactID)
         {
-            returnStudy.primaryContact = await this.userCollection.findOne({ _id: study[0].primaryContactID });
+            returnStudy.primaryContact = await this.#findUserByID(returnStudy.primaryContactID);
         }
 
         return returnStudy;
@@ -87,7 +87,7 @@ class ApprovedStudiesService {
 
     async #findOrganizationByStudyID(studyID)
     {
-        const orgIds = await this.organizationService.findByStudyID({ "studies._id": studyID });
+        const orgIds = await this.organizationService.findByStudyID(studyID);
         if (orgIds && orgIds.length > 0 ) {
             return await this.organizationService.organizationCollection.findOne(orgIds[0]);
         }
