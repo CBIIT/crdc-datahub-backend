@@ -60,6 +60,7 @@ class UserService {
             .verifyPermission(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REQUEST_ACCESS);
 
         // USER.ROLES.ORG_OWNER needs to be removed after the role is retired finally
+        // TODO
         if (![USER.ROLES.SUBMITTER, USER.ROLES.USER, USER.ROLES.ORG_OWNER].includes(params.role)) {
             return new Error(replaceErrorString(ERROR.INVALID_REQUEST_ROLE, params?.role));
         } 
@@ -428,12 +429,13 @@ class UserService {
             throw new Error(SUBMODULE_ERROR.USER_NOT_FOUND);
         }
         const updatedUser = {};
+        // TODO
         const isCurator = updatedUser?.role === USER.ROLES.CURATOR || user[0]?.role === USER.ROLES.CURATOR || params?.role === USER.ROLES.CURATOR;
 
         if (params.role && Object.values(USER.ROLES).includes(params.role)) {
             updatedUser.role = params.role;
         }
-
+        // TODO
         if(!params?.studies && ![USER.ROLES.ADMIN, USER.ROLES.USER, USER.ROLES.CURATOR, USER.ROLES.DC_POC, USER.ROLES.DATA_COMMONS_PERSONNEL].includes(params.role)){
             throw new Error(SUBMODULE_ERROR.APPROVED_STUDIES_REQUIRED);
         }
