@@ -375,7 +375,7 @@ class Submission {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         const newStatus = verifier.getNewStatus();
-        const isAdminAction = userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
+        const isAdminAction = userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.ADMIN_SUBMIT);
         verifier.isValidSubmitAction(isAdminAction, submission, params?.comment);
         await this.#isValidReleaseAction(action, submission?._id, submission?.studyID, submission?.crossSubmissionStatus);
         //update submission
@@ -689,10 +689,6 @@ class Submission {
         const userInfo = context.userInfo;
         if (!verifyValidationResultsReadPermissions(userInfo, aSubmission)) {
             // A different error message is required if a Federal Monitor is unauthorized
-            // TODO Peter roles?
-            if (userInfo.role === ROLES.FEDERAL_MONITOR){
-                throw new Error(ERROR.INVALID_ROLE_STUDY);
-            }
             throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS);
         }
         return this.dataRecordService.listSubmissionNodeTypes(submissionID)
