@@ -1,12 +1,10 @@
 const ERROR = require("../constants/error-constants");
-const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {VALIDATION_STATUS, VALIDATION} = require("../constants/submission-constants");
-const {verifyValidationResultsReadPermissions} = require("../verifier/permissions-verifier");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {replaceErrorString} = require("../utility/string-util");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
-const {v4} = require("uuid");
-const ROLES = USER_CONSTANTS.USER.ROLES;
+const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+const {verifySession} = require("../verifier/user-info-verifier");
 
 function replaceNaN(results, replacement){
     results?.map((result) => {
@@ -40,20 +38,14 @@ class QcResultService{
     }
 
     async submissionQCResultsAPI(params, context){
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
         // Check that the specified submissionID exists
         const submission = await this.submissionCollection.findOne(params._id);
         if(!submission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
-        // Check that the user is authorized to view the QC results
-        if (!verifyValidationResultsReadPermissions(context.userInfo, submission)){
-            // Unauthorized Federal Monitors require a different error message
-            if (context.userInfo?.role === ROLES.FEDERAL_MONITOR){
-                throw new Error(ERROR.INVALID_ROLE_STUDY);
-            }
-            throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS);
-        }
-
         return await this.submissionQCResults(params._id, params.nodeTypes, params.batchIDs, params.severities, params.issueCode, params.first, params.offset, params.orderBy, params.sortDirection);
     }
 
@@ -184,14 +176,13 @@ class QcResultService{
     }
 
     async aggregatedSubmissionQCResultsAPI(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
         // Check that the specified submissionID exists
         const submission = await this.submissionCollection.findOne(params.submissionID);
         if(!submission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
-        }
-        // Check that the user is authorized to view the QC results
-        if (!verifyValidationResultsReadPermissions(context.userInfo, submission)){
-            throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS);
         }
         return await this.aggregatedSubmissionQCResults(params.submissionID, params.severity, params.first, params.offset, params.orderBy, params.sortDirection);
     }
