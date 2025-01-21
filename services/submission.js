@@ -1873,19 +1873,12 @@ function validateCreateSubmissionParams (params, allowedDataCommons, hiddenDataC
     if (hiddenDataCommons.has(params.dataCommons) || !allowedDataCommons.has(params.dataCommons)) {
         throw new Error(replaceErrorString(ERROR.CREATE_SUBMISSION_INVALID_DATA_COMMONS, `'${params.dataCommons}'`));
     }
-
-    if (!userInfo.organization) {
-        throw new Error(ERROR.CREATE_SUBMISSION_NO_ORGANIZATION_ASSIGNED);
-    }
-
     if (!intention) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_INTENTION);
     }
-
     if (!dataType) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_DATA_TYPE);
     }
-
     if (intention === INTENTION.DELETE && dataType !== DATA_TYPE.METADATA_ONLY) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_DELETE_INTENTION);
     }
