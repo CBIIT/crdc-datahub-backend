@@ -2,55 +2,64 @@ const ERROR = require("../constants/error-constants");
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
     REJECTED, WITHDRAWN, ACTIONS, VALIDATION_STATUS, INTENTION, DATA_TYPE
 } = require("../constants/submission-constants");
-const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
-const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
-const ROLES = USER_CONSTANTS.USER.ROLES;
+const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 
-function verifySubmissionAction(submissionId, action){ 
+function verifySubmissionAction(action, submissionStatus, comment){
+    if (action === ACTIONS.REJECT) {
+        if(!comment || comment?.trim()?.length === 0) {
+            throw new Error(ERROR.VERIFY.REJECT_ACTION_COMMENT_REQUIRED);
+        }
+        const submittedStatues = submissionActionMap
+            .filter((s) => (s.action === ACTIONS.REJECT_SUBMIT))
+            .map((s) => s.fromStatus)[0];
 
-    return new SubmissionActionVerifier(submissionId, action);
+        const releasedStatues = submissionActionMap
+            .filter((s) => (s.action === ACTIONS.REJECT_RELEASE))
+            .map((s) => s.fromStatus)[0];
+
+        if (!(submissionStatus === RELEASED && releasedStatues.includes(submissionStatus)) &&
+            !(submissionStatus === SUBMITTED && submittedStatues.includes(submissionStatus))) {
+            throw new Error(`${ERROR.VERIFY.INVALID_SUBMISSION_ACTION_STATUS} ${action}!`);
+        }
+    }
+
+    const newName = action === ACTIONS.REJECT ? `${action}_${submissionStatus}` : action;
+    const actionMap = submissionActionMap?.filter((a)=>a.action === newName);
+    if (!actionMap || actionMap.length === 0)
+        throw new Error(`${ERROR.VERIFY.INVALID_SUBMISSION_ACTION} Action: ${action}`);
+
+    const {permissions, fromStatus, toStatus} = actionMap[0];
+    if (fromStatus.indexOf(submissionStatus) < 0) {
+        throw new Error(`${ERROR.VERIFY.INVALID_SUBMISSION_ACTION_STATUS} ${action}!`);
+    }
+    return new SubmissionActionVerifier(newName, permissions, submissionStatus, toStatus);
 }
 
 class SubmissionActionVerifier {
-    constructor(submissionId, action){
-        if(!submissionId) throw Error(ERROR.VERIFY.INVALID_SUBMISSION_ID);
-        this.submissionId = submissionId;
-        if(!action) throw Error("action is required!");
-        this.action = action;
+    // Private variable
+    #actionName;
+    #permissions;
+    #fromStatus;
+    #toStatus;
+    constructor(actionName, permissions, fromStatus, toStatus){
+        this.#actionName = actionName;
+        this.#permissions = permissions;
+        this.#fromStatus = fromStatus;
+        this.#toStatus = toStatus;
     }
 
-    async exists(submissionCollection){
-        const submission = await submissionCollection.find(this.submissionId);
-        if (!submission || submission.length === 0) {
-            throw new Error(`${ERROR.INVALID_SUBMISSION_NOT_FOUND}, ${this.submissionId }!`);
-        }
-        this.submission = submission[0];
-        return this.submission;
+    getNewStatus() {
+        return this.#toStatus;
     }
 
-    isValidAction(comment){
-        if(this.action === ACTIONS.REJECT) {
-            this.action = `${this.action}_${this.submission.status}`;
-            if(!comment || comment?.trim()?.length === 0) {
-                throw new Error(ERROR.VERIFY.REJECT_ACTION_COMMENT_REQUIRED);
-            }
-        }
-
-        let actionMap = submissionActionMap?.filter((a)=>a.action === this.action);
-        if(!actionMap || actionMap.length === 0)
-            throw new Error(`${ERROR.VERIFY.INVALID_SUBMISSION_ACTION} ${this.action}!`);
-
-        this.actionMap = actionMap[0];
-        const fromStatus = this.submission.status;
-        if(this.actionMap.fromStatus.indexOf(fromStatus) < 0)
-            throw new Error(`${ERROR.VERIFY.INVALID_SUBMISSION_ACTION_STATUS} ${this.action}!`);
-        this.newStatus = this.actionMap.toStatus;
+    getPrevStatus() {
+        return this.#fromStatus;
     }
 
-    isValidSubmitAction(role, aSubmission, comment) {
-        if(this.action === ACTIONS.SUBMIT) {
-            const isInvalidAdminStatus = !this.#isValidAdminStatus(role, aSubmission);
-            const isValidRole = [USER.ROLES.CURATOR, USER.ROLES.ORG_OWNER, USER.ROLES.SUBMITTER].includes(role);
+
+    isValidSubmitAction(isAdminAction, aSubmission, comment) {
+        if(this.#actionName === ACTIONS.SUBMIT) {
+            const isInvalidAdminStatus = !this.#isValidAdminStatus(isAdminAction, aSubmission);
             const validStatus = [VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING];
             // if deleted intention, allow it to be submitted without any data files. Ignore any value if meta-data only data file
             const ignoreFileValidationStatus = aSubmission?.dataType === DATA_TYPE.METADATA_ONLY;
@@ -58,38 +67,30 @@ class SubmissionActionVerifier {
                 && (ignoreFileValidationStatus || validStatus.includes(aSubmission?.fileValidationStatus)));
 
             if (isInvalidAdminStatus) {
-                if (ROLES.ADMIN === role ||(![ROLES.ADMIN].includes(role) && (!isValidRole || !isValidatedStatus))) {
+                if (isAdminAction ||(!isAdminAction && (!isValidatedStatus))) {
                     throw new Error(ERROR.VERIFY.INVALID_SUBMIT_ACTION);
                 }
             }
 
-            if ([INTENTION.UPDATE].includes(aSubmission?.intention) && this.isSubmitActionCommentRequired(aSubmission, role, comment)) {
+            if ([INTENTION.UPDATE].includes(aSubmission?.intention) && this.isSubmitActionCommentRequired(aSubmission, isAdminAction, comment)) {
                 throw new Error(ERROR.VERIFY.SUBMIT_ACTION_COMMENT_REQUIRED);
             }
         }
     }
 
-    isSubmitActionCommentRequired(aSubmission, role, comment) {
+    isSubmitActionCommentRequired(aSubmission, isAdminAction, comment) {
             const isError = [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus].includes(VALIDATION_STATUS.ERROR);
-            return this.action === ACTIONS.SUBMIT && ROLES.ADMIN === role && isError && (!comment || comment?.trim()?.length === 0);
+            return this.#actionName === ACTIONS.SUBMIT && isAdminAction && isError && (!comment || comment?.trim()?.length === 0);
     }
 
-    inRoles(userInfo, aSubmission){
-        const role = userInfo?.role;
-        const roleIndex = this.actionMap.roles.indexOf(role);
-        if (roleIndex < 0)
-            throw new Error(`Invalid user role for the action: ${this.action}!`);
-
-        if (roleIndex >= 0 && role === ROLES.CURATOR) {
-            if (!userInfo?.dataCommons || !userInfo?.dataCommons?.includes(aSubmission?.dataCommons)) {
-                throw new Error(`Invalid user role for the action: ${this.action}!`);
-            }
-        }
-        return this.newStatus;
+    isValidPermissions(action, userID, userPermissions = [], collaboratorUserIDs = []) {
+        const collaboratorCondition = [ACTIONS.SUBMIT, ACTIONS.WITHDRAW, ACTIONS.COMPLETE].includes(action) && collaboratorUserIDs.includes(userID);
+        const test = userPermissions?.some(item => this.#permissions.includes(item));
+        return userPermissions?.some(item => this.#permissions.includes(item)) || collaboratorCondition;
     }
+
     // Private Function
-    #isValidAdminStatus(role, aSubmission) {
-        const isRoleAdmin = role === USER.ROLES.ADMIN;
+    #isValidAdminStatus(isAdminSubmitAction, aSubmission) {
         const isMetadataInvalid = aSubmission?.metadataValidationStatus === VALIDATION_STATUS.NEW;
         const isFileInValid = aSubmission?.fileValidationStatus === VALIDATION_STATUS.NEW;
         const isDeleteIntention = aSubmission?.intention === INTENTION.DELETE;
@@ -97,30 +98,22 @@ class SubmissionActionVerifier {
         // if deleted intention, allow it to be submitted without any data files, if metadata only, any value is ignored for fileValidationStatus
         const isDataFileValidated = isDeleteIntention || !isMetadataInvalid && (ignoreFileValidationStatus || (aSubmission?.fileValidationStatus === null || !isFileInValid));
         // null fileValidationStatus means this submission doesn't have any files uploaded
-        return isRoleAdmin && isDataFileValidated;
+        return isAdminSubmitAction && isDataFileValidated;
     }
 }
 
-//actions: NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, RESUME
 const submissionActionMap = [
-    {action:ACTIONS.SUBMIT, fromStatus: [IN_PROGRESS, WITHDRAWN, REJECTED],
-        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:SUBMITTED},
-    {action:ACTIONS.RELEASE, fromStatus: [SUBMITTED], 
-        roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:RELEASED},
-    {action:ACTIONS.WITHDRAW, fromStatus: [SUBMITTED], 
-        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER,], toStatus:WITHDRAWN},
-    {action:ACTIONS.REJECT_SUBMIT, fromStatus: [SUBMITTED], 
-        roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:REJECTED},
-    {action:ACTIONS.REJECT_RELEASE, fromStatus: [RELEASED], 
-        roles: [ROLES.ADMIN, ROLES.DC_POC], toStatus:REJECTED},
-    {action:ACTIONS.COMPLETE, fromStatus: [RELEASED], 
-        roles: [ROLES.CURATOR,ROLES.ADMIN, ROLES.DC_POC], toStatus:COMPLETED},
-    {action:ACTIONS.CANCEL, fromStatus: [NEW,IN_PROGRESS, REJECTED],
-        roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER, ROLES.CURATOR,ROLES.ADMIN], toStatus:CANCELED},
-    {action:ACTIONS.ARCHIVE, fromStatus: [COMPLETED], 
-        roles: [ROLES.CURATOR,ROLES.ADMIN], toStatus:ARCHIVED},
-    {action:ACTIONS.RESUME, fromStatus: [REJECTED], 
-            roles: [ROLES.SUBMITTER, ROLES.ORG_OWNER], toStatus:IN_PROGRESS},
+    {action:ACTIONS.SUBMIT, fromStatus: [IN_PROGRESS, WITHDRAWN, REJECTED], toStatus:SUBMITTED, permissions: [USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.ADMIN_SUBMIT]},
+    {action:ACTIONS.RELEASE, fromStatus: [SUBMITTED], toStatus:RELEASED, permissions: [USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW]},
+    {action:ACTIONS.WITHDRAW, fromStatus: [SUBMITTED], toStatus:WITHDRAWN, permissions: [USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE]},
+    {action:ACTIONS.REJECT_SUBMIT, fromStatus: [SUBMITTED], toStatus:REJECTED, permissions: [USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CONFIRM]},
+    // TODO submitted statues check
+    {action:ACTIONS.REJECT_RELEASE, fromStatus: [RELEASED], toStatus:REJECTED, permissions: [USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CONFIRM]},
+    // TODO Complete, Reject (after released) double check if the release status before reject
+    {action:ACTIONS.COMPLETE, fromStatus: [RELEASED], toStatus:COMPLETED, permissions: [USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CONFIRM]},
+    {action:ACTIONS.CANCEL, fromStatus: [NEW,IN_PROGRESS, REJECTED], toStatus:CANCELED, permissions: [USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE]},
+    {action:ACTIONS.ARCHIVE, fromStatus: [COMPLETED], toStatus:ARCHIVED, permissions: []},
+    {action:ACTIONS.RESUME, fromStatus: [REJECTED], toStatus:IN_PROGRESS, permissions: []},
 ];
 
 module.exports = {

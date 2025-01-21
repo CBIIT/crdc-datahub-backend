@@ -40,7 +40,6 @@ const {QcResultService} = require("../services/qc-result-service");
 const {UserService} = require("../services/user");
 const sanitizeHtml = require("sanitize-html");
 const public_api_list = extractAPINames(schema, PUBLIC)
-const INACTIVE_SUBMISSION_DAYS = "Inactive_Submission_Notify_Days";
 let root;
 let authenticationService, userInitializationService;
 dbConnector.connect().then(async () => {
@@ -90,7 +89,7 @@ dbConnector.connect().then(async () => {
 
     const submissionService = new Submission(logCollection, submissionCollection, batchService, userService,
         organizationService, notificationsService, dataRecordService, fetchDataModelInfo, awsService, config.export_queue,
-        s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService, config.uploaderCLIConfigs);
+        s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService, config.uploaderCLIConfigs, config.submission_bucket);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService);
 
     const dashboardService = new DashboardService(userService, awsService, configurationService, {sessionTimeout: config.dashboardSessionTimeout});
@@ -127,7 +126,7 @@ dbConnector.connect().then(async () => {
         listSubmissions:  submissionService.listSubmissions.bind(submissionService),
         getSubmission:  submissionService.getSubmission.bind(submissionService),
         createTempCredentials: async (params, context)=> {
-            await submissionService.verifySubmitter(params?.submissionID, context);
+            await submissionService.verifySubmitter(params?.submissionID, context?.userInfo);
             return awsService.createTempCredentials(params?.submissionID);
         },
         submissionAction: submissionService.submissionAction.bind(submissionService),
@@ -142,6 +141,8 @@ dbConnector.connect().then(async () => {
         getRelatedNodes: submissionService.getRelatedNodes.bind(submissionService),
         retrieveCLIConfig: submissionService.getUploaderCLIConfigs.bind(submissionService),
         listPotentialCollaborators: submissionService.listPotentialCollaborators.bind(submissionService),
+        retrieveFileNodeConfig: submissionService.getDataFileConfigs.bind(submissionService),
+
         listInstitutions: institutionService.listInstitutions.bind(institutionService),
         // AuthZ
         getMyUser : userInitializationService.getMyUser.bind(userInitializationService),

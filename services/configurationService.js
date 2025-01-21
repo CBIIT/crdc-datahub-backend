@@ -1,6 +1,5 @@
 const {verifySession} = require("../verifier/user-info-verifier");
-const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
-const ROLES = USER_CONSTANTS.USER.ROLES;
+const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 PBAC_CONFIG_TYPE = "PBAC";
 class ConfigurationService {
     constructor(configurationCollection) {
@@ -22,7 +21,7 @@ class ConfigurationService {
     async getPBACDefaults(params, context){
         verifySession(context)
             .verifyInitialized()
-            .verifyRole([ROLES.ADMIN]);
+            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
 
         return await this.getPBACByRoles(params.roles);
     }

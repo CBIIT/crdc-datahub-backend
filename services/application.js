@@ -161,8 +161,10 @@ class Application {
     listApplicationConditions(userID, userRole) {
         // list all applications
         const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED]}};
-        const listAllApplicationRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD];
-        if (listAllApplicationRoles.includes(userRole)) return [{"$match": {...validApplicationStatus}}];
+        const listAllApplicationRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.DATA_COMMONS_PERSONNEL];
+        if (listAllApplicationRoles.includes(userRole)) {
+            return [{"$match": {...validApplicationStatus}}];
+        }
         // search by applicant's user id
         let conditions = [{$and: [{"applicant.applicantID": userID}, validApplicationStatus]}];
         return [{"$match": {"$or": conditions}}];
@@ -197,12 +199,7 @@ class Application {
             .verifyInitialized()
             .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.SUBMIT);
         const application = await this.getApplicationById(params._id);
-        let validStatus = [];
-        if (context?.userInfo?.role === USER.ROLES.SUBMITTER) {
-            validStatus = [NEW, IN_PROGRESS];
-        } else if (context?.userInfo?.role === USER.ROLES.FEDERAL_LEAD) {
-            validStatus = [INQUIRED, IN_PROGRESS];
-        }
+        const validStatus = [IN_PROGRESS, INQUIRED]; //updated based on new requirement.
         verifyApplication(application)
             .notEmpty()
             .state(validStatus);
@@ -256,7 +253,7 @@ class Application {
     async deleteApplication(document, context) {
         verifySession(context)
             .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.DELETE);
+            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
         const aApplication = await this.getApplicationById(document._id);
         const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED, INQUIRED];
         if (validApplicationStatus.includes(aApplication.status)) {
