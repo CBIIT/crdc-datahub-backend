@@ -1,0 +1,52 @@
+Commands:
+  - Create backup: Recommended to use MonogoDB Compass and use the 'Export Data' button to export the full 'users' collection as a JSON file.
+  - Select database:
+      For DEV2 or QA2: |
+        use crdc-datahub2
+      For all other tiers: |
+        use crdc-datahub
+  - Migrate Organization Owner: |
+    db.users.updateMany({role: "Organization Owner"}, [{$set: {role: "Submitter"}}]);
+  - Set Admin Permissions: |
+    db.users.updateMany({role: "Admin", permissions: null}, [{$set: {permissions: ["submission_request:view","data_submission:view","data_submission:cancel","data_submission:review","data_submission:admin_submit","data_submission:confirm","user:manage","program:manage","study:manage","dashboard:view"]}}]);
+  - Set Admin Notifications: |
+    db.users.updateMany({role: "Admin", notifications: null}, [{$set: {notifications: ["submission_request:to_be_reviewed","submission_request:reviewed","submission_request:deleted","data_submission:cancelled","data_submission:released","data_submission:completed","data_submission:expiring","data_submission:deleted","access:requested","account:users_inactivated"]}}]);
+  - Set Submitter Permissions: |
+    db.users.updateMany({role: "Submitter", permissions: null}, [{$set: {permissions: ["submission_request:view","submission_request:create","submission_request:submit","submission_request:cancel","data_submission:view","data_submission:create","data_submission:cancel","access:request"]}}]);
+  - Set Submitter Notifications: |
+    db.users.updateMany({role: "Submitter", notifications: null}, [{$set: {notifications: ["submission_request:submitted","submission_request:reviewed","submission_request:deleted","submission_request:expiring","data_submission:submitted","data_submission:cancelled","data_submission:withdrawn","data_submission:released","data_submission:rejected","data_submission:completed","data_submission:expiring","data_submission:deleted","account:inactivated"]}}]);
+  - Set User Permissions: |
+    db.users.updateMany({role: "User", permissions: null}, [{$set: {permissions: ["submission_request:view","submission_request:create","submission_request:submit","submission_request:cancel","access:request"]}}]);
+  - Set User Notifications: |
+    db.users.updateMany({role: "User", notifications: null}, [{$set: {notifications: ["submission_request:submitted","submission_request:reviewed","submission_request:deleted","submission_request:expiring","account:inactivated"]}}]);
+  - Set Federal Lead Permissions: |
+    db.users.updateMany({role: "Federal Lead", permissions: null}, [{$set: {permissions: ["submission_request:view"",submission_request:submit","submission_request:cancel","data_submission:view","dashboard:view"]}}]);
+  - Set Federal Lead Notifications: |
+    db.users.updateMany({role: "Federal Lead", notifications: null}, [{$set: {notifications: ["submission_request:to_be_reviewed","submission_request:reviewed","submission_request:deleted","submission_request:expiring","account:inactivated"]}}]);
+  - Set Federal Monitor Permissions: |
+    db.users.updateMany({role: "Federal Monitor", permissions: null}, [{$set: {permissions: ["data_submission:view","dashboard:view"]}}]);
+  - Set Federal Monitor Notifications: |
+    db.users.updateMany({role: "Federal Monitor", notifications: null}, [{$set: {notifications: ["data_submission:submitted","data_submission:cancelled","data_submission:withdrawn","data_submission:released","data_submission:rejected","data_submission:completed","data_submission:expiring","data_submission:deleted","account:inactivated"]}}]);
+  - Set Data Curator Permissions: |
+    db.users.updateMany({role: "Data Curator", permissions: null}, [{$set: {permissions: ["data_submission:view","data_submission:cancel","data_submission:review","data_submission:admin_submit","data_submission:confirm","dashboard:view"]}}]);
+  - Set Data Curator Notifications: |
+    db.users.updateMany({role: "Data Curator", notifications: null}, [{$set: {notifications: ["data_submission:submitted","data_submission:cancelled","data_submission:withdrawn","data_submission:released","data_submission:rejected","data_submission:completed","data_submission:expiring","data_submission:deleted","account:inactivated"]}}]);
+  - Set Data Commons POC Permissions: |
+    db.users.updateMany({role: "Data Commons POC", permissions: null}, [{$set: {permissions: ["data_submission:view","data_submission:confirm","dashboard:view"]}}]);
+  - Set Data Commons POC Notifications: |
+    db.users.updateMany({role: "Data Commons POC", notifications: null}, [{$set: {notifications: ["data_submission:submitted","data_submission:cancelled","data_submission:withdrawn","data_submission:released","data_submission:rejected","data_submission:completed","data_submission:expiring","data_submission:deleted","account:inactivated"]}}]);
+  - Migrate Federal Monitor: |
+    db.users.updateMany({role: "Federal Monitor"}, [{$set: {role: "Federal Lead"}}]);
+  - Migrate Data Curator: |
+    db.users.updateMany({role: "Data Curator"}, [{$set: {role: "Data Commons Personnel"}}]);
+  - Migrate Data Commons POC: |
+    db.users.updateMany({role: "Data Commons POC"}, [{$set: {role: "Data Commons Personnel"}}]);
+  - Remove data_submission cancel: |
+    db.users.updateMany({permissions: {$all: ["data_submission:cancel"]}}, {$pull: {permissions: "data_submission:cancel"}});
+  - Search for missed accounts: 
+      description: |
+        If the below 'count' command returns 0, then all users have been migrated. If some accounts were not migrated, then use the below 'find' command to view them.
+      count: |
+        db.users.countDocuments({$or: [{permissions: null}, {notifications: null}]})
+      find: |
+        db.users.find({$or: [{permissions: null}, {notifications: null}]})
