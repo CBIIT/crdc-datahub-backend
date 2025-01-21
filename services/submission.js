@@ -76,7 +76,6 @@ class Submission {
     async createSubmission(params, context) {
         verifySession(context)
             .verifyInitialized()
-            .verifyOrganization()
             .verifyPermission(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
         const userInfo = context?.userInfo;
 
