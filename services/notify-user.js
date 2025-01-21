@@ -34,8 +34,7 @@ class NotifyUser {
         console.error("Unable to load email constants from file, email not sent");
     }
 
-    // TODO federal lead receipent
-    async submitQuestionNotification(messageVariables) {
+    async submitQuestionNotification(messageVariables, toEmails, BCCEmails) {
         const message = replaceMessageVariables(this.email_constants.SUBMISSION_CONTENT, messageVariables);
         return await this.send(async () => {
             await this.emailService.sendNotification(
@@ -44,7 +43,8 @@ class NotifyUser {
                 await createEmailTemplate("notification-template.html", {
                     message, firstName: this.email_constants.APPLICATION_COMMITTEE_NAME
                 }),
-                this.committeeEmails
+                toEmails,
+                BCCEmails
             );
         });
     }
@@ -83,15 +83,16 @@ class NotifyUser {
             );
         });
     }
-    async inquireQuestionNotification(email, emailCCs, template_params, messageVariables, tier) {
+    async inquireQuestionNotification(email, emailCCs, templateParams, messageVariables, tier, reviewComment) {
         const message = replaceMessageVariables(this.email_constants.INQUIRE_CONTENT, messageVariables);
+        const secondMessage = replaceMessageVariables(this.email_constants.INQUIRE_SECOND_CONTENT, messageVariables);
         const subject = this.email_constants.INQUIRE_SUBJECT;
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
                 isTierAdded(tier) ? `${tier} ${subject}` : subject,
                 await createEmailTemplate("notification-template.html", {
-                    message, ...template_params
+                    message, secondMessage, reviewComment, ...templateParams
                 }),
                 email,
                 emailCCs
@@ -99,14 +100,14 @@ class NotifyUser {
         });
     }
 
-    async rejectQuestionNotification(email, template_params, messageVariables) {
+    async rejectQuestionNotification(email, template_params, messageVariables, reviewComments) {
         const message = replaceMessageVariables(this.email_constants.REJECT_CONTENT, messageVariables);
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
                 this.email_constants.REJECT_SUBJECT,
                 await createEmailTemplate("notification-template.html", {
-                    message, ...template_params
+                    message, reviewComments, ...template_params
                 }),
                 email,
                 []
@@ -114,23 +115,26 @@ class NotifyUser {
         });
     }
 
-    async approveQuestionNotification(email, emailCCs,templateParams, messageVariables, tier) {
+    async approveQuestionNotification(email, BCCEmails,templateParams, messageVariables, tier, reviewComments) {
         const message = replaceMessageVariables(this.email_constants.APPROVE_CONTENT, messageVariables);
+        const secondMessage = replaceMessageVariables(this.email_constants.APPROVE_SECOND_CONTENT, messageVariables);
+        const thirdMessage = replaceMessageVariables(this.email_constants.APPROVE_THIRD_CONTENT, messageVariables);
         const subject = this.email_constants.APPROVE_SUBJECT;
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
                 isTierAdded(tier) ? `${tier} ${subject}` : subject,
                 await createEmailTemplate("notification-template.html", {
-                    message, ...templateParams
+                    message, secondMessage, thirdMessage, reviewComments, ...templateParams
                 }),
                 email,
-                emailCCs
+                [],
+                BCCEmails
             );
         });
     }
 
-    async conditionalApproveQuestionNotification(email, emailCCs, templateParams, messageVariables, tier) {
+    async conditionalApproveQuestionNotification(email, emailCCs, templateParams, messageVariables, tier, reviewComments) {
         const message = replaceMessageVariables(this.email_constants.CONDITIONAL_APPROVE_CONTENT_FIRST, messageVariables);
         const secondMessage = replaceMessageVariables(this.email_constants.CONDITIONAL_APPROVE_CONTENT_SECOND, messageVariables);
         const subject = this.email_constants.CONDITIONAL_APPROVE_SUBJECT;
@@ -144,8 +148,8 @@ class NotifyUser {
                     message,
                     secondMessage,
                     url: templateParams?.url,
-                    approverNotes: approverNotes?.length > 0 ? approverNotes : "N/A",
-                    contactEmail: templateParams?.contactEmail
+                    reviewComments: approverNotes?.length > 0 ? approverNotes : "N/A",
+                    contactEmail: templateParams?.contactEmail,
                 }),
                 email,
                 emailCCs

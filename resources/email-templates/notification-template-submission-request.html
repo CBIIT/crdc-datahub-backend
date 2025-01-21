@@ -18,21 +18,19 @@
     Once the condition is cleared, you can begin the data submission process. Please review the Data Submission Instructions <a href="{{url}}" target="_blank">here</a>
     If you need assistance with your data submission, please contact {{contactEmail}}.
   </p>
+  {{#if reviewComments}}
   <p>
-    <span>
-      <strong>[Pending Condition]:</strong>
-    </span>
+    <span>[Review Comments]:</span>
+  </p>
+  <p>
+    <span>{{ reviewComments }}</span>
+  </p>
+  {{/if}}
+  <p>
+    <span>[Pending Condition]:</span>
   </p>
   <p>
     Your study's dbGaP ID was not provided. Please contact {{contactEmail}} to submit your dbGaP ID once you have registered your study on dbGap.
-  </p>
-  <p>
-    <span>
-      <strong>[Approver Notes]:</strong>
-    </span>
-  </p>
-  <p>
-    {{approverNotes}}
   </p>
   <p>Thank you for your attention to this matter.</p>
   <p>Sincerely,</p>

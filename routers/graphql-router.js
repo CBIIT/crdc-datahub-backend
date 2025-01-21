@@ -111,8 +111,14 @@ dbConnector.connect().then(async () => {
             const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
             return dataInterface.approveApplication({...params, comment}, context);
         },
-        rejectApplication: dataInterface.rejectApplication.bind(dataInterface),
-        inquireApplication: dataInterface.inquireApplication.bind(dataInterface),
+        rejectApplication: (params, context)=> {
+            const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
+            return dataInterface.rejectApplication({...params, comment}, context);
+        },
+        inquireApplication: async (params, context)=> {
+            const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
+            return dataInterface.inquireApplication({...params, comment}, context);
+        },
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
         deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
         listApprovedStudies: approvedStudiesService.listApprovedStudiesAPI.bind(approvedStudiesService),
