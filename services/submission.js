@@ -1443,7 +1443,7 @@ class Submission {
                     const studyQuery = isAllStudy(userStudies) ? {} : {studyID: {$in: userStudies?.map((s)=> s?._id)}};
                     return {...baseConditions, ...studyQuery};
                 case ROLES.DATA_COMMONS_PERSONNEL:
-                    const aFilteredDataCommon = dataCommons?.includes(dataCommonsParams) ? [dataCommonsParams] : []
+                    const aFilteredDataCommon = (dataCommonsParams && dataCommons?.includes(dataCommonsParams)) ? [dataCommonsParams] : []
                     return {...baseConditions, dataCommons: {$in: aFilteredDataCommon}};
                 // Submitter or User role
                 default:
