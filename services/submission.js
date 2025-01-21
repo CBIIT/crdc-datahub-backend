@@ -140,9 +140,16 @@ class Submission {
     }
 
     async listSubmissions(params, context) {
-        verifySession(context)
-            .verifyInitialized()
-            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
+        let userInfoVerifier = verifySession(context)
+            .verifyInitialized();
+        try{
+            userInfoVerifier.verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
+        }
+        catch(permissionError){
+            console.warn(permissionError);
+            console.warn("Failed permission verification for listSubmissions, returning empty list");
+            return {submissions: [], total: 0};
+        }
         validateListSubmissionsParams(params);
 
         const filterConditions = [
