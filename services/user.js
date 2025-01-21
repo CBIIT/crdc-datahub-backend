@@ -836,7 +836,7 @@ class DataCommon {
     // TODO check user role is required
     static get(currentDataCommons, newDataCommons) {
         const dataCommons = new DataCommon(currentDataCommons, newDataCommons);
-        return dataCommons.#getDataCommons();
+        return dataCommons.#getDataCommons() || [];
     }
 
     #getDataCommons() {
