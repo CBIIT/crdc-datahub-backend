@@ -74,7 +74,7 @@ class ApprovedStudiesService {
             throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
         }
         let returnStudy = study[0];
-        // find organization by study ID
+        // find program/organization by study ID
         returnStudy.program = await this.#findOrganizationByStudyID(_id)
         // file primaryContact
         if (returnStudy?.primaryContactID)
@@ -298,7 +298,7 @@ class ApprovedStudiesService {
         if (!result?.acknowledged) {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_UPDATE);
         }
-        // find organization by study ID
+        // find program/organization by study ID
         const program = await this.#findOrganizationByStudyID(studyID)
         return {...updateStudy, program: program, primaryContact: primaryContact};  
     }

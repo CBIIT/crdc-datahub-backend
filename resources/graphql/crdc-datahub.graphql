@@ -205,7 +205,7 @@ type ApprovedStudy {
     PI: String
     ORCID: String
     createdAt: Date
-    program: UserOrganization
+    program: UserOrganization #retrieve dynamically by studyID
     primaryContact: User
 }
 
