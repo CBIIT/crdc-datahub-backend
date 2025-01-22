@@ -1291,7 +1291,7 @@ class Submission {
     {
         verifySession(context)
             .verifyInitialized()
-            .verifyPermission(DS_PERMISSION.VIEW);
+            .verifyPermission(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
         const {
             submissionID = submissionID,
             nodeType = nodeType,
