@@ -158,16 +158,27 @@ class Application {
         return result.length > 0 ? result[0] : null;
     }
 
-    listApplicationConditions(userID, userRole) {
-        // list all applications
-        const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED]}};
-        const listAllApplicationRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.DATA_COMMONS_PERSONNEL];
-        if (listAllApplicationRoles.includes(userRole)) {
-            return [{"$match": {...validApplicationStatus}}];
-        }
-        // search by applicant's user id
-        let conditions = [{$and: [{"applicant.applicantID": userID}, validApplicationStatus]}];
-        return [{"$match": {"$or": conditions}}];
+    #listApplicationConditions(userID, userRole, programName, studyName, statues, submitterName) {
+        const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED, DELETED];
+        const statusCondition = statues && !statues?.includes(this.#ALL_FILTER) ?
+            { status: { $in: statues || [] } } : { status: { $in: validApplicationStatus } };
+
+        const submitterNameCondition = (submitterName && submitterName !== this.#ALL_FILTER) ? {"applicant.applicantName": submitterName?.trim()} : {};
+        const programNameCondition = (programName && programName !== this.#ALL_FILTER) ? {programName: programName?.trim()} : {};
+        const studyNameCondition = (studyName && studyName !== this.#ALL_FILTER) ? {studyName: studyName?.trim()} : {};
+
+        const baseConditions = {...statusCondition, ...programNameCondition, ...studyNameCondition, ...submitterNameCondition};
+        return (() => {
+            switch (userRole) {
+                case ROLES.ADMIN:
+                case ROLES.FEDERAL_LEAD:
+                case ROLES.DATA_COMMONS_PERSONNEL:
+                    return baseConditions;
+                // Submitter/User
+                default:
+                    return {...baseConditions, "applicant.applicantID": userID};
+            }
+        })();
     }
 
     async listApplications(params, context) {
@@ -181,24 +192,60 @@ class Application {
             console.warn("Failed permission verification for listApplications, returning empty list");
             return {applications: [], total: 0};
         }
-        let pipeline = this.listApplicationConditions(context.userInfo._id, context.userInfo?.role);
+
+        const userInfo = context?.userInfo;
+        const validStatuesSet = new Set([NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED, DELETED, this.#ALL_FILTER]);
+        const invalidStatues = (params?.statues || [])
+            .filter((i) => !validStatuesSet.has(i));
+        if (invalidStatues?.length > 0) {
+            throw new Error(replaceErrorString(ERROR.APPLICATION_INVALID_STATUES, `'${invalidStatues.join(",")}'`));
+        }
+
+
+        const filterConditions = [
+            // default filter for listing submissions
+            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, params.studyName, params.statues, params?.submitterName),
+            // note: Aggregation of Program name should not be filtered by its name
+            this.#listApplicationConditions(userInfo?._id, userInfo?.role, this.#ALL_FILTER, params.studyName, params.statues, params?.submitterName),
+            // note: Aggregation of Study name should not be filtered by its name
+            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, this.#ALL_FILTER, params.statues, params?.submitterName),
+            // note: Aggregation of Statues name should not be filtered by its name
+            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, params.studyName, this.#ALL_FILTER, params?.submitterName),
+            // note: Aggregation of Submitter name should not be filtered by its name
+            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, params.studyName, params.statues, this.#ALL_FILTER),
+        ];
+        const [listConditions, programCondition, studyNameCondition, statuesCondition, submitterNameCondition] = filterConditions;
+        let pipeline = [{"$match": listConditions}];
         const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
         const noPaginationPipe = pipeline.concat(paginationPipe.getNoLimitPipeline());
+
         const promises = [
             this.applicationCollection.aggregate(pipeline.concat(paginationPipe.getPaginationPipeline())),
-            this.applicationCollection.aggregate(noPaginationPipe)
+            this.applicationCollection.aggregate(noPaginationPipe.concat([{ $group: { _id: "$_id" } }, { $count: "count" }])),
+            // note: Program name filter is omitted
+            this.applicationCollection.distinct("programName", programCondition),
+            // note: Study name filter is omitted
+            this.applicationCollection.distinct("studyName", studyNameCondition),
+            // note: Statues filter is omitted
+            this.applicationCollection.distinct("status", statuesCondition),
+            // note: Submitter name filter is omitted
+            this.applicationCollection.distinct("applicant.applicantName", submitterNameCondition)
         ];
 
-        const applications = await Promise.all(promises).then(function(results) {
-            return {
-                applications: (results[0] || []).map((app)=>(app)),
-                total: results[1]?.length || 0
-            }
-        });
-        for (let app of applications.applications.filter(a=>a.status === APPROVED)) {
+        const results = await Promise.all(promises);
+        const applications = (results[0] || []);
+        for (let app of applications?.filter(a=>a.status === APPROVED)) {
             await this.#checkConditionalApproval(app);
         }
-        return applications;
+
+        return {
+            applications: applications,
+            total: results[1]?.length > 0 ? results[1][0]?.count : 0,
+            programs: results[2] || [],
+            studies: results[3] || [],
+            status: results[4] || [],
+            submitterNames: results[5] || []
+        }
     }
 
     async submitApplication(params, context) {

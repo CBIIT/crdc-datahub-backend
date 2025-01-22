@@ -6,6 +6,7 @@ const ERROR = {
     APPLICATION_NOT_FOUND: "The provided application ID was not found in the database. Provided _id: ",
     FAILED_DELETE_APPLICATION: "An error occurred while delete an application",
     APPLICATION_CONTROLLED_ACCESS_NOT_FOUND: "The application does not store controlled access property.",
+    APPLICATION_INVALID_STATUES: "Requested statues $item$ is not valid",
     MISSING_PROGRAM_INFO: "The program property is required to approve the submission request.",
     UPDATE_FAILED: "Update unsuccessful",
     VERIFY: {
