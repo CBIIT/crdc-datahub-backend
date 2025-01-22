@@ -32,7 +32,7 @@ const NODE_RELATION_TYPES = [NODE_RELATION_TYPE_PARENT, NODE_RELATION_TYPE_CHILD
 
 const FILE = "file";
 class DataRecordService {
-    constructor(dataRecordsCollection, dataRecordArchiveCollection, fileQueueName, metadataQueueName, awsService, s3Service, qcResultsService, exportQueue) {
+    constructor(dataRecordsCollection, dataRecordArchiveCollection, releaseCollection, fileQueueName, metadataQueueName, awsService, s3Service, qcResultsService, exportQueue) {
         this.dataRecordsCollection = dataRecordsCollection;
         this.fileQueueName = fileQueueName;
         this.metadataQueueName = metadataQueueName;
@@ -40,7 +40,9 @@ class DataRecordService {
         this.s3Service = s3Service;
         this.dataRecordArchiveCollection = dataRecordArchiveCollection;
         this.qcResultsService = qcResultsService;
-        this.exportQueue = exportQueue
+        this.exportQueue = exportQueue;
+        this.releaseCollection = releaseCollection;
+
     }
 
     async submissionStats(aSubmission) {
@@ -688,6 +690,31 @@ class DataRecordService {
             { $count: "count" }        // Count the distinct nodeType values
         ]);
         return countNodes.length > 0 ? countNodes[0].count : 0;
+    }
+    /**
+     * public function to retrieve release record from release collection
+     * @param {*} submissionID 
+     * @param {*} nodeType 
+     * @param {*} nodeID 
+     * @param {*} nodeStatus 
+     * @returns {Promise<Object[]>}
+     */
+    async getReleasedNode(submissionID, nodeType, nodeID, status){
+
+        const query = {
+            submissionID: submissionID,
+            nodeType: nodeType,
+            nodeID: nodeID,
+            $expr: {
+                $eq: [
+                  { $arrayElemAt: ["$status", -1] }, // Get the last element of the array
+                  status                                // Check if it equals nodeStatus
+                ]
+              }
+        };
+        return await this.releaseCollection.aggregate([{
+            $match: query
+        }]);
     }
 }
 

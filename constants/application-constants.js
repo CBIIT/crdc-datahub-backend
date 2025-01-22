@@ -7,7 +7,7 @@ module.exports = Object.freeze({
     IN_REVIEW: 'In Review',
     APPROVED: 'Approved',
     REJECTED: 'Rejected',
-    DELETED: 'Deleted',
     CANCELED: 'Canceled',
+    DELETED: 'Deleted',
     API_TOKEN: "api-token"
 });

@@ -38,7 +38,7 @@ const createToken = (userInfo, token_secret, token_timeout)=> {
 class UserService {
     #allPermissionNamesSet = new Set([...Object.values(SUBMISSION_REQUEST), ...Object.values(DATA_SUBMISSION), ...Object.values(ADMIN)]);
     #allEmailNotificationNamesSet = new Set([...Object.values(EN.SUBMISSION_REQUEST), ...Object.values(EN.DATA_SUBMISSION), ...Object.values(EN.USER_ACCOUNT)]);
-    constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, tier, approvedStudiesService, inactiveUserDays, configurationService) {
+    constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, approvedStudiesService, inactiveUserDays, configurationService) {
         this.userCollection = userCollection;
         this.logCollection = logCollection;
         this.organizationCollection = organizationCollection;
@@ -47,7 +47,6 @@ class UserService {
         this.applicationCollection = applicationCollection;
         this.officialEmail = officialEmail;
         this.appUrl = appUrl;
-        this.tier = tier;
         this.approvedStudiesService = approvedStudiesService;
         this.approvedStudiesCollection = approvedStudiesService.approvedStudiesCollection;
         this.inactiveUserDays = inactiveUserDays;
@@ -58,11 +57,6 @@ class UserService {
         verifySession(context)
             .verifyInitialized()
             .verifyPermission(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REQUEST_ACCESS);
-
-        // USER.ROLES.ORG_OWNER needs to be removed after the role is retired finally
-        if (![USER.ROLES.SUBMITTER, USER.ROLES.USER, USER.ROLES.ORG_OWNER].includes(params.role)) {
-            return new Error(replaceErrorString(ERROR.INVALID_REQUEST_ROLE, params?.role));
-        } 
 
         const approvedStudies = params?.studies?.length > 0 ?
             await this.approvedStudiesService.listApprovedStudies({_id: {$in: params?.studies}})
@@ -87,8 +81,7 @@ class UserService {
                 role: params?.role,
                 studies: approvedStudies?.map((study)=> study?.studyName),
                 additionalInfo: params?.additionalInfo?.trim()
-            }
-            ,this.tier);
+            });
 
         if (res?.accepted?.length > 0) {
             return ValidationHandler.success()
@@ -446,13 +439,11 @@ class UserService {
             throw new Error(SUBMODULE_ERROR.USER_NOT_FOUND);
         }
         const updatedUser = {};
-        const isCurator = updatedUser?.role === USER.ROLES.CURATOR || user[0]?.role === USER.ROLES.CURATOR || params?.role === USER.ROLES.CURATOR;
-
         if (params.role && Object.values(USER.ROLES).includes(params.role)) {
             updatedUser.role = params.role;
         }
 
-        if(!params?.studies && ![USER.ROLES.ADMIN, USER.ROLES.USER, USER.ROLES.CURATOR, USER.ROLES.DC_POC, USER.ROLES.DATA_COMMONS_PERSONNEL].includes(params.role)){
+        if(!params?.studies && USER.ROLES.SUBMITTER === params.role) {
             throw new Error(SUBMODULE_ERROR.APPROVED_STUDIES_REQUIRED);
         }
 
@@ -463,10 +454,6 @@ class UserService {
             } else {
                 throw new Error(SUBMODULE_ERROR.INVALID_USER_STATUS);
             }
-        }
-
-        if (isCurator) {
-            updatedUser.organization = null;
         }
 
         updatedUser.dataCommons = DataCommon.get(user[0]?.dataCommons, params?.dataCommons);
@@ -531,8 +518,7 @@ class UserService {
                     dataCommons: userDataCommons,
                     studies: studyNames
                 },
-                {url: this.appUrl, helpDesk: this.officialEmail}
-                ,this.tier);
+                {url: this.appUrl, helpDesk: this.officialEmail});
         }
     }
 
@@ -545,8 +531,7 @@ class UserService {
             if (prevUser?.notifications?.includes(EN.USER_ACCOUNT.USER_INACTIVATED)) {
                 await this.notificationsService.deactivateUserNotification(prevUser.email,
                     CCs, {firstName: prevUser.firstName},
-                    {officialEmail: this.officialEmail}
-                    ,this.tier);
+                    {officialEmail: this.officialEmail});
             }
         }
     }
@@ -865,7 +850,7 @@ class DataCommon {
     // TODO check user role is required
     static get(currentDataCommons, newDataCommons) {
         const dataCommons = new DataCommon(currentDataCommons, newDataCommons);
-        return dataCommons.#getDataCommons();
+        return dataCommons.#getDataCommons() || [];
     }
 
     #getDataCommons() {
