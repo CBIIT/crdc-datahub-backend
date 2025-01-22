@@ -9,6 +9,5 @@ module.exports = Object.freeze({
     REJECTED: 'Rejected',
     CANCELED: 'Canceled',
     DELETED: 'Deleted',
-    CANCELED: 'Canceled',
     API_TOKEN: "api-token"
 });
