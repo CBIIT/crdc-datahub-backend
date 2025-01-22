@@ -538,6 +538,14 @@ type PBACDefaults {
     notifications: [Notification]
 }
 
+type DataFileConfig {
+    id_field: String! 
+    name_field: String!
+    size_field: String!
+    md5_field: String!
+    omit_DCF_prefix: Boolean
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -691,6 +699,8 @@ type Query {
     collaborators: [Collaborator]
 
     retrievePBACDefaults (roles: [String!]!) : [PBACDefaults] #To retrieve all roles' permissions and notifications, use roles: ["All"] as parameter.
+
+    retrieveFileNodeConfig(submissionID: String!) : DataFileConfig
 }
 type Mutation {
     "User initiated operations"

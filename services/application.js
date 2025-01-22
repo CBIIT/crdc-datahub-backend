@@ -162,7 +162,7 @@ class Application {
     listApplicationConditions(userID, userRole) {
         // list all applications
         const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED]}};
-        const listAllApplicationRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.DATA_COMMONS_PERSONNEL];
+        const listAllApplicationRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.DATA_COMMONS_PERSONNEL];
         if (listAllApplicationRoles.includes(userRole)) {
             return [{"$match": {...validApplicationStatus}}];
         }
@@ -172,9 +172,16 @@ class Application {
     }
 
     async listApplications(params, context) {
-        verifySession(context)
+        let userInfoVerifier = verifySession(context)
             .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
+        try{
+            userInfoVerifier.verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
+        }
+        catch(permissionError){
+            console.warn(permissionError);
+            console.warn("Failed permission verification for listApplications, returning empty list");
+            return {applications: [], total: 0};
+        }
         let pipeline = this.listApplicationConditions(context.userInfo._id, context.userInfo?.role);
         const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
         const noPaginationPipe = pipeline.concat(paginationPipe.getNoLimitPipeline());
