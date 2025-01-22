@@ -18,6 +18,7 @@ const {EMAIL_NOTIFICATIONS} = require("../crdc-datahub-database-drivers/constant
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 
 class Application {
+    #ALL_FILTER="All";
     constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService) {
         this.logCollection = logCollection;
         this.applicationCollection = applicationCollection;
