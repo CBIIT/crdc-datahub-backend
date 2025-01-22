@@ -184,9 +184,17 @@ class Application {
     }
 
     async listApplications(params, context) {
-        verifySession(context)
+        let userInfoVerifier = verifySession(context)
             .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
+        try{
+            userInfoVerifier.verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
+        }
+        catch(permissionError){
+            console.warn(permissionError);
+            console.warn("Failed permission verification for listApplications, returning empty list");
+            return {applications: [], total: 0};
+        }
+
         const userInfo = context?.userInfo;
         const validStatuesSet = new Set([NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED, DELETED, this.#ALL_FILTER]);
         const invalidStatues = (params?.statues || [])
@@ -194,6 +202,7 @@ class Application {
         if (invalidStatues?.length > 0) {
             throw new Error(replaceErrorString(ERROR.APPLICATION_INVALID_STATUES, `'${invalidStatues.join(",")}'`));
         }
+
 
         const filterConditions = [
             // default filter for listing submissions
@@ -231,16 +240,14 @@ class Application {
             await this.#checkConditionalApproval(app);
         }
 
-        return await Promise.all(promises).then(function(results) {
-            return {
-                applications: applications,
-                total: results[1]?.length > 0 ? results[1][0]?.count : 0,
-                programs: results[2] || [],
-                studies: results[3] || [],
-                status: results[4] || [],
-                submitterNames: results[5] || []
-            }
-        });
+        return {
+            applications: applications,
+            total: results[1]?.length > 0 ? results[1][0]?.count : 0,
+            programs: results[2] || [],
+            studies: results[3] || [],
+            status: results[4] || [],
+            submitterNames: results[5] || []
+        }
     }
 
     async submitApplication(params, context) {
@@ -248,12 +255,7 @@ class Application {
             .verifyInitialized()
             .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.SUBMIT);
         const application = await this.getApplicationById(params._id);
-        let validStatus = [];
-        if (context?.userInfo?.role === USER.ROLES.SUBMITTER) {
-            validStatus = [NEW, IN_PROGRESS];
-        } else if (context?.userInfo?.role === USER.ROLES.FEDERAL_LEAD) {
-            validStatus = [INQUIRED, IN_PROGRESS];
-        }
+        const validStatus = [IN_PROGRESS, INQUIRED]; //updated based on new requirement.
         verifyApplication(application)
             .notEmpty()
             .state(validStatus);
@@ -307,7 +309,7 @@ class Application {
     async deleteApplication(document, context) {
         verifySession(context)
             .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.DELETE);
+            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
         const aApplication = await this.getApplicationById(document._id);
         const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED, INQUIRED];
         if (validApplicationStatus.includes(aApplication.status)) {

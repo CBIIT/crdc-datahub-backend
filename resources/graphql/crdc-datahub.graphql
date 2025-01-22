@@ -522,6 +522,7 @@ type Permission {
     _id: String!,  #Permission Internal Name, unique 
     group: String!, #permission group
     name: String!, #permission name
+    order: Int,
     checked: Boolean,
     disabled: Boolean
 }
@@ -530,6 +531,7 @@ type Notification {
     _id: String!,  #Notification Internal Name, unique 
     group: String!, #Notification group
     name: String!, #Notification name
+    order: Int,
     checked: Boolean, 
     disabled: Boolean
 }
@@ -538,6 +540,14 @@ type PBACDefaults {
     role: String!, #user role in ["Federal Lease", "Data Common Personnel", "Admin", "Submitter", "User"]
     permissions: [Permission], 
     notifications: [Notification]
+}
+
+type DataFileConfig {
+    id_field: String! 
+    name_field: String!
+    size_field: String!
+    md5_field: String!
+    omit_DCF_prefix: Boolean
 }
 
 type Query {
@@ -702,6 +712,8 @@ type Query {
     collaborators: [Collaborator]
 
     retrievePBACDefaults (roles: [String!]!) : [PBACDefaults] #To retrieve all roles' permissions and notifications, use roles: ["All"] as parameter.
+
+    retrieveFileNodeConfig(submissionID: String!) : DataFileConfig
 }
 type Mutation {
     "User initiated operations"

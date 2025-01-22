@@ -185,20 +185,16 @@ const listBatchConditions = (userID, collaboratorUserIDs, userRole, aUserOrganiz
     ];
 
     const validStatusAndSubmissionID = {"submissionID": submissionID, "batch.status": {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED, REJECTED, WITHDRAWN]}};
-    const listAllSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.CURATOR, USER.ROLES.FEDERAL_MONITOR];
+    const listAllSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD];
     if (listAllSubmissionRoles.includes(userRole) || collaboratorUserIDs.length > 0) {
         return [...submissionJoin, {"$match": {...validStatusAndSubmissionID}}];
     }
 
-    if (userRole === USER.ROLES.ORG_OWNER && aUserOrganization?.orgID) {
-        return [...submissionJoin, {"$match": {...validStatusAndSubmissionID,"batch.organization._id": aUserOrganization?.orgID}}];
-    }
-
-    if (userRole === USER.ROLES.SUBMITTER) {
+    if (userRole === USER.ROLES.SUBMITTER || userRole === USER.ROLES.USER) {
         return [...submissionJoin, {"$match": {...validStatusAndSubmissionID, "batch.submitterID": userID}}];
     }
 
-    if (userRole === USER.ROLES.DC_POC && userDataCommonsNames?.length > 0) {
+    if (userRole === USER.ROLES.DATA_COMMONS_PERSONNEL && userDataCommonsNames?.length > 0) {
         return [...submissionJoin, {"$match": {...validStatusAndSubmissionID, "batch.dataCommons": {$in: userDataCommonsNames}}}];
     }
     throw new Error(ERROR.INVALID_SUBMISSION_PERMISSION);
