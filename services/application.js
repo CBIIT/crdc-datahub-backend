@@ -18,7 +18,7 @@ const {EMAIL_NOTIFICATIONS} = require("../crdc-datahub-database-drivers/constant
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 
 class Application {
-    constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, tier, institutionService) {
+    constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService) {
         this.logCollection = logCollection;
         this.applicationCollection = applicationCollection;
         this.approvedStudiesService = approvedStudiesService;
@@ -27,7 +27,6 @@ class Application {
         this.notificationService = notificationsService;
         this.emailParams = emailParams;
         this.organizationService = organizationService;
-        this.tier = tier;
         this.institutionService = institutionService;
     }
 
@@ -298,7 +297,7 @@ class Application {
 
         let promises = [];
         promises.push(this.institutionService.addNewInstitutions(document?.institutions));
-        promises.push(this.sendEmailAfterApproveApplication(context, application, this.tier, document?.comment, approvalConditional));
+        promises.push(this.sendEmailAfterApproveApplication(context, application, document?.comment, approvalConditional));
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             promises.unshift(this.getApplicationById(document._id));
             if(questionnaire) {
@@ -373,7 +372,7 @@ class Application {
             ?.map((aUser)=> aUser.email);
 
         const applicantInfo = (await this.userService.userCollection.find(application?.applicant?.applicantID))?.pop();
-        await sendEmails.inquireApplication(this.notificationService, this.emailParams, application, adminEmails, this.tier, applicantInfo);
+        await sendEmails.inquireApplication(this.notificationService, this.emailParams, application, adminEmails, applicantInfo);
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, INQUIRED);
             const promises = [
@@ -441,7 +440,7 @@ class Application {
         }
     }
 
-    async sendEmailAfterApproveApplication(context, application, tier, comment, conditional = false) {
+    async sendEmailAfterApproveApplication(context, application, comment, conditional = false) {
         const res = await Promise.all([
             this.userService.getOrgOwner(application?.organization?._id),
             this.userService.getConcierge(application?.organization?._id),
@@ -476,8 +475,7 @@ class Application {
                         study: application?.studyAbbreviation,
                         doc_url: this.emailParams.url,
                         contact_detail: contactDetail,
-                    },
-                    tier);
+                    });
                 return;
             }
             await this.notificationService.conditionalApproveQuestionNotification(application?.applicant?.applicantEmail,
@@ -488,8 +486,7 @@ class Application {
                     url: this.emailParams?.submissionGuideURL,
                     approverNotes: comment
                 },
-                {study: setDefaultIfNoName(application?.studyName)},
-                tier
+                {study: setDefaultIfNoName(application?.studyName)}
             );
         }
     }
@@ -574,13 +571,13 @@ const sendEmails = {
             });
         }
     },
-    inquireApplication: async(notificationService, emailParams, application, emailCCs, tier, applicantInfo) => {
+    inquireApplication: async(notificationService, emailParams, application, emailCCs, applicantInfo) => {
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW)) {
             await notificationService.inquireQuestionNotification(application?.applicant?.applicantEmail, emailCCs,{
                 firstName: application?.applicant?.applicantName
             }, {
                 officialEmail: emailParams.submissionHelpdesk
-            }, tier);
+            });
         }
     },
     rejectApplication: async(notificationService, emailParams, _, application, applicantInfo) => {
