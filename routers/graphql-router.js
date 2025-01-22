@@ -49,7 +49,7 @@ dbConnector.connect().then(async () => {
     const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
     const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
     const emailService = new EmailService(config.email_transport, config.emails_enabled);
-    const notificationsService = new NotifyUser(emailService, config.committee_emails, config.tier);
+    const notificationsService = new NotifyUser(emailService, config.tier);
 
     const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
