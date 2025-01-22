@@ -162,8 +162,8 @@ class Application {
 
     #listApplicationConditions(userID, userRole, programName, studyName, statues, submitterName) {
         const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED, DELETED];
-        const statusCondition = statues?.includes(this.#ALL_FILTER) ?
-            { status: { $in: validApplicationStatus } } : { status: { $in: statues || [] } };
+        const statusCondition = statues && !statues?.includes(this.#ALL_FILTER) ?
+            { status: { $in: statues || [] } } : { status: { $in: validApplicationStatus } };
 
         const submitterNameCondition = (submitterName && submitterName !== this.#ALL_FILTER) ? {"applicant.applicantName": submitterName?.trim()} : {};
         const programNameCondition = (programName && programName !== this.#ALL_FILTER) ? {programName: programName?.trim()} : {};
