@@ -1285,7 +1285,7 @@ class Submission {
      * API: get releases data
      * @param {*} params 
      * @param {*} context 
-     * @returns 
+     * @returns {Promise<Object>}
      */
     async getReleasedNodeByIDs(params, context)
     {

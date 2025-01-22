@@ -697,7 +697,7 @@ class DataRecordService {
      * @param {*} nodeType 
      * @param {*} nodeID 
      * @param {*} nodeStatus 
-     * @returns 
+     * @returns {Promise<Object[]>}
      */
     async getReleasedNode(submissionID, nodeType, nodeID, status){
 
