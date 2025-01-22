@@ -43,6 +43,8 @@ Commands:
     db.users.updateMany({role: "Data Commons POC"}, [{$set: {role: "Data Commons Personnel"}}]);
   - Remove data_submission cancel: |
     db.users.updateMany({permissions: {$all: ["data_submission:cancel"]}}, {$pull: {permissions: "data_submission:cancel"}});
+  - Add submission request cancel notifications: |
+    db.users.updateMany({notifications: {$all: ["submission_request:expiring"]}}, {$push: {notifications: "submission_request:canceled"}});
   - Search for missed accounts: 
       description: |
         If the below 'count' command returns 0, then all users have been migrated. If some accounts were not migrated, then use the below 'find' command to view them.
