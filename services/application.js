@@ -398,6 +398,12 @@ class Application {
             .isUndefined();
 
         if (applications?.length > 0) {
+            const applicantUsers = await this.#findUsersByApplicantIDs(applications);
+            const permittedUserIDs = new Set(
+                applicantUsers
+                    ?.filter((u) => u?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_DELETE))
+                    ?.map((u) => u?._id)
+            );
             const history = HistoryEventBuilder.createEvent(0, DELETED, "Deleted because of no activities after submission");
             const updated = await this.dbService.updateMany(APPLICATION,
                 inactiveCondition,
@@ -407,7 +413,9 @@ class Application {
             if (updated?.modifiedCount && updated?.modifiedCount > 0) {
                 console.log("Executed to delete application(s) because of no activities at " + getCurrentTime());
                 await Promise.all(applications.map(async (app) => {
-                    await sendEmails.inactiveApplications(this.notificationService,this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app);
+                    if (permittedUserIDs.has(app?.applicant?.applicantID)) {
+                        await sendEmails.inactiveApplications(this.notificationService,this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app);
+                    }
                 }));
                 // log disabled applications
                 await Promise.all(applications.map(async (app) => {
@@ -428,8 +436,16 @@ class Application {
         };
         const applications = await this.applicationCollection.aggregate([{$match: remindCondition}]);
         if (applications?.length > 0) {
+            const applicantUsers = await this.#findUsersByApplicantIDs(applications);
+            const permittedUserIDs = new Set(
+                applicantUsers
+                    ?.filter((u) => u?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_EXPIRING))
+                    ?.map((u) => u?._id)
+            );
             await Promise.all(applications.map(async (app) => {
-                await sendEmails.remindApplication(this.notificationService, this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app);
+                if (permittedUserIDs.has(app?.applicant?.applicantID)) {
+                    await sendEmails.remindApplication(this.notificationService, this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app);
+                }
             }));
             const applicationIDs = applications.map(app => app._id);
             const query = {_id: {$in: applicationIDs}};
