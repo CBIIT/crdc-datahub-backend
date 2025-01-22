@@ -18,7 +18,7 @@ const {EMAIL_NOTIFICATIONS} = require("../crdc-datahub-database-drivers/constant
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 
 class Application {
-    constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, tier, institutionService) {
+    constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService) {
         this.logCollection = logCollection;
         this.applicationCollection = applicationCollection;
         this.approvedStudiesService = approvedStudiesService;
@@ -27,7 +27,6 @@ class Application {
         this.notificationService = notificationsService;
         this.emailParams = emailParams;
         this.organizationService = organizationService;
-        this.tier = tier;
         this.institutionService = institutionService;
     }
 
@@ -162,7 +161,7 @@ class Application {
     listApplicationConditions(userID, userRole) {
         // list all applications
         const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED]}};
-        const listAllApplicationRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.DATA_COMMONS_PERSONNEL];
+        const listAllApplicationRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.DATA_COMMONS_PERSONNEL];
         if (listAllApplicationRoles.includes(userRole)) {
             return [{"$match": {...validApplicationStatus}}];
         }
@@ -172,9 +171,16 @@ class Application {
     }
 
     async listApplications(params, context) {
-        verifySession(context)
+        let userInfoVerifier = verifySession(context)
             .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
+        try{
+            userInfoVerifier.verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
+        }
+        catch(permissionError){
+            console.warn(permissionError);
+            console.warn("Failed permission verification for listApplications, returning empty list");
+            return {applications: [], total: 0};
+        }
         let pipeline = this.listApplicationConditions(context.userInfo._id, context.userInfo?.role);
         const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
         const noPaginationPipe = pipeline.concat(paginationPipe.getNoLimitPipeline());
@@ -291,7 +297,7 @@ class Application {
 
         let promises = [];
         promises.push(this.institutionService.addNewInstitutions(document?.institutions));
-        promises.push(this.sendEmailAfterApproveApplication(context, application, this.tier, document?.comment, approvalConditional));
+        promises.push(this.sendEmailAfterApproveApplication(context, application, document?.comment, approvalConditional));
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             promises.unshift(this.getApplicationById(document._id));
             if(questionnaire) {
@@ -366,7 +372,7 @@ class Application {
             ?.map((aUser)=> aUser.email);
 
         const applicantInfo = (await this.userService.userCollection.find(application?.applicant?.applicantID))?.pop();
-        await sendEmails.inquireApplication(this.notificationService, this.emailParams, application, adminEmails, this.tier, applicantInfo);
+        await sendEmails.inquireApplication(this.notificationService, this.emailParams, application, adminEmails, applicantInfo);
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, INQUIRED);
             const promises = [
@@ -392,12 +398,6 @@ class Application {
             .isUndefined();
 
         if (applications?.length > 0) {
-            const applicantUsers = await this.#findUsersByApplicantIDs(applications);
-            const permittedUserIDs = new Set(
-                applicantUsers
-                    ?.filter((u) => u?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_DELETE))
-                    ?.map((u) => u?._id)
-            );
             const history = HistoryEventBuilder.createEvent(0, DELETED, "Deleted because of no activities after submission");
             const updated = await this.dbService.updateMany(APPLICATION,
                 inactiveCondition,
@@ -407,9 +407,7 @@ class Application {
             if (updated?.modifiedCount && updated?.modifiedCount > 0) {
                 console.log("Executed to delete application(s) because of no activities at " + getCurrentTime());
                 await Promise.all(applications.map(async (app) => {
-                    if (permittedUserIDs.has(app?.applicant?.applicantID)) {
-                        await sendEmails.inactiveApplications(this.notificationService, this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app);
-                    }
+                    await sendEmails.inactiveApplications(this.notificationService,this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app);
                 }));
                 // log disabled applications
                 await Promise.all(applications.map(async (app) => {
@@ -430,16 +428,8 @@ class Application {
         };
         const applications = await this.applicationCollection.aggregate([{$match: remindCondition}]);
         if (applications?.length > 0) {
-            const applicantUsers = await this.#findUsersByApplicantIDs(applications);
-            const permittedUserIDs = new Set(
-                applicantUsers
-                    ?.filter((u) => u?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_EXPIRING))
-                    ?.map((u) => u?._id)
-            );
             await Promise.all(applications.map(async (app) => {
-                if (permittedUserIDs.has(app?.applicant?.applicantID)) {
-                    await sendEmails.remindApplication(this.notificationService, this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app);
-                }
+                await sendEmails.remindApplication(this.notificationService, this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app);
             }));
             const applicationIDs = applications.map(app => app._id);
             const query = {_id: {$in: applicationIDs}};
@@ -460,7 +450,7 @@ class Application {
             }}]);
     }
 
-    async sendEmailAfterApproveApplication(context, application, tier, comment, conditional = false) {
+    async sendEmailAfterApproveApplication(context, application, comment, conditional = false) {
         const res = await Promise.all([
             this.userService.getOrgOwner(application?.organization?._id),
             this.userService.getConcierge(application?.organization?._id),
@@ -495,8 +485,7 @@ class Application {
                         study: application?.studyAbbreviation,
                         doc_url: this.emailParams.url,
                         contact_detail: contactDetail,
-                    },
-                    tier);
+                    });
                 return;
             }
             await this.notificationService.conditionalApproveQuestionNotification(application?.applicant?.applicantEmail,
@@ -507,8 +496,7 @@ class Application {
                     url: this.emailParams?.submissionGuideURL,
                     approverNotes: comment
                 },
-                {study: setDefaultIfNoName(application?.studyName)},
-                tier
+                {study: setDefaultIfNoName(application?.studyName)}
             );
         }
     }
@@ -593,13 +581,13 @@ const sendEmails = {
             });
         }
     },
-    inquireApplication: async(notificationService, emailParams, application, emailCCs, tier, applicantInfo) => {
+    inquireApplication: async(notificationService, emailParams, application, emailCCs, applicantInfo) => {
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW)) {
             await notificationService.inquireQuestionNotification(application?.applicant?.applicantEmail, emailCCs,{
                 firstName: application?.applicant?.applicantName
             }, {
                 officialEmail: emailParams.submissionHelpdesk
-            }, tier);
+            });
         }
     },
     rejectApplication: async(notificationService, emailParams, _, application, applicantInfo) => {

@@ -54,7 +54,6 @@ const ERROR = {
     // Submission Permission
     INVALID_SUBMISSION_STATUS: "The batch creation is aborted because the current submission is not in the valid state to be created.",
     // Create Submission
-    CREATE_SUBMISSION_NO_ORGANIZATION_ASSIGNED: "The submitter/organization owner does not have an organization assigned. Thus, the data submission was not created",
     CREATE_SUBMISSION_INSERTION_ERROR: "An error occurred while attempting to insert the created data submission into the database",
     CREATE_SUBMISSION_INVALID_PARAMS: "One or more of the parameters for creating a submission is invalid",
     CREATE_SUBMISSION_INVALID_NAME: "Submission name cannot exceed $item$ characters in length.",
@@ -176,7 +175,9 @@ const ERROR = {
     // User Permissions
     INVALID_PERMISSION_NAME: "Invalid user permission is requested: $item$",
     // User Notifications
-    INVALID_NOTIFICATION_NAME: "Invalid email notification is requested: $item$"
+    INVALID_NOTIFICATION_NAME: "Invalid email notification is requested: $item$",
+    INVALID_PRIMARY_CONTACT: "No primary contact found with the primary contact ID",
+    INVALID_PRIMARY_CONTACT_ROLE: "The user role for a primary contact must be Data Commons Personnel",
 }
 
 module.exports = ERROR;

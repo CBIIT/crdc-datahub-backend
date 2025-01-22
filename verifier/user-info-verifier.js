@@ -23,13 +23,6 @@ class UserInfoVerifier {
         return this;
     }
 
-    verifyOrganization() {
-        if (!this?.userInfo?.organization?.status || this?.userInfo?.organization?.status === ORGANIZATION.STATUSES.INACTIVE) {
-            throw new Error(ERROR.VERIFY.INVALID_ORGANIZATION_STATUS);
-        }
-        return this;
-    }
-
     verifyPermission(permission) {
         if (permission instanceof String) permission = [permission];
         if (!this?.userInfo?.permissions?.some(item => permission.includes(item))) {
