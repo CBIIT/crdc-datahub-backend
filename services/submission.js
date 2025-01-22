@@ -1450,7 +1450,7 @@ class Submission {
                     return {...baseConditions, ...studyQuery};
                 case ROLES.DATA_COMMONS_PERSONNEL:
                     const aFilteredDataCommon = (dataCommonsParams && dataCommons?.includes(dataCommonsParams)) ? [dataCommonsParams] : []
-                    return {...baseConditions, dataCommons: {$in: aFilteredDataCommon}};
+                    return {...baseConditions, dataCommons: {$in: dataCommonsParams !== ALL_FILTER ? aFilteredDataCommon : dataCommons}};
                 // Submitter or User role
                 default:
                     return {...baseConditions, "$or": [
