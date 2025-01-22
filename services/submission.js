@@ -1280,6 +1280,39 @@ class Submission {
         return await this.userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
     }
 
+    /**
+     * API: get releases data
+     * @param {*} params 
+     * @param {*} context 
+     * @returns {Promise<Object>}
+     */
+    async getReleasedNodeByIDs(params, context)
+    {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        const {
+            submissionID = submissionID,
+            nodeType = nodeType,
+            nodeID = nodeID,
+            status = status
+        } = params; // all three parameters are required in GraphQL API
+        const results = await this.dataRecordService.getReleasedNode(submissionID, nodeType, nodeID, status);
+        if(results && results.length > 0) 
+        {
+            const result = results[0];
+            if(result?.props)
+            {
+                result.props = JSON.stringify(result.props);
+            }
+            return result;
+        }
+        else
+        {
+            return null;
+        }
+    }
+
     async verifySubmitter(submissionID, userInfo) {
         const aSubmission = await findByID(this.submissionCollection, submissionID);
         if (!aSubmission) {

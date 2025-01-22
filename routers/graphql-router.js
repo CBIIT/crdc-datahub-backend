@@ -15,7 +15,8 @@ const {DATABASE_NAME, APPLICATION_COLLECTION, SUBMISSIONS_COLLECTION, USER_COLLE
     CONFIGURATION_COLLECTION,
     CDE_COLLECTION,
     DATA_RECORDS_ARCHIVE_COLLECTION,
-    QC_RESULTS_COLLECTION
+    QC_RESULTS_COLLECTION,
+    RELEASE_DATA_RECORDS_COLLECTION
 } = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoDBCollection} = require("../crdc-datahub-database-drivers/mongodb-collection");
 const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-connector");
@@ -76,9 +77,10 @@ dbConnector.connect().then(async () => {
     const qcResultCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, QC_RESULTS_COLLECTION);
     const qcResultsService = new QcResultService(qcResultCollection, submissionCollection);
 
+    const releaseCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, RELEASE_DATA_RECORDS_COLLECTION);
     const dataRecordCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_COLLECTION);
     const dataRecordArchiveCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_ARCHIVE_COLLECTION);
-    const dataRecordService = new DataRecordService(dataRecordCollection, dataRecordArchiveCollection, config.file_queue, config.metadata_queue, awsService, s3Service, qcResultsService, config.export_queue);
+    const dataRecordService = new DataRecordService(dataRecordCollection, dataRecordArchiveCollection, releaseCollection, config.file_queue, config.metadata_queue, awsService, s3Service, qcResultsService, config.export_queue);
 
     const validationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, VALIDATION_COLLECTION);
 
@@ -142,6 +144,7 @@ dbConnector.connect().then(async () => {
         retrieveCLIConfig: submissionService.getUploaderCLIConfigs.bind(submissionService),
         listPotentialCollaborators: submissionService.listPotentialCollaborators.bind(submissionService),
         retrieveFileNodeConfig: submissionService.getDataFileConfigs.bind(submissionService),
+        retrieveReleasedDataByID: submissionService.getReleasedNodeByIDs.bind(submissionService),
 
         listInstitutions: institutionService.listInstitutions.bind(institutionService),
         // AuthZ
