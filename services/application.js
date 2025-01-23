@@ -164,9 +164,9 @@ class Application {
         const statusCondition = statues && !statues?.includes(this.#ALL_FILTER) ?
             { status: { $in: statues || [] } } : { status: { $in: validApplicationStatus } };
 
-        const submitterNameCondition = (submitterName && submitterName !== this.#ALL_FILTER) ? {"applicant.applicantName": submitterName?.trim()} : {};
-        const programNameCondition = (programName && programName !== this.#ALL_FILTER) ? {programName: programName?.trim()} : {};
-        const studyNameCondition = (studyName && studyName !== this.#ALL_FILTER) ? {studyName: studyName?.trim()} : {};
+        const submitterNameCondition = (submitterName !== undefined && submitterName !== null && submitterName !== this.#ALL_FILTER) ? {"applicant.applicantName": submitterName?.trim()} : {};
+        const programNameCondition = (programName !== undefined && programName !== null && programName !== this.#ALL_FILTER) ? {programName: programName?.trim()} : {};
+        const studyNameCondition = (studyName !== undefined && studyName !== null && studyName !== this.#ALL_FILTER) ? {studyName: studyName?.trim()} : {};
 
         const baseConditions = {...statusCondition, ...programNameCondition, ...studyNameCondition, ...submitterNameCondition};
         return (() => {
