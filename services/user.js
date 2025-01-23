@@ -333,24 +333,6 @@ class UserService {
         return result || [];
     }
 
-
-    /**
-     * Retrieves user documents from the userCollection by matching optional data commons.
-     * @param {Array} dataCommons - An optional array of data commons IDs
-     * @returns {Promise<Array>} user[]
-     */
-    async getDCP(dataCommons = []) {
-        const result = await this.userCollection.aggregate([{
-            "$match": {
-                role: USER.ROLES.DATA_COMMONS_PERSONNEL,
-                userStatus: USER.STATUSES.ACTIVE,
-                ...(dataCommons?.length > 0 && { "dataCommons": { "$in": dataCommons } })
-            }
-        }]);
-        return result || [];
-    }
-
-
     async getConcierge(orgID) {
         let result = await this.userCollection.aggregate([{
             "$match": {
