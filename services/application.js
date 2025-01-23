@@ -659,8 +659,6 @@ const sendEmails = {
         const [toBCCUsers, applicant] = res;
         const applicantInfo = (applicant)?.pop();
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW)) {
-            const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_READY_REVIEW],
-                [ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]);
             await notificationService.inquireQuestionNotification(application?.applicant?.applicantEmail, getUserEmails(toBCCUsers),{
                 firstName: application?.applicant?.applicantName,
                 reviewComments,
