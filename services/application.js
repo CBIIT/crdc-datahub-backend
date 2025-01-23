@@ -356,8 +356,7 @@ class Application {
             $push: {history}
         });
 
-        const applicantInfo = (await this.userService.userCollection.find(application?.applicant?.applicantID))?.pop();
-        await sendEmails.rejectApplication(this.notificationService, this.emailParams, context.userInfo, application, applicantInfo, document.comment);
+        await sendEmails.rejectApplication(this.notificationService, this.userService, this.emailParams, application, document.comment);
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, REJECTED);
             const promises = [
@@ -378,12 +377,12 @@ class Application {
         verifyApplication(application)
             .notEmpty()
             .state([IN_REVIEW, SUBMITTED]);
-        const history = HistoryEventBuilder.createEvent(context.userInfo._id, INQUIRED, document.comment);
+        const history = HistoryEventBuilder.createEvent(context.userInfo._id, INQUIRED, document?.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-            $set: {reviewComment: document.comment, status: INQUIRED, updatedAt: history.dateTime},
+            $set: {reviewComment: document?.comment, status: INQUIRED, updatedAt: history.dateTime},
             $push: {history}
         });
-        await sendEmails.inquireApplication(this.notificationService, this.emailParams, application, adminEmails, applicantInfo);
+        await sendEmails.inquireApplication(this.notificationService, this.userService, this.emailParams, application, document?.comment);
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, INQUIRED);
             const promises = [
@@ -546,7 +545,7 @@ const sendEmails = {
         })
     },
     submitApplication: async (notificationService, userService, emailParams, userInfo, application) => {
-        const applicantInfo = (await this.userService.userCollection.find(application?.applicant?.applicantID))?.pop();
+        const applicantInfo = (await userService.userCollection.find(application?.applicant?.applicantID))?.pop();
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_SUBMIT)) {
             const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_SUBMIT],
                 [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]);
@@ -559,9 +558,9 @@ const sendEmails = {
         }
 
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_READY_REVIEW)) {
-            const toUsers = await this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_READY_REVIEW],
+            const toUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_READY_REVIEW],
                 [ROLES.FEDERAL_LEAD]);
-            const BCCUsers = await this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_READY_REVIEW],
+            const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_READY_REVIEW],
                 [ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]);
 
             if (!toUsers || toUsers?.length === 0) {
@@ -577,30 +576,31 @@ const sendEmails = {
             });
         }
     },
-    inquireApplication: async(notificationService, emailParams, application, reviewComments) => {
+    inquireApplication: async(notificationService, userService, emailParams, application, reviewComments) => {
         const res = await Promise.all([
-            this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
+            userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
                 [ROLES.ADMIN, ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD]),
-            this.userService.userCollection.find(application?.applicant?.applicantID)
+            userService.userCollection.find(application?.applicant?.applicantID)
         ]);
         const [toBCCUsers, applicant] = res;
         const applicantInfo = (applicant)?.pop();
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW)) {
-            const BCCUsers = await this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_READY_REVIEW],
+            const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_READY_REVIEW],
                 [ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]);
             await notificationService.inquireQuestionNotification(application?.applicant?.applicantEmail, getUserEmails(toBCCUsers),{
                 firstName: application?.applicant?.applicantName,
                 reviewComments,
             }, {
-                officialEmail: emailParams.conditionalSubmissionContact,
+                contactInfo: emailParams.conditionalSubmissionContact,
             });
         }
     },
-    rejectApplication: async(notificationService, emailParams, _, application, applicantInfo, reviewComments) => {
+    rejectApplication: async(notificationService, userService, emailParams, application, reviewComments) => {
+        const applicantInfo = (await userService.userCollection.find(application?.applicant?.applicantID))?.pop();
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW)) {
-            const BCCUsers = await this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
+            const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
                 [ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]);
-            await notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, BCCUsers, {
+            await notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, getUserEmails(BCCUsers), {
                 firstName: application?.applicant?.applicantName,
                 reviewComments
             }, {
