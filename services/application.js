@@ -163,10 +163,10 @@ class Application {
         const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED, DELETED];
         const statusCondition = statues && !statues?.includes(this.#ALL_FILTER) ?
             { status: { $in: statues || [] } } : { status: { $in: validApplicationStatus } };
-
-        const submitterNameCondition = (submitterName && submitterName !== this.#ALL_FILTER) ? {"applicant.applicantName": submitterName?.trim()} : {};
-        const programNameCondition = (programName && programName !== this.#ALL_FILTER) ? {programName: programName?.trim()} : {};
-        const studyNameCondition = (studyName && studyName !== this.#ALL_FILTER) ? {studyName: studyName?.trim()} : {};
+        // Allowing empty string SubmitterName, ProgramName, StudyName
+        const submitterNameCondition = (submitterName != null && submitterName !== this.#ALL_FILTER) ? {"applicant.applicantName": submitterName} : {};
+        const programNameCondition = (programName != null && programName !== this.#ALL_FILTER) ? {programName: programName} : {};
+        const studyNameCondition = (studyName != null && studyName !== this.#ALL_FILTER) ? {studyName: studyName} : {};
 
         const baseConditions = {...statusCondition, ...programNameCondition, ...studyNameCondition, ...submitterNameCondition};
         return (() => {
