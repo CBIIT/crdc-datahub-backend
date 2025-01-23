@@ -49,7 +49,7 @@ dbConnector.connect().then(async () => {
     const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
     const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
     const emailService = new EmailService(config.email_transport, config.emails_enabled);
-    const notificationsService = new NotifyUser(emailService, config.committee_emails, config.tier);
+    const notificationsService = new NotifyUser(emailService, config.tier);
 
     const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
@@ -113,8 +113,14 @@ dbConnector.connect().then(async () => {
             const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
             return dataInterface.approveApplication({...params, comment}, context);
         },
-        rejectApplication: dataInterface.rejectApplication.bind(dataInterface),
-        inquireApplication: dataInterface.inquireApplication.bind(dataInterface),
+        rejectApplication: (params, context)=> {
+            const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
+            return dataInterface.rejectApplication({...params, comment}, context);
+        },
+        inquireApplication: async (params, context)=> {
+            const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
+            return dataInterface.inquireApplication({...params, comment}, context);
+        },
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
         deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
         listApprovedStudies: approvedStudiesService.listApprovedStudiesAPI.bind(approvedStudiesService),
