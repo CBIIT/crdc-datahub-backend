@@ -15,7 +15,6 @@ const ACCOUNT_EMAIL = "Account Email";
 const REQUESTED_ROLE = "Requested Role";
 const ADDITIONAL_INFO = "Additional Info";
 const AFFILIATED_ORGANIZATION = "Affiliated Organization";
-const CRDC_PORTAL_ADMIN = "CRDC Submission Portal Admins";
 class NotifyUser {
 
     constructor(emailService, tier) {
@@ -201,9 +200,12 @@ class NotifyUser {
         });
     }
 
-    async inactiveUserAdminNotification(email, template_params, messageVariables) {
+    async inactiveUserAdminNotification(email, BCCEmails, template_params, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.INACTIVE_ADMIN_USER_CONTENT, messageVariables);
         const subject = this.email_constants.INACTIVE_ADMIN_USER_SUBJECT;
+
+
+        // TODO BCCs
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
@@ -363,7 +365,7 @@ class NotifyUser {
         });
     }
 
-    async requestUserAccessNotification(email, CCs, templateParams) {
+    async requestUserAccessNotification(email, templateParams) {
         const sanitizedAdditionalInfo = sanitizeHtml(templateParams.additionalInfo, {allowedTags: [],allowedAttributes: {}});
         const topMessage = replaceMessageVariables(this.email_constants.USER_REQUEST_ACCESS_CONTENT, {});
         const subject = this.email_constants.USER_REQUEST_ACCESS_SUBJECT;
@@ -381,12 +383,12 @@ class NotifyUser {
                 isTierAdded(this.tier) ? `${this.tier} ${subject}` : subject,
                 await createEmailTemplate(NOTIFICATION_USER_HTML_TEMPLATE, {
                     topMessage, ...{
-                        firstName: CRDC_PORTAL_ADMIN,
+                        firstName: this.email_constants.USER_REQUEST_ACCESS_RECIPIENT_NAME,
                         senderName: CRDC_SUBMISSION_PORTAL,
                         ...templateParams, additionalInfo}
                 }),
                 email,
-                CCs
+                []
             );
         });
     }

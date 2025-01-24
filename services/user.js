@@ -3,19 +3,20 @@ const {USER} = require("../crdc-datahub-database-drivers/constants/user-constant
 const {ValidationHandler} = require("../utility/validation-handler");
 const ERROR = require("../constants/error-constants");
 const {ERROR: SUBMODULE_ERROR} = require("../crdc-datahub-database-drivers/constants/error-constants");
-const {replaceErrorString} = require("../utility/string-util");
+const {replaceErrorString, extractAndJoinFields} = require("../utility/string-util");
 const config = require("../config");
 const {getCurrentTime, subtractDaysFromNowTimestamp} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {UpdateProfileEvent, ReactivateUserEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const {LOG_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const jwt = require("jsonwebtoken");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
-
+const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
+const ROLES = USER_CONSTANTS.USER.ROLES;
 const {
     SUBMISSION_REQUEST,
     ADMIN,
     DATA_SUBMISSION,
-    EMAIL_NOTIFICATIONS: EN,
+    EMAIL_NOTIFICATIONS: EN, EMAIL_NOTIFICATIONS,
 } = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 
 const isLoggedInOrThrow = (context) => {
@@ -65,16 +66,19 @@ class UserService {
             return new Error(ERROR.INVALID_APPROVED_STUDIES_ACCESS_REQUEST);
         }
 
-        const adminUsers = await this.getAdmin();
-        const adminEmails = adminUsers?.filter((u)=> u.email).map((u)=> u.email);
+        const adminUsers = await this.getUsersByNotifications([EN.USER_ACCOUNT.USER_REQUEST_ACCESS],
+            [ROLES.ADMIN]);
+        const adminEmails = adminUsers
+            ?.filter((u)=> u?.email)
+            .map((u)=> u?.email);
         const userInfo = context?.userInfo;
 
         if (adminEmails.length === 0) {
+            console.error("The request access notification does not have any recipient");
             return ValidationHandler.handle(ERROR.NO_ADMIN_USER);
         }
 
-        const res = await this.notificationsService.requestUserAccessNotification(adminEmails,
-            [], {
+        const res = await this.notificationsService.requestUserAccessNotification(adminEmails, {
                 userName: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
                 accountType: userInfo?.IDP,
                 email: userInfo?.email,
@@ -515,6 +519,28 @@ class UserService {
                     CCs, {firstName: prevUser.firstName},
                     {officialEmail: this.officialEmail});
             }
+
+            // Email PBAC enabled admin(s)
+            const adminUsers = await userService.getAdminPBACUsers();
+            const BCCUsers = this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
+                [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD])
+
+            await Promise.all(adminUsers.map(async (admin) => {
+                const disabledUserContents = disabledUsers.map(aUser => {
+                    return {
+                        name: `${aUser?.firstName} ${aUser?.lastName || ''}`,
+                        email: aUser?.email,
+                        role: aUser?.role,
+                    };
+                });
+                if (disabledUserContents?.length > 0) {
+                    const commaJoinedUsers = extractAndJoinFields(disabledUserContents, ["name", "email", "role"], ", ");
+                    await this.notificationsService.inactiveUserAdminNotification(admin.email,
+                        {firstName: admin.firstName, users: commaJoinedUsers},
+                        {inactiveDays: inactiveUserDays},
+                    );
+                }
+            }));
         }
     }
 
@@ -549,8 +575,7 @@ class UserService {
         const orgOwnerOrAdminRole = {
             "userStatus": USER.STATUSES.ACTIVE,
             "notifications": {"$in": [EN.USER_ACCOUNT.USER_INACTIVATED_ADMIN]},
-            // TODO org owners to be removed since org owner no longer exists
-            "$or": [{"role": USER.ROLES.ADMIN}, {"role": USER.ROLES.ORG_OWNER}]
+            "$or": [{"role": USER.ROLES.ADMIN}]
         };
         return await this.userCollection.aggregate([{"$match": orgOwnerOrAdminRole}]) || [];
     }

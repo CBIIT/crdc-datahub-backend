@@ -56,7 +56,7 @@ const extractAndJoinFields = (data, fieldsToExtract, splitter = ",") => {
     if (!data || data?.length === 0 || fieldsToExtract?.length === 0) return [];
     return data.map(org => fieldsToExtract
         .filter(key => org[key] && org[key] !== "")
-        .map(key => org[key])
+        .map(key => `${org[key]}`)
         .join(splitter)
     );
 }
