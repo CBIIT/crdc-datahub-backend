@@ -540,7 +540,7 @@ class Application {
                     toBCCEmails,
                     {
                         firstName: application?.applicant?.applicantName,
-                        reviewComments: comment
+                        reviewComments: comment && comment?.trim()?.length > 0 ? comment?.trim() : "N/A"
                     },
                     {
                         study: application?.studyAbbreviation,
@@ -553,9 +553,9 @@ class Application {
                 {
                     firstName: application?.applicant?.applicantName,
                     contactEmail: this.emailParams?.conditionalSubmissionContact,
-                    reviewComments: comment && comment?.trim()?.length > 0 ? comment?.trim() : "N/A"
-                },
-                {study: setDefaultIfNoName(application?.studyName)}
+                    reviewComments: comment && comment?.trim()?.length > 0 ? comment?.trim() : "N/A",
+                    study: setDefaultIfNoName(application?.studyName)
+                }
             );
         }
     }
@@ -631,16 +631,16 @@ const sendEmails = {
             );
         }
 
-        if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_READY_REVIEW)) {
-            const toUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_READY_REVIEW],
-                [ROLES.FEDERAL_LEAD]);
+        const toUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_READY_REVIEW],
+            [ROLES.FEDERAL_LEAD]);
+
+        if (!toUsers || toUsers?.length === 0) {
+            console.error("SR for Submit email notification does not have any recipient", `Application ID: ${application?._id}`);
+            return;
+        }
+        if (toUsers?.length > 0) {
             const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_READY_REVIEW],
                 [ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]);
-
-            if (!toUsers || toUsers?.length === 0) {
-                console.log("SR for Submit email notification does not have any recipient", `Application ID: ${application?._id}`);
-                return;
-            }
 
             await notificationService.submitQuestionNotification(getUserEmails(toUsers), getUserEmails(BCCUsers), {
                 pi: `${userInfo.firstName} ${userInfo.lastName}`,
@@ -671,7 +671,7 @@ const sendEmails = {
         const applicantInfo = (await userService.userCollection.find(application?.applicant?.applicantID))?.pop();
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW)) {
             const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
-                [ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]);
+                [ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN, ROLES.FEDERAL_LEAD]);
             await notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, getUserEmails(BCCUsers), {
                 firstName: application?.applicant?.applicantName,
                 reviewComments
