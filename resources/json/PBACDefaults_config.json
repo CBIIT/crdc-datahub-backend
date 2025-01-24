@@ -739,7 +739,7 @@
             "group": "Data Submission Emails",
             "name": "When rejected",
             "order": 4,
-            "checked": false,
+            "checked": true,
             "disabled": false
           },
           {
