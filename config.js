@@ -25,7 +25,6 @@ const LOADER_QUEUE = "LOADER_QUEUE";
 const METADATA_QUEUE = "METADATA_QUEUE";
 const FILE_QUEUE = "FILE_QUEUE";
 const EXPORTER_QUEUE = "EXPORTER_QUEUE";
-const REVIEW_COMMITTEE_EMAIL = "REVIEW_COMMITTEE_EMAIL";
 const MODEL_URL = "MODEL_URL";
 const SUBMISSION_GUIDE_URL = "SUBMISSION_GUIDE_URL";
 const DATA_COMMONS_LIST = "DATA_COMMONS_LIST";
@@ -81,7 +80,6 @@ let config = {
         // LIST_OF_EMAIL_ADDRESS
         const listEmailsConf = await configurationService.findByType(LIST_OF_EMAIL_ADDRESS);
         const officialEmailConf = listEmailsConf?.[OFFICIAL_EMAIL];
-        const reviewCommitteeEmailConf = listEmailsConf?.[REVIEW_COMMITTEE_EMAIL];
         const techSupportEmailConf = listEmailsConf?.[TECH_SUPPORT_EMAIL];
         const submissionHelpdeskConf = listEmailsConf?.[SUBMISSION_HELPDESK];
         const submissionRequestEmailConf = listEmailsConf?.[SUBMISSION_REQUEST_EMAIL];
@@ -135,8 +133,6 @@ let config = {
             metadata_queue: metadataQueueConf?.keys?.sqs || process.env.METADATA_QUEUE,
             file_queue: fileQueueConf?.keys?.sqs || process.env.FILE_QUEUE,
             export_queue: exporterQueueConf?.keys?.sqs || process.env.EXPORTER_QUEUE,
-            //CRDC Review Committee Emails, separated by ","
-            committee_emails: reviewCommitteeEmailConf || (process.env.REVIEW_COMMITTEE_EMAIL ? (reviewCommitteeEmailConf || process.env.REVIEW_COMMITTEE_EMAIL)?.split(',') : ["CRDCSubmisison@nih.gov"]),
             model_url: modelURLConf || getModelUrl(tierConf?.keys?.tier),
             //uploader configuration file template
             uploaderCLIConfigs: readUploaderCLIConfigTemplate(),

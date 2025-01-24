@@ -187,10 +187,10 @@ class Application {
         const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED, DELETED];
         const statusCondition = statues && !statues?.includes(this.#ALL_FILTER) ?
             { status: { $in: statues || [] } } : { status: { $in: validApplicationStatus } };
-
-        const submitterNameCondition = (submitterName && submitterName !== this.#ALL_FILTER) ? {"applicant.applicantName": submitterName?.trim()} : {};
-        const programNameCondition = (programName && programName !== this.#ALL_FILTER) ? {programName: programName?.trim()} : {};
-        const studyNameCondition = (studyName && studyName !== this.#ALL_FILTER) ? {studyName: studyName?.trim()} : {};
+        // Allowing empty string SubmitterName, ProgramName, StudyName
+        const submitterNameCondition = (submitterName != null && submitterName !== this.#ALL_FILTER) ? {"applicant.applicantName": submitterName} : {};
+        const programNameCondition = (programName != null && programName !== this.#ALL_FILTER) ? {programName: programName} : {};
+        const studyNameCondition = (studyName != null && studyName !== this.#ALL_FILTER) ? {studyName: studyName} : {};
 
         const baseConditions = {...statusCondition, ...programNameCondition, ...studyNameCondition, ...submitterNameCondition};
         return (() => {
@@ -302,10 +302,9 @@ class Application {
         const updated = await this.applicationCollection.update(aApplication);
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) throw new Error(ERROR.UPDATE_FAILED);
         const logEvent = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, SUBMITTED);
-        const applicantInfo = (await this.userService.userCollection.find(application?.applicant?.applicantID))?.pop();
         await Promise.all([
             await this.logCollection.insert(logEvent),
-            await sendEmails.submitApplication(this.notificationService, this.userService, this.emailParams, context.userInfo, application, applicantInfo)
+            await sendEmails.submitApplication(this.notificationService, this.userService, this.emailParams, context.userInfo, application)
         ]);
         return application;
     }
@@ -442,8 +441,7 @@ class Application {
             $push: {history}
         });
 
-        const applicantInfo = (await this.userService.userCollection.find(application?.applicant?.applicantID))?.pop();
-        await sendEmails.rejectApplication(this.notificationService, this.emailParams, context.userInfo, application, applicantInfo);
+        await sendEmails.rejectApplication(this.notificationService, this.userService, this.emailParams, application, document.comment);
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, REJECTED);
             const promises = [
@@ -471,13 +469,7 @@ class Application {
             $set: {reviewComment: document.comment, status: INQUIRED, updatedAt: history.dateTime, version: application.version},
             $push: {history}
         });
-        // admin email CCs
-        const adminEmails = (await this.userService.getAdmin())
-            ?.filter((aUser) => aUser?.email)
-            ?.map((aUser)=> aUser.email);
-
-        const applicantInfo = (await this.userService.userCollection.find(application?.applicant?.applicantID))?.pop();
-        await sendEmails.inquireApplication(this.notificationService, this.emailParams, application, adminEmails, applicantInfo);
+        await sendEmails.inquireApplication(this.notificationService, this.userService, this.emailParams, application, document?.comment);
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, INQUIRED);
             const promises = [
@@ -573,51 +565,36 @@ class Application {
 
     async sendEmailAfterApproveApplication(context, application, comment, conditional = false) {
         const res = await Promise.all([
-            this.userService.getOrgOwner(application?.organization?._id),
-            this.userService.getConcierge(application?.organization?._id),
-            this.userService.getAdmin(),
-            this.userService.getFedLeads(),
+            this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
+                [ROLES.ADMIN, ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD]),
             this.userService.userCollection.find(application?.applicant?.applicantID)
         ]);
 
-        const [orgOwners, concierges, adminUsers, fedLeads, applicant] = res;
+        const [toBCCUsers, applicant] = res;
         const applicantInfo = applicant?.pop();
-        const [orgOwnerEmails, conciergesEmails,adminUsersEmails,fedLeadsEmails]
-            = [getUserEmails(orgOwners), getUserEmails(concierges), getUserEmails(adminUsers), getUserEmails(fedLeads)];
-
+        const toBCCEmails = getUserEmails(toBCCUsers);
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW)) {
             if (!conditional) {
-                // contact detail
-                let contactDetail = `either your organization ${orgOwnerEmails?.join(";")} or your CRDC Data Team member ${conciergesEmails?.join(";")}.`
-                if(orgOwnerEmails.length === 0 && conciergesEmails.length === 0){
-                    contactDetail = `the Submission Helpdesk ${this.emailParams?.submissionHelpdesk}`
-                } else if(orgOwnerEmails.length === 0) {
-                    contactDetail = `your CRDC Data Team member ${conciergesEmails.join(";")}`
-                } else if(conciergesEmails.length === 0) {
-                    contactDetail = `either your organization ${orgOwnerEmails.join(";")} or the Submission Helpdesk ${this.emailParams?.submissionHelpdesk}`
-                }
-                const ccEmails =[...conciergesEmails, ...orgOwnerEmails];
-                const toCCs = ccEmails.length > 0 ? ccEmails : adminUsersEmails
                 await this.notificationService.approveQuestionNotification(application?.applicant?.applicantEmail,
-                    // Organization Owner and concierges assigned/Super Admin
-                    new Set([...toCCs]).toArray(),
-                    {firstName: application?.applicant?.applicantName},
+                    toBCCEmails,
+                    {
+                        firstName: application?.applicant?.applicantName,
+                        reviewComments: comment && comment?.trim()?.length > 0 ? comment?.trim() : "N/A"
+                    },
                     {
                         study: application?.studyAbbreviation,
-                        doc_url: this.emailParams.url,
-                        contact_detail: contactDetail,
-                    });
+                        contactEmail: this.emailParams.conditionalSubmissionContact
+                });
                 return;
             }
             await this.notificationService.conditionalApproveQuestionNotification(application?.applicant?.applicantEmail,
-                new Set([...fedLeadsEmails, ...orgOwnerEmails, ...adminUsersEmails]).toArray(),
+                toBCCEmails,
                 {
                     firstName: application?.applicant?.applicantName,
                     contactEmail: this.emailParams?.conditionalSubmissionContact,
-                    url: this.emailParams?.submissionGuideURL,
-                    approverNotes: comment
-                },
-                {study: setDefaultIfNoName(application?.studyName)}
+                    reviewComments: comment && comment?.trim()?.length > 0 ? comment?.trim() : "N/A",
+                    study: setDefaultIfNoName(application?.studyName)
+                }
             );
         }
     }
@@ -680,44 +657,65 @@ const sendEmails = {
             url: emailParams.url
         })
     },
-    submitApplication: async (notificationService, userService, emailParams, userInfo, application, applicantInfo) => {
+    submitApplication: async (notificationService, userService, emailParams, userInfo, application) => {
+        const applicantInfo = (await userService.userCollection.find(application?.applicant?.applicantID))?.pop();
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_SUBMIT)) {
-            const allowedNotifyUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_SUBMIT],
+            const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_SUBMIT],
                 [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]);
 
             await notificationService.submitRequestReceivedNotification(application?.applicant?.applicantEmail,
+                getUserEmails(BCCUsers),
                 {helpDesk: emailParams.conditionalSubmissionContact},
-                {userName: application?.applicant?.applicantName},
-                getUserEmails(allowedNotifyUsers)
+                {userName: application?.applicant?.applicantName}
             );
         }
 
-        if (userInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_READY_REVIEW)) {
-            const programName = application?.programName?.trim() ?? "";
-            const associate = `the ${application?.studyAbbreviation} study` + (programName.length > 0 ? ` associated with the ${programName} program` : '');
-            await notificationService.submitQuestionNotification({
+        const toUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_READY_REVIEW],
+            [ROLES.FEDERAL_LEAD]);
+
+        if (!toUsers || toUsers?.length === 0) {
+            console.error("SR for Submit email notification does not have any recipient", `Application ID: ${application?._id}`);
+            return;
+        }
+        if (toUsers?.length > 0) {
+            const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_READY_REVIEW],
+                [ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]);
+
+            await notificationService.submitQuestionNotification(getUserEmails(toUsers), getUserEmails(BCCUsers), {
                 pi: `${userInfo.firstName} ${userInfo.lastName}`,
-                associate,
+                programName: application?.programName?.trim() || "NA",
+                study: application?.studyAbbreviation || "NA",
                 url: emailParams.url
             });
         }
     },
-    inquireApplication: async(notificationService, emailParams, application, emailCCs, applicantInfo) => {
+    inquireApplication: async(notificationService, userService, emailParams, application, reviewComments) => {
+        const res = await Promise.all([
+            userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
+                [ROLES.ADMIN, ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD]),
+            userService.userCollection.find(application?.applicant?.applicantID)
+        ]);
+        const [toBCCUsers, applicant] = res;
+        const applicantInfo = (applicant)?.pop();
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW)) {
-            await notificationService.inquireQuestionNotification(application?.applicant?.applicantEmail, emailCCs,{
-                firstName: application?.applicant?.applicantName
+            await notificationService.inquireQuestionNotification(application?.applicant?.applicantEmail, getUserEmails(toBCCUsers),{
+                firstName: application?.applicant?.applicantName,
+                reviewComments,
             }, {
-                officialEmail: emailParams.submissionHelpdesk
+                contactInfo: emailParams.conditionalSubmissionContact,
             });
         }
     },
-    rejectApplication: async(notificationService, emailParams, _, application, applicantInfo) => {
+    rejectApplication: async(notificationService, userService, emailParams, application, reviewComments) => {
+        const applicantInfo = (await userService.userCollection.find(application?.applicant?.applicantID))?.pop();
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW)) {
-            await notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, {
-                firstName: application?.applicant?.applicantName
+            const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
+                [ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN, ROLES.FEDERAL_LEAD]);
+            await notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, getUserEmails(BCCUsers), {
+                firstName: application?.applicant?.applicantName,
+                reviewComments
             }, {
-                study: application?.studyAbbreviation,
-                url: emailParams.url
+                study: application?.studyAbbreviation
             });
         }
     }
