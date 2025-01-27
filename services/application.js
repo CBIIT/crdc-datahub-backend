@@ -373,7 +373,6 @@ class Application {
                 const newStudiesIDs = [approvedStudies?._id].concat(currStudyIDs);
                 promises.push(this.userService.updateUserInfo(
                     context?.userInfo, updateUser, _id, context?.userInfo?.userStatus, context?.userInfo?.role, newStudiesIDs));
-
                 const [name, abbreviation, description] = [application?.programName, application?.programAbbreviation, application?.programDescription];
                 if (name?.trim()?.length > 0) {
                     const programs = await this.organizationService.findOneByProgramName(name);
