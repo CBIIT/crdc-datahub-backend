@@ -165,7 +165,7 @@ class NotifyUser {
             ...(templateParams.role) ? [[ROLE, templateParams.role]] : [],
             ...(templateParams.org) ? [[AFFILIATED_ORGANIZATION, templateParams.org]] : [],
             ...(templateParams.dataCommons) ? [[DATA_COMMONS, templateParams.dataCommons]] : [],
-            ...(templateParams.studies) ? [[STUDIES, templateParams.studies]] : [],
+            ...(templateParams?.studies?.length > 0) ? [[STUDIES, templateParams.studies]] : [],
         ];
         return await this.send(async () => {
             await this.emailService.sendNotification(
@@ -203,18 +203,17 @@ class NotifyUser {
     async inactiveUserAdminNotification(email, BCCEmails, template_params, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.INACTIVE_ADMIN_USER_CONTENT, messageVariables);
         const subject = this.email_constants.INACTIVE_ADMIN_USER_SUBJECT;
-
-
-        // TODO BCCs
+        const recipientName = this.email_constants.INACTIVE_ADMIN_USER_RECIPIENT_NAME;
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
                 isTierAdded(this.tier) ? `${this.tier} ${subject}` : subject,
                 await createEmailTemplate("notification-template.html", {
-                    message, ...template_params
+                    message, ...template_params, firstName: recipientName
                 }),
                 email,
-                []
+                [],
+                BCCEmails
             );
         });
     }
@@ -333,7 +332,7 @@ class NotifyUser {
         });
     }
 
-    async deactivateUserNotification(email, CCs, template_params, messageVariables) {
+    async deactivateUserNotification(email, template_params, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.DEACTIVATE_USER_CONTENT, messageVariables);
         const subject = this.email_constants.DEACTIVATE_USER_SUBJECT;
         return await this.send(async () => {
@@ -343,8 +342,7 @@ class NotifyUser {
                 await createEmailTemplate("notification-template.html", {
                     message, ...template_params
                 }),
-                email,
-                CCs
+                email
             );
         });
     }

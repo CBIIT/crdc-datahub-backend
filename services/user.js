@@ -516,35 +516,11 @@ class UserService {
         const isUserActivated = prevUser?.userStatus !== USER.STATUSES.INACTIVE;
         const isStatusChange = newStatus && newStatus?.toLowerCase() === USER.STATUSES.INACTIVE.toLowerCase();
         if (isUserActivated && isStatusChange) {
-            const adminEmails = await this.getAdminPBACUsers();
-            const CCs = adminEmails.filter((u)=> u.email).map((u)=> u.email);
             if (prevUser?.notifications?.includes(EN.USER_ACCOUNT.USER_INACTIVATED)) {
                 await this.notificationsService.deactivateUserNotification(prevUser.email,
-                    CCs, {firstName: prevUser.firstName},
+                    {firstName: prevUser.firstName},
                     {officialEmail: this.officialEmail});
             }
-
-            // Email PBAC enabled admin(s)
-            const adminUsers = await userService.getAdminPBACUsers();
-            const BCCUsers = this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
-                [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD])
-
-            await Promise.all(adminUsers.map(async (admin) => {
-                const disabledUserContents = disabledUsers.map(aUser => {
-                    return {
-                        name: `${aUser?.firstName} ${aUser?.lastName || ''}`,
-                        email: aUser?.email,
-                        role: aUser?.role,
-                    };
-                });
-                if (disabledUserContents?.length > 0) {
-                    const commaJoinedUsers = extractAndJoinFields(disabledUserContents, ["name", "email", "role"], ", ");
-                    await this.notificationsService.inactiveUserAdminNotification(admin.email,
-                        {firstName: admin.firstName, users: commaJoinedUsers},
-                        {inactiveDays: inactiveUserDays},
-                    );
-                }
-            }));
         }
     }
 
