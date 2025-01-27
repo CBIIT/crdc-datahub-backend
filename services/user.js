@@ -446,12 +446,16 @@ class UserService {
         // add studies to user.
         const validStudies = await this.#findApprovedStudies(approvedStudyIDs);
         if (approvedStudyIDs && approvedStudyIDs.length > 0) {
-            if(validStudies.length !== approvedStudyIDs.length) {
+            if(validStudies.length !== approvedStudyIDs.length && !approvedStudyIDs?.includes("All")) {
                 throw new Error(SUBMODULE_ERROR.INVALID_NOT_APPROVED_STUDIES);
             }
             else {
                 // ** Must store Approved studies ID only **
-                updatedUser.studies = (approvedStudyIDs instanceof Object)?approvedStudyIDs:approvedStudyIDs.map(str => ({ _id: str }));
+                if (approvedStudyIDs?.includes("All")) {
+                    updatedUser.studies = validStudies;
+                } else {
+                    updatedUser.studies = (approvedStudyIDs instanceof Object)?approvedStudyIDs:approvedStudyIDs.map(str => ({ _id: str }));
+                }
             }
         }
         else
