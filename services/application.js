@@ -48,13 +48,14 @@ class Application {
         return application;
     }
 
-    #getApplicationVersionByStatus(status) {
-        const config = this.configurationService.findByType("APPLICATION_FORM_VERSIONS");//get the default form versions dynamically
-        let version = (config && config?.current) ? config?.current: "1.0";  
-        if ([NEW, IN_PROGRESS, INQUIRED].includes(status)){
-            version = (config && config?.current) ? config?.new: "2.0"; 
-        }
-        return version;
+    async #getApplicationVersionByStatus(status) {   
+        const defaultVersion = "1.0";
+        const newVersion = "2.0"; 
+        const config = await this.configurationService.findByType("APPLICATION_FORM_VERSIONS"); //get version config dynamically
+        const currentVersion = config?.current || defaultVersion;
+        const newStatusVersion = config?.new || newVersion;
+
+        return [NEW, IN_PROGRESS, INQUIRED].includes(status) ? newStatusVersion : currentVersion;
     }
 
     async #checkConditionalApproval(application) {
