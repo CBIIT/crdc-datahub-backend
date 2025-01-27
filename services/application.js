@@ -371,8 +371,14 @@ class Application {
                 const { _id, ...updateUser } = context?.userInfo || {};
                 const currStudyIDs = context?.userInfo?.studies?.map((study)=> study?._id) || [];
                 const newStudiesIDs = [approvedStudies?._id].concat(currStudyIDs);
-                promises.push(this.userService.updateUserInfo(
-                    context?.userInfo, updateUser, _id, context?.userInfo?.userStatus, context?.userInfo?.role, newStudiesIDs));
+                // TODO QA has experiencing saving approved studies
+                try {
+                    await this.userService.updateUserInfo(
+                        context?.userInfo, updateUser, _id, context?.userInfo?.userStatus, context?.userInfo?.role, newStudiesIDs)
+                } catch (err) {
+                    console.log("newStudiesIDs:", newStudiesIDs);
+                    console.error(err);
+                }
 
                 const [name, abbreviation, description] = [application?.programName, application?.programAbbreviation, application?.programDescription];
                 if (name?.trim()?.length > 0) {
