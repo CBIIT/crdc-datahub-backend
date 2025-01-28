@@ -225,14 +225,6 @@ class UserService {
         if (!params?.userID) {
             throw new Error(SUBMODULE_ERROR.INVALID_USERID);
         }
-        // The following block of codes need to removed after USER.ROLES.ORG_OWNER is retired.
-        if (context?.userInfo?.role === USER.ROLES.ORG_OWNER && !context?.userInfo?.organization?.orgID) {
-            throw new Error(SUBMODULE_ERROR.NO_ORG_ASSIGNED);
-        }
-        const filters = { _id: params.userID };
-        if (context?.userInfo?.role === USER.ROLES.ORG_OWNER) {
-            filters["organization.orgID"] = context?.userInfo?.organization?.orgID;
-        }
 
         const result = await this.userCollection.aggregate([{
             "$match": filters
@@ -253,18 +245,9 @@ class UserService {
         verifySession(context)
             .verifyInitialized()
             .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
-        // The following block of codes need to removed after USER.ROLES.ORG_OWNER is retired.
-        if (context?.userInfo?.role === USER.ROLES.ORG_OWNER && !context?.userInfo?.organization?.orgID) {
-            throw new Error(SUBMODULE_ERROR.NO_ORG_ASSIGNED);
-        }
-
-        const filters = {};
-        if (context?.userInfo?.role === USER.ROLES.ORG_OWNER) {
-            filters["organization.orgID"] = context?.userInfo?.organization?.orgID;
-        }
 
         const result = await this.userCollection.aggregate([{
-            "$match": filters
+            "$match": {}
         },]);
 
         for (let user of result) {
@@ -487,26 +470,18 @@ class UserService {
     async #notifyUpdatedUser(prevUser, newUser, newRole) {
         const baseRoleCondition = newRole && Object.values(USER.ROLES).includes(newRole);
         const isRoleChange = baseRoleCondition && prevUser.role !== newUser.role;
-        const isOrgChange = Boolean(prevUser?.organization?.orgID) && prevUser?.organization?.orgID !== newUser?.organization?.orgID;
         const isDataCommonsChange = newUser?.dataCommons?.length > 0 && JSON.stringify(prevUser?.dataCommons) !== JSON.stringify(newUser?.dataCommons);
         const isStudiesChange = newUser.studies?.length > 0 && JSON.stringify(prevUser.studies) !== JSON.stringify(newUser.studies);
-        if (isRoleChange || isOrgChange || isDataCommonsChange || isStudiesChange) {
-            const isSubmitterOrOrgOwner = [USER.ROLES.SUBMITTER, USER.ROLES.ORG_OWNER].includes(newUser.role);
-            const CCs = isSubmitterOrOrgOwner ? (
-                    await this.getOrgOwnerByOrgID(newUser.organization?.orgID))
-                    ?.map((owner) => owner.email)
-                : [];
-            const orgName = isSubmitterOrOrgOwner ? newUser.organization?.orgName : undefined;
-            const userDataCommons = [USER.ROLES.DC_POC, USER.ROLES.CURATOR].includes(newUser.role) ? newUser.dataCommons : undefined;
+        if (isRoleChange || isDataCommonsChange || isStudiesChange) {
+            const userDataCommons = [USER.ROLES.DATA_COMMONS_PERSONNEL].includes(newUser.role) ? newUser.dataCommons : undefined;
             const studyNames = await this.#findStudiesNames(newUser.studies);
             await this.notificationsService.userRoleChangeNotification(newUser.email,
-                CCs, {
+                {
                     accountType: newUser.IDP,
                     email: newUser.email,
                     role: newUser.role,
-                    org: orgName,
                     dataCommons: userDataCommons,
-                    studies: studyNames
+                    ...([USER.ROLES.SUBMITTER, USER.ROLES.FEDERAL_LEAD].includes(newUser.role) && { studies: studyNames }),
                 },
                 {url: this.appUrl, helpDesk: this.officialEmail});
         }

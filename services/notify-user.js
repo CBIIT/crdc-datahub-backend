@@ -155,7 +155,7 @@ class NotifyUser {
         });
     }
 
-    async userRoleChangeNotification(email, emailCCs, templateParams, messageVariables) {
+    async userRoleChangeNotification(email, templateParams, messageVariables) {
         const topMessage = replaceMessageVariables(this.email_constants.USER_ROLE_CHANGE_CONTENT_TOP, messageVariables);
         const bottomMessage = replaceMessageVariables(this.email_constants.USER_ROLE_CHANGE_CONTENT_BOTTOM, messageVariables);
         const subject = this.email_constants.USER_ROLE_CHANGE_SUBJECT;
@@ -163,7 +163,6 @@ class NotifyUser {
             [ACCOUNT_TYPE, templateParams.accountType?.toUpperCase()],
             [ACCOUNT_EMAIL, templateParams.email],
             ...(templateParams.role) ? [[ROLE, templateParams.role]] : [],
-            ...(templateParams.org) ? [[AFFILIATED_ORGANIZATION, templateParams.org]] : [],
             ...(templateParams.dataCommons) ? [[DATA_COMMONS, templateParams.dataCommons]] : [],
             ...(templateParams?.studies?.length > 0) ? [[STUDIES, templateParams.studies]] : [],
         ];
@@ -177,8 +176,7 @@ class NotifyUser {
                         senderName: CRDC_SUBMISSION_PORTAL,
                         ...templateParams, additionalInfo}
                 }),
-                email,
-                emailCCs
+                email
             );
         });
     }
