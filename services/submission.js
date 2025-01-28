@@ -1594,7 +1594,9 @@ const sendEmails = {
         }
 
         if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.SUBMIT)) {
-            const filteredBCCUsers = BCCUsers.filter((u) => isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
+            const filteredBCCUsers = BCCUsers.filter((u) =>
+                u?._id !== aSubmitter?._id &&
+                isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
             await notificationService.submitDataSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
                     firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
                 }, {
@@ -1645,7 +1647,9 @@ const sendEmails = {
             return;
         }
 
-        const filteredBCCUsers = BCCUsers.filter((u) => isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
+        const filteredBCCUsers = BCCUsers.filter((u) =>
+            u?._id !== aSubmitter?._id &&
+            isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
         if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.CANCEL)) {
             await notificationService.cancelSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
                 firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
@@ -1731,8 +1735,12 @@ const sendEmails = {
             return;
         }
 
+        const filteredBCCUsers = BCCUsers.filter((u) =>
+            u?._id !== aSubmitter?._id &&
+            isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
+
         if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.REJECT)) {
-            await notificationService.rejectSubmissionNotification(aSubmitter?.email, BCCUsers, {
+            await notificationService.rejectSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
                 firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
             }, {
                 submissionID: aSubmission?._id,
@@ -1755,7 +1763,9 @@ const sendEmails = {
             return;
         }
 
-        const filteredBCCUsers = BCCUsers.filter((u) => isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
+        const filteredBCCUsers = BCCUsers.filter((u) =>
+            u?._id !== aSubmitter?._id &&
+            isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
         if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.REMIND_EXPIRE)) {
             await notificationService.inactiveSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
                 firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
@@ -1801,9 +1811,8 @@ const isUserScope = (userID, userRole, userStudies, userDataCommons, aSubmission
         case ROLES.ADMIN:
             return true; // Admin has access to all data submissions.
         case ROLES.FEDERAL_LEAD:
-            // TODO rework for the shared function for the all studies
             const studies = Array.isArray(userStudies) && userStudies.length > 0 ? userStudies : [];
-            return isAllStudy(studies) ? true : Boolean(studies?.find((s) => s?._id === aSubmission.studyID));
+            return isAllStudy(studies) ? true : Boolean(studies?.find((s) => s === aSubmission.studyID));
         case ROLES.DATA_COMMONS_PERSONNEL:
             return userDataCommons.includes(aSubmission.dataCommons); // Access to assigned data commons.
         case ROLES.SUBMITTER:
