@@ -1240,9 +1240,8 @@ class Submission {
                  firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`}, {
                  submissionName: aSubmission?.name,
                  inactiveDays: this.emailParams.inactiveSubmissionDays,
-                 // TODO check contact name
-                 contactName: "NA",
-                 contactEmail: "NA"
+                 contactName: `${aSubmission?.conciergeName || 'NA'}`,
+                 contactEmail: `${aSubmission?.contactEmail || 'NA'}`
              });
          }
     }
@@ -1599,7 +1598,10 @@ const sendEmails = {
             await notificationService.submitDataSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
                     firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
                 }, {
-                    concierge: `${aSubmission?.conciergeName || 'NA'} via ${aSubmission?.conciergeEmail||'NA'}.`
+                    submissionName: aSubmission?.name,
+                    dataCommonsName: aSubmission?.dataCommons,
+                    contactName: `${aSubmission?.conciergeName || 'NA'}`,
+                    contactEmail: `${aSubmission?.contactEmail || 'NA'}`
                 }
             );
         }
