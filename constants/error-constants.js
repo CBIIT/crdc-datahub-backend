@@ -4,7 +4,9 @@ const ERROR = {
     DATABASE_OPERATION_FAILED: "Database operation failed, please see logs for more information",
     // Application
     APPLICATION_NOT_FOUND: "The provided application ID was not found in the database. Provided _id: ",
+    FAILED_DELETE_APPLICATION: "An error occurred while delete an application",
     APPLICATION_CONTROLLED_ACCESS_NOT_FOUND: "The application does not store controlled access property.",
+    APPLICATION_INVALID_STATUES: "Requested statues $item$ is not valid",
     FAILED_RESTORE_APPLICATION: "An error occurred while restoring an application",
     MISSING_PROGRAM_INFO: "The program property is required to approve the submission request.",
     INVALID_APPLICATION_RESTORE_STATE: "Application is failed to restore because of the invalid previous history",
@@ -56,7 +58,6 @@ const ERROR = {
     // Submission Permission
     INVALID_SUBMISSION_STATUS: "The batch creation is aborted because the current submission is not in the valid state to be created.",
     // Create Submission
-    CREATE_SUBMISSION_NO_ORGANIZATION_ASSIGNED: "The submitter/organization owner does not have an organization assigned. Thus, the data submission was not created",
     CREATE_SUBMISSION_INSERTION_ERROR: "An error occurred while attempting to insert the created data submission into the database",
     CREATE_SUBMISSION_INVALID_PARAMS: "One or more of the parameters for creating a submission is invalid",
     CREATE_SUBMISSION_INVALID_NAME: "Submission name cannot exceed $item$ characters in length.",
@@ -148,12 +149,12 @@ const ERROR = {
     EXISTING_SUBMISSION_COLLABORATOR: "The collaborator exists in the submission already.",
     COLLABORATOR_NOT_EXIST: "collaborator does not exist",
     INVALID_COLLABORATOR_ROLE_SUBMITTER: "Invalid collaborator role for the submitter",
-    INVALID_COLLABORATOR_STUDY: "Collaborator could not be added because the collaborator's organization is not related to study in this submission.",
+    INVALID_COLLABORATOR_STUDY: "Collaborator could not be added because the collaborator has no related to study in this submission.",
     FAILED_ADD_SUBMISSION_COLLABORATOR: "Failed to add submission collaborator",
     FAILED_REMOVE_SUBMISSION_COLLABORATOR: "Failed to remove submission collaborator",
     INVALID_SUBMISSION_COLLABORATOR: "Invalid submission collaborator",
     INVALID_SUBMISSION_STUDY: "Invalid submission, missing studyID",
-    INVALID_COLLABORATOR_PERMISSION: "Invalid collaborator permission, must be 'Can View' or 'Can Edit'",
+    INVALID_COLLABORATOR_PERMISSION: "Invalid collaborator permission, must be 'Can Edit'",
     DUPLICATE_STUDY_NAME: "Error saving this study. This study name already exists.",
     // User
     ORGANIZATION_NOT_FOUND: "The provided organization name does not exist in the organization record",
@@ -178,7 +179,9 @@ const ERROR = {
     // User Permissions
     INVALID_PERMISSION_NAME: "Invalid user permission is requested: $item$",
     // User Notifications
-    INVALID_NOTIFICATION_NAME: "Invalid email notification is requested: $item$"
+    INVALID_NOTIFICATION_NAME: "Invalid email notification is requested: $item$",
+    INVALID_PRIMARY_CONTACT: "No primary contact found with the primary contact ID",
+    INVALID_PRIMARY_CONTACT_ROLE: "The user role for a primary contact must be Data Commons Personnel",
 }
 
 module.exports = ERROR;

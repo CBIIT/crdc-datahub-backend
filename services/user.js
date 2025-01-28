@@ -38,7 +38,7 @@ const createToken = (userInfo, token_secret, token_timeout)=> {
 class UserService {
     #allPermissionNamesSet = new Set([...Object.values(SUBMISSION_REQUEST), ...Object.values(DATA_SUBMISSION), ...Object.values(ADMIN)]);
     #allEmailNotificationNamesSet = new Set([...Object.values(EN.SUBMISSION_REQUEST), ...Object.values(EN.DATA_SUBMISSION), ...Object.values(EN.USER_ACCOUNT)]);
-    constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, tier, approvedStudiesService, inactiveUserDays, configurationService) {
+    constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, approvedStudiesService, inactiveUserDays, configurationService) {
         this.userCollection = userCollection;
         this.logCollection = logCollection;
         this.organizationCollection = organizationCollection;
@@ -47,7 +47,6 @@ class UserService {
         this.applicationCollection = applicationCollection;
         this.officialEmail = officialEmail;
         this.appUrl = appUrl;
-        this.tier = tier;
         this.approvedStudiesService = approvedStudiesService;
         this.approvedStudiesCollection = approvedStudiesService.approvedStudiesCollection;
         this.inactiveUserDays = inactiveUserDays;
@@ -58,11 +57,6 @@ class UserService {
         verifySession(context)
             .verifyInitialized()
             .verifyPermission(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REQUEST_ACCESS);
-
-        // USER.ROLES.ORG_OWNER needs to be removed after the role is retired finally
-        if (![USER.ROLES.SUBMITTER, USER.ROLES.USER, USER.ROLES.ORG_OWNER].includes(params.role)) {
-            return new Error(replaceErrorString(ERROR.INVALID_REQUEST_ROLE, params?.role));
-        } 
 
         const approvedStudies = params?.studies?.length > 0 ?
             await this.approvedStudiesService.listApprovedStudies({_id: {$in: params?.studies}})
@@ -87,8 +81,7 @@ class UserService {
                 role: params?.role,
                 studies: approvedStudies?.map((study)=> study?.studyName),
                 additionalInfo: params?.additionalInfo?.trim()
-            }
-            ,this.tier);
+            });
 
         if (res?.accepted?.length > 0) {
             return ValidationHandler.success()
@@ -428,13 +421,11 @@ class UserService {
             throw new Error(SUBMODULE_ERROR.USER_NOT_FOUND);
         }
         const updatedUser = {};
-        const isCurator = updatedUser?.role === USER.ROLES.CURATOR || user[0]?.role === USER.ROLES.CURATOR || params?.role === USER.ROLES.CURATOR;
-
         if (params.role && Object.values(USER.ROLES).includes(params.role)) {
             updatedUser.role = params.role;
         }
 
-        if(!params?.studies && ![USER.ROLES.ADMIN, USER.ROLES.USER, USER.ROLES.CURATOR, USER.ROLES.DC_POC, USER.ROLES.DATA_COMMONS_PERSONNEL].includes(params.role)){
+        if(!params?.studies && USER.ROLES.SUBMITTER === params.role) {
             throw new Error(SUBMODULE_ERROR.APPROVED_STUDIES_REQUIRED);
         }
 
@@ -447,11 +438,7 @@ class UserService {
             }
         }
 
-        if (isCurator) {
-            updatedUser.organization = null;
-        }
-
-        updatedUser.dataCommons = DataCommon.get(user[0]?.role, user[0]?.dataCommons, params?.role, params?.dataCommons);
+        updatedUser.dataCommons = DataCommon.get(user[0]?.dataCommons, params?.dataCommons);
         await this.#setUserPermissions(user[0]?.role, params?.role, params?.permissions, params?.notifications, updatedUser);
         return await this.updateUserInfo(user[0], updatedUser, params.userID, params.status, params.role, params?.studies);
     }
@@ -459,12 +446,16 @@ class UserService {
         // add studies to user.
         const validStudies = await this.#findApprovedStudies(approvedStudyIDs);
         if (approvedStudyIDs && approvedStudyIDs.length > 0) {
-            if(validStudies.length !== approvedStudyIDs.length) {
+            if(validStudies.length !== approvedStudyIDs.length && !approvedStudyIDs?.includes("All")) {
                 throw new Error(SUBMODULE_ERROR.INVALID_NOT_APPROVED_STUDIES);
             }
             else {
                 // ** Must store Approved studies ID only **
-                updatedUser.studies = (approvedStudyIDs instanceof Object)?approvedStudyIDs:approvedStudyIDs.map(str => ({ _id: str }));
+                if (approvedStudyIDs?.includes("All")) {
+                    updatedUser.studies = validStudies;
+                } else {
+                    updatedUser.studies = (approvedStudyIDs instanceof Object)?approvedStudyIDs:approvedStudyIDs.map(str => ({ _id: str }));
+                }
             }
         }
         else
@@ -513,8 +504,7 @@ class UserService {
                     dataCommons: userDataCommons,
                     studies: studyNames
                 },
-                {url: this.appUrl, helpDesk: this.officialEmail}
-                ,this.tier);
+                {url: this.appUrl, helpDesk: this.officialEmail});
         }
     }
 
@@ -527,8 +517,7 @@ class UserService {
             if (prevUser?.notifications?.includes(EN.USER_ACCOUNT.USER_INACTIVATED)) {
                 await this.notificationsService.deactivateUserNotification(prevUser.email,
                     CCs, {firstName: prevUser.firstName},
-                    {officialEmail: this.officialEmail}
-                    ,this.tier);
+                    {officialEmail: this.officialEmail});
             }
         }
     }
@@ -800,7 +789,8 @@ class UserService {
     } 
     async getCollaboratorsByStudyID(studyID, submitterID) {
         const query = {
-            "role": USER.ROLES.SUBMITTER, _id: {"$ne": submitterID},
+            _id: {"$ne": submitterID},
+            "permissions": {"$in": [USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE]},
             "$or": [{"studies": {"$in": [studyID, "All"]}}, {"studies._id": {"$in": [studyID, "All"]}}]
         }; // user's studies contains studyID
         const users = await this.userCollection.aggregate([{"$match": query}]);
@@ -831,60 +821,26 @@ class UserService {
 
 
 class DataCommon {
-
-    constructor(currentRole, currentDataCommons, newRole, newDataCommons) {
-        this.currentRole = currentRole;
+    constructor(currentDataCommons, newDataCommons) {
         this.currentDataCommons = currentDataCommons;
-        this.newRole = newRole;
         this.newDataCommons = newDataCommons;
     }
 
     /**
      * Get the new data commons based on the user's role & data commons.
      *
-     * @param {string} currentRole - The user's current role.
      * @param {Array} currentDataCommons - The current data commons in the user collection.
-     * @param {string} newRole - The user's new role.
      * @param {Array} newDataCommons - The new data commons to update the user.
      * @returns {Array} - return a data commons array.
      */
-    static get(currentRole, currentDataCommons, newRole, newDataCommons) {
-        const dataCommons = new DataCommon(currentRole, currentDataCommons, newRole, newDataCommons);
-        return dataCommons.#getDataCommons();
+    // TODO check user role is required
+    static get(currentDataCommons, newDataCommons) {
+        const dataCommons = new DataCommon(currentDataCommons, newDataCommons);
+        return dataCommons.#getDataCommons() || [];
     }
 
     #getDataCommons() {
-        this.#validate(this.currentRole, this.currentDataCommons, this.newRole, this.newDataCommons);
-        const isValidRole = this.#isDcPOC(this.currentRole, this.newRole) || this.#isCurator(this.currentRole, this.newRole);
-        if (isValidRole) {
-            return this.newDataCommons === undefined ? this.currentDataCommons : this.newDataCommons;
-        }
-
-        if (!isValidRole && this.currentDataCommons?.length > 0) {
-            return [];
-        }
-        return [];
-    }
-
-    #isDcPOC(currentRole, newRole) {
-        return newRole === USER.ROLES.DC_POC || (!newRole && currentRole === USER.ROLES.DC_POC);
-    }
-
-    #isCurator(currentRole, newRole) {
-        return newRole === USER.ROLES.CURATOR || (!newRole && currentRole === USER.ROLES.CURATOR);
-    }
-
-    #validate(currentRole, currentDataCommons, newRole, newDataCommons) {
-        const isValidRole = this.#isDcPOC(currentRole, newRole) || this.#isCurator(currentRole, newRole);
-        if (isValidRole && newDataCommons?.length === 0) {
-            throw new Error(SUBMODULE_ERROR.USER_DC_REQUIRED);
-        }
-
-        // Check if Data Commons is required and missing for the user's role
-        const isValidDataCommons = newDataCommons?.length > 0 || (currentDataCommons?.length > 0 && newDataCommons === undefined);
-        if (isValidRole && !isValidDataCommons) {
-            throw new Error(SUBMODULE_ERROR.USER_DC_REQUIRED);
-        }
+        return this.newDataCommons === undefined ? this.currentDataCommons : this.newDataCommons;
     }
 }
 

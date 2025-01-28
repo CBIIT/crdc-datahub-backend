@@ -18,7 +18,8 @@ const {EMAIL_NOTIFICATIONS} = require("../crdc-datahub-database-drivers/constant
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 
 class Application {
-    constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, tier, institutionService) {
+    #ALL_FILTER="All";
+    constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService) {
         this.logCollection = logCollection;
         this.applicationCollection = applicationCollection;
         this.approvedStudiesService = approvedStudiesService;
@@ -27,7 +28,6 @@ class Application {
         this.notificationService = notificationsService;
         this.emailParams = emailParams;
         this.organizationService = organizationService;
-        this.tier = tier;
         this.institutionService = institutionService;
     }
 
@@ -159,38 +159,94 @@ class Application {
         return result.length > 0 ? result[0] : null;
     }
 
-    listApplicationConditions(userID, userRole) {
-        // list all applications
-        const validApplicationStatus = {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED]}};
-        const listAllApplicationRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD];
-        if (listAllApplicationRoles.includes(userRole)) return [{"$match": {...validApplicationStatus}}];
-        // search by applicant's user id
-        let conditions = [{$and: [{"applicant.applicantID": userID}, validApplicationStatus]}];
-        return [{"$match": {"$or": conditions}}];
+    #listApplicationConditions(userID, userRole, programName, studyName, statues, submitterName) {
+        const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED, DELETED];
+        const statusCondition = statues && !statues?.includes(this.#ALL_FILTER) ?
+            { status: { $in: statues || [] } } : { status: { $in: validApplicationStatus } };
+        // Allowing empty string SubmitterName, ProgramName, StudyName
+        const submitterNameCondition = (submitterName != null && submitterName !== this.#ALL_FILTER) ? {"applicant.applicantName": submitterName} : {};
+        const programNameCondition = (programName != null && programName !== this.#ALL_FILTER) ? {programName: programName} : {};
+        const studyNameCondition = (studyName != null && studyName !== this.#ALL_FILTER) ? {studyName: studyName} : {};
+
+        const baseConditions = {...statusCondition, ...programNameCondition, ...studyNameCondition, ...submitterNameCondition};
+        return (() => {
+            switch (userRole) {
+                case ROLES.ADMIN:
+                case ROLES.FEDERAL_LEAD:
+                case ROLES.DATA_COMMONS_PERSONNEL:
+                    return baseConditions;
+                // Submitter/User
+                default:
+                    return {...baseConditions, "applicant.applicantID": userID};
+            }
+        })();
     }
 
     async listApplications(params, context) {
-        verifySession(context)
+        let userInfoVerifier = verifySession(context)
             .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
-        let pipeline = this.listApplicationConditions(context.userInfo._id, context.userInfo?.role);
+        try{
+            userInfoVerifier.verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
+        }
+        catch(permissionError){
+            console.warn(permissionError);
+            console.warn("Failed permission verification for listApplications, returning empty list");
+            return {applications: [], total: 0};
+        }
+
+        const userInfo = context?.userInfo;
+        const validStatuesSet = new Set([NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED, DELETED, this.#ALL_FILTER]);
+        const invalidStatues = (params?.statues || [])
+            .filter((i) => !validStatuesSet.has(i));
+        if (invalidStatues?.length > 0) {
+            throw new Error(replaceErrorString(ERROR.APPLICATION_INVALID_STATUES, `'${invalidStatues.join(",")}'`));
+        }
+
+
+        const filterConditions = [
+            // default filter for listing submissions
+            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, params.studyName, params.statues, params?.submitterName),
+            // note: Aggregation of Program name should not be filtered by its name
+            this.#listApplicationConditions(userInfo?._id, userInfo?.role, this.#ALL_FILTER, params.studyName, params.statues, params?.submitterName),
+            // note: Aggregation of Study name should not be filtered by its name
+            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, this.#ALL_FILTER, params.statues, params?.submitterName),
+            // note: Aggregation of Statues name should not be filtered by its name
+            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, params.studyName, this.#ALL_FILTER, params?.submitterName),
+            // note: Aggregation of Submitter name should not be filtered by its name
+            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, params.studyName, params.statues, this.#ALL_FILTER),
+        ];
+        const [listConditions, programCondition, studyNameCondition, statuesCondition, submitterNameCondition] = filterConditions;
+        let pipeline = [{"$match": listConditions}];
         const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
         const noPaginationPipe = pipeline.concat(paginationPipe.getNoLimitPipeline());
+
         const promises = [
             this.applicationCollection.aggregate(pipeline.concat(paginationPipe.getPaginationPipeline())),
-            this.applicationCollection.aggregate(noPaginationPipe)
+            this.applicationCollection.aggregate(noPaginationPipe.concat([{ $group: { _id: "$_id" } }, { $count: "count" }])),
+            // note: Program name filter is omitted
+            this.applicationCollection.distinct("programName", programCondition),
+            // note: Study name filter is omitted
+            this.applicationCollection.distinct("studyName", studyNameCondition),
+            // note: Statues filter is omitted
+            this.applicationCollection.distinct("status", statuesCondition),
+            // note: Submitter name filter is omitted
+            this.applicationCollection.distinct("applicant.applicantName", submitterNameCondition)
         ];
 
-        const applications = await Promise.all(promises).then(function(results) {
-            return {
-                applications: (results[0] || []).map((app)=>(app)),
-                total: results[1]?.length || 0
-            }
-        });
-        for (let app of applications.applications.filter(a=>a.status === APPROVED)) {
+        const results = await Promise.all(promises);
+        const applications = (results[0] || []);
+        for (let app of applications?.filter(a=>a.status === APPROVED)) {
             await this.#checkConditionalApproval(app);
         }
-        return applications;
+
+        return {
+            applications: applications,
+            total: results[1]?.length > 0 ? results[1][0]?.count : 0,
+            programs: results[2] || [],
+            studies: results[3] || [],
+            status: results[4] || [],
+            submitterNames: results[5] || []
+        }
     }
 
     async submitApplication(params, context) {
@@ -198,12 +254,7 @@ class Application {
             .verifyInitialized()
             .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.SUBMIT);
         const application = await this.getApplicationById(params._id);
-        let validStatus = [];
-        if (context?.userInfo?.role === USER.ROLES.SUBMITTER) {
-            validStatus = [NEW, IN_PROGRESS];
-        } else if (context?.userInfo?.role === USER.ROLES.FEDERAL_LEAD) {
-            validStatus = [INQUIRED, IN_PROGRESS];
-        }
+        const validStatus = [IN_PROGRESS, INQUIRED]; //updated based on new requirement.
         verifyApplication(application)
             .notEmpty()
             .state(validStatus);
@@ -221,10 +272,9 @@ class Application {
         const updated = await this.applicationCollection.update(aApplication);
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) throw new Error(ERROR.UPDATE_FAILED);
         const logEvent = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, SUBMITTED);
-        const applicantInfo = (await this.userService.userCollection.find(application?.applicant?.applicantID))?.pop();
         await Promise.all([
             await this.logCollection.insert(logEvent),
-            await sendEmails.submitApplication(this.notificationService, this.userService, this.emailParams, context.userInfo, application, applicantInfo)
+            await sendEmails.submitApplication(this.notificationService, this.userService, this.emailParams, context.userInfo, application)
         ]);
         return application;
     }
@@ -257,18 +307,36 @@ class Application {
     async deleteApplication(document, context) {
         verifySession(context)
             .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.DELETE);
+            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
         const aApplication = await this.getApplicationById(document._id);
         const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED, INQUIRED];
-        if (validApplicationStatus.includes(aApplication.status)) {
-            const history = HistoryEventBuilder.createEvent(context.userInfo._id, DELETED, null);
-            const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-                $set: {status: DELETED, updatedAt: history.dateTime},
-                $push: {history}
-            });
-            return (updated?.modifiedCount && updated?.modifiedCount > 0) ? await this.getApplicationById(document._id) : null;
+        if (!validApplicationStatus.includes(aApplication.status)) {
+            throw new Error(ERROR.VERIFY.INVALID_STATE_APPLICATION);
         }
-        return aApplication;
+
+        const userInfo = context?.userInfo;
+        const isEnabledPBAC = userInfo?.permissions?.includes(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
+        const isPowerRole = [ROLES.FEDERAL_LEAD, ROLES.ADMIN, ROLES.DATA_COMMONS_PERSONNEL].includes(userInfo?.role);
+        const powerUserCond = [NEW, IN_PROGRESS, INQUIRED, SUBMITTED, IN_REVIEW].includes(aApplication?.status) && isEnabledPBAC;
+
+        const isNonPowerRole = [ROLES.USER, ROLES.SUBMITTER].includes(userInfo?.role);
+        const isValidCond = [NEW, IN_PROGRESS, INQUIRED].includes(aApplication?.status) && userInfo?._id === aApplication?.applicant?.applicantID;
+
+        if ((isPowerRole && !powerUserCond) || (isNonPowerRole && !isValidCond)) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
+        const history = HistoryEventBuilder.createEvent(context.userInfo._id, CANCELED, null);
+        const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
+            $set: {status: CANCELED, updatedAt: history.dateTime},
+            $push: {history}
+        });
+
+        if (!updated?.modifiedCount || !updated?.modifiedCount > 0) {
+            console.error(ERROR.FAILED_DELETE_APPLICATION, `${document._id}`);
+            throw new Error(ERROR.FAILED_DELETE_APPLICATION);
+        }
+        return await this.getApplicationById(document._id);
     }
 
     async restoreApplication(document, context) {
@@ -329,7 +397,7 @@ class Application {
 
         let promises = [];
         promises.push(this.institutionService.addNewInstitutions(document?.institutions));
-        promises.push(this.sendEmailAfterApproveApplication(context, application, this.tier, document?.comment, approvalConditional));
+        promises.push(this.sendEmailAfterApproveApplication(context, application, document?.comment, approvalConditional));
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             promises.unshift(this.getApplicationById(document._id));
             if(questionnaire) {
@@ -340,7 +408,6 @@ class Application {
                 const newStudiesIDs = [approvedStudies?._id].concat(currStudyIDs);
                 promises.push(this.userService.updateUserInfo(
                     context?.userInfo, updateUser, _id, context?.userInfo?.userStatus, context?.userInfo?.role, newStudiesIDs));
-
                 const [name, abbreviation, description] = [application?.programName, application?.programAbbreviation, application?.programDescription];
                 if (name?.trim()?.length > 0) {
                     const programs = await this.organizationService.findOneByProgramName(name);
@@ -371,8 +438,7 @@ class Application {
             $push: {history}
         });
 
-        const applicantInfo = (await this.userService.userCollection.find(application?.applicant?.applicantID))?.pop();
-        await sendEmails.rejectApplication(this.notificationService, this.emailParams, context.userInfo, application, applicantInfo);
+        await sendEmails.rejectApplication(this.notificationService, this.userService, this.emailParams, application, document.comment);
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, REJECTED);
             const promises = [
@@ -393,18 +459,12 @@ class Application {
         verifyApplication(application)
             .notEmpty()
             .state([IN_REVIEW, SUBMITTED]);
-        const history = HistoryEventBuilder.createEvent(context.userInfo._id, INQUIRED, document.comment);
+        const history = HistoryEventBuilder.createEvent(context.userInfo._id, INQUIRED, document?.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-            $set: {reviewComment: document.comment, status: INQUIRED, updatedAt: history.dateTime},
+            $set: {reviewComment: document?.comment, status: INQUIRED, updatedAt: history.dateTime},
             $push: {history}
         });
-        // admin email CCs
-        const adminEmails = (await this.userService.getAdmin())
-            ?.filter((aUser) => aUser?.email)
-            ?.map((aUser)=> aUser.email);
-
-        const applicantInfo = (await this.userService.userCollection.find(application?.applicant?.applicantID))?.pop();
-        await sendEmails.inquireApplication(this.notificationService, this.emailParams, application, adminEmails, this.tier, applicantInfo);
+        await sendEmails.inquireApplication(this.notificationService, this.userService, this.emailParams, application, document?.comment);
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, INQUIRED);
             const promises = [
@@ -430,6 +490,12 @@ class Application {
             .isUndefined();
 
         if (applications?.length > 0) {
+            const applicantUsers = await this.#findUsersByApplicantIDs(applications);
+            const permittedUserIDs = new Set(
+                applicantUsers
+                    ?.filter((u) => u?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_DELETE))
+                    ?.map((u) => u?._id)
+            );
             const history = HistoryEventBuilder.createEvent(0, DELETED, "Deleted because of no activities after submission");
             const updated = await this.dbService.updateMany(APPLICATION,
                 inactiveCondition,
@@ -439,7 +505,9 @@ class Application {
             if (updated?.modifiedCount && updated?.modifiedCount > 0) {
                 console.log("Executed to delete application(s) because of no activities at " + getCurrentTime());
                 await Promise.all(applications.map(async (app) => {
-                    await sendEmails.inactiveApplications(this.notificationService,this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app);
+                    if (permittedUserIDs.has(app?.applicant?.applicantID)) {
+                        await sendEmails.inactiveApplications(this.notificationService,this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app);
+                    }
                 }));
                 // log disabled applications
                 await Promise.all(applications.map(async (app) => {
@@ -460,8 +528,16 @@ class Application {
         };
         const applications = await this.applicationCollection.aggregate([{$match: remindCondition}]);
         if (applications?.length > 0) {
+            const applicantUsers = await this.#findUsersByApplicantIDs(applications);
+            const permittedUserIDs = new Set(
+                applicantUsers
+                    ?.filter((u) => u?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_EXPIRING))
+                    ?.map((u) => u?._id)
+            );
             await Promise.all(applications.map(async (app) => {
-                await sendEmails.remindApplication(this.notificationService, this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app);
+                if (permittedUserIDs.has(app?.applicant?.applicantID)) {
+                    await sendEmails.remindApplication(this.notificationService, this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app);
+                }
             }));
             const applicationIDs = applications.map(app => app._id);
             const query = {_id: {$in: applicationIDs}};
@@ -472,55 +548,48 @@ class Application {
         }
     }
 
-    async sendEmailAfterApproveApplication(context, application, tier, comment, conditional = false) {
+    async #findUsersByApplicantIDs(applications) {
+        const applicantIDs = applications
+            ?.map((a) => a?.applicant?.applicantID) // Extract applicant IDs
+            ?.filter(Boolean);
+
+        return await this.userService.userCollection.aggregate([{
+            "$match": {"_id": { "$in": applicantIDs }
+            }}]);
+    }
+
+    async sendEmailAfterApproveApplication(context, application, comment, conditional = false) {
         const res = await Promise.all([
-            this.userService.getOrgOwner(application?.organization?._id),
-            this.userService.getConcierge(application?.organization?._id),
-            this.userService.getAdmin(),
-            this.userService.getFedLeads(),
+            this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
+                [ROLES.ADMIN, ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD]),
             this.userService.userCollection.find(application?.applicant?.applicantID)
         ]);
 
-        const [orgOwners, concierges, adminUsers, fedLeads, applicant] = res;
+        const [toBCCUsers, applicant] = res;
         const applicantInfo = applicant?.pop();
-        const [orgOwnerEmails, conciergesEmails,adminUsersEmails,fedLeadsEmails]
-            = [getUserEmails(orgOwners), getUserEmails(concierges), getUserEmails(adminUsers), getUserEmails(fedLeads)];
-
+        const toBCCEmails = getUserEmails(toBCCUsers);
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW)) {
             if (!conditional) {
-                // contact detail
-                let contactDetail = `either your organization ${orgOwnerEmails?.join(";")} or your CRDC Data Team member ${conciergesEmails?.join(";")}.`
-                if(orgOwnerEmails.length === 0 && conciergesEmails.length === 0){
-                    contactDetail = `the Submission Helpdesk ${this.emailParams?.submissionHelpdesk}`
-                } else if(orgOwnerEmails.length === 0) {
-                    contactDetail = `your CRDC Data Team member ${conciergesEmails.join(";")}`
-                } else if(conciergesEmails.length === 0) {
-                    contactDetail = `either your organization ${orgOwnerEmails.join(";")} or the Submission Helpdesk ${this.emailParams?.submissionHelpdesk}`
-                }
-                const ccEmails =[...conciergesEmails, ...orgOwnerEmails];
-                const toCCs = ccEmails.length > 0 ? ccEmails : adminUsersEmails
                 await this.notificationService.approveQuestionNotification(application?.applicant?.applicantEmail,
-                    // Organization Owner and concierges assigned/Super Admin
-                    new Set([...toCCs]).toArray(),
-                    {firstName: application?.applicant?.applicantName},
+                    toBCCEmails,
+                    {
+                        firstName: application?.applicant?.applicantName,
+                        reviewComments: comment && comment?.trim()?.length > 0 ? comment?.trim() : "N/A"
+                    },
                     {
                         study: application?.studyAbbreviation,
-                        doc_url: this.emailParams.url,
-                        contact_detail: contactDetail,
-                    },
-                    tier);
+                        contactEmail: this.emailParams.conditionalSubmissionContact
+                });
                 return;
             }
             await this.notificationService.conditionalApproveQuestionNotification(application?.applicant?.applicantEmail,
-                new Set([...fedLeadsEmails, ...orgOwnerEmails, ...adminUsersEmails]).toArray(),
+                toBCCEmails,
                 {
                     firstName: application?.applicant?.applicantName,
                     contactEmail: this.emailParams?.conditionalSubmissionContact,
-                    url: this.emailParams?.submissionGuideURL,
-                    approverNotes: comment
-                },
-                {study: setDefaultIfNoName(application?.studyName)},
-                tier
+                    reviewComments: comment && comment?.trim()?.length > 0 ? comment?.trim() : "N/A",
+                    study: setDefaultIfNoName(application?.studyName)
+                }
             );
         }
     }
@@ -583,44 +652,65 @@ const sendEmails = {
             url: emailParams.url
         })
     },
-    submitApplication: async (notificationService, userService, emailParams, userInfo, application, applicantInfo) => {
+    submitApplication: async (notificationService, userService, emailParams, userInfo, application) => {
+        const applicantInfo = (await userService.userCollection.find(application?.applicant?.applicantID))?.pop();
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_SUBMIT)) {
-            const allowedNotifyUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_SUBMIT],
+            const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_SUBMIT],
                 [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]);
 
             await notificationService.submitRequestReceivedNotification(application?.applicant?.applicantEmail,
+                getUserEmails(BCCUsers),
                 {helpDesk: emailParams.conditionalSubmissionContact},
-                {userName: application?.applicant?.applicantName},
-                getUserEmails(allowedNotifyUsers)
+                {userName: application?.applicant?.applicantName}
             );
         }
 
-        if (userInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_READY_REVIEW)) {
-            const programName = application?.programName?.trim() ?? "";
-            const associate = `the ${application?.studyAbbreviation} study` + (programName.length > 0 ? ` associated with the ${programName} program` : '');
-            await notificationService.submitQuestionNotification({
+        const toUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_READY_REVIEW],
+            [ROLES.FEDERAL_LEAD]);
+
+        if (!toUsers || toUsers?.length === 0) {
+            console.error("SR for Submit email notification does not have any recipient", `Application ID: ${application?._id}`);
+            return;
+        }
+        if (toUsers?.length > 0) {
+            const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_READY_REVIEW],
+                [ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]);
+
+            await notificationService.submitQuestionNotification(getUserEmails(toUsers), getUserEmails(BCCUsers), {
                 pi: `${userInfo.firstName} ${userInfo.lastName}`,
-                associate,
+                programName: application?.programName?.trim() || "NA",
+                study: application?.studyAbbreviation || "NA",
                 url: emailParams.url
             });
         }
     },
-    inquireApplication: async(notificationService, emailParams, application, emailCCs, tier, applicantInfo) => {
+    inquireApplication: async(notificationService, userService, emailParams, application, reviewComments) => {
+        const res = await Promise.all([
+            userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
+                [ROLES.ADMIN, ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD]),
+            userService.userCollection.find(application?.applicant?.applicantID)
+        ]);
+        const [toBCCUsers, applicant] = res;
+        const applicantInfo = (applicant)?.pop();
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW)) {
-            await notificationService.inquireQuestionNotification(application?.applicant?.applicantEmail, emailCCs,{
-                firstName: application?.applicant?.applicantName
+            await notificationService.inquireQuestionNotification(application?.applicant?.applicantEmail, getUserEmails(toBCCUsers),{
+                firstName: application?.applicant?.applicantName,
+                reviewComments,
             }, {
-                officialEmail: emailParams.submissionHelpdesk
-            }, tier);
+                contactInfo: emailParams.conditionalSubmissionContact,
+            });
         }
     },
-    rejectApplication: async(notificationService, emailParams, _, application, applicantInfo) => {
+    rejectApplication: async(notificationService, userService, emailParams, application, reviewComments) => {
+        const applicantInfo = (await userService.userCollection.find(application?.applicant?.applicantID))?.pop();
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW)) {
-            await notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, {
-                firstName: application?.applicant?.applicantName
+            const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
+                [ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN, ROLES.FEDERAL_LEAD]);
+            await notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, getUserEmails(BCCUsers), {
+                firstName: application?.applicant?.applicantName,
+                reviewComments
             }, {
-                study: application?.studyAbbreviation,
-                url: emailParams.url
+                study: application?.studyAbbreviation
             });
         }
     }
