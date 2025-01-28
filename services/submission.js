@@ -1137,7 +1137,7 @@ class Submission {
      * description: overnight job to set completed submission after retention with "archived = true", archive related data and delete s3 files
      */
     async archiveCompletedSubmissions(){
-        var targetRetentionDate = new Date();
+        const targetRetentionDate = new Date();
         targetRetentionDate.setDate(targetRetentionDate.getDate() - this.emailParams.completedSubmissionDays);
         const query = [{"$match": {"status": COMPLETED, "updatedAt": { "$lte": targetRetentionDate}}}];
         try {
@@ -1183,7 +1183,7 @@ class Submission {
      */
      async deleteInactiveSubmissions(){
         //get target inactive date, current date - config.inactive_submission_days (default 120 days)
-        var targetInactiveDate = new Date();
+        const targetInactiveDate = new Date();
         targetInactiveDate.setDate(targetInactiveDate.getDate() - this.emailParams.inactiveSubmissionDays - 1);
         const query = [{"$match": {"status": {"$in":[IN_PROGRESS, NEW, REJECTED, WITHDRAWN]}, "accessedAt": {"$exists": true, "$ne": null, "$lte": targetInactiveDate}}}];
         try {
@@ -1193,6 +1193,7 @@ class Submission {
                 return "No inactive submissions";
             }
             let failedDeleteSubs = []
+            const deletedSubmissions = [];
             //delete related data and files
             for (const sub of inactiveSubs) {
                 try {
@@ -1201,6 +1202,7 @@ class Submission {
                         await this.dataRecordService.deleteMetadataByFilter({"submissionID": sub._id});
                         await this.batchService.deleteBatchByFilter({"submissionID": sub._id});
                         await this.submissionCollection.updateOne({"_id": sub._id}, {"status" : DELETED, "updatedAt": new Date()});
+                        deletedSubmissions.push(sub);
                         console.debug(`Successfully deleted inactive submissions: ${sub._id}.`);
                     }
                 } catch (e) {
@@ -1208,6 +1210,10 @@ class Submission {
                     failedDeleteSubs.push(sub._id);
                 }
             }
+
+            await Promise.all(deletedSubmissions.map(async (aSubmission) => {
+                await this.#sendEmailsDeletedSubmissions(aSubmission);
+            }));
             return (failedDeleteSubs.length === 0 )? "successful!" : `Failed to delete files under submissions: ${failedDeleteSubs.toString()}.  please contact admin.`;
         }
         catch (e){
@@ -1216,6 +1222,30 @@ class Submission {
         }
     }
 
+
+    async #sendEmailsDeletedSubmissions(aSubmission) {
+         const [aSubmitter, BCCUsers] = await Promise.all([
+            this.userService.getUserByID(aSubmission?.submitterID),
+            this.userService.getUsersByNotifications([EN.DATA_SUBMISSION.DELETE],
+                [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN])
+         ]);
+         if (!aSubmitter?.email) {
+            console.error(ERROR.NO_SUBMISSION_RECEIVER, "Delete", `id=${aSubmission?._id}`);
+            return;
+         }
+
+         if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.DELETE)) {
+             const filteredBCCUsers = BCCUsers.filter((u) => isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
+             await this.notificationService.deleteSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
+                 firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`}, {
+                 submissionName: aSubmission?.name,
+                 inactiveDays: this.emailParams.inactiveSubmissionDays,
+                 // TODO check contact name
+                 contactName: "NA",
+                 contactEmail: "NA"
+             });
+         }
+    }
 
     async deleteDataRecords(params, context) {
         verifySession(context)
@@ -1551,115 +1581,22 @@ async function submissionActionNotification(userInfo, action, aSubmission, userS
     }
 }
 
-const completeSubmissionEmailInfo = async (userInfo, aSubmission, userService, organizationService) => {
-    const promises = [
-        await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
-        await userService.getAdmin(),
-        await userService.getUserByID(aSubmission?.submitterID),
-        await userService.getPOCs(aSubmission?.dataCommons),
-        await organizationService.getOrganizationByID(aSubmission?.organization?._id),
-        await userService.getFederalMonitors(aSubmission?.studyID),
-        await userService.getCurators(aSubmission?.dataCommons)
-    ];
-
-    const results = await Promise.all(promises);
-    const orgOwnerEmails = getUserEmails(results[0] || []);
-    const adminEmails = getUserEmails(results[1] || []);
-    const POCEmails = getUserEmails(results[3] || []);
-    const fedMonitorEmails = getUserEmails(results[5] || []);
-    const aOrganization = results[4] || {};
-    const curatorEmails = getUserEmails(results[6] || []);
-    // CCs for POCs, org owner, admins, curators
-    const ccEmails = new Set([...POCEmails, ...orgOwnerEmails, ...adminEmails, ...curatorEmails, ...fedMonitorEmails]).toArray();
-    const aSubmitter = results[2];
-    return [ccEmails, aSubmitter, aOrganization];
-}
-
-const releaseSubmissionEmailInfo = async (userInfo, aSubmission, userService, organizationService) => {
-    const promises = [
-        await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
-        await userService.getAdmin(),
-        await userService.getUserByID(aSubmission?.submitterID),
-        await userService.getPOCs(aSubmission?.dataCommons),
-        await organizationService.getOrganizationByID(aSubmission?.organization?._id),
-        await userService.getFederalMonitors(aSubmission?.studyID),
-        await userService.getCurators(aSubmission?.dataCommons)
-    ];
-
-    const results = await Promise.all(promises);
-    const orgOwnerEmails = getUserEmails(results[0] || []);
-    const adminEmails = getUserEmails(results[1] || []);
-    const submitterEmails = getUserEmails([results[2] || {}]);
-    const fedMonitorEmails = getUserEmails(results[5] || []);
-    // CCs for Submitter, org owner, admins, fed monitors
-    const ccEmails = new Set([...submitterEmails, ...orgOwnerEmails, ...adminEmails, ...fedMonitorEmails]).toArray();
-    const POCs = results[3] || [];
-    const curators = results[6] || [];
-
-    const toEmails = [...POCs, ...curators]
-        ?.filter((aUser) => aUser?.email && aUser?.notifications?.includes(EN.DATA_SUBMISSION.RELEASE))
-        ?.map((aUser)=> aUser.email);
-
-    const aOrganization = results[4] || {};
-    return [ccEmails, toEmails, aOrganization];
-}
-
-const inactiveSubmissionEmailInfo = async (aSubmission, userService, organizationService) => {
-    const promises = [
-        await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
-        await organizationService.getOrganizationByID(aSubmission?.organization?._id),
-        await userService.getFederalMonitors(aSubmission?.studyID),
-        await userService.getCurators(aSubmission?.dataCommons)
-    ];
-    const results = await Promise.all(promises);
-    const orgOwnerEmails = getUserEmails(results[0] || []);
-    const fedMonitorEmails = getUserEmails(results[2] || []);
-    const aOrganization = results[1] || {};
-    const curatorEmails = getUserEmails(results[3] || []);
-    const ccEmails = new Set([...orgOwnerEmails, ...fedMonitorEmails, ...curatorEmails]).toArray();
-    return [ccEmails, aOrganization];
-}
-
-const cancelOrRejectSubmissionEmailInfo = async (aSubmission, userService, organizationService) => {
-    const promises = [
-        await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
-        await organizationService.getOrganizationByID(aSubmission?.organization?._id),
-        await userService.getAdmin(),
-        await userService.getFederalMonitors(aSubmission?.studyID),
-        await userService.getCurators(aSubmission?.dataCommons)
-    ];
-    const results = await Promise.all(promises);
-    const orgOwnerEmails = getUserEmails(results[0] || []);
-    const aOrganization = results[1] || {};
-    const adminEmails = getUserEmails(results[2] || []);
-    const fedMonitorEmails = getUserEmails(results[3] || []);
-    const curatorEmails = getUserEmails(results[4] || []);
-    const ccEmails = new Set([...orgOwnerEmails, ...curatorEmails, ...adminEmails, ...fedMonitorEmails]).toArray();
-    return [ccEmails, aOrganization];
-}
-
 const sendEmails = {
     submitSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
-        const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
-        if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.SUBMIT)) {
-            const promises = [
-                await userService.getOrgOwner(aSubmission?.organization?._id),
-                await organizationService.getOrganizationByID(aSubmitter?.organization?.orgID),
-                await userService.getAdmin(),
-                await userService.getFederalMonitors(aSubmission?.studyID),
-                await userService.getCurators(aSubmission?.dataCommons)
-            ];
-            const results = await Promise.all(promises);
-            const aOrganization = results[1] || {};
+        const [aSubmitter, BCCUsers] = await Promise.all([
+            userService.getUserByID(aSubmission?.submitterID),
+            userService.getUsersByNotifications([EN.DATA_SUBMISSION.SUBMIT],
+                [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN])
+        ]);
 
-            const orgOwnerEmails = getUserEmails(results[0] || []);
-            const adminEmails = getUserEmails(results[2] || []);
-            const fedMonitorEmails = getUserEmails(results[3] || []);
-            const curatorEmails = getUserEmails(results[4] || []);
-            // CCs for org owner, Data Curator (or admins if not yet assigned exists)
-            const ccEmailsVar = !aOrganization?.conciergeEmail ? adminEmails : curatorEmails;
-            const ccEmails = new Set([...orgOwnerEmails, ...ccEmailsVar, ...fedMonitorEmails, ...curatorEmails]).toArray();
-            await notificationService.submitDataSubmissionNotification(aSubmitter?.email, ccEmails, {
+        if (!aSubmitter?.email) {
+            console.error(ERROR.NO_SUBMISSION_RECEIVER, "Submit", `id=${aSubmission?._id}`);
+            return;
+        }
+
+        if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.SUBMIT)) {
+            const filteredBCCUsers = BCCUsers.filter((u) => isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
+            await notificationService.submitDataSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
                     firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
                 }, {
                     concierge: `${aSubmission?.conciergeName || 'NA'} via ${aSubmission?.conciergeEmail||'NA'}.`
@@ -1668,14 +1605,21 @@ const sendEmails = {
         }
     },
     completeSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService) => {
-        const [ccEmails, aSubmitter, aOrganization] = await completeSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
+        const [aSubmitter, BCCUsers, aOrganization] = await Promise.all([
+            userService.getUserByID(aSubmission?.submitterID),
+            userService.getUsersByNotifications([EN.DATA_SUBMISSION.COMPLETE],
+                [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]),
+            organizationService.getOrganizationByID(aSubmission?.organization?._id)
+        ]);
+
         if (!aSubmitter?.email) {
-            console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
+            console.error(ERROR.NO_SUBMISSION_RECEIVER, "Complete", `id=${aSubmission?._id}`);
             return;
         }
 
+        const filteredBCCUsers = BCCUsers.filter((u) => isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
         if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.COMPLETE)) {
-            await notificationsService.completeSubmissionNotification(aSubmitter?.email, ccEmails, {
+            await notificationsService.completeSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
                 firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
             }, {
                 submissionName: aSubmission?.name,
@@ -1687,15 +1631,21 @@ const sendEmails = {
         }
     },
     cancelSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
-        const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
-        if (!aSubmitter) {
-            console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
+        const [aSubmitter, BCCUsers, aOrganization] = await Promise.all([
+            userService.getUserByID(aSubmission?.submitterID),
+            userService.getUsersByNotifications([EN.DATA_SUBMISSION.CANCEL],
+                [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]),
+            organizationService.getOrganizationByID(aSubmission?.organization?._id)
+        ]);
+
+        if (!aSubmitter?.email) {
+            console.error(ERROR.NO_SUBMISSION_RECEIVER, "Cancel", `id=${aSubmission?._id}`);
             return;
         }
 
+        const filteredBCCUsers = BCCUsers.filter((u) => isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
         if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.CANCEL)) {
-            const [ccEmails, aOrganization] = await cancelOrRejectSubmissionEmailInfo(aSubmission, userService, organizationService);
-            await notificationService.cancelSubmissionNotification(aSubmitter?.email, ccEmails, {
+            await notificationService.cancelSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
                 firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
             }, {
                 submissionID: aSubmission?._id,
@@ -1708,29 +1658,25 @@ const sendEmails = {
         }
     },
     withdrawSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService) => {
-        const aOrganization = await organizationService.getOrganizationByID(aSubmission?.organization?._id);
-        const aCurator = await userService.getUserByID(aOrganization?.conciergeID);
-        if (!aCurator) {
-            console.error(ERROR.NO_SUBMISSION_RECEIVER, `id=${aSubmission?._id}`);
+        const [DCPRoleUsers, BCCUsers, aOrganization] = await Promise.all([
+            userService.getDCPs(aSubmission?.dataCommons),
+            userService.getUsersByNotifications([EN.DATA_SUBMISSION.WITHDRAW],
+                [ROLES.FEDERAL_LEAD, ROLES.SUBMITTER, ROLES.ADMIN]),
+            organizationService.getOrganizationByID(aSubmission?.organization?._id)
+        ]);
+        const filteredDCPUsers = DCPRoleUsers.filter((u) =>
+            u?.notifications?.includes(EN.DATA_SUBMISSION.WITHDRAW) &&
+            isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
+
+        if (filteredDCPUsers.length === 0) {
+            console.error(ERROR.NO_SUBMISSION_RECEIVER, "Withdraw" ,`id=${aSubmission?._id}`);
             return;
         }
 
-        if (aCurator?.notifications?.includes(EN.DATA_SUBMISSION.WITHDRAW)) {
-            const promises = [
-                await userService.getOrgOwnerByOrgName(aSubmission?.organization?.name),
-                await userService.getUserByID(aSubmission?.submitterID),
-                await userService.getFederalMonitors(aSubmission?.studyID),
-                await userService.getCurators(aSubmission?.dataCommons)
-            ];
-            const results = await Promise.all(promises);
-            const orgOwnerEmails = getUserEmails(results[0] || []);
-            const submitterEmails = getUserEmails([results[1]] || []);
-            const fedMonitorEmails = getUserEmails(results[2] || []);
-            const curatorEmails = getUserEmails(results[3] || [])?.filter((i) => i !== aCurator?.email);
-
-            const ccEmails = new Set([...orgOwnerEmails, ...submitterEmails, ...fedMonitorEmails, ...curatorEmails]).toArray();
-            await notificationsService.withdrawSubmissionNotification(aCurator?.email, ccEmails, {
-                firstName: `${aCurator.firstName} ${aCurator?.lastName || ''}`
+        const filteredBCCUsers = BCCUsers.filter((u) => isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
+        await Promise.all(filteredDCPUsers.map(async (u) => {
+            await notificationsService.withdrawSubmissionNotification(u?.email, getUserEmails(filteredBCCUsers), {
+                firstName: `${u.firstName} ${u?.lastName || ''}`
             }, {
                 submissionID: aSubmission?._id,
                 submissionName: aSubmission?.name,
@@ -1739,23 +1685,31 @@ const sendEmails = {
                 withdrawnByName: `${userInfo.firstName} ${userInfo?.lastName || ''}.`,
                 withdrawnByEmail: `${userInfo?.email}`
             });
-        }
+        }));
     },
     releaseSubmission: async (emailParams, userInfo, aSubmission, userService, organizationService, notificationsService) => {
-        const [ccEmails, toEmails, aOrganization] = await releaseSubmissionEmailInfo(userInfo, aSubmission, userService, organizationService);
-        if (toEmails.length === 0) {
+        const [DCPRoleUsers, BCCUsers, aOrganization] = await Promise.all([
+            userService.getDCPs(aSubmission?.dataCommons),
+            userService.getUsersByNotifications([EN.DATA_SUBMISSION.RELEASE],
+                [ROLES.FEDERAL_LEAD, ROLES.SUBMITTER, ROLES.ADMIN]),
+            organizationService.getOrganizationByID(aSubmission?.organization?._id)
+        ]);
+        const filteredDCPUsers = DCPRoleUsers.filter((u) =>
+            u?.notifications?.includes(EN.DATA_SUBMISSION.WITHDRAW) &&
+            isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
+
+        if (filteredDCPUsers.length === 0) {
+            console.error(ERROR.NO_SUBMISSION_RECEIVER, "Release", `id=${aSubmission?._id}`);
             return;
         }
         const additionalInfo = [
             [SUBMISSION_ID, aSubmission?._id],
             [DATA_SUBMISSION_TYPE, aSubmission?.intention],
             [DESTINATION_LOCATION, `${aSubmission?.bucketName} at ${aSubmission?.rootPath}`]];
-        await notificationsService.releaseDataSubmissionNotification(toEmails, ccEmails, {
+        await notificationsService.releaseDataSubmissionNotification(getUserEmails(filteredDCPUsers), getUserEmails(BCCUsers), {
             firstName: `${aSubmission?.dataCommons} team`,
-            additionalInfo: additionalInfo
-        },{
-            dataCommonName: aSubmission?.dataCommons
-        }, {
+            additionalInfo: additionalInfo}, {
+            dataCommonName: aSubmission?.dataCommons}, {
             submissionName: aSubmission?.name,
             // only one study
             studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
@@ -1763,15 +1717,20 @@ const sendEmails = {
         })
     },
     rejectSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
-        const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
-        if (!aSubmitter) {
-            console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
+        const [aSubmitter, BCCUsers, aOrganization] = await Promise.all([
+            userService.getUserByID(aSubmission?.submitterID),
+            userService.getUsersByNotifications([EN.DATA_SUBMISSION.REJECT],
+                [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]),
+            organizationService.getOrganizationByID(aSubmission?.organization?._id)
+        ]);
+
+        if (!aSubmitter?.email) {
+            console.error(ERROR.NO_SUBMISSION_RECEIVER, "Reject", `id=${aSubmission?._id}`);
             return;
         }
 
         if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.REJECT)) {
-            const [ccEmails, aOrganization] = await cancelOrRejectSubmissionEmailInfo(aSubmission, userService, organizationService);
-            await notificationService.rejectSubmissionNotification(aSubmitter?.email, ccEmails, {
+            await notificationService.rejectSubmissionNotification(aSubmitter?.email, BCCUsers, {
                 firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
             }, {
                 submissionID: aSubmission?._id,
@@ -1782,15 +1741,21 @@ const sendEmails = {
         }
     },
     remindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService, expiredDays, pastDays) => {
-        const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
-        if (!aSubmitter) {
-            console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
+        const [aSubmitter, BCCUsers, aOrganization] = await Promise.all([
+            userService.getUserByID(aSubmission?.submitterID),
+            userService.getUsersByNotifications([EN.DATA_SUBMISSION.REMIND_EXPIRE],
+                [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]),
+            organizationService.getOrganizationByID(aSubmission?.organization?._id)
+        ]);
+
+        if (!aSubmitter?.email) {
+            console.error(ERROR.NO_SUBMISSION_RECEIVER, "Inactive Submission Reminder", `id=${aSubmission?._id}`);
             return;
         }
 
+        const filteredBCCUsers = BCCUsers.filter((u) => isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
         if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.REMIND_EXPIRE)) {
-            const [ccEmails, aOrganization] = await inactiveSubmissionEmailInfo(aSubmission, userService, organizationService);
-            await notificationService.inactiveSubmissionNotification(aSubmitter?.email, ccEmails, {
+            await notificationService.inactiveSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
                 firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
             }, {
                 title: aSubmission?.name,
@@ -1802,15 +1767,20 @@ const sendEmails = {
         }
     },
     finalRemindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService) => {
-        const aSubmitter = await userService.getUserByID(aSubmission?.submitterID);
-        if (!aSubmitter) {
-            console.error(ERROR.NO_SUBMISSION_RECEIVER + `id=${aSubmission?._id}`);
+        const [aSubmitter, BCCUsers, aOrganization] = await Promise.all([
+            userService.getUserByID(aSubmission?.submitterID),
+            userService.getUsersByNotifications([EN.DATA_SUBMISSION.REMIND_EXPIRE],
+                [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]),
+            organizationService.getOrganizationByID(aSubmission?.organization?._id)
+        ]);
+        if (!aSubmitter?.email) {
+            console.error(ERROR.NO_SUBMISSION_RECEIVER, "Final Reminder", `id=${aSubmission?._id}`);
             return;
         }
 
+        const filteredBCCUsers = BCCUsers.filter((u) => isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
         if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.REMIND_EXPIRE)) {
-            const [ccEmails, aOrganization] = await inactiveSubmissionEmailInfo(aSubmission, userService, organizationService);
-            await notificationService.finalInactiveSubmissionNotification(aSubmitter?.email, ccEmails, {
+            await notificationService.finalInactiveSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
                 firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
             }, {
                 title: aSubmission?.name,

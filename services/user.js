@@ -632,6 +632,20 @@ class UserService {
         return await this.userCollection.aggregate([{"$match": query}]);
     }
 
+    /**
+     * get Data Commons Personnel
+     * @param {*} dataCommons
+     * @returns {Promise<Array>} user[]
+     */
+    async getDCPs(dataCommons) {
+        const query= {
+            "userStatus": USER.STATUSES.ACTIVE,
+            "role": USER.ROLES.DATA_COMMONS_PERSONNEL,
+            "dataCommons": {$in: Array.isArray(dataCommons) ? dataCommons : [dataCommons]}
+        };
+        return await this.userCollection.aggregate([{"$match": query}]);
+    }
+
     isAdmin(role) {
         return role && role === USER.ROLES.ADMIN;
     }
