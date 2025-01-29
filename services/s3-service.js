@@ -148,6 +148,14 @@ class S3Service {
             });
         });
     }
+
+    /**
+     * purgeDeletedFiles
+     * @param {*} bucketName 
+     * @param {*} topFolder 
+     * @param {*} purgeDays 
+     * @returns Promise<boolean> true if no exceptions
+     */
     async purgeDeletedFiles(bucketName, topFolder, purgeDays) {
         const now = new Date();
         // purgeDays = 1;// test code need to be comment out after testing
@@ -168,7 +176,7 @@ class S3Service {
             isTruncated = listResponse.IsTruncated;
             continuationToken = listResponse.NextContinuationToken;
 
-            // Iterate through the objects
+            // Iterate through the objects (files) listed in Contents
             for (const object of listResponse.Contents) {
                 const objectKey = object.Key;
 
@@ -185,7 +193,7 @@ class S3Service {
 
                 const tagResponse = await this.s3.getObjectTagging(tagParams).promise();
 
-                // Check if the object has the desired tag
+                // Check if the object has the desired tag, {key: "Completed", value: true}
                 const hasCompleteTag = tagResponse.TagSet.some(
                     (tag) => tag.Key === "Completed" && tag.Value === "true"
                 );
@@ -198,7 +206,7 @@ class S3Service {
         //2) delete deletable files
         if (filesToBeDelete.length > 0) {
             await this.#deleteObjects(bucketName, filesToBeDelete);
-            console.info(`Purged ${filesToBeDelete.length} deleted data files successfully: [${filesToBeDelete}]`);
+            console.info(`Purged ${filesToBeDelete.length} deleted data files successfully: [${filesToBeDelete}].`);
         }
         else 
             console.info("No data files to be purged.");

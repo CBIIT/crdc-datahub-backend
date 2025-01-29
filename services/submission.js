@@ -1217,7 +1217,10 @@ class Submission {
             return "failed!";
         }
     }
-
+    /**
+     * purgeDeletedDataFiles
+     * remove deleted data files in "to-be-deleted" after tagged with "Completed = true"
+     */
     async purgeDeletedDataFiles(){
         //get target purge date, current date - config.purgeDeletedDataFileDays (default 180 days)
         const purgeConfig = await this.configurationService.findByType("PURGE_DELETED_DATA_FILE_DAYS");
@@ -1227,7 +1230,7 @@ class Submission {
         const folder = "to_be_deleted"
         try {
 
-            const result = await this.s3Service.purgeDeletedFiles(dmBucketName, folder, purgeDays);
+            await this.s3Service.purgeDeletedFiles(dmBucketName, folder, purgeDays);
             console.debug("Successfully purged deleted data files."); 
         }
         catch (e){
