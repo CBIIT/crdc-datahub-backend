@@ -24,7 +24,8 @@ type Application {
     conditional: Boolean,
     pendingConditions: [String],
     programAbbreviation: String,
-    programDescription: String
+    programDescription: String,
+    version: String
 }
 
 type Event {
@@ -46,7 +47,8 @@ input AppInput {
     PI: String
     openAccess: Boolean
     programAbbreviation: String
-    programDescription: String
+    programDescription: String,
+    version: String
 }
 
 type Applicant {
