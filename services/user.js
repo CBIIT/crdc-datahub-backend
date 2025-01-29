@@ -226,6 +226,7 @@ class UserService {
             throw new Error(SUBMODULE_ERROR.INVALID_USERID);
         }
 
+        const filters = { _id: params.userID };
         const result = await this.userCollection.aggregate([{
             "$match": filters
         }, {"$limit": 1}]);
