@@ -163,14 +163,17 @@ const runDeactivateInactiveUsers = async (userService, notificationsService, ina
                 role: aUser?.role,
             };
         });
-        await Promise.all(adminUsers.map(async (admin) => {
-            const commaJoinedUsers = extractAndJoinFields(disabledUserContents, ["name", "email", "role"], ", ");
-            await notificationsService.inactiveUserAdminNotification(admin.email,
-                BCCUserEmails,
-                {users: commaJoinedUsers},
-                {inactiveDays: inactiveUserDays},
-            );
-        }));
+
+        const toAdminEmails = adminUsers
+            ?.filter((aUser) => aUser?.email)
+            ?.map((aUser)=> aUser.email);
+
+        const commaJoinedUsers = extractAndJoinFields(disabledUserContents, ["name", "email", "role"], ", ");
+        await notificationsService.inactiveUserAdminNotification(toAdminEmails,
+            BCCUserEmails,
+            {users: commaJoinedUsers},
+            {inactiveDays: inactiveUserDays},
+        );
     }
 }
 
