@@ -1247,6 +1247,7 @@ class Submission {
                  contactName: `${aSubmission?.conciergeName || 'NA'}`,
                  contactEmail: `${aSubmission?.conciergeEmail || 'NA'}`
              });
+             logDaysDifference(this.emailParams.inactiveSubmissionDays + " Deleted Action", aSubmission?.accessedAt, aSubmission?._id);
          }
     }
 
@@ -1780,6 +1781,7 @@ const sendEmails = {
                 pastDays: pastDays || NA,
                 url: emailParams.url || NA
             });
+            logDaysDifference(pastDays, aSubmission?.accessedAt, aSubmission?._id);
         }
     },
     finalRemindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService) => {
@@ -1806,6 +1808,7 @@ const sendEmails = {
                 days: emailParams.finalRemindSubmissionDay || NA,
                 url: emailParams.url || NA
             });
+            logDaysDifference(emailParams.finalRemindSubmissionDay, aSubmission?.accessedAt, aSubmission?._id);
         }
     }
 }
@@ -2057,6 +2060,33 @@ class Collaborators {
         return collaborators
             .filter(i => i?.permission === COLLABORATOR_PERMISSIONS.CAN_EDIT);
     }
+}
+
+// TODO remove temporary for QA
+function logDaysDifference(inactiveDays, accessedAt, submissionID) {
+    const startedDate = accessedAt; // Ensure it's a Date object
+    const endDate = getCurrentTime();
+    const differenceMs = endDate - startedDate; // Difference in milliseconds
+    const days = Math.floor(differenceMs / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((differenceMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((differenceMs % (1000 * 60 * 60)) / (1000 * 60));
+    console.log(`
+    Submission ID: ${submissionID}
+    Inactive Days: ${inactiveDays}
+    Last Accessed: ${getFormattedDateTime(startedDate)},
+    Current Time : ${getFormattedDateTime(endDate)}
+    Difference   : ${days} days, ${hours} hours, ${minutes} minutes`);
+}
+
+// TODO remove temporary for QA
+function getFormattedDateTime(date) {
+    return date.getFullYear() + ":" +
+        String(date.getMonth() + 1).padStart(2, '0') + ":" +
+        String(date.getDate()).padStart(2, '0') + ":" +
+        String(date.getHours()).padStart(2, '0') + ":" +
+        String(date.getMinutes()).padStart(2, '0') + ":" +
+        String(date.getSeconds()).padStart(2, '0') + " " +
+        Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
 module.exports = {
