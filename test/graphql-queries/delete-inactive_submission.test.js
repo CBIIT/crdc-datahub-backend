@@ -8,7 +8,7 @@ const {DATABASE_NAME} = require("../../crdc-datahub-database-drivers/database-co
 const {EmailService} = require("../../services/email");
 const {NotifyUser} = require("../../services/notify-user");
 const {User} = require("../../crdc-datahub-database-drivers/services/user");
-const {S3Service} = require("../../crdc-datahub-database-drivers/services/s3-service");
+const {S3Service} = require("../../services/s3-service");
 const ERROR = require("../../constants/error-constants");
 jest.mock("../../crdc-datahub-database-drivers/mongodb-collection");
 jest.mock("../../crdc-datahub-database-drivers/mongo-queries.js");

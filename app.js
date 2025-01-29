@@ -12,12 +12,12 @@ const graphqlRouter = require("./routers/graphql-router");
 const {MongoDBCollection} = require("./crdc-datahub-database-drivers/mongodb-collection");
 const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, LOG_COLLECTION, APPROVED_STUDIES_COLLECTION,
     ORGANIZATION_COLLECTION, SUBMISSIONS_COLLECTION, BATCH_COLLECTION, DATA_RECORDS_COLLECTION, VALIDATION_COLLECTION,
-    DATA_RECORDS_ARCHIVE_COLLECTION, QC_RESULTS_COLLECTION, RELEASE_DATA_RECORDS_COLLECTION
+    DATA_RECORDS_ARCHIVE_COLLECTION, QC_RESULTS_COLLECTION, RELEASE_DATA_RECORDS_COLLECTION,  CONFIGURATION_COLLECTION
 } = require("./crdc-datahub-database-drivers/database-constants");
 const {Application} = require("./services/application");
 const {Submission} = require("./services/submission");
 const {DataRecordService} = require("./services/data-record-service");
-const {S3Service} = require("./crdc-datahub-database-drivers/services/s3-service");
+const {S3Service} = require("./services/s3-service");
 const {MongoQueries} = require("./crdc-datahub-database-drivers/mongo-queries");
 const {DatabaseConnector} = require("./crdc-datahub-database-drivers/database-connector");
 const {getCurrentTime} = require("./crdc-datahub-database-drivers/utility/time-utility");
@@ -33,6 +33,7 @@ const {AWSService} = require("./services/aws-request");
 const {UtilityService} = require("./services/utility");
 const {QcResultService} = require("./services/qc-result-service");
 const {UserService} = require("./services/user");
+const {ConfigurationService} = require("./services/configurationService");
 const {EMAIL_NOTIFICATIONS} = require("./crdc-datahub-database-drivers/constants/user-permission-constants");
 // print environment variables to log
 console.info(configuration);
@@ -86,7 +87,10 @@ app.use("/api/graphql", graphqlRouter);
             techSupportEmail: config.techSupportEmail, conditionalSubmissionContact: config.conditionalSubmissionContact, submissionGuideURL: config.submissionGuideUrl,
             completedSubmissionDays: config.completed_submission_days, inactiveSubmissionDays: config.inactive_submission_days, finalRemindSubmissionDay: config.inactive_submission_days};
 
+        
         const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
+        const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
+        const configurationService = new ConfigurationService(configurationCollection)
         const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
         const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection);
 
@@ -114,7 +118,8 @@ app.use("/api/graphql", graphqlRouter);
         const validationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, VALIDATION_COLLECTION);
         const submissionService = new Submission(logCollection, submissionCollection, batchService, userService,
             organizationService, notificationsService, dataRecordService, fetchDataModelInfo, awsService, config.export_queue,
-            s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService, config.uploaderCLIConfigs, config.submission_bucket);
+            s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService, 
+            config.uploaderCLIConfigs, config.submission_bucket, configurationService);
 
         const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, emailParams);
         cronJob.schedule(config.scheduledJobTime, async () => {
@@ -130,6 +135,8 @@ app.use("/api/graphql", graphqlRouter);
             await submissionService.deleteInactiveSubmissions();
             console.log("Running a scheduled job to archive completed submissions at " + getCurrentTime());
             await submissionService.archiveCompletedSubmissions();
+            console.log("Running a scheduled job to purge deleted data files at " + getCurrentTime());
+            await submissionService.purgeDeletedDataFiles();
         });
     });
 })();

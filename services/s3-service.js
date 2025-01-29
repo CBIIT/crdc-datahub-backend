@@ -1,0 +1,220 @@
+const AWS = require('aws-sdk');
+class S3Service {
+
+    constructor() {
+        this.s3 = new AWS.S3();
+    }
+
+    async createPreSignedURL(bucketName, prefix, fileName) {
+        try {
+            const params = {
+                Bucket: bucketName,
+                Key: `${prefix}/${fileName}`,
+                Expires: 3600, // 1 hour
+                ACL: 'private', // files to be publicly inaccessible
+                ContentType: 'text/tab-separated-values',
+                ContentDisposition: `attachment; filename="${fileName}"`,
+            };
+            return new Promise((resolve, reject) => {
+                this.s3.getSignedUrl('putObject', params, (error, url) => {
+                    if (error) {
+                        reject(error);
+                    } else {
+                        resolve(url);
+                    }
+                });
+            });
+        } catch (error) {
+            console.error('Error generating pre-signed URL:', error);
+        }
+    }
+
+    /**
+     * Asynchronously deletes a file from an AWS S3 bucket.
+     * @param {string} bucketName - The name of the S3 bucket from which the file will be deleted.
+     * @param {string} fileKey - The key (path including the filename) of the file to delete.
+     * @returns {Promise<Object>} A promise that resolves to the result of the delete operation if successful.
+     */
+    async deleteFile(bucketName, fileKey) {
+        return new Promise((resolve, reject) => {
+            try {
+                this.s3.deleteObject({Bucket: bucketName, Key: fileKey}, (err, data)=> {
+                    if (err) {
+                        console.error(`Failed to delete file "${fileKey}" from bucket "${bucketName}": ${err.message}`);
+                        reject(err);
+                    } else {
+                        resolve(data);
+                    }
+                });
+            } catch (err) {
+                console.error(`Failed to delete file "${fileKey}" from bucket "${bucketName}": ${err.message}`);
+                reject(err);
+            }
+        });
+    }
+
+    /**
+     * Asynchronously lists objects in an S3 bucket that match a given file key prefix.
+     *
+     * @param {string} bucketName - The name of the S3 bucket.
+     * @param {string} fileKey - The prefix of the file keys to list.
+     * @returns {Promise<Object>} A promise that resolves with the list of objects if successful, or rejects with an error.
+     */
+    async listFile(bucketName, fileKey) {
+        return new Promise((resolve, reject) => {
+            this.s3.listObjects({Bucket: bucketName, Prefix: fileKey}, (err, data) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(data);
+                }
+            });
+        });
+    }
+
+    /**
+     * delete objects under dir recursively
+     * @param {*} bucket 
+     * @param {*} dir 
+     * @returns 
+     */
+    async deleteDirectory(bucket, dir) {
+        const listParams = {
+            Bucket: bucket,
+            Prefix: (dir.endsWith("/"))? dir : dir + "/"
+        };
+    
+        const listedObjects = await this.s3.listObjectsV2(listParams).promise();
+    
+        if (listedObjects.Contents.length === 0) return true;  //no files to delete;
+    
+        const deleteParams = {
+            Bucket: bucket,
+            Delete: { Objects: [] }
+        };
+    
+        listedObjects.Contents.forEach(({ Key }) => {
+            deleteParams.Delete.Objects.push({ Key });
+        });
+    
+        await this.s3.deleteObjects(deleteParams).promise();
+    
+        if (listedObjects.IsTruncated) await this.deleteDirectory(bucket, dir); // finally delete the dir
+        return true; // if no errors
+    }
+
+    /**
+     * Asynchronously lists objects in an S3 bucket that match a given file key prefix.
+     *
+     * @param {string} bucketName - The name of the S3 bucket.
+     * @param {string} dir - The prefix of the files to list.
+     * @returns {Promise<Object>} A promise that resolves with the list of objects if successful, or rejects with an error.
+     */
+    async listFileInDir(bucketName, dir) {
+        const listParams = {
+            Bucket: bucketName,
+            Prefix: (dir.endsWith("/")) ? dir : dir + "/"
+        };
+
+        let fileObjects = [];
+        const listRecursively = async (params) => {
+            try {
+                const data = await this.#listObjectsV2(params);
+                if (data.Contents) {
+                    fileObjects.push(...data.Contents);
+                    if (data.IsTruncated) {  // If more objects are available, continue with the next token
+                        params.ContinuationToken = data.NextContinuationToken;
+                        await listRecursively(params);
+                    }
+                }
+            } catch (err) {
+                console.error(`Failed to listing files from bucket "${bucketName}": ${err.toString()}`);
+                throw err;
+            }
+        };
+
+        await listRecursively(listParams);  // Start recursive listing
+        return fileObjects;
+    }
+
+    async #listObjectsV2(params) {
+        return new Promise((resolve, reject) => {
+            this.s3.listObjectsV2(params, (err, data) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(data);
+                }
+            });
+        });
+    }
+    async purgeDeletedFiles(bucketName, topFolder, purgeDays) {
+        const now = new Date();
+        // purgeDays = 1;// test code need to be comment out after testing
+        const purgeDate = new Date(now.getTime() - purgeDays * 24 * 60 * 60 * 1000);
+        // List all objects under the top folder 
+        const listParams = {
+            Bucket: bucketName,
+            Prefix: (topFolder.endsWith("/")) ? topFolder : topFolder + "/", // Only list objects under this prefix
+        };
+
+        let isTruncated = true;
+        let continuationToken = null;
+        const filesToBeDelete = [];
+        //1) file deletable files
+        while (isTruncated) {
+            listParams.ContinuationToken = continuationToken;
+            const listResponse = await this.s3.listObjectsV2(listParams).promise();;
+            isTruncated = listResponse.IsTruncated;
+            continuationToken = listResponse.NextContinuationToken;
+
+            // Iterate through the objects
+            for (const object of listResponse.Contents) {
+                const objectKey = object.Key;
+
+                // Skip the folder itself (if it exists as an object)
+                if (objectKey.endsWith("/")) {
+                    continue;
+                }
+
+                // Get the tags for the object
+                const tagParams = {
+                    Bucket: bucketName,
+                    Key: objectKey,
+                };
+
+                const tagResponse = await this.s3.getObjectTagging(tagParams).promise();
+
+                // Check if the object has the desired tag
+                const hasCompleteTag = tagResponse.TagSet.some(
+                    (tag) => tag.Key === "Completed" && tag.Value === "true"
+                );
+
+                if (hasCompleteTag && object.LastModified < purgeDate) {
+                    filesToBeDelete.push(objectKey);
+                }
+            }
+        }
+        //2) delete deletable files
+        if (filesToBeDelete.length > 0) {
+            await this.#deleteObjects(bucketName, filesToBeDelete);
+            console.info(`Purged ${filesToBeDelete.length} deleted data files successfully: [${filesToBeDelete}]`);
+        }
+        else 
+            console.info("No data files to be purged.");
+        return true;  // if no exceptions
+    }
+
+    async #deleteObjects(bucketName, fileKeyList) {
+        const deleteParams = {
+            Bucket: bucketName,
+            Delete: { Objects: fileKeyList.map(fileKey => ({ Key: fileKey})) }
+        };
+        await this.s3.deleteObjects(deleteParams).promise();
+    }
+}
+
+
+module.exports = {
+    S3Service
+}

@@ -24,7 +24,7 @@ const {EmailService} = require("../services/email");
 const {NotifyUser} = require("../services/notify-user");
 const {ApprovedStudiesService} = require("../services/approved-studies");
 const {BatchService} = require("../services/batch-service");
-const {S3Service} = require("../crdc-datahub-database-drivers/services/s3-service");
+const {S3Service} = require("../services/s3-service");
 const {Organization} = require("../crdc-datahub-database-drivers/services/organization");
 const {DataRecordService} = require("../services/data-record-service");
 const {UtilityService} = require("../services/utility");
@@ -91,7 +91,8 @@ dbConnector.connect().then(async () => {
 
     const submissionService = new Submission(logCollection, submissionCollection, batchService, userService,
         organizationService, notificationsService, dataRecordService, fetchDataModelInfo, awsService, config.export_queue,
-        s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService, config.uploaderCLIConfigs, config.submission_bucket);
+        s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService, config.uploaderCLIConfigs, 
+        config.submission_bucket, configurationService);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService);
 
     const dashboardService = new DashboardService(userService, awsService, configurationService, {sessionTimeout: config.dashboardSessionTimeout});
