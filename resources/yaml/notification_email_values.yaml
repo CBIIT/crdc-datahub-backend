@@ -22,7 +22,7 @@ APPROVE_SECOND_CONTENT: "A member of the CRDC staff will reach out to you with f
 APPROVE_THIRD_CONTENT: "Thank you for your submission, and we look forward to supporting your study."
 CONDITIONAL_APPROVE_SUBJECT: "Submission Request Conditionally Approved - ACTION REQUIRED"
 INACTIVE_USER_SUBJECT: "Your CRDC Submission Portal account has been disabled due to Inactivity"
-INACTIVE_USER_CONTENT: "our access to the CRDC Submission Portal has been disabled due to $inactiveDays days of inactivity. To reinstate your account please contact $officialEmail"
+INACTIVE_USER_CONTENT: "Your access to the CRDC Submission Portal has been disabled due to $inactiveDays days of inactivity. To reinstate your account please contact $officialEmail"
 INACTIVE_ADMIN_USER_RECIPIENT_NAME: "System Admins"
 INACTIVE_ADMIN_USER_SUBJECT: "CRDC Submission Portal Accounts Disabled Due to Inactivity"
 INACTIVE_ADMIN_USER_CONTENT: "The following user accounts has been disabled due to $inactiveDays days of inactivity"
