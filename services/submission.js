@@ -1460,8 +1460,8 @@ class Submission {
         const validSubmissionStatus = [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
             REJECTED, WITHDRAWN, DELETED];
 
-        const statusCondition = validSubmissionStatus.includes(status) && status !== ALL_FILTER ?
-            { status: status } : { status: { $in: validSubmissionStatus } };
+        const statusCondition = status && !status?.includes(ALL_FILTER) ?
+            { status: { $in: status || [] } } : { status: { $in: validSubmissionStatus } };
         const organizationCondition = organizationID && organizationID !== ALL_FILTER ?
             { "organization._id": organizationID } : {};
 
@@ -1478,7 +1478,9 @@ class Submission {
                     return baseConditions;
                 case ROLES.FEDERAL_LEAD:
                     const userStudies = Array.isArray(studies) && studies.length > 0 ? studies : [];
-                    const studyQuery = isAllStudy(userStudies) ? {} : {studyID: {$in: userStudies?.map((s)=> s?._id)}};
+                    // TODO remove multiple types
+                    const studyIDs = userStudies?.map(s => s?._id || s).filter(Boolean);
+                    const studyQuery = isAllStudy(userStudies) ? {} : {studyID: {$in: studyIDs}};
                     return {...baseConditions, ...studyQuery};
                 case ROLES.DATA_COMMONS_PERSONNEL:
                     const aFilteredDataCommon = (dataCommonsParams && dataCommons?.includes(dataCommonsParams)) ? [dataCommonsParams] : []
@@ -1829,9 +1831,12 @@ const isUserScope = (userID, userRole, userStudies, userDataCommons, aSubmission
         case ROLES.ADMIN:
             return true; // Admin has access to all data submissions.
         case ROLES.FEDERAL_LEAD:
-            // TODO rework for the shared function for the all studies
             const studies = Array.isArray(userStudies) && userStudies.length > 0 ? userStudies : [];
-            return isAllStudy(studies) ? true : Boolean(studies?.find((s) => s?._id === aSubmission.studyID));
+            return isAllStudy(studies) ? true : studies.find(study =>
+                // TODO remove multiple types
+                (typeof study === 'object' && study._id === aSubmission.studyID) ||
+                (typeof study === 'string' && aSubmission.studyID)
+            );
         case ROLES.DATA_COMMONS_PERSONNEL:
             return userDataCommons.includes(aSubmission.dataCommons); // Access to assigned data commons.
         case ROLES.SUBMITTER:
@@ -1916,8 +1921,10 @@ function validateCreateSubmissionParams (params, allowedDataCommons, hiddenDataC
 
 function validateListSubmissionsParams (params) {
     const validStatus = new Set([NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, REJECTED, WITHDRAWN, CANCELED, DELETED, ALL_FILTER]);
-    if (!validStatus.has(params.status)) {
-        throw new Error(ERROR.LIST_SUBMISSION_INVALID_STATUS_FILTER);
+    const invalidStatues = (params?.status || [])
+        .filter((i) => !validStatus.has(i));
+    if (invalidStatues?.length > 0) {
+        throw new Error(replaceErrorString(ERROR.LIST_SUBMISSION_INVALID_STATUS_FILTER, `'${invalidStatues.join(",")}'`));
     }
 }
 // TODO remove
