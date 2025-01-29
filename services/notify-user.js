@@ -86,6 +86,49 @@ class NotifyUser {
             );
         });
     }
+
+    async cancelApplicationNotification(email, BCCsEmails, templateParams, messageVariables) {
+        const message = replaceMessageVariables(this.email_constants.CANCEL_APPLICATION_CONTENT, messageVariables);
+        const subject = this.email_constants.CANCEL_APPLICATION_SUBJECT;
+        return await this.send(async () => {
+            const res = await this.emailService.sendNotification(
+                this.email_constants.NOTIFICATION_SENDER,
+                isTierAdded(this.tier) ? `${this.tier} ${subject}` : subject,
+                await createEmailTemplate("notification-template.html", {
+                    message, firstName: templateParams.firstName
+                }),
+                email,
+                [],
+                BCCsEmails
+            );
+            if (res?.accepted?.length === 0) {
+                console.error(`Failed to send Cancel Submission Request Email Notifications: ${email}`);
+            }
+        });
+    }
+
+    async restoreApplicationNotification(email, BCCsEmails, templateParams, messageVariables) {
+        const message = replaceMessageVariables(this.email_constants.RESTORE_APPLICATION_CONTENT, messageVariables);
+        const secondMessage = replaceMessageVariables(this.email_constants.RESTORE_APPLICATION_SECOND_CONTENT, messageVariables);
+        const thirdMessage = replaceMessageVariables(this.email_constants.RESTORE_APPLICATION_THIRD_CONTENT, messageVariables);
+        const subject = this.email_constants.RESTORE_APPLICATION_SUBJECT;
+        return await this.send(async () => {
+            const res = await this.emailService.sendNotification(
+                this.email_constants.NOTIFICATION_SENDER,
+                isTierAdded(this.tier) ? `${this.tier} ${subject}` : subject,
+                await createEmailTemplate("notification-template.html", {
+                    message, secondMessage, thirdMessage, firstName: templateParams.firstName
+                }),
+                email,
+                [],
+                BCCsEmails
+            );
+            if (res?.accepted?.length === 0) {
+                console.error(`Failed to send Restore Submission Request Email Notifications: ${email}`);
+            }
+        });
+    }
+
     async inquireQuestionNotification(email, BCCEmails, templateParams, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.INQUIRE_CONTENT, messageVariables);
         const secondMessage = replaceMessageVariables(this.email_constants.INQUIRE_SECOND_CONTENT, messageVariables);

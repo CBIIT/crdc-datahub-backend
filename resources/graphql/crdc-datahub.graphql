@@ -749,6 +749,7 @@ type Mutation {
 
     "Admin only operations"
     deleteApplication (_id: ID!): Application
+    restoreApplication (_id: ID!): Application
 
     "Submitter or Org Owner"
     createSubmission (studyID: String!, dataCommons: String!, name: String!, intention: String!, dataType: String!): Submission

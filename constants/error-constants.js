@@ -7,7 +7,9 @@ const ERROR = {
     FAILED_DELETE_APPLICATION: "An error occurred while delete an application",
     APPLICATION_CONTROLLED_ACCESS_NOT_FOUND: "The application does not store controlled access property.",
     APPLICATION_INVALID_STATUES: "Requested statues $item$ is not valid",
+    FAILED_RESTORE_APPLICATION: "An error occurred while restoring an application",
     MISSING_PROGRAM_INFO: "The program property is required to approve the submission request.",
+    INVALID_APPLICATION_RESTORE_STATE: "Application is failed to restore because of the invalid previous history",
     UPDATE_FAILED: "Update unsuccessful",
     VERIFY: {
         UNDEFINED_APPLICATION: "Application array is undefined",
@@ -160,7 +162,7 @@ const ERROR = {
     FAILED_TO_NOTIFY_ACCESS_REQUEST: "Failed to send notification for user role access request; $item$",
     INVALID_APPROVED_STUDIES_ACCESS_REQUEST: "Failed to request an access request because of invalid or missing approved study IDs.",
     DUPLICATE_ORGANIZATION_NAME: "Duplicate organization name found: $item$",
-    NO_ADMIN_USER: "No admin user found or no PBAC request access notification is enabled.",
+    NO_ADMIN_USER: "No admin user found",
     // QC Results
     FAILED_INSERT_QC_RESULT: "An error occurred while attempting to insert the qc-result into the database.",
     CONTROLLED_STUDY_NO_DBGAPID: "dbGaP ID must be provided before data submissions can begin.",

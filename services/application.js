@@ -366,11 +366,50 @@ class Application {
             $push: {history}
         });
 
-        if (!updated?.modifiedCount || !updated?.modifiedCount > 0) {
+        if (updated?.modifiedCount && updated?.modifiedCount > 0) {
+            await this.#sendCancelApplicationEmail(userInfo, aApplication);
+        } else {
             console.error(ERROR.FAILED_DELETE_APPLICATION, `${document._id}`);
             throw new Error(ERROR.FAILED_DELETE_APPLICATION);
         }
         return await this.getApplicationById(document._id);
+    }
+
+    async restoreApplication(document, context) {
+        const aApplication = await this.getApplicationById(document._id);
+        verifyApplication(aApplication)
+            .notEmpty()
+            .state([CANCELED]);
+
+        if (!aApplication?.history?.length > 2 || aApplication?.history?.at(-1)?.status !== CANCELED) {
+            throw new Error(ERROR.INVALID_APPLICATION_RESTORE_STATE);
+        }
+        const userInfo = context?.userInfo;
+        const isEnabledPBAC = userInfo?.permissions?.includes(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
+        const isPowerRole = [ROLES.FEDERAL_LEAD, ROLES.ADMIN, ROLES.DATA_COMMONS_PERSONNEL].includes(userInfo?.role);
+
+        const isNonPowerRole = [ROLES.USER, ROLES.SUBMITTER].includes(userInfo?.role);
+        // User owned application
+        const isApplicationOwned = userInfo?._id === aApplication?.applicant?.applicantID;
+
+        if ((isPowerRole && !isEnabledPBAC) || (isNonPowerRole && !isApplicationOwned)) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+        const prevStatus = aApplication?.history?.at(-2)?.status;
+        const history = HistoryEventBuilder.createEvent(context.userInfo._id, prevStatus, null);
+        const updated = await this.dbService.updateOne(APPLICATION, {_id: aApplication._id}, {
+            $set: {status: prevStatus, updatedAt: history.dateTime},
+            $push: {history},
+
+        });
+
+        if (updated?.modifiedCount && updated?.modifiedCount > 0) {
+            await this.#sendRestoreApplicationEmail(aApplication);
+        } else {
+            console.error(ERROR.FAILED_RESTORE_APPLICATION, `${aApplication._id}`);
+            throw new Error(ERROR.FAILED_RESTORE_APPLICATION);
+        }
+        return await this.getApplicationById(aApplication._id);
     }
 
     async approveApplication(document, context) {
@@ -597,6 +636,52 @@ class Application {
                 }
             );
         }
+    }
+
+    async #cancelApplicationEmailInfo(application) {
+        const [applicant, BCCUsers] = await Promise.all([
+            this.userService.userCollection.find(application?.applicant?.applicantID),
+            this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_CANCEL],
+                [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN])
+        ]);
+        const applicantInfo = applicant?.pop();
+        return [applicantInfo, getUserEmails(BCCUsers)];
+    }
+
+    async #sendCancelApplicationEmail(userCanceledBy, application) {
+        const [applicantInfo, BCCUserEmails] = await this.#cancelApplicationEmailInfo(application);
+        if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_CANCEL)) {
+            if (!applicantInfo?.email) {
+                console.error("Cancel submission request email notification does not have any recipient", `Application ID: ${application?._id}`);
+                return;
+            }
+
+            await this.notificationService.cancelApplicationNotification(applicantInfo?.email, BCCUserEmails, {
+                firstName: `${applicantInfo.firstName} ${applicantInfo.lastName || ""}`
+            },{
+                studyName: application?.studyName?.trim() || "NA",
+                canceledNameBy: `${userCanceledBy.firstName} ${userCanceledBy.lastName || ""}`,
+                contactEmail: this.emailParams.conditionalSubmissionContact
+            });
+        }
+    }
+
+    async #sendRestoreApplicationEmail(application) {
+        const [applicantInfo, BCCUserEmails] = await this.#cancelApplicationEmailInfo(application);
+        if (!applicantInfo?.email) {
+            console.error("Restore submission request email notification does not have any recipient", `Application ID: ${application?._id}`);
+            return;
+        }
+
+        if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_CANCEL)) {
+            await this.notificationService.restoreApplicationNotification(applicantInfo?.email, BCCUserEmails,{
+                firstName: `${applicantInfo.firstName} ${applicantInfo.lastName || ""}`
+            },{
+                studyName: application?.studyName?.trim() || "NA",
+                contactEmail: this.emailParams.conditionalSubmissionContact
+            });
+        }
+
     }
 }
 
