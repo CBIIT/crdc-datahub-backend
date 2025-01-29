@@ -3,19 +3,20 @@ const {USER} = require("../crdc-datahub-database-drivers/constants/user-constant
 const {ValidationHandler} = require("../utility/validation-handler");
 const ERROR = require("../constants/error-constants");
 const {ERROR: SUBMODULE_ERROR} = require("../crdc-datahub-database-drivers/constants/error-constants");
-const {replaceErrorString} = require("../utility/string-util");
+const {replaceErrorString, extractAndJoinFields} = require("../utility/string-util");
 const config = require("../config");
 const {getCurrentTime, subtractDaysFromNowTimestamp} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {UpdateProfileEvent, ReactivateUserEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const {LOG_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const jwt = require("jsonwebtoken");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
-
+const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
+const ROLES = USER_CONSTANTS.USER.ROLES;
 const {
     SUBMISSION_REQUEST,
     ADMIN,
     DATA_SUBMISSION,
-    EMAIL_NOTIFICATIONS: EN,
+    EMAIL_NOTIFICATIONS: EN, EMAIL_NOTIFICATIONS,
 } = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 
 const isLoggedInOrThrow = (context) => {
@@ -65,16 +66,19 @@ class UserService {
             return new Error(ERROR.INVALID_APPROVED_STUDIES_ACCESS_REQUEST);
         }
 
-        const adminUsers = await this.getAdmin();
-        const adminEmails = adminUsers?.filter((u)=> u.email).map((u)=> u.email);
+        const adminUsers = await this.getUsersByNotifications([EN.USER_ACCOUNT.USER_REQUEST_ACCESS],
+            [ROLES.ADMIN]);
+        const adminEmails = adminUsers
+            ?.filter((u)=> u?.email)
+            .map((u)=> u?.email);
         const userInfo = context?.userInfo;
 
         if (adminEmails.length === 0) {
+            console.error("The request access notification does not have any recipient");
             return ValidationHandler.handle(ERROR.NO_ADMIN_USER);
         }
 
-        const res = await this.notificationsService.requestUserAccessNotification(adminEmails,
-            [], {
+        const res = await this.notificationsService.requestUserAccessNotification(adminEmails, {
                 userName: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
                 accountType: userInfo?.IDP,
                 email: userInfo?.email,
@@ -221,14 +225,6 @@ class UserService {
         if (!params?.userID) {
             throw new Error(SUBMODULE_ERROR.INVALID_USERID);
         }
-        // The following block of codes need to removed after USER.ROLES.ORG_OWNER is retired.
-        if (context?.userInfo?.role === USER.ROLES.ORG_OWNER && !context?.userInfo?.organization?.orgID) {
-            throw new Error(SUBMODULE_ERROR.NO_ORG_ASSIGNED);
-        }
-        const filters = { _id: params.userID };
-        if (context?.userInfo?.role === USER.ROLES.ORG_OWNER) {
-            filters["organization.orgID"] = context?.userInfo?.organization?.orgID;
-        }
 
         const result = await this.userCollection.aggregate([{
             "$match": filters
@@ -249,18 +245,9 @@ class UserService {
         verifySession(context)
             .verifyInitialized()
             .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
-        // The following block of codes need to removed after USER.ROLES.ORG_OWNER is retired.
-        if (context?.userInfo?.role === USER.ROLES.ORG_OWNER && !context?.userInfo?.organization?.orgID) {
-            throw new Error(SUBMODULE_ERROR.NO_ORG_ASSIGNED);
-        }
-
-        const filters = {};
-        if (context?.userInfo?.role === USER.ROLES.ORG_OWNER) {
-            filters["organization.orgID"] = context?.userInfo?.organization?.orgID;
-        }
 
         const result = await this.userCollection.aggregate([{
-            "$match": filters
+            "$match": {}
         },]);
 
         for (let user of result) {
@@ -483,26 +470,18 @@ class UserService {
     async #notifyUpdatedUser(prevUser, newUser, newRole) {
         const baseRoleCondition = newRole && Object.values(USER.ROLES).includes(newRole);
         const isRoleChange = baseRoleCondition && prevUser.role !== newUser.role;
-        const isOrgChange = Boolean(prevUser?.organization?.orgID) && prevUser?.organization?.orgID !== newUser?.organization?.orgID;
         const isDataCommonsChange = newUser?.dataCommons?.length > 0 && JSON.stringify(prevUser?.dataCommons) !== JSON.stringify(newUser?.dataCommons);
         const isStudiesChange = newUser.studies?.length > 0 && JSON.stringify(prevUser.studies) !== JSON.stringify(newUser.studies);
-        if (isRoleChange || isOrgChange || isDataCommonsChange || isStudiesChange) {
-            const isSubmitterOrOrgOwner = [USER.ROLES.SUBMITTER, USER.ROLES.ORG_OWNER].includes(newUser.role);
-            const CCs = isSubmitterOrOrgOwner ? (
-                    await this.getOrgOwnerByOrgID(newUser.organization?.orgID))
-                    ?.map((owner) => owner.email)
-                : [];
-            const orgName = isSubmitterOrOrgOwner ? newUser.organization?.orgName : undefined;
-            const userDataCommons = [USER.ROLES.DC_POC, USER.ROLES.CURATOR].includes(newUser.role) ? newUser.dataCommons : undefined;
+        if (isRoleChange || isDataCommonsChange || isStudiesChange) {
+            const userDataCommons = [USER.ROLES.DATA_COMMONS_PERSONNEL].includes(newUser.role) ? newUser.dataCommons : undefined;
             const studyNames = await this.#findStudiesNames(newUser.studies);
             await this.notificationsService.userRoleChangeNotification(newUser.email,
-                CCs, {
+                {
                     accountType: newUser.IDP,
                     email: newUser.email,
                     role: newUser.role,
-                    org: orgName,
                     dataCommons: userDataCommons,
-                    studies: studyNames
+                    ...([USER.ROLES.SUBMITTER, USER.ROLES.FEDERAL_LEAD].includes(newUser.role) && { studies: studyNames }),
                 },
                 {url: this.appUrl, helpDesk: this.officialEmail});
         }
@@ -512,11 +491,9 @@ class UserService {
         const isUserActivated = prevUser?.userStatus !== USER.STATUSES.INACTIVE;
         const isStatusChange = newStatus && newStatus?.toLowerCase() === USER.STATUSES.INACTIVE.toLowerCase();
         if (isUserActivated && isStatusChange) {
-            const adminEmails = await this.getAdminPBACUsers();
-            const CCs = adminEmails.filter((u)=> u.email).map((u)=> u.email);
             if (prevUser?.notifications?.includes(EN.USER_ACCOUNT.USER_INACTIVATED)) {
                 await this.notificationsService.deactivateUserNotification(prevUser.email,
-                    CCs, {firstName: prevUser.firstName},
+                    {firstName: prevUser.firstName},
                     {officialEmail: this.officialEmail});
             }
         }
@@ -553,8 +530,7 @@ class UserService {
         const orgOwnerOrAdminRole = {
             "userStatus": USER.STATUSES.ACTIVE,
             "notifications": {"$in": [EN.USER_ACCOUNT.USER_INACTIVATED_ADMIN]},
-            // TODO org owners to be removed since org owner no longer exists
-            "$or": [{"role": USER.ROLES.ADMIN}, {"role": USER.ROLES.ORG_OWNER}]
+            "$or": [{"role": USER.ROLES.ADMIN}]
         };
         return await this.userCollection.aggregate([{"$match": orgOwnerOrAdminRole}]) || [];
     }

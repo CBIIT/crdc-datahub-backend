@@ -25,7 +25,6 @@ const {EmailService} = require("./services/email");
 const {NotifyUser} = require("./services/notify-user");
 const {extractAndJoinFields} = require("./utility/string-util");
 const {ApprovedStudiesService} = require("./services/approved-studies");
-const {USER} = require("./crdc-datahub-database-drivers/constants/user-constants");
 const {Organization} = require("./crdc-datahub-database-drivers/services/organization");
 const {LOGIN, REACTIVATE_USER} = require("./crdc-datahub-database-drivers/constants/event-constants");
 const {BatchService} = require("./services/batch-service");
@@ -34,6 +33,8 @@ const {UtilityService} = require("./services/utility");
 const {QcResultService} = require("./services/qc-result-service");
 const {UserService} = require("./services/user");
 const {EMAIL_NOTIFICATIONS} = require("./crdc-datahub-database-drivers/constants/user-permission-constants");
+const USER_CONSTANTS = require("./crdc-datahub-database-drivers/constants/user-constants");
+const ROLES = USER_CONSTANTS.USER.ROLES;
 // print environment variables to log
 console.info(configuration);
 
@@ -149,21 +150,26 @@ const runDeactivateInactiveUsers = async (userService, notificationsService, ina
         }));
         // Email PBAC enabled admin(s)
         const adminUsers = await userService.getAdminPBACUsers();
-        // This is for the organization in the email template.
-        const users = disabledUsers.map(u => ({ ...u, organization: u?.organization?.orgName }));
+        const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.USER_ACCOUNT.USER_INACTIVATED_ADMIN],
+            [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD, ROLES.SUBMITTER]);
+        const BCCUserEmails = BCCUsers
+            ?.filter((aUser) => aUser?.email)
+            ?.map((aUser)=> aUser.email);
+
+        const disabledUserContents = disabledUsers.map(aUser => {
+            return {
+                name: `${aUser?.firstName} ${aUser?.lastName || ''}`,
+                email: aUser?.email,
+                role: aUser?.role,
+            };
+        });
         await Promise.all(adminUsers.map(async (admin) => {
-            let disabledUserList = users;
-            // users filter by an organization or all users for admin
-            if (admin.role === USER.ROLES.ORG_OWNER) {
-                disabledUserList = users.filter((u)=> u && u?.organization === admin?.organization?.orgName);
-            }
-            if (disabledUserList?.length > 0) {
-                const commaJoinedUsers = extractAndJoinFields(disabledUserList, ["firstName", "lastName", "email", "role", "organization"]);
-                await notificationsService.inactiveUserAdminNotification(admin.email,
-                    {firstName: admin.firstName,users: commaJoinedUsers},
-                    {inactiveDays: inactiveUserDays},
-                );
-            }
+            const commaJoinedUsers = extractAndJoinFields(disabledUserContents, ["name", "email", "role"], ", ");
+            await notificationsService.inactiveUserAdminNotification(admin.email,
+                BCCUserEmails,
+                {users: commaJoinedUsers},
+                {inactiveDays: inactiveUserDays},
+            );
         }));
     }
 }

@@ -15,7 +15,6 @@ const ACCOUNT_EMAIL = "Account Email";
 const REQUESTED_ROLE = "Requested Role";
 const ADDITIONAL_INFO = "Additional Info";
 const AFFILIATED_ORGANIZATION = "Affiliated Organization";
-const CRDC_PORTAL_ADMIN = "CRDC Submission Portal Admins";
 class NotifyUser {
 
     constructor(emailService, tier) {
@@ -156,7 +155,7 @@ class NotifyUser {
         });
     }
 
-    async userRoleChangeNotification(email, emailCCs, templateParams, messageVariables) {
+    async userRoleChangeNotification(email, templateParams, messageVariables) {
         const topMessage = replaceMessageVariables(this.email_constants.USER_ROLE_CHANGE_CONTENT_TOP, messageVariables);
         const bottomMessage = replaceMessageVariables(this.email_constants.USER_ROLE_CHANGE_CONTENT_BOTTOM, messageVariables);
         const subject = this.email_constants.USER_ROLE_CHANGE_SUBJECT;
@@ -164,9 +163,8 @@ class NotifyUser {
             [ACCOUNT_TYPE, templateParams.accountType?.toUpperCase()],
             [ACCOUNT_EMAIL, templateParams.email],
             ...(templateParams.role) ? [[ROLE, templateParams.role]] : [],
-            ...(templateParams.org) ? [[AFFILIATED_ORGANIZATION, templateParams.org]] : [],
             ...(templateParams.dataCommons) ? [[DATA_COMMONS, templateParams.dataCommons]] : [],
-            ...(templateParams.studies) ? [[STUDIES, templateParams.studies]] : [],
+            ...(templateParams?.studies?.length > 0) ? [[STUDIES, templateParams.studies]] : [],
         ];
         return await this.send(async () => {
             await this.emailService.sendNotification(
@@ -178,8 +176,7 @@ class NotifyUser {
                         senderName: CRDC_SUBMISSION_PORTAL,
                         ...templateParams, additionalInfo}
                 }),
-                email,
-                emailCCs
+                email
             );
         });
     }
@@ -201,18 +198,20 @@ class NotifyUser {
         });
     }
 
-    async inactiveUserAdminNotification(email, template_params, messageVariables) {
+    async inactiveUserAdminNotification(email, BCCEmails, template_params, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.INACTIVE_ADMIN_USER_CONTENT, messageVariables);
         const subject = this.email_constants.INACTIVE_ADMIN_USER_SUBJECT;
+        const recipientName = this.email_constants.INACTIVE_ADMIN_USER_RECIPIENT_NAME;
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
                 isTierAdded(this.tier) ? `${this.tier} ${subject}` : subject,
                 await createEmailTemplate("notification-template.html", {
-                    message, ...template_params
+                    message, ...template_params, firstName: recipientName
                 }),
                 email,
-                []
+                [],
+                BCCEmails
             );
         });
     }
@@ -331,7 +330,7 @@ class NotifyUser {
         });
     }
 
-    async deactivateUserNotification(email, CCs, template_params, messageVariables) {
+    async deactivateUserNotification(email, template_params, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.DEACTIVATE_USER_CONTENT, messageVariables);
         const subject = this.email_constants.DEACTIVATE_USER_SUBJECT;
         return await this.send(async () => {
@@ -341,8 +340,7 @@ class NotifyUser {
                 await createEmailTemplate("notification-template.html", {
                     message, ...template_params
                 }),
-                email,
-                CCs
+                email
             );
         });
     }
@@ -363,7 +361,7 @@ class NotifyUser {
         });
     }
 
-    async requestUserAccessNotification(email, CCs, templateParams) {
+    async requestUserAccessNotification(email, templateParams) {
         const sanitizedAdditionalInfo = sanitizeHtml(templateParams.additionalInfo, {allowedTags: [],allowedAttributes: {}});
         const topMessage = replaceMessageVariables(this.email_constants.USER_REQUEST_ACCESS_CONTENT, {});
         const subject = this.email_constants.USER_REQUEST_ACCESS_SUBJECT;
@@ -381,12 +379,12 @@ class NotifyUser {
                 isTierAdded(this.tier) ? `${this.tier} ${subject}` : subject,
                 await createEmailTemplate(NOTIFICATION_USER_HTML_TEMPLATE, {
                     topMessage, ...{
-                        firstName: CRDC_PORTAL_ADMIN,
+                        firstName: this.email_constants.USER_REQUEST_ACCESS_RECIPIENT_NAME,
                         senderName: CRDC_SUBMISSION_PORTAL,
                         ...templateParams, additionalInfo}
                 }),
                 email,
-                CCs
+                []
             );
         });
     }
