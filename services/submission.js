@@ -78,12 +78,12 @@ class Submission {
             .verifyPermission(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
         const userInfo = context?.userInfo;
         const hasStudies = userInfo?.studies?.length > 0;
-        const roleWithoutStudies = userInfo?.role === ROLES.DATA_COMMONS_PERSONNEL;
-        if (!hasStudies && !roleWithoutStudies){
+        const IsRoleWithoutStudies = userInfo?.role === ROLES.DATA_COMMONS_PERSONNEL;
+        if (!hasStudies && !IsRoleWithoutStudies){
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
         }
 
-        if (!isAllStudy(userInfo.studies) && !roleWithoutStudies) {
+        if (!isAllStudy(userInfo.studies) && !IsRoleWithoutStudies) {
             const study = userInfo.studies.find(study =>
                 // TODO remove multiple types after data migration
                 (typeof study === 'object' && study._id === params.studyID) ||
