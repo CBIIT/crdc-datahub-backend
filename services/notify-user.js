@@ -71,7 +71,7 @@ class NotifyUser {
         });
     }
 
-    async inactiveApplicationsNotification(email, template_params, messageVariables) {
+    async inactiveApplicationsNotification(email, BCCEmails, template_params, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.INACTIVE_APPLICATION_CONTENT, messageVariables);
         const subject = this.email_constants.INACTIVE_APPLICATION_SUBJECT;
         return await this.send(async () => {
@@ -82,7 +82,8 @@ class NotifyUser {
                     message, ...template_params
                 }),
                 email,
-                []
+                [],
+                BCCEmails
             );
         });
     }
