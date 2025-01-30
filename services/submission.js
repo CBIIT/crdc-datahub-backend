@@ -1223,14 +1223,15 @@ class Submission {
      */
     async purgeDeletedDataFiles(){
         //get target purge date, current date - config.purgeDeletedDataFileDays (default 180 days)
-        const purgeConfig = await this.configurationService.findByType("PURGE_DELETED_DATA_FILE_DAYS");
-        const purgeDays = purgeConfig?.days | 180;
+        const purgeConfig = await this.configurationService.findByType("PURGE_DELETED_DATA_FILE");
+        const purgeDays = purgeConfig?.days ?? 180;
+        const folder = purgeConfig?.prefix ?? "to_be_deleted";
+        const tag = purgeConfig?.tag ?? {key: "Completed", value: "true"};
         const dmBucketConfig = await this.configurationService.findByType("DM_BUCKET_NAME");
         const dmBucketName = dmBucketConfig?.keys.dm_bucket;
-        const folder = "to_be_deleted"
         try {
 
-            await this.s3Service.purgeDeletedFiles(dmBucketName, folder, purgeDays);
+            await this.s3Service.purgeDeletedFiles(dmBucketName, folder, purgeDays, tag);
             console.debug("Successfully purged deleted data files."); 
         }
         catch (e){

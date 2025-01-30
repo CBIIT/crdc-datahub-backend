@@ -156,9 +156,9 @@ class S3Service {
      * @param {*} purgeDays 
      * @returns Promise<boolean> true if no exceptions
      */
-    async purgeDeletedFiles(bucketName, topFolder, purgeDays) {
+    async purgeDeletedFiles(bucketName, topFolder, purgeDays, completed_tag) {
         const now = new Date();
-        // purgeDays = 1;// test code need to be comment out after testing
+        // purgeDays = 0.01;// test code need to be commented out after testing
         const purgeDate = new Date(now.getTime() - purgeDays * 24 * 60 * 60 * 1000);
         // List all objects under the top folder 
         const listParams = {
@@ -195,7 +195,7 @@ class S3Service {
 
                 // Check if the object has the desired tag, {key: "Completed", value: true}
                 const hasCompleteTag = tagResponse.TagSet.some(
-                    (tag) => tag.Key === "Completed" && tag.Value === "true"
+                    (tag) => tag.Key === completed_tag?.Key && tag.Value === completed_tag?.Value
                 );
 
                 if (hasCompleteTag && object.LastModified < purgeDate) {
@@ -221,7 +221,6 @@ class S3Service {
         await this.s3.deleteObjects(deleteParams).promise();
     }
 }
-
 
 module.exports = {
     S3Service
