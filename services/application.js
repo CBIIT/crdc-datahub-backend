@@ -498,7 +498,7 @@ class Application {
             const [applicantUsers, BCCUsers] = await Promise.all([
                 this.#findUsersByApplicantIDs(applications),
                 this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_DELETE],
-                    [ROLES.DATA_COMMONS_PERSONNEL]),
+                    [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL]),
             ]);
 
             const permittedUserIDs = new Set(
@@ -571,7 +571,7 @@ class Application {
     async sendEmailAfterApproveApplication(context, application, comment, conditional = false) {
         const res = await Promise.all([
             this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
-                [ROLES.DATA_COMMONS_PERSONNEL]),
+                [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD]),
             this.userService.userCollection.find(application?.applicant?.applicantID)
         ]);
 
@@ -666,7 +666,7 @@ const sendEmails = {
         const applicantInfo = (await userService.userCollection.find(application?.applicant?.applicantID))?.pop();
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_SUBMIT)) {
             const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_SUBMIT],
-                [ROLES.DATA_COMMONS_PERSONNEL]);
+                [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL]);
 
             await notificationService.submitRequestReceivedNotification(application?.applicant?.applicantEmail,
                 getUserEmails(BCCUsers),
@@ -684,7 +684,7 @@ const sendEmails = {
         }
         if (toUsers?.length > 0) {
             const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_READY_REVIEW],
-                [ROLES.DATA_COMMONS_PERSONNEL]);
+                [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL]);
 
             await notificationService.submitQuestionNotification(getUserEmails(toUsers), getUserEmails(BCCUsers), {
                 pi: `${userInfo.firstName} ${userInfo.lastName}`,
@@ -697,7 +697,7 @@ const sendEmails = {
     inquireApplication: async(notificationService, userService, emailParams, application, reviewComments) => {
         const res = await Promise.all([
             userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
-                [ROLES.DATA_COMMONS_PERSONNEL]),
+                [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD]),
             userService.userCollection.find(application?.applicant?.applicantID)
         ]);
         const [toBCCUsers, applicant] = res;
@@ -715,7 +715,7 @@ const sendEmails = {
         const applicantInfo = (await userService.userCollection.find(application?.applicant?.applicantID))?.pop();
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW)) {
             const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
-                [ROLES.DATA_COMMONS_PERSONNEL]);
+                [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD]);
             await notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, getUserEmails(BCCUsers), {
                 firstName: application?.applicant?.applicantName,
                 reviewComments
