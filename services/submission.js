@@ -1835,7 +1835,7 @@ const isUserScope = (userID, userRole, userStudies, userDataCommons, aSubmission
             return isAllStudy(studies) ? true : studies.find(study =>
                 // TODO remove multiple types
                 (typeof study === 'object' && study._id === aSubmission.studyID) ||
-                (typeof study === 'string' && aSubmission.studyID)
+                (typeof study === 'string' && study === aSubmission.studyID)
             );
         case ROLES.DATA_COMMONS_PERSONNEL:
             return userDataCommons.includes(aSubmission.dataCommons); // Access to assigned data commons.
