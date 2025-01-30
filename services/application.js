@@ -19,7 +19,7 @@ const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/cons
 
 class Application {
     #ALL_FILTER="All";
-    constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService) {
+    constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService, configurationService) {
         this.logCollection = logCollection;
         this.applicationCollection = applicationCollection;
         this.approvedStudiesService = approvedStudiesService;
@@ -29,6 +29,7 @@ class Application {
         this.emailParams = emailParams;
         this.organizationService = organizationService;
         this.institutionService = institutionService;
+        this.configurationService = configurationService;
     }
 
     async getApplication(params, context) {
@@ -40,7 +41,21 @@ class Application {
         if (application.status === APPROVED){
             await this.#checkConditionalApproval(application);
         }
+        // populate the version if not stored in
+        if (!application?.version){
+            application.version  = await this.#getApplicationVersionByStatus(application.status);
+        }
         return application;
+    }
+
+    async #getApplicationVersionByStatus(status) {   
+        const defaultVersion = "1.0";
+        const newVersion = "2.0"; 
+        const config = await this.configurationService.findByType("APPLICATION_FORM_VERSIONS"); //get version config dynamically
+        const currentVersion = config?.current || defaultVersion;
+        const newStatusVersion = config?.new || newVersion;
+
+        return [NEW, IN_PROGRESS, INQUIRED].includes(status) ? newStatusVersion : currentVersion;
     }
 
     async #checkConditionalApproval(application) {
@@ -90,6 +105,10 @@ class Application {
                 });
             }
         }
+        // populate the version if not stored in
+        if (application && !application?.version){
+            application.version  = await this.#getApplicationVersionByStatus(application.status);
+        }
         return application || null;
     }
 
@@ -112,7 +131,8 @@ class Application {
             createdAt: timestamp,
             updatedAt: timestamp,
             programAbbreviation: application?.programAbbreviation,
-            programDescription: application?.programDescription
+            programDescription: application?.programDescription,
+            version: (application?.version)? application.version : await this.#getApplicationVersionByStatus(NEW)
         };
         application = {
             ...application,
@@ -135,6 +155,8 @@ class Application {
         const storedApplication = await this.getApplicationById(id);
         const prevStatus = storedApplication?.status;
         let application = {...storedApplication, ...inputApplication, status: IN_PROGRESS};
+        if (!application?.version)
+            application.version = await this.#getApplicationVersionByStatus(IN_PROGRESS);
         application = await updateApplication(this.applicationCollection, application, prevStatus, context?.userInfo?._id);
         if (prevStatus !== application.status){
             await logStateChange(this.logCollection, context.userInfo, application, prevStatus);
@@ -156,7 +178,10 @@ class Application {
             limitReturnToOneApplication
         ];
         const result = await this.applicationCollection.aggregate(pipeline);
-        return result.length > 0 ? result[0] : null;
+        const application = result.length > 0 ? result[0] : null;
+        if (!application?.version)
+            application.version = await this.#getApplicationVersionByStatus(IN_PROGRESS);
+        return application;
     }
 
     #listApplicationConditions(userID, userRole, programName, studyName, statues, submitterName) {
@@ -238,7 +263,11 @@ class Application {
         for (let app of applications?.filter(a=>a.status === APPROVED)) {
             await this.#checkConditionalApproval(app);
         }
-
+        // add version if not stored in DB
+        await applications.forEach((app) => {
+            if (!app?.version)
+                app.version = this.#getApplicationVersionByStatus(app.status);
+        });
         return {
             applications: applications,
             total: results[1]?.length > 0 ? results[1][0]?.count : 0,
@@ -259,6 +288,8 @@ class Application {
             .notEmpty()
             .state(validStatus);
         // In Progress -> In Submitted
+        if (!application?.version)
+            application.version = await this.#getApplicationVersionByStatus(application.status);
         const history = application.history || [];
         const historyEvent = HistoryEventBuilder.createEvent(context.userInfo._id, SUBMITTED, null);
         history.push(historyEvent)
@@ -284,11 +315,13 @@ class Application {
             .verifyInitialized()
             .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CREATE);
         const application = await this.getApplicationById(document._id);
+        if (!application?.version)
+            application.version = await this.#getApplicationVersionByStatus(application.status);
         // TODO 1. If Reviewer opened the application, the status changes to IN_REVIEW
         if (application && application.status) {
             const history = HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, null);
             const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-                $set: {status: IN_PROGRESS, updatedAt: history.dateTime},
+                $set: {status: IN_PROGRESS, updatedAt: history.dateTime, version: application.version},
                 $push: {history}
             });
             if (updated?.modifiedCount && updated?.modifiedCount > 0) {
@@ -313,7 +346,8 @@ class Application {
         if (!validApplicationStatus.includes(aApplication.status)) {
             throw new Error(ERROR.VERIFY.INVALID_STATE_APPLICATION);
         }
-
+        if (!aApplication?.version)
+            aApplication.version = await this.#getApplicationVersionByStatus(aApplication.status);
         const userInfo = context?.userInfo;
         const isEnabledPBAC = userInfo?.permissions?.includes(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
         const isPowerRole = [ROLES.FEDERAL_LEAD, ROLES.ADMIN, ROLES.DATA_COMMONS_PERSONNEL].includes(userInfo?.role);
@@ -328,7 +362,7 @@ class Application {
 
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, CANCELED, null);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-            $set: {status: CANCELED, updatedAt: history.dateTime},
+            $set: {status: CANCELED, updatedAt: history.dateTime, version: aApplication.version},
             $push: {history}
         });
 
@@ -346,6 +380,8 @@ class Application {
         verifyApplication(application)
             .notEmpty()
             .state([IN_REVIEW, SUBMITTED]);
+        if (!application?.version)
+            application.version = await this.#getApplicationVersionByStatus(application.status);
 
         const approvedStudies = await this.approvedStudiesService.findByStudyName(application?.studyName);
         if (approvedStudies.length > 0) {
@@ -356,7 +392,7 @@ class Application {
         const questionnaire = getApplicationQuestionnaire(application);
         const approvalConditional = (questionnaire?.accessTypes?.includes("Controlled Access") && !questionnaire?.study?.dbGaPPPHSNumber);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-            $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime},
+            $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime, version: application.version},
             $push: {history}
         });
 
@@ -397,9 +433,11 @@ class Application {
         verifyApplication(application)
             .notEmpty()
             .state([IN_REVIEW, SUBMITTED]);
+        if (!application?.version)
+            application.version = await this.#getApplicationVersionByStatus(application.status);
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, REJECTED, document.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-            $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime},
+            $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime, version: application.version},
             $push: {history}
         });
 
@@ -424,9 +462,11 @@ class Application {
         verifyApplication(application)
             .notEmpty()
             .state([IN_REVIEW, SUBMITTED]);
-        const history = HistoryEventBuilder.createEvent(context.userInfo._id, INQUIRED, document?.comment);
+        if (!application?.version)
+            application.version = await this.#getApplicationVersionByStatus(application.status);
+        const history = HistoryEventBuilder.createEvent(context.userInfo._id, INQUIRED, document.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-            $set: {reviewComment: document?.comment, status: INQUIRED, updatedAt: history.dateTime},
+            $set: {reviewComment: document.comment, status: INQUIRED, updatedAt: history.dateTime, version: application.version},
             $push: {history}
         });
         await sendEmails.inquireApplication(this.notificationService, this.userService, this.emailParams, application, document?.comment);
