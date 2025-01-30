@@ -1226,16 +1226,16 @@ class Submission {
         const purgeConfig = await this.configurationService.findByType("PURGE_DELETED_DATA_FILE");
         const purgeDays = purgeConfig?.days ?? 180;
         const folder = purgeConfig?.prefix ?? "to_be_deleted";
-        const tag = purgeConfig?.tag ?? {key: "Completed", value: "true"};
+        const tag = purgeConfig?.tag ?? {Key: "Completed", Value: "true"};
         const dmBucketConfig = await this.configurationService.findByType("DM_BUCKET_NAME");
         const dmBucketName = dmBucketConfig?.keys.dm_bucket;
         try {
 
             await this.s3Service.purgeDeletedFiles(dmBucketName, folder, purgeDays, tag);
-            console.debug("Successfully purged deleted data files."); 
+            console.debug(`Successfully purged deleted data files in ${dmBucketName}.`); 
         }
         catch (e){
-            console.error("Failed to purge deleted data files with error:" + e.message);
+            console.error(`Failed to purge deleted data files in ${dmBucketName} with error: ${e.message}`);
         }
     }
     async deleteDataRecords(params, context) {
