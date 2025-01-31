@@ -608,7 +608,7 @@ type Query {
         dataCommons: String,
         submitterName: String,
         organization: String,
-        status: String,
+        status: [String],
         first: Int = -1,
         offset: Int = 0,
         # ["updatedAt", "createdAt", "name", "dataCommons", "organization", "studyAbbreviation",
