@@ -28,6 +28,7 @@ const {verifyToken} = require("../verifier/token-verifier");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const {EMAIL_NOTIFICATIONS: EN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -1302,13 +1303,13 @@ class Submission {
 
         const msg = {type: DELETE_METADATA, submissionID: params.submissionID, nodeType: params.nodeType, nodeIDs: params.nodeIDs}
         const success = await this.#requestDeleteDataRecords(msg, this.sqsLoaderQueue, params.submissionID, params.submissionID);
-        const updated = await this.submissionCollection.updateOne({_id: aSubmission?._id}, {deletingData: Boolean(success?.success), updatedAt: getCurrentTime()});
+        const updated = await this.submissionCollection.updateOne({_id: aSubmission?._id}, {deletingData: isTrue(success?.success), updatedAt: getCurrentTime()});
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
             console.error(ERROR.FAILED_UPDATE_DELETE_STATUS, aSubmission?._id);
             throw new Error(ERROR.FAILED_UPDATE_DELETE_STATUS);
         }
 
-        if (Boolean(success?.success)) {
+        if (isTrue(success?.success)) {
             await this.#logDataRecord(context?.userInfo, aSubmission._id, params.nodeType, params.nodeIDs);
         }
         return success;

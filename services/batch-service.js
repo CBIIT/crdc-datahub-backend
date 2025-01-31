@@ -7,6 +7,7 @@ const {SUBMISSIONS_COLLECTION} = require("../crdc-datahub-database-drivers/datab
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {replaceErrorString} = require("../utility/string-util");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
+const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
 const LOAD_METADATA = "Load Metadata";
 const OMIT_DCF_PREFIX = 'omit-DCF-prefix';
 class BatchService {
@@ -33,7 +34,7 @@ class BatchService {
         } else {
             // The prefix "dg.4DFC" added if "omit-dcf-prefix" is null or set to false in the data model
             const dataModelInfo = await this.fetchDataModelInfo();
-            const isOmitPrefix = Boolean(dataModelInfo?.[aSubmission?.dataCommons]?.[OMIT_DCF_PREFIX]);
+            const isOmitPrefix = isTrue(dataModelInfo?.[aSubmission?.dataCommons]?.[OMIT_DCF_PREFIX]);
             params.files.forEach((fileName) => {
                 if (fileName) {
                     newBatch.addDataFile(fileName, this.prodURL, aSubmission?.studyID, isOmitPrefix);
@@ -65,7 +66,7 @@ class BatchService {
             let updatedFiles = [];
             for (const aFile of aBatch.files) {
                 const aUploadFile = uploadFiles.get(aFile.fileName);
-                if(Boolean(aUploadFile?.skipped) === true){
+                if(isTrue(aUploadFile?.skipped)){
                     continue;
                 }
                 aFile.updatedAt = getCurrentTime();
@@ -108,7 +109,7 @@ class BatchService {
             for (const aFileName of uploadFiles?.keys()) {
                 const file = uploadFiles.get(aFileName);
                 // File already uploaded, but it marked the file as failed.
-                if (!Boolean(file?.succeeded) && s3UploadedFiles.has(aFileName)) {
+                if (!isTrue(file?.succeeded) && s3UploadedFiles.has(aFileName)) {
                     aBatch.errors = aBatch.errors || [];
                     aBatch.errors.push(replaceErrorString(ERROR.INVALID_UPLOAD_ATTEMPT, aFileName));
                     aBatch.status = BATCH.STATUSES.FAILED;
