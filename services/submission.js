@@ -186,7 +186,7 @@ class Submission {
                 dataCommons: results[2] || [],
                 submitterNames: results[3] || [],
                 organizations: results[4] || [],
-                statues: () => {
+                statuses: () => {
                     const statusOrder = [NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, COMPLETED, CANCELED, DELETED];
                     return (results[5] || [])
                         .sort((a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status));

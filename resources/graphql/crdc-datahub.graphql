@@ -73,7 +73,7 @@ type ListApplications {
 
 type ListSubmissions {
     total: Int
-    statues: [String],
+    statuses: [String],
     dataCommons: [String],
     submitterNames: [String],
     submissions: [Submission]
