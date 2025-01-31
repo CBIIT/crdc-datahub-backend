@@ -77,9 +77,21 @@ class Submission {
             .verifyInitialized()
             .verifyPermission(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
         const userInfo = context?.userInfo;
-
-        if (!userInfo?.studies || userInfo.studies.length === 0){
+        const hasStudies = userInfo?.studies?.length > 0;
+        const isRoleWithoutStudies = userInfo?.role === ROLES.DATA_COMMONS_PERSONNEL;
+        if (!hasStudies && !isRoleWithoutStudies){
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
+        }
+
+        if (!isAllStudy(userInfo.studies) && !isRoleWithoutStudies) {
+            const study = userInfo.studies.find(study =>
+                // TODO remove multiple types after data migration
+                (typeof study === 'object' && study._id === params.studyID) ||
+                (typeof study === 'string' && study === params.studyID)
+            );
+            if (!study) {
+                throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
+            }
         }
 
         if (!isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, {studyID: params.studyID, dataCommons: params.dataCommons, submitterID: userInfo?._id})) {
@@ -89,20 +101,18 @@ class Submission {
         const intention = [INTENTION.UPDATE, INTENTION.DELETE].find((i) => i.toLowerCase() === params?.intention.toLowerCase());
         const dataType = [DATA_TYPE.METADATA_AND_DATA_FILES, DATA_TYPE.METADATA_ONLY].find((i) => i.toLowerCase() === params?.dataType.toLowerCase());
         validateCreateSubmissionParams(params, this.allowedDataCommons, this.hiddenDataCommons, intention, dataType, context?.userInfo);
+        const [approvedStudies, modelVersion, program] = await Promise.all([
+            this.#findApprovedStudies([params.studyID]),
+            (async () => {
+                const latestDataModel = await this.fetchDataModelInfo();
+                return this.#getModelVersion(latestDataModel, params.dataCommons);
+            })(),
+            (async () => {
+                const programs = await this.organizationService.findOneByStudyID(params?.studyID);
+                return (programs && programs.length > 0) ? programs[0] : null;
+            })()
+        ]);
 
-        const user = await this.userService.userCollection.find(context.userInfo._id);
-        if (!user[0]?.studies || user[0].studies.length === 0){
-            throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
-        }
-        // check if user has all studies
-        const allStudy = (user[0].studies[0] instanceof Object)? user[0].studies.find((study) => study._id === "All") : user[0].studies.find((study) => study === "All");
-        if (!allStudy) {
-            const study = (user[0].studies[0] instanceof Object)? user[0].studies.find((study) => study._id === params.studyID) : user[0].studies.find((study) => study === params.studyID);
-            if (!study) {
-                throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
-            }
-        }
-        const approvedStudies = await this.#findApprovedStudies([params.studyID]); 
         if (approvedStudies.length === 0) {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
         }
@@ -110,15 +120,9 @@ class Submission {
         if (approvedStudy.controlledAccess && !approvedStudy?.dbGaPID) {
             throw new Error(ERROR.MISSING_CREATE_SUBMISSION_DBGAPID);
         }
-        if(approvedStudy?.primaryContactID){
+        if (approvedStudy?.primaryContactID) {
             approvedStudy.primaryContact = await this.userService.getUserByID(approvedStudy.primaryContactID)
         }
-        const latestDataModel = await this.fetchDataModelInfo();
-        const modelVersion = this.#getModelVersion(latestDataModel, params.dataCommons);
-
-        const programs = await this.organizationService.findOneByStudyID(params?.studyID);
-        const program = (programs && programs.length > 0) ? programs[0] : null;
-
         const newSubmission = DataSubmission.createSubmission(
             params.name, context.userInfo, params.dataCommons, params.studyID, approvedStudy?.dbGaPID, program, modelVersion, intention, dataType, approvedStudy, this.submissionBucketName);
         const res = await this.submissionCollection.insert(newSubmission);
