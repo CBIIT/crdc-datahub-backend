@@ -119,10 +119,11 @@ app.use("/api/graphql", graphqlRouter);
 
         const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, emailParams);
         cronJob.schedule(config.scheduledJobTime, async () => {
-            console.log("Running a scheduled background task to remind inactive application at " + getCurrentTime());
-            await dataInterface.remindApplicationSubmission();
+            // The delete submission job should run before the inactive submission reminder. Once the submission deleted, the reminder email should not be sent.
             console.log("Running a scheduled background task to delete inactive application at " + getCurrentTime());
             await dataInterface.deleteInactiveApplications();
+            console.log("Running a scheduled background task to remind inactive application at " + getCurrentTime());
+            await dataInterface.remindApplicationSubmission();
             console.log("Running a scheduled job to disable user(s) because of no activities at " + getCurrentTime());
             await runDeactivateInactiveUsers(userService, notificationsService, config.inactive_user_days, emailParams);
             console.log("Running a scheduled background task to remind inactive submission at " + getCurrentTime());
