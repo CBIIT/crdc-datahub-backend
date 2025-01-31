@@ -164,9 +164,11 @@ class Submission {
             this.#listConditions(context?.userInfo, params?.status, params.organization, params.name, params.dbGaPID, params.dataCommons, ALL_FILTER),
             // note: Aggregation of Organization name should not be filtered by a organization
             this.#listConditions(context?.userInfo, params?.status, ALL_FILTER, params.name, params.dbGaPID, params.dataCommons, params?.submitterName),
+            // note: Aggregation of status name should not be filtered by a statues
+            this.#listConditions(context?.userInfo, ALL_FILTER, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName),
         ]
 
-        const [listConditions, dataCommonsCondition, submitterNameCondition, organizationCondition] = filterConditions;
+        const [listConditions, dataCommonsCondition, submitterNameCondition, organizationCondition, statusCondition] = filterConditions;
         const pipeline = [{"$match": listConditions}];
         const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
         const noPaginationPipeline = pipeline.concat(paginationPipe.getNoLimitPipeline());
@@ -177,16 +179,22 @@ class Submission {
             // note: Submitter name filter is omitted
             await this.submissionCollection.distinct("submitterName", submitterNameCondition),
             // note: Organization ID filter is omitted
-            await this.submissionCollection.distinct("organization", organizationCondition)
+            await this.submissionCollection.distinct("organization", organizationCondition),
+            // note: Status name filter is omitted
+            await this.submissionCollection.distinct("status", statusCondition)
         ];
-        
         return await Promise.all(promises).then(function(results) {
             return {
                 submissions: results[0] || [],
                 total: results[1]?.length > 0 ? results[1][0]?.count : 0,
                 dataCommons: results[2] || [],
                 submitterNames: results[3] || [],
-                organizations: results[4] || []
+                organizations: results[4] || [],
+                statuses: () => {
+                    const statusOrder = [NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, COMPLETED, CANCELED, DELETED];
+                    return (results[5] || [])
+                        .sort((a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status));
+                }
             }
         });
     }
@@ -1497,9 +1505,9 @@ class Submission {
         const {_id, role, dataCommons, studies} = userInfo;
         const validSubmissionStatus = [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
             REJECTED, WITHDRAWN, DELETED];
+        const statusCondition = status && !status?.includes(ALL_FILTER) ?
+            { status: { $in: status || [] } } : { status: { $in: validSubmissionStatus } };
 
-        const statusCondition = validSubmissionStatus.includes(status) && status !== ALL_FILTER ?
-            { status: status } : { status: { $in: validSubmissionStatus } };
         const organizationCondition = organizationID && organizationID !== ALL_FILTER ?
             { "organization._id": organizationID } : {};
 
