@@ -226,6 +226,7 @@ class UserService {
             throw new Error(SUBMODULE_ERROR.INVALID_USERID);
         }
 
+        const filters = { _id: params.userID };
         const result = await this.userCollection.aggregate([{
             "$match": filters
         }, {"$limit": 1}]);
@@ -603,6 +604,20 @@ class UserService {
         const query= {
             "userStatus": USER.STATUSES.ACTIVE,
             "role": USER.ROLES.CURATOR,
+            "dataCommons": {$in: Array.isArray(dataCommons) ? dataCommons : [dataCommons]}
+        };
+        return await this.userCollection.aggregate([{"$match": query}]);
+    }
+
+    /**
+     * get Data Commons Personnel
+     * @param {*} dataCommons
+     * @returns {Promise<Array>} user[]
+     */
+    async getDCPs(dataCommons) {
+        const query= {
+            "userStatus": USER.STATUSES.ACTIVE,
+            "role": USER.ROLES.DATA_COMMONS_PERSONNEL,
             "dataCommons": {$in: Array.isArray(dataCommons) ? dataCommons : [dataCommons]}
         };
         return await this.userCollection.aggregate([{"$match": query}]);
