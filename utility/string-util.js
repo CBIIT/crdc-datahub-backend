@@ -91,6 +91,10 @@ const isValidFileExtension = (name) => {
     return regex.test(name);
 }
 
+const isTrue = (value) => {
+    return String(value)?.toLowerCase() === 'true'
+}
+
 module.exports = {
     isCaseInsensitiveEqual,
     isElementInArray,
@@ -102,5 +106,6 @@ module.exports = {
     extractAndJoinFields,
     toPascalCase,
     replaceErrorString,
-    isValidFileExtension
+    isValidFileExtension,
+    isTrue
 }
