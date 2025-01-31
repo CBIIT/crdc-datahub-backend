@@ -22,12 +22,13 @@ const NA = "NA"
 const config = require("../config");
 const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
-const {isUndefined, replaceErrorString, isValidFileExtension, isTrue} = require("../utility/string-util");
+const {isUndefined, replaceErrorString, isValidFileExtension} = require("../utility/string-util");
 const {NODE_RELATION_TYPES} = require("./data-record-service");
 const {verifyToken} = require("../verifier/token-verifier");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const {EMAIL_NOTIFICATIONS: EN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';

@@ -5,8 +5,9 @@ const {NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED, REJ
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {SUBMISSIONS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
-const {replaceErrorString, isTrue} = require("../utility/string-util");
+const {replaceErrorString} = require("../utility/string-util");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
+const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
 const LOAD_METADATA = "Load Metadata";
 const OMIT_DCF_PREFIX = 'omit-DCF-prefix';
 class BatchService {
