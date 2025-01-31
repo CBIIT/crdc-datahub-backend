@@ -504,8 +504,8 @@ class Application {
             const history = HistoryEventBuilder.createEvent(0, DELETED, "Deleted because of no activities after submission");
             const updated = await this.dbService.updateMany(APPLICATION,
                 inactiveCondition,
-                {
-                    $set: {status: DELETED, updatedAt: history.dateTime},
+                {   // Once the submission request is deleted, the reminder email should not be sent.
+                    $set: {status: DELETED, updatedAt: history.dateTime, inactiveReminder: true},
                     $push: {history}});
             if (updated?.modifiedCount && updated?.modifiedCount > 0) {
                 console.log("Executed to delete application(s) because of no activities at " + getCurrentTime());
