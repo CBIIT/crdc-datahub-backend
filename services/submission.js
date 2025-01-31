@@ -2090,12 +2090,7 @@ function logDaysDifference(inactiveDays, accessedAt, submissionID) {
     const days = Math.floor(differenceMs / (1000 * 60 * 60 * 24));
     const hours = Math.floor((differenceMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const minutes = Math.floor((differenceMs % (1000 * 60 * 60)) / (1000 * 60));
-    console.log(`
-    Submission ID: ${submissionID}
-    Inactive Days: ${inactiveDays}
-    Last Accessed: ${getFormattedDateTime(startedDate)},
-    Current Time : ${getFormattedDateTime(endDate)}
-    Difference   : ${days} days, ${hours} hours, ${minutes} minutes`);
+    console.log(`Submission ID: ${submissionID}, Inactive Days: ${inactiveDays}, Last Accessed: ${getFormattedDateTime(startedDate)}, Current Time: ${getFormattedDateTime(endDate)}  Difference: ${days} days, ${hours} hours, ${minutes} minutes`);
 }
 
 // TODO remove temporary for QA
