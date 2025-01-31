@@ -164,7 +164,7 @@ class Submission {
             this.#listConditions(context?.userInfo, ALL_FILTER, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName),
         ]
 
-        const [listConditions, dataCommonsCondition, submitterNameCondition, organizationCondition, statuesCondition] = filterConditions;
+        const [listConditions, dataCommonsCondition, submitterNameCondition, organizationCondition, statusCondition] = filterConditions;
         const pipeline = [{"$match": listConditions}];
         const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
         const noPaginationPipeline = pipeline.concat(paginationPipe.getNoLimitPipeline());
@@ -177,7 +177,7 @@ class Submission {
             // note: Organization ID filter is omitted
             await this.submissionCollection.distinct("organization", organizationCondition),
             // note: Status name filter is omitted
-            await this.submissionCollection.distinct("status", statuesCondition)
+            await this.submissionCollection.distinct("status", statusCondition)
         ];
         return await Promise.all(promises).then(function(results) {
             return {
