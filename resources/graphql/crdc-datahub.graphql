@@ -578,7 +578,7 @@ type Query {
     listApplications(
         programName: String,
         studyName: String,
-        statues: [String],
+        statuses: [String],
         submitterName: String,
         first: Int = -1,
         offset: Int = 0,
