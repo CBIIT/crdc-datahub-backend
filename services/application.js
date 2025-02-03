@@ -628,7 +628,7 @@ class Application {
                     },
                     {
                         study: application?.studyAbbreviation,
-                        contactEmail: this.emailParams.conditionalSubmissionContact
+                        contactEmail: `${this.emailParams.conditionalSubmissionContact}.`
                 });
                 return;
             }
@@ -665,9 +665,9 @@ class Application {
             await this.notificationService.cancelApplicationNotification(applicantInfo?.email, BCCUserEmails, {
                 firstName: `${applicantInfo.firstName} ${applicantInfo.lastName || ""}`
             },{
-                studyName: application?.studyName?.trim() || "NA",
+                studyName: `${application?.studyName?.trim()},` || "NA,",
                 canceledNameBy: `${userCanceledBy.firstName} ${userCanceledBy.lastName || ""}`,
-                contactEmail: this.emailParams.conditionalSubmissionContact
+                contactEmail: `${this.emailParams.conditionalSubmissionContact}.`
             });
         }
     }
@@ -683,8 +683,8 @@ class Application {
             await this.notificationService.restoreApplicationNotification(applicantInfo?.email, BCCUserEmails,{
                 firstName: `${applicantInfo.firstName} ${applicantInfo.lastName || ""}`
             },{
-                studyName: application?.studyName?.trim() || "NA",
-                contactEmail: this.emailParams.conditionalSubmissionContact
+                studyName: `${application?.studyName?.trim()},` || "NA,",
+                contactEmail: `${this.emailParams.conditionalSubmissionContact}.`
             });
         }
 
@@ -743,7 +743,7 @@ const sendEmails = {
         },{
             pi: `${applicantName}`,
             study: setDefaultIfNoName(application?.studyAbbreviation),
-            officialEmail: emailParams.officialEmail,
+            officialEmail: `${emailParams.officialEmail}.`,
             inactiveDays: emailParams.inactiveDays,
             url: emailParams.url
         })
@@ -756,7 +756,7 @@ const sendEmails = {
 
             await notificationService.submitRequestReceivedNotification(application?.applicant?.applicantEmail,
                 getUserEmails(BCCUsers),
-                {helpDesk: emailParams.conditionalSubmissionContact},
+                {helpDesk: `${emailParams.conditionalSubmissionContact}.`},
                 {userName: application?.applicant?.applicantName}
             );
         }
@@ -773,7 +773,7 @@ const sendEmails = {
                 [ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]);
 
             await notificationService.submitQuestionNotification(getUserEmails(toUsers), getUserEmails(BCCUsers), {
-                pi: `${userInfo.firstName} ${userInfo.lastName}`,
+                pi: `${userInfo.firstName} ${userInfo.lastName},`,
                 programName: application?.programName?.trim() || "NA",
                 study: application?.studyAbbreviation || "NA",
                 url: emailParams.url
@@ -806,7 +806,7 @@ const sendEmails = {
                 firstName: application?.applicant?.applicantName,
                 reviewComments
             }, {
-                study: application?.studyAbbreviation
+                study: `${application?.studyAbbreviation},`
             });
         }
     }

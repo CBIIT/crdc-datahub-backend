@@ -484,7 +484,7 @@ class UserService {
                     dataCommons: userDataCommons,
                     ...([USER.ROLES.SUBMITTER, USER.ROLES.FEDERAL_LEAD].includes(newUser.role) && { studies: studyNames }),
                 },
-                {url: this.appUrl, helpDesk: this.officialEmail});
+                {url: this.appUrl, helpDesk: `${this.officialEmail}.`});
         }
     }
 
@@ -495,7 +495,7 @@ class UserService {
             if (prevUser?.notifications?.includes(EN.USER_ACCOUNT.USER_INACTIVATED)) {
                 await this.notificationsService.deactivateUserNotification(prevUser.email,
                     {firstName: prevUser.firstName},
-                    {officialEmail: this.officialEmail});
+                    {officialEmail: `${this.officialEmail}.`});
             }
         }
     }

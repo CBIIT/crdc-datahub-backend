@@ -152,7 +152,7 @@ const runDeactivateInactiveUsers = async (userService, notificationsService, ina
             if (user?.notifications?.includes(EMAIL_NOTIFICATIONS.USER_ACCOUNT.USER_INACTIVATED)) {
                 await notificationsService.inactiveUserNotification(user.email,
                     {firstName: user.firstName},
-                    {inactiveDays: inactiveUserDays, officialEmail: emailParams.officialEmail},
+                    {inactiveDays: inactiveUserDays, officialEmail: `${emailParams.officialEmail}.`},
                 );
             }
         }));
