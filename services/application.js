@@ -383,9 +383,9 @@ class Application {
         const aApplication = await this.getApplicationById(document._id);
         verifyApplication(aApplication)
             .notEmpty()
-            .state([CANCELED]);
+            .state([CANCELED, DELETED]);
 
-        if (!aApplication?.history?.length > 2 || aApplication?.history?.at(-1)?.status !== CANCELED) {
+        if (!aApplication?.history?.length > 2 || ![CANCELED, DELETED].includes(aApplication?.history?.at(-1)?.status)) {
             throw new Error(ERROR.INVALID_APPLICATION_RESTORE_STATE);
         }
         const userInfo = context?.userInfo;
