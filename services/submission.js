@@ -1252,15 +1252,23 @@ class Submission {
              const filteredBCCUsers = BCCUsers.filter((u) =>
                  u?._id !== aSubmitter?._id &&
                  isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
-             logDaysDifference(this.emailParams.inactiveSubmissionDays + " Deleted Action", aSubmission?.accessedAt, aSubmission?._id);
-             await this.notificationService.deleteSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
-                 firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`}, {
-                 submissionName: aSubmission?.name,
-                 studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
-                 inactiveDays: this.emailParams.inactiveSubmissionDays,
-                 contactName: `${aSubmission?.conciergeName || 'NA'}`,
-                 contactEmail: `${aSubmission?.conciergeEmail || 'NA'}`
-             });
+
+             try{
+                 console.log(`submission id send deleted submission: SubmissionID: ${aSubmission?._id}`);
+                 await this.notificationService.deleteSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
+                     firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`}, {
+                     submissionName: aSubmission?.name,
+                     studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                     inactiveDays: this.emailParams.inactiveSubmissionDays,
+                     contactName: `${aSubmission?.conciergeName || 'NA'}`,
+                     contactEmail: `${aSubmission?.conciergeEmail || 'NA'}`
+                 });
+                 logDaysDifference(this.emailParams.inactiveSubmissionDays + " Deleted Action", aSubmission?.accessedAt, aSubmission?._id);
+             } catch (e) {
+                 console.log("failed to log", `submissionID: ${aSubmission?._id}`)
+             }
+
+
          }
     }
 
@@ -1787,6 +1795,7 @@ const sendEmails = {
             u?._id !== aSubmitter?._id &&
             isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
         if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.REMIND_EXPIRE)) {
+            console.error("sending emails to", `id=${aSubmission?._id}`);
             await notificationService.inactiveSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
                 firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
             }, {
