@@ -1252,6 +1252,7 @@ class Submission {
              const filteredBCCUsers = BCCUsers.filter((u) =>
                  u?._id !== aSubmitter?._id &&
                  isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
+             logDaysDifference(this.emailParams.inactiveSubmissionDays + " Deleted Action", aSubmission?.accessedAt, aSubmission?._id);
              await this.notificationService.deleteSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
                  firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`}, {
                  submissionName: aSubmission?.name,
@@ -1260,7 +1261,6 @@ class Submission {
                  contactName: `${aSubmission?.conciergeName || 'NA'}`,
                  contactEmail: `${aSubmission?.conciergeEmail || 'NA'}`
              });
-             logDaysDifference(this.emailParams.inactiveSubmissionDays + " Deleted Action", aSubmission?.accessedAt, aSubmission?._id);
          }
     }
 
@@ -1815,6 +1815,7 @@ const sendEmails = {
             u?._id !== aSubmitter?._id &&
             isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
         if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.REMIND_EXPIRE)) {
+            logDaysDifference(emailParams.finalRemindSubmissionDay, aSubmission?.accessedAt, aSubmission?._id);
             await notificationService.finalInactiveSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
                 firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
             }, {
@@ -1823,7 +1824,6 @@ const sendEmails = {
                 days: emailParams.finalRemindSubmissionDay || NA,
                 url: emailParams.url || NA
             });
-            logDaysDifference(emailParams.finalRemindSubmissionDay, aSubmission?.accessedAt, aSubmission?._id);
         }
     }
 }
@@ -2085,24 +2085,19 @@ class Collaborators {
 
 // TODO remove temporary for QA
 function logDaysDifference(inactiveDays, accessedAt, submissionID) {
-    const startedDate = accessedAt; // Ensure it's a Date object
-    const endDate = getCurrentTime();
-    const differenceMs = endDate - startedDate; // Difference in milliseconds
-    const days = Math.floor(differenceMs / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((differenceMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((differenceMs % (1000 * 60 * 60)) / (1000 * 60));
-    console.log(`Submission ID-1 ${submissionID}, Inactive Days: ${inactiveDays}, Last Accessed: ${getFormattedDateTime(startedDate)}, Current Time: ${getFormattedDateTime(endDate)}  Difference: ${days} days, ${hours} hours, ${minutes} minutes`);
-
-    console.log(`Submission ID-2 ${submissionID} Inactive Days: ${inactiveDays} Last Accessed ${getFormattedDateTime(startedDate)} Current Time ${getFormattedDateTime(endDate)} Difference ${days} days ${hours} hours ${minutes} minutes`);
-
-    const test = `Submission ID-3 ${submissionID} Inactive Days: ${inactiveDays} Last Accessed ${getFormattedDateTime(startedDate)} Current Time ${getFormattedDateTime(endDate)} Difference ${days} days ${hours} hours ${minutes} minutes`;
-    console.log(test?.toString());
-
-
-    console.log(`Submission ID-4 [${submissionID} ${inactiveDays} ${getFormattedDateTime(startedDate)} ${getFormattedDateTime(endDate)} ${days} ${hours} ${minutes}`)
+    try {
+        const startedDate = accessedAt; // Ensure it's a Date object
+        const endDate = getCurrentTime();
+        const differenceMs = endDate - startedDate; // Difference in milliseconds
+        const days = Math.floor(differenceMs / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((differenceMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((differenceMs % (1000 * 60 * 60)) / (1000 * 60));
+        console.log(`Submission ID: ${submissionID} Inactive Days: ${inactiveDays} Last Accessed: ${getFormattedDateTime(startedDate)} Current Time: ${getFormattedDateTime(endDate)}  Difference: ${days} days ${hours} hours ${minutes} minutes`);
+    } catch (error) {
+        console.warn("Failed to log the time", error, `submissionID: ${submissionID}`)
+    }
 
 
-    console.log(`Difference ${days} days ${hours} hours ${minutes} minutes Inactive Days: ${inactiveDays} Last Accessed ${getFormattedDateTime(startedDate)} Current Time ${getFormattedDateTime(endDate)} Submission ID-5 ${submissionID}`);
 }
 
 // TODO remove temporary for QA
