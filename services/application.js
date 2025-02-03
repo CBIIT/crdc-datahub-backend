@@ -277,7 +277,7 @@ class Application {
             programs: results[2] || [],
             studies: results[3] || [],
             status: () => {
-                const statusOrder = [NEW, IN_PROGRESS, SUBMITTED, INQUIRED, APPROVED, IN_REVIEW, REJECTED, CANCELED, DELETED];
+                const statusOrder = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, INQUIRED, APPROVED, REJECTED, CANCELED, DELETED];
                 return (results[4] || []).sort((a, b) => statusOrder.indexOf(a) - statusOrder.indexOf(b));
             },
             submitterNames: results[5] || []
