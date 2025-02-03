@@ -73,6 +73,7 @@ type ListApplications {
 
 type ListSubmissions {
     total: Int
+    statuses: [String],
     dataCommons: [String],
     submitterNames: [String],
     submissions: [Submission]
@@ -577,7 +578,7 @@ type Query {
     listApplications(
         programName: String,
         studyName: String,
-        statues: [String],
+        statuses: [String],
         submitterName: String,
         first: Int = -1,
         offset: Int = 0,
@@ -608,7 +609,7 @@ type Query {
         dataCommons: String,
         submitterName: String,
         organization: String,
-        status: String,
+        status: [String],
         first: Int = -1,
         offset: Int = 0,
         # ["updatedAt", "createdAt", "name", "dataCommons", "organization", "studyAbbreviation",
@@ -747,8 +748,8 @@ type Mutation {
     rejectApplication (_id: ID!, comment: String!): Application
     inquireApplication (_id: ID!, comment: String!): Application
 
-    "Admin only operations"
     deleteApplication (_id: ID!): Application
+    restoreApplication (_id: ID!): Application
 
     "Submitter or Org Owner"
     createSubmission (studyID: String!, dataCommons: String!, name: String!, intention: String!, dataType: String!): Submission

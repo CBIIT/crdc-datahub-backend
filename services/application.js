@@ -185,13 +185,17 @@ class Application {
     }
 
     #listApplicationConditions(userID, userRole, programName, studyName, statues, submitterName) {
-        const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED, DELETED];
+        const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, CANCELED, REJECTED, DELETED];
         const statusCondition = statues && !statues?.includes(this.#ALL_FILTER) ?
             { status: { $in: statues || [] } } : { status: { $in: validApplicationStatus } };
         // Allowing empty string SubmitterName, ProgramName, StudyName
-        const submitterNameCondition = (submitterName != null && submitterName !== this.#ALL_FILTER) ? {"applicant.applicantName": submitterName} : {};
+        // Submitter Name should be partial match
+        const submitterQuery = submitterName?.trim().length > 0 ? {$regex: submitterName?.trim(), $options: "i"} : submitterName;
+        const submitterNameCondition = (submitterName != null && submitterName !== this.#ALL_FILTER) ? {"applicant.applicantName": submitterQuery} : {};
         const programNameCondition = (programName != null && programName !== this.#ALL_FILTER) ? {programName: programName} : {};
-        const studyNameCondition = (studyName != null && studyName !== this.#ALL_FILTER) ? {studyName: studyName} : {};
+        // Study Name should be partial match
+        const studyQuery = studyName?.trim().length > 0 ? {$regex: studyName?.trim(), $options: "i"} : studyName;
+        const studyNameCondition = (studyName != null && studyName !== this.#ALL_FILTER) ? {studyName: studyQuery} : {};
 
         const baseConditions = {...statusCondition, ...programNameCondition, ...studyNameCondition, ...submitterNameCondition};
         return (() => {
@@ -220,25 +224,24 @@ class Application {
         }
 
         const userInfo = context?.userInfo;
-        const validStatuesSet = new Set([NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED, DELETED, this.#ALL_FILTER]);
-        const invalidStatues = (params?.statues || [])
+        const validStatuesSet = new Set([NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED, CANCELED, DELETED, this.#ALL_FILTER]);
+        const invalidStatues = (params?.statuses || [])
             .filter((i) => !validStatuesSet.has(i));
         if (invalidStatues?.length > 0) {
             throw new Error(replaceErrorString(ERROR.APPLICATION_INVALID_STATUES, `'${invalidStatues.join(",")}'`));
         }
 
-
         const filterConditions = [
             // default filter for listing submissions
-            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, params.studyName, params.statues, params?.submitterName),
+            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, params.studyName, params.statuses, params?.submitterName),
             // note: Aggregation of Program name should not be filtered by its name
-            this.#listApplicationConditions(userInfo?._id, userInfo?.role, this.#ALL_FILTER, params.studyName, params.statues, params?.submitterName),
+            this.#listApplicationConditions(userInfo?._id, userInfo?.role, this.#ALL_FILTER, params.studyName, params.statuses, params?.submitterName),
             // note: Aggregation of Study name should not be filtered by its name
-            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, this.#ALL_FILTER, params.statues, params?.submitterName),
+            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, this.#ALL_FILTER, params.statuses, params?.submitterName),
             // note: Aggregation of Statues name should not be filtered by its name
             this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, params.studyName, this.#ALL_FILTER, params?.submitterName),
             // note: Aggregation of Submitter name should not be filtered by its name
-            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, params.studyName, params.statues, this.#ALL_FILTER),
+            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, params.studyName, params.statuses, this.#ALL_FILTER),
         ];
         const [listConditions, programCondition, studyNameCondition, statuesCondition, submitterNameCondition] = filterConditions;
         let pipeline = [{"$match": listConditions}];
@@ -273,7 +276,10 @@ class Application {
             total: results[1]?.length > 0 ? results[1][0]?.count : 0,
             programs: results[2] || [],
             studies: results[3] || [],
-            status: results[4] || [],
+            status: () => {
+                const statusOrder = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, INQUIRED, APPROVED, REJECTED, CANCELED, DELETED];
+                return (results[4] || []).sort((a, b) => statusOrder.indexOf(a) - statusOrder.indexOf(b));
+            },
             submitterNames: results[5] || []
         }
     }
@@ -366,11 +372,50 @@ class Application {
             $push: {history}
         });
 
-        if (!updated?.modifiedCount || !updated?.modifiedCount > 0) {
+        if (updated?.modifiedCount && updated?.modifiedCount > 0) {
+            await this.#sendCancelApplicationEmail(userInfo, aApplication);
+        } else {
             console.error(ERROR.FAILED_DELETE_APPLICATION, `${document._id}`);
             throw new Error(ERROR.FAILED_DELETE_APPLICATION);
         }
         return await this.getApplicationById(document._id);
+    }
+
+    async restoreApplication(document, context) {
+        const aApplication = await this.getApplicationById(document._id);
+        verifyApplication(aApplication)
+            .notEmpty()
+            .state([CANCELED, DELETED]);
+
+        if (!aApplication?.history?.length > 2 || ![CANCELED, DELETED].includes(aApplication?.history?.at(-1)?.status)) {
+            throw new Error(ERROR.INVALID_APPLICATION_RESTORE_STATE);
+        }
+        const userInfo = context?.userInfo;
+        const isEnabledPBAC = userInfo?.permissions?.includes(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
+        const isPowerRole = [ROLES.FEDERAL_LEAD, ROLES.ADMIN, ROLES.DATA_COMMONS_PERSONNEL].includes(userInfo?.role);
+
+        const isNonPowerRole = [ROLES.USER, ROLES.SUBMITTER].includes(userInfo?.role);
+        // User owned application
+        const isApplicationOwned = userInfo?._id === aApplication?.applicant?.applicantID;
+
+        if ((isPowerRole && !isEnabledPBAC) || (isNonPowerRole && !isApplicationOwned)) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+        const prevStatus = aApplication?.history?.at(-2)?.status;
+        const history = HistoryEventBuilder.createEvent(context.userInfo._id, prevStatus, null);
+        const updated = await this.dbService.updateOne(APPLICATION, {_id: aApplication._id}, {
+            $set: {status: prevStatus, updatedAt: history.dateTime},
+            $push: {history},
+
+        });
+
+        if (updated?.modifiedCount && updated?.modifiedCount > 0) {
+            await this.#sendRestoreApplicationEmail(aApplication);
+        } else {
+            console.error(ERROR.FAILED_RESTORE_APPLICATION, `${aApplication._id}`);
+            throw new Error(ERROR.FAILED_RESTORE_APPLICATION);
+        }
+        return await this.getApplicationById(aApplication._id);
     }
 
     async approveApplication(document, context) {
@@ -504,8 +549,8 @@ class Application {
             const history = HistoryEventBuilder.createEvent(0, DELETED, "Deleted because of no activities after submission");
             const updated = await this.dbService.updateMany(APPLICATION,
                 inactiveCondition,
-                {
-                    $set: {status: DELETED, updatedAt: history.dateTime},
+                {   // Once the submission request is deleted, the reminder email should not be sent.
+                    $set: {status: DELETED, updatedAt: history.dateTime, inactiveReminder: true},
                     $push: {history}});
             if (updated?.modifiedCount && updated?.modifiedCount > 0) {
                 console.log("Executed to delete application(s) because of no activities at " + getCurrentTime());
@@ -597,6 +642,52 @@ class Application {
                 }
             );
         }
+    }
+
+    async #cancelApplicationEmailInfo(application) {
+        const [applicant, BCCUsers] = await Promise.all([
+            this.userService.userCollection.find(application?.applicant?.applicantID),
+            this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_CANCEL],
+                [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN])
+        ]);
+        const applicantInfo = applicant?.pop();
+        return [applicantInfo, getUserEmails(BCCUsers)];
+    }
+
+    async #sendCancelApplicationEmail(userCanceledBy, application) {
+        const [applicantInfo, BCCUserEmails] = await this.#cancelApplicationEmailInfo(application);
+        if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_CANCEL)) {
+            if (!applicantInfo?.email) {
+                console.error("Cancel submission request email notification does not have any recipient", `Application ID: ${application?._id}`);
+                return;
+            }
+
+            await this.notificationService.cancelApplicationNotification(applicantInfo?.email, BCCUserEmails, {
+                firstName: `${applicantInfo.firstName} ${applicantInfo.lastName || ""}`
+            },{
+                studyName: application?.studyName?.trim() || "NA",
+                canceledNameBy: `${userCanceledBy.firstName} ${userCanceledBy.lastName || ""}`,
+                contactEmail: this.emailParams.conditionalSubmissionContact
+            });
+        }
+    }
+
+    async #sendRestoreApplicationEmail(application) {
+        const [applicantInfo, BCCUserEmails] = await this.#cancelApplicationEmailInfo(application);
+        if (!applicantInfo?.email) {
+            console.error("Restore submission request email notification does not have any recipient", `Application ID: ${application?._id}`);
+            return;
+        }
+
+        if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_CANCEL)) {
+            await this.notificationService.restoreApplicationNotification(applicantInfo?.email, BCCUserEmails,{
+                firstName: `${applicantInfo.firstName} ${applicantInfo.lastName || ""}`
+            },{
+                studyName: application?.studyName?.trim() || "NA",
+                contactEmail: this.emailParams.conditionalSubmissionContact
+            });
+        }
+
     }
 }
 

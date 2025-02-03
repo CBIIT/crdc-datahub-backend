@@ -86,6 +86,49 @@ class NotifyUser {
             );
         });
     }
+
+    async cancelApplicationNotification(email, BCCsEmails, templateParams, messageVariables) {
+        const message = replaceMessageVariables(this.email_constants.CANCEL_APPLICATION_CONTENT, messageVariables);
+        const subject = this.email_constants.CANCEL_APPLICATION_SUBJECT;
+        return await this.send(async () => {
+            const res = await this.emailService.sendNotification(
+                this.email_constants.NOTIFICATION_SENDER,
+                isTierAdded(this.tier) ? `${this.tier} ${subject}` : subject,
+                await createEmailTemplate("notification-template.html", {
+                    message, firstName: templateParams.firstName
+                }),
+                email,
+                [],
+                BCCsEmails
+            );
+            if (res?.accepted?.length === 0) {
+                console.error(`Failed to send Cancel Submission Request Email Notifications: ${email}`);
+            }
+        });
+    }
+
+    async restoreApplicationNotification(email, BCCsEmails, templateParams, messageVariables) {
+        const message = replaceMessageVariables(this.email_constants.RESTORE_APPLICATION_CONTENT, messageVariables);
+        const secondMessage = replaceMessageVariables(this.email_constants.RESTORE_APPLICATION_SECOND_CONTENT, messageVariables);
+        const thirdMessage = replaceMessageVariables(this.email_constants.RESTORE_APPLICATION_THIRD_CONTENT, messageVariables);
+        const subject = this.email_constants.RESTORE_APPLICATION_SUBJECT;
+        return await this.send(async () => {
+            const res = await this.emailService.sendNotification(
+                this.email_constants.NOTIFICATION_SENDER,
+                isTierAdded(this.tier) ? `${this.tier} ${subject}` : subject,
+                await createEmailTemplate("notification-template.html", {
+                    message, secondMessage, thirdMessage, firstName: templateParams.firstName
+                }),
+                email,
+                [],
+                BCCsEmails
+            );
+            if (res?.accepted?.length === 0) {
+                console.error(`Failed to send Restore Submission Request Email Notifications: ${email}`);
+            }
+        });
+    }
+
     async inquireQuestionNotification(email, BCCEmails, templateParams, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.INQUIRE_CONTENT, messageVariables);
         const secondMessage = replaceMessageVariables(this.email_constants.INQUIRE_SECOND_CONTENT, messageVariables);
@@ -216,6 +259,23 @@ class NotifyUser {
         });
     }
 
+    async deleteSubmissionNotification(email, BCCEmails, templateParams, messageVariables) {
+        const message = replaceMessageVariables(this.email_constants.SUBMISSION_FIRST_CONTENT, messageVariables);
+        const secondMessage = replaceMessageVariables(this.email_constants.SUBMISSION_SECOND_CONTENT, messageVariables);
+        const subject = this.email_constants.DELETE_SUBMISSION_SUBJECT;
+        return await this.send(async () => {
+            await this.emailService.sendNotification(
+                this.email_constants.NOTIFICATION_SENDER,
+                isTierAdded(this.tier) ? `${this.tier} ${subject}` : subject,
+                await createEmailTemplate("notification-template.html", {
+                    message, secondMessage, ...templateParams
+                }),
+                email,
+                [],
+                BCCEmails
+            );
+        });
+    }
 
     async remindApplicationsNotification(email, template_params, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.REMIND_EXPIRED_APPLICATION_CONTENT, messageVariables);
@@ -233,7 +293,7 @@ class NotifyUser {
         });
     }
 
-    async releaseDataSubmissionNotification(emails, emailCCs,template_params, subjectVariables, messageVariables) {
+    async releaseDataSubmissionNotification(emails, BCCsEmails,template_params, subjectVariables, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.RELEASE_DATA_SUBMISSION_CONTENT, messageVariables);
         const subject = replaceMessageVariables(this.email_constants.RELEASE_DATA_SUBMISSION_SUBJECT, subjectVariables)
         return await this.send(async () => {
@@ -244,13 +304,14 @@ class NotifyUser {
                     message, ...template_params
                 }),
                 emails,
-                emailCCs
+                [],
+                BCCsEmails
             );
         });
     }
 
-    async submitDataSubmissionNotification(email, emailCCs,templateParams, messageVariables) {
-        const message = replaceMessageVariables(this.email_constants.SUBMIT_DATA_SUBMISSION_CONTENT_FIRST, {});
+    async submitDataSubmissionNotification(email, BCCEmails,templateParams, messageVariables) {
+        const message = replaceMessageVariables(this.email_constants.SUBMIT_DATA_SUBMISSION_CONTENT_FIRST, messageVariables);
         const secondMessage = replaceMessageVariables(this.email_constants.SUBMIT_DATA_SUBMISSION_CONTENT_SECOND, messageVariables);
         const subject = this.email_constants.SUBMIT_DATA_SUBMISSION_SUBJECT;
         return await this.send(async () => {
@@ -261,12 +322,13 @@ class NotifyUser {
                     message, secondMessage, ...templateParams
                 }),
                 email,
-                emailCCs
+                [],
+                BCCEmails
             );
         });
     }
 
-    async completeSubmissionNotification(email, CCs, template_params, messageVariables) {
+    async completeSubmissionNotification(email, BCCEmails, template_params, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.COMPLETE_DATA_SUBMISSION_CONTENT, messageVariables);
         const subject = this.email_constants.COMPLETE_DATA_SUBMISSION_SUBJECT;
         return await this.send(async () => {
@@ -277,12 +339,13 @@ class NotifyUser {
                     message, ...template_params
                 }),
                 email,
-                CCs
+                [],
+                BCCEmails
             );
         });
     }
 
-    async cancelSubmissionNotification(email, CCs, template_params, messageVariables) {
+    async cancelSubmissionNotification(email, BCCEmails, template_params, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.CANCEL_DATA_SUBMISSION_CONTENT, messageVariables);
         const subject = this.email_constants.CANCEL_DATA_SUBMISSION_SUBJECT;
         return await this.send(async () => {
@@ -293,12 +356,13 @@ class NotifyUser {
                     message, ...template_params
                 }),
                 email,
-                CCs
+                [],
+                BCCEmails
             );
         });
     }
 
-    async withdrawSubmissionNotification(email, CCs, template_params, messageVariables) {
+    async withdrawSubmissionNotification(email, BCCEmails, template_params, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.WITHDRAW_DATA_SUBMISSION_CONTENT, messageVariables);
         const subject = this.email_constants.WITHDRAW_DATA_SUBMISSION_SUBJECT;
         return await this.send(async () => {
@@ -309,12 +373,13 @@ class NotifyUser {
                     message, ...template_params
                 }),
                 email,
-                CCs
+                [],
+                BCCEmails
             );
         });
     }
 
-    async rejectSubmissionNotification(email, CCs, template_params, messageVariables) {
+    async rejectSubmissionNotification(email, BCCEmails, template_params, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.REJECT_DATA_SUBMISSION_CONTENT, messageVariables);
         const subject = this.email_constants.REJECT_DATA_SUBMISSION_SUBJECT;
         return await this.send(async () => {
@@ -325,7 +390,8 @@ class NotifyUser {
                     message, ...template_params
                 }),
                 email,
-                CCs
+                [],
+                BCCEmails
             );
         });
     }
@@ -345,7 +411,7 @@ class NotifyUser {
         });
     }
 
-    async inactiveSubmissionNotification(email, CCs, template_params, messageVariables) {
+    async inactiveSubmissionNotification(email, BCCEmails, template_params, messageVariables) {
         const subject = replaceMessageVariables(this.email_constants.INACTIVE_SUBMISSION_SUBJECT, messageVariables);
         const message = replaceMessageVariables(this.email_constants.INACTIVE_SUBMISSION_CONTENT, messageVariables);
         return await this.send(async () => {
@@ -356,7 +422,7 @@ class NotifyUser {
                     message, ...template_params
                 }),
                 email,
-                CCs
+                BCCEmails
             );
         });
     }
@@ -389,7 +455,7 @@ class NotifyUser {
         });
     }
 
-    async finalInactiveSubmissionNotification(email, CCs, template_params, messageVariables) {
+    async finalInactiveSubmissionNotification(email, BCCEmails, template_params, messageVariables) {
         const subject = replaceMessageVariables(this.email_constants.FINAL_INACTIVE_SUBMISSION_SUBJECT, messageVariables);
         const message = replaceMessageVariables(this.email_constants.FINAL_INACTIVE_SUBMISSION_CONTENT, messageVariables);
         const additionalMsg = this.email_constants.FINAL_INACTIVE_SUBMISSION_ADDITIONAL_CONTENT;
@@ -401,7 +467,8 @@ class NotifyUser {
                     message, ...{...template_params, additionalMsg: additionalMsg}
                 }),
                 email,
-                CCs
+                [],
+                BCCEmails
             );
         });
     }
