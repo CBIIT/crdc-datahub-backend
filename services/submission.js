@@ -2114,18 +2114,7 @@ function logDaysDifference(inactiveDays, accessedAt, submissionID) {
     const days = Math.floor(differenceMs / (1000 * 60 * 60 * 24));
     const hours = Math.floor((differenceMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const minutes = Math.floor((differenceMs % (1000 * 60 * 60)) / (1000 * 60));
-    console.log(`Submission ID: ${submissionID}, Inactive Days: ${inactiveDays}, Last Accessed: ${getFormattedDateTime(startedDate)}, Current Time: ${getFormattedDateTime(endDate)}  Difference: ${days} days, ${hours} hours, ${minutes} minutes`);
-}
-
-// TODO remove temporary for QA
-function getFormattedDateTime(date) {
-    return date.getFullYear() + ":" +
-        String(date.getMonth() + 1).padStart(2, '0') + ":" +
-        String(date.getDate()).padStart(2, '0') + ":" +
-        String(date.getHours()).padStart(2, '0') + ":" +
-        String(date.getMinutes()).padStart(2, '0') + ":" +
-        String(date.getSeconds()).padStart(2, '0') + " " +
-        Intl.DateTimeFormat().resolvedOptions().timeZone;
+    console.log(`Submission ID: ${submissionID}, Inactive Days: ${inactiveDays}, Last Accessed: ${startedDate}, Current Time: ${endDate}  Difference: ${days} days, ${hours} hours, ${minutes} minutes`);
 }
 
 module.exports = {
