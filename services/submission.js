@@ -2098,24 +2098,17 @@ function logDaysDifference(inactiveDays, accessedAt, submissionID) {
     const days = Math.floor(differenceMs / (1000 * 60 * 60 * 24));
     const hours = Math.floor((differenceMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const minutes = Math.floor((differenceMs % (1000 * 60 * 60)) / (1000 * 60));
-    console.log(`${submissionID} Difference1 : ${days} days, ${hours} hours, ${minutes} minutes`);
+    console.log(`${submissionID} Difference1 : ${days?.toString()} days, ${hours} hours, ${minutes} minutes`);
     console.log(`Submission ID : ${submissionID} Inactive Days: ${inactiveDays}`);
-    console.log(`Submission ID : ${submissionID} Last Accessed: ${getFormattedDateTime(startedDate)}`);
-    console.log(`Submission ID : ${submissionID} Current Time: ${getFormattedDateTime(endDate)}`);
+    console.log(`Submission ID : ${submissionID} Last Accessed: ${startedDate}`);
+    console.log(`Submission ID : ${submissionID} Current Time: ${endDate}`);
     console.log(`Submission ID : ${submissionID} Difference: ${days} days, ${hours} hours, ${minutes} minutes`);
     console.log(`${submissionID} Difference2 : ${days} days, ${hours} hours, ${minutes} minutes`);
     console.error(`${submissionID} Difference3 : ${days} days, ${hours} hours, ${minutes} minutes`);
-}
 
-// TODO remove temporary for QA
-function getFormattedDateTime(date) {
-    return date.getFullYear() + ":" +
-        String(date.getMonth() + 1).padStart(2, '0') + ":" +
-        String(date.getDate()).padStart(2, '0') + ":" +
-        String(date.getHours()).padStart(2, '0') + ":" +
-        String(date.getMinutes()).padStart(2, '0') + ":" +
-        String(date.getSeconds()).padStart(2, '0') + " " +
-        Intl.DateTimeFormat().resolvedOptions().timeZone;
+    console.log(`final Submission ID: ${submissionID}, Inactive Days: ${inactiveDays}, Last Accessed: ${startedDate}, Current Time: ${endDate}  Difference: ${days} days, ${hours} hours, ${minutes} minutes`);
+    console.log(`final2 Submission ID: ${submissionID} Inactive Days: ${inactiveDays} Last Accessed: ${startedDate} Current Time: ${endDate} Difference: ${days} days ${hours} hours ${minutes} minutes`);
+
 }
 
 module.exports = {
