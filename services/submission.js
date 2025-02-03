@@ -1367,15 +1367,18 @@ class Submission {
             nodeID = nodeID,
             status = status
         } = params; // all three parameters are required in GraphQL API
-        const results = await this.dataRecordService.getReleasedNode(submissionID, nodeType, nodeID, status);
-        if(results && results.length > 0) 
+        const submission = await this.submissionCollection.findOne(submissionID);
+        if(!submission)
         {
-            const result = results[0];
-            if(result?.props)
-            {
-                result.props = JSON.stringify(result.props);
-            }
-            return result;
+            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+        }
+
+        const results = await this.dataRecordService.getReleasedAndNewNode(submissionID, submission.dataCommons, nodeType, nodeID, status);
+        // the results is array of nodes, [new, release]
+        if(results && results.length === 2)  
+        {
+            
+            return results;
         }
         else
         {

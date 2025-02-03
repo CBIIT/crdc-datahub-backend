@@ -556,15 +556,13 @@ type DataFileConfig {
 
 type Released_Node {
     _id: ID,
-    CRDC_ID: String,
     submissionID: String
-    status: [String], #["Released"] or  ["Released", "Deleted"]
+    status: String, # value in  ["Released", "Deleted"]
     dataCommons: String,
     studyID: String,
     nodeType: String,
     nodeID: String,
     props: String, #a stringified JSON string contains all properties of the node, including parent mapping properties like program.prorgam_acronym
-    entityType: [String],
     createdAt: Date,
     updatedAt: Date
 }
@@ -734,7 +732,7 @@ type Query {
 
     retrieveFileNodeConfig(submissionID: String!) : DataFileConfig
 
-    retrieveReleasedDataByID(submissionID: String!, nodeType: String!, nodeID: String!, status: String = "Released") : Released_Node
+    retrieveReleasedDataByID(submissionID: String!, nodeType: String!, nodeID: String!, status: String = "Released") : [Released_Node]
 }
 type Mutation {
     "User initiated operations"

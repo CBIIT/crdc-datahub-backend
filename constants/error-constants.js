@@ -100,7 +100,8 @@ const ERROR = {
     INVALID_TOKEN_NOT_IN_WHITELIST: "Invalid token: this token is not whitelisted!",
     INVALID_SUBMISSION_EMPTY: 'Invalid submissionID: it can not be empty string!',
     INVALID_SUBMISSION_NOT_FOUND: "Cant find the submission by submissionID",
-    INVALID_NODE_NOT_FOUND: "Cant find the node by nodeID, nodeType and submissionID",
+    INVALID_NODE_NOT_FOUND: "Cant find the released node by nodeID, nodeType and submissionID",
+    INVALID_RELEASED_NODE_NOT_FOUND: "Cant find the node by nodeID, nodeType and data commons",
     INVALID_SUBMITTER: "The user has no permissions to upload data for the submission",
     INVALID_SESSION_OR_TOKEN: "No valid session or valid API token",
     // AWS
