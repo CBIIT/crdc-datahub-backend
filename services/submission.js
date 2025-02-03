@@ -29,7 +29,6 @@ const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo
 const {EMAIL_NOTIFICATIONS: EN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
-const { QcResultService } = require("./qc-result-service");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
