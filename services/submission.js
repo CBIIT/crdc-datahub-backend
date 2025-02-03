@@ -51,7 +51,8 @@ Set.prototype.toArray = function() {
 class Submission {
     constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService,
                 dataRecordService, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList,
-                hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs, submissionBucketName) {
+                hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs, 
+                submissionBucketName, configurationService) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -71,6 +72,7 @@ class Submission {
         this.qcResultsService = qcResultsService;
         this.uploaderCLIConfigs = uploaderCLIConfigs;
         this.submissionBucketName = submissionBucketName;
+        this.configurationService = configurationService
     }
 
     async createSubmission(params, context) {
@@ -1191,7 +1193,7 @@ class Submission {
     }
 
      /**
-     * archiveCompletedSubmissions
+     * deleteInactiveSubmissions
      * description: overnight job to set inactive submission status to "Deleted", delete related data and files
      */
      async deleteInactiveSubmissions(){
@@ -1264,6 +1266,27 @@ class Submission {
          }
     }
 
+    /**
+     * purgeDeletedDataFiles
+     * remove deleted data files in "to-be-deleted" after tagged with "Completed = true"
+     */
+    async purgeDeletedDataFiles(){
+        //get target purge date, current date - config.purgeDeletedDataFileDays (default 180 days)
+        const purgeConfig = await this.configurationService.findByType("PURGE_DELETED_DATA_FILE");
+        const purgeDays = purgeConfig?.days ?? 180;
+        const folder = purgeConfig?.prefix ?? "to_be_deleted";
+        const tag = purgeConfig?.tag ?? {Key: "Completed", Value: "true"};
+        const dmBucketConfig = await this.configurationService.findByType("DM_BUCKET_NAME");
+        const dmBucketName = dmBucketConfig?.keys.dm_bucket;
+        try {
+
+            await this.s3Service.purgeDeletedFiles(dmBucketName, folder, purgeDays, tag);
+            console.debug(`Successfully purged deleted data files in ${dmBucketName}.`); 
+        }
+        catch (e){
+            console.error(`Failed to purge deleted data files in ${dmBucketName} with error: ${e.message}`);
+        }
+    }
     async deleteDataRecords(params, context) {
         verifySession(context)
             .verifyInitialized();

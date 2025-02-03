@@ -1,4 +1,4 @@
-const {S3Service} = require("../../crdc-datahub-database-drivers/services/s3-service");
+const {S3Service} = require("../../services/s3-service");
 // const axios = require("axios");
 // const path = require("path");
 // const fs = require("fs");
