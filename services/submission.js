@@ -2135,7 +2135,8 @@ function logDaysDifference(inactiveDays, accessedAt, submissionID) {
 }
 
 function getFormattedDateTime(date) {
-    return date?.toLocaleString("en-US", { timeZone: "America/New_York" });
+    const test = new Date(date)
+    return test?.toLocaleString("en-US", { timeZone: "America/New_York" });
 }
 
 
