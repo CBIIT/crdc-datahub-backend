@@ -699,10 +699,10 @@ class DataRecordService {
      * @param {*} nodeStatus 
      * @returns {Promise<Object[]>}
      */
-    async getReleasedNode(submissionID, nodeType, nodeID, status){
+    async getReleasedNode(dataCommons, nodeType, nodeID, status){
 
         const query = {
-            submissionID: submissionID,
+            dataCommons: dataCommons,
             nodeType: nodeType,
             nodeID: nodeID,
             $expr: {

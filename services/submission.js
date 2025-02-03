@@ -1344,7 +1344,12 @@ class Submission {
             nodeID = nodeID,
             status = status
         } = params; // all three parameters are required in GraphQL API
-        const results = await this.dataRecordService.getReleasedNode(submissionID, nodeType, nodeID, status);
+        const submission = await this.submissionCollection.findOne(submissionID);
+        if(!submission)
+        {
+            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+        }
+        const results = await this.dataRecordService.getReleasedNode(submission.dataCommons, nodeType, nodeID, status);
         if(results && results.length > 0) 
         {
             const result = results[0];
