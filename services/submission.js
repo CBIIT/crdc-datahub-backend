@@ -1787,16 +1787,23 @@ const sendEmails = {
             u?._id !== aSubmitter?._id &&
             isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
         if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.REMIND_EXPIRE)) {
-            await notificationService.inactiveSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
-                firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
-            }, {
-                title: aSubmission?.name,
-                expiredDays: expiredDays || NA,
-                studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
-                pastDays: pastDays || NA,
-                url: emailParams.url || NA
-            });
-            logDaysDifference(pastDays, aSubmission?.accessedAt, aSubmission?._id);
+
+            try {
+                await notificationService.inactiveSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
+                    firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
+                }, {
+                    title: aSubmission?.name,
+                    expiredDays: expiredDays || NA,
+                    studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                    pastDays: pastDays || NA,
+                    url: emailParams.url || NA
+                });
+                logDaysDifference(pastDays, aSubmission?.accessedAt, aSubmission?._id);
+            } catch (error) {
+                console.error(`testing error ${aSubmission?._id}`, error);
+            }
+
+
         }
     },
     finalRemindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService) => {
@@ -2091,7 +2098,13 @@ function logDaysDifference(inactiveDays, accessedAt, submissionID) {
     const days = Math.floor(differenceMs / (1000 * 60 * 60 * 24));
     const hours = Math.floor((differenceMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const minutes = Math.floor((differenceMs % (1000 * 60 * 60)) / (1000 * 60));
-    console.log(`Submission ID: ${submissionID}, Inactive Days: ${inactiveDays}, Last Accessed: ${getFormattedDateTime(startedDate)}, Current Time: ${getFormattedDateTime(endDate)}  Difference: ${days} days, ${hours} hours, ${minutes} minutes`);
+    console.log(`${submissionID} Difference1 : ${days} days, ${hours} hours, ${minutes} minutes`);
+    console.log(`Submission ID : ${submissionID} Inactive Days: ${inactiveDays}`);
+    console.log(`Submission ID : ${submissionID} Last Accessed: ${getFormattedDateTime(startedDate)}`);
+    console.log(`Submission ID : ${submissionID} Current Time: ${getFormattedDateTime(endDate)}`);
+    console.log(`Submission ID : ${submissionID} Difference: ${days} days, ${hours} hours, ${minutes} minutes`);
+    console.log(`${submissionID} Difference2 : ${days} days, ${hours} hours, ${minutes} minutes`);
+    console.error(`${submissionID} Difference3 : ${days} days, ${hours} hours, ${minutes} minutes`);
 }
 
 // TODO remove temporary for QA
