@@ -26,7 +26,9 @@ class EmailService {
 
     async sendMail(params) {
         const transport = createTransport(this.emailTransport);
-        console.log("Generating email to: "+params.to.join(', '));
+        const ccEmailMsg = `${params.cc.length > 0 ? ` CC: ${params.cc.join(', ')}` : ''}`;
+        const bccEmailMsg = `${params.bcc.length > 0 ? ` BCC: ${params.bcc.join(', ')}` : ''}`;
+        console.log("Generating email to: "+params.to.join(', '), ccEmailMsg, bccEmailMsg);
         if (this.emailsEnabled){
             try{
                 let result = await transport.sendMail(params);

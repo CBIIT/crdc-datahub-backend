@@ -185,13 +185,17 @@ class Application {
     }
 
     #listApplicationConditions(userID, userRole, programName, studyName, statues, submitterName) {
-        const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED, DELETED];
+        const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, CANCELED, REJECTED, DELETED];
         const statusCondition = statues && !statues?.includes(this.#ALL_FILTER) ?
             { status: { $in: statues || [] } } : { status: { $in: validApplicationStatus } };
         // Allowing empty string SubmitterName, ProgramName, StudyName
-        const submitterNameCondition = (submitterName != null && submitterName !== this.#ALL_FILTER) ? {"applicant.applicantName": submitterName} : {};
+        // Submitter Name should be partial match
+        const submitterQuery = submitterName?.trim().length > 0 ? {$regex: submitterName?.trim(), $options: "i"} : submitterName;
+        const submitterNameCondition = (submitterName != null && submitterName !== this.#ALL_FILTER) ? {"applicant.applicantName": submitterQuery} : {};
         const programNameCondition = (programName != null && programName !== this.#ALL_FILTER) ? {programName: programName} : {};
-        const studyNameCondition = (studyName != null && studyName !== this.#ALL_FILTER) ? {studyName: studyName} : {};
+        // Study Name should be partial match
+        const studyQuery = studyName?.trim().length > 0 ? {$regex: studyName?.trim(), $options: "i"} : studyName;
+        const studyNameCondition = (studyName != null && studyName !== this.#ALL_FILTER) ? {studyName: studyQuery} : {};
 
         const baseConditions = {...statusCondition, ...programNameCondition, ...studyNameCondition, ...submitterNameCondition};
         return (() => {
@@ -220,25 +224,24 @@ class Application {
         }
 
         const userInfo = context?.userInfo;
-        const validStatuesSet = new Set([NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED, DELETED, this.#ALL_FILTER]);
-        const invalidStatues = (params?.statues || [])
+        const validStatuesSet = new Set([NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED, CANCELED, DELETED, this.#ALL_FILTER]);
+        const invalidStatues = (params?.statuses || [])
             .filter((i) => !validStatuesSet.has(i));
         if (invalidStatues?.length > 0) {
             throw new Error(replaceErrorString(ERROR.APPLICATION_INVALID_STATUES, `'${invalidStatues.join(",")}'`));
         }
 
-
         const filterConditions = [
             // default filter for listing submissions
-            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, params.studyName, params.statues, params?.submitterName),
+            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, params.studyName, params.statuses, params?.submitterName),
             // note: Aggregation of Program name should not be filtered by its name
-            this.#listApplicationConditions(userInfo?._id, userInfo?.role, this.#ALL_FILTER, params.studyName, params.statues, params?.submitterName),
+            this.#listApplicationConditions(userInfo?._id, userInfo?.role, this.#ALL_FILTER, params.studyName, params.statuses, params?.submitterName),
             // note: Aggregation of Study name should not be filtered by its name
-            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, this.#ALL_FILTER, params.statues, params?.submitterName),
+            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, this.#ALL_FILTER, params.statuses, params?.submitterName),
             // note: Aggregation of Statues name should not be filtered by its name
             this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, params.studyName, this.#ALL_FILTER, params?.submitterName),
             // note: Aggregation of Submitter name should not be filtered by its name
-            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, params.studyName, params.statues, this.#ALL_FILTER),
+            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, params.studyName, params.statuses, this.#ALL_FILTER),
         ];
         const [listConditions, programCondition, studyNameCondition, statuesCondition, submitterNameCondition] = filterConditions;
         let pipeline = [{"$match": listConditions}];
@@ -273,7 +276,10 @@ class Application {
             total: results[1]?.length > 0 ? results[1][0]?.count : 0,
             programs: results[2] || [],
             studies: results[3] || [],
-            status: results[4] || [],
+            status: () => {
+                const statusOrder = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, INQUIRED, APPROVED, REJECTED, CANCELED, DELETED];
+                return (results[4] || []).sort((a, b) => statusOrder.indexOf(a) - statusOrder.indexOf(b));
+            },
             submitterNames: results[5] || []
         }
     }
@@ -379,9 +385,9 @@ class Application {
         const aApplication = await this.getApplicationById(document._id);
         verifyApplication(aApplication)
             .notEmpty()
-            .state([CANCELED]);
+            .state([CANCELED, DELETED]);
 
-        if (!aApplication?.history?.length > 2 || aApplication?.history?.at(-1)?.status !== CANCELED) {
+        if (!aApplication?.history?.length > 2 || ![CANCELED, DELETED].includes(aApplication?.history?.at(-1)?.status)) {
             throw new Error(ERROR.INVALID_APPLICATION_RESTORE_STATE);
         }
         const userInfo = context?.userInfo;
@@ -543,8 +549,8 @@ class Application {
             const history = HistoryEventBuilder.createEvent(0, DELETED, "Deleted because of no activities after submission");
             const updated = await this.dbService.updateMany(APPLICATION,
                 inactiveCondition,
-                {
-                    $set: {status: DELETED, updatedAt: history.dateTime},
+                {   // Once the submission request is deleted, the reminder email should not be sent.
+                    $set: {status: DELETED, updatedAt: history.dateTime, inactiveReminder: true},
                     $push: {history}});
             if (updated?.modifiedCount && updated?.modifiedCount > 0) {
                 console.log("Executed to delete application(s) because of no activities at " + getCurrentTime());
