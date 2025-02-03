@@ -29,6 +29,7 @@ const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo
 const {EMAIL_NOTIFICATIONS: EN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
+const { QcResultService } = require("./qc-result-service");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -1349,15 +1350,13 @@ class Submission {
         {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
-        const results = await this.dataRecordService.getReleasedNode(submission.dataCommons, nodeType, nodeID, status);
-        if(results && results.length > 0) 
+
+        const results = await this.dataRecordService.getReleasedAndNewNode(submissionID, submission.dataCommons, nodeType, nodeID, status);
+        // the results is array of nodes, [new, release]
+        if(results && results.length === 2)  
         {
-            const result = results[0];
-            if(result?.props)
-            {
-                result.props = JSON.stringify(result.props);
-            }
-            return result;
+            
+            return results;
         }
         else
         {

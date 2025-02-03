@@ -699,8 +699,15 @@ class DataRecordService {
      * @param {*} nodeStatus 
      * @returns {Promise<Object[]>}
      */
-    async getReleasedNode(dataCommons, nodeType, nodeID, status){
+    async getReleasedAndNewNode(submissionID, dataCommons, nodeType, nodeID, status){
+        // get new node from DataRecords collection.
+        const newNode = await this.#GetNode(submissionID, nodeType, nodeID)
+        if(!newNode){
+            throw new Error(ERRORS.INVALID_NODE_NOT_FOUND);
+        }
+        newNode.props = JSON.stringify(newNode.props);
 
+        // get release node
         const query = {
             dataCommons: dataCommons,
             nodeType: nodeType,
@@ -712,9 +719,17 @@ class DataRecordService {
                 ]
               }
         };
-        return await this.releaseCollection.aggregate([{
+        const results = await this.releaseCollection.aggregate([{
             $match: query
         }]);
+
+        if(results.length === 0){
+            throw new Error(ERRORS.INVALID_RELEASED_NODE_NOT_FOUND);
+        }
+        const releaseNode = results[0];
+        releaseNode.status = status;
+        releaseNode.props = JSON.stringify(releaseNode.props);
+        return [newNode, releaseNode]
     }
 }
 
