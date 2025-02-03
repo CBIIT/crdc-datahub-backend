@@ -2100,16 +2100,29 @@ function logDaysDifference(inactiveDays, accessedAt, submissionID) {
     const minutes = Math.floor((differenceMs % (1000 * 60 * 60)) / (1000 * 60));
     console.log(`${submissionID} Difference1 : ${days?.toString()} days, ${hours} hours, ${minutes} minutes`);
     console.log(`Submission ID : ${submissionID} Inactive Days: ${inactiveDays}`);
-    console.log(`Submission ID : ${submissionID} Last Accessed: ${startedDate}`);
-    console.log(`Submission ID : ${submissionID} Current Time: ${endDate}`);
+    console.log(`Submission ID : ${submissionID} Last Accessed: ${getFormattedDateTime(startedDate)}`);
+    console.log(`Submission ID : ${submissionID} Current Time: ${getFormattedDateTime(endDate)}`);
     console.log(`Submission ID : ${submissionID} Difference: ${days} days, ${hours} hours, ${minutes} minutes`);
     console.log(`${submissionID} Difference2 : ${days} days, ${hours} hours, ${minutes} minutes`);
     console.error(`${submissionID} Difference3 : ${days} days, ${hours} hours, ${minutes} minutes`);
 
-    console.log(`final Submission ID: ${submissionID}, Inactive Days: ${inactiveDays}, Last Accessed: ${startedDate}, Current Time: ${endDate}  Difference: ${days} days, ${hours} hours, ${minutes} minutes`);
-    console.log(`final2 Submission ID: ${submissionID} Inactive Days: ${inactiveDays} Last Accessed: ${startedDate} Current Time: ${endDate} Difference: ${days} days ${hours} hours ${minutes} minutes`);
+    console.log(`final Submission ID: ${submissionID}, Inactive Days: ${inactiveDays}, Last Accessed: ${getFormattedDateTime(startedDate)}, Current Time: ${getFormattedDateTime(endDate)}  Difference: ${days} days, ${hours} hours, ${minutes} minutes`);
+    console.log(`final2 Submission ID: ${submissionID} Inactive Days: ${inactiveDays} Last Accessed: ${getFormattedDateTime(startedDate)} Current Time: ${getFormattedDateTime(endDate)} Difference: ${days} days ${hours} hours ${minutes} minutes`);
 
 }
+
+function getFormattedDateTime(date) {
+    return new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    }).format(date).replace(',', '').replace(/\//g, ':');
+}
+
 
 module.exports = {
     Submission
