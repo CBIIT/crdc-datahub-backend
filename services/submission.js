@@ -1263,7 +1263,7 @@ class Submission {
                      contactName: `${aSubmission?.conciergeName || 'NA'}`,
                      contactEmail: `${aSubmission?.conciergeEmail || 'NA'}`
                  });
-                 logDaysDifference(this.emailParams.inactiveSubmissionDays + " Deleted Action", aSubmission?.accessedAt, aSubmission?._id);
+                 console.log(`submissionID: ${aSubmission?._id} Inactive Days: ${this.emailParams.inactiveSubmissionDays} Accessed: ${getFormattedDateTime(aSubmission?.accessedAt)} Current: ${getCurrentTime()}  ${logDaysDifference(aSubmission?.accessedAt, aSubmission?._id)}`);
              } catch (e) {
                  console.log("failed to log", `submissionID: ${aSubmission?._id}`)
              }
@@ -1796,6 +1796,7 @@ const sendEmails = {
             isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
         if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.REMIND_EXPIRE)) {
             console.error("sending emails to", `id=${aSubmission?._id}`);
+            console.log(`submissionID: 1 ${aSubmission?._id} Inactive Days: ${pastDays} Accessed: ${getFormattedDateTime(aSubmission?.accessedAt)} Current: ${getCurrentTime()}  ${logDaysDifference(aSubmission?.accessedAt, aSubmission?._id)}`);
             await notificationService.inactiveSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
                 firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
             }, {
@@ -1805,7 +1806,7 @@ const sendEmails = {
                 pastDays: pastDays || NA,
                 url: emailParams.url || NA
             });
-            logDaysDifference(pastDays, aSubmission?.accessedAt, aSubmission?._id);
+            console.log(`submissionID: 2 ${aSubmission?._id} Inactive Days: ${pastDays} Accessed: ${getFormattedDateTime(aSubmission?.accessedAt)} Current: ${getCurrentTime()}  ${logDaysDifference(aSubmission?.accessedAt, aSubmission?._id)}`);
         }
     },
     finalRemindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService) => {
@@ -1824,7 +1825,7 @@ const sendEmails = {
             u?._id !== aSubmitter?._id &&
             isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
         if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.REMIND_EXPIRE)) {
-            logDaysDifference(emailParams.finalRemindSubmissionDay, aSubmission?.accessedAt, aSubmission?._id);
+            console.log(`submissionID: 1 ${aSubmission?._id} Inactive Days: ${emailParams.finalRemindSubmissionDay} Accessed: ${getFormattedDateTime(aSubmission?.accessedAt)} Current: ${getCurrentTime()}  ${logDaysDifference(aSubmission?.accessedAt, aSubmission?._id)}`);
             await notificationService.finalInactiveSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
                 firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
             }, {
@@ -1833,6 +1834,7 @@ const sendEmails = {
                 days: emailParams.finalRemindSubmissionDay || NA,
                 url: emailParams.url || NA
             });
+            console.log(`submissionID: 2 ${aSubmission?._id} Inactive Days: ${emailParams.finalRemindSubmissionDay} Accessed: ${getFormattedDateTime(aSubmission?.accessedAt)} Current: ${getCurrentTime()}  ${logDaysDifference(aSubmission?.accessedAt, aSubmission?._id)}`);
         }
     }
 }
@@ -2093,7 +2095,7 @@ class Collaborators {
 }
 
 // TODO remove temporary for QA
-function logDaysDifference(inactiveDays, accessedAt, submissionID) {
+function logDaysDifference(accessedAt, submissionID) {
     try {
         const startedDate = accessedAt; // Ensure it's a Date object
         const endDate = getCurrentTime();
@@ -2101,12 +2103,10 @@ function logDaysDifference(inactiveDays, accessedAt, submissionID) {
         const days = Math.floor(differenceMs / (1000 * 60 * 60 * 24));
         const hours = Math.floor((differenceMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
         const minutes = Math.floor((differenceMs % (1000 * 60 * 60)) / (1000 * 60));
-        console.log(`submissionID: ${submissionID} Inactive Days: ${inactiveDays} Accessed: ${getFormattedDateTime(startedDate)} Current: ${getFormattedDateTime(endDate)}  Diff: ${days} days ${hours} hr ${minutes} min`);
+        return`Diff: ${days} days ${hours} hr ${minutes} min`;
     } catch (error) {
         console.warn("Failed to log the time", error, `submissionID: ${submissionID}`)
     }
-
-
 }
 
 // TODO remove temporary for QA
