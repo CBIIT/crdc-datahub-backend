@@ -1263,7 +1263,7 @@ class Submission {
                      contactName: `${aSubmission?.conciergeName || 'NA'}`,
                      contactEmail: `${aSubmission?.conciergeEmail || 'NA'}`
                  });
-                 console.log(`submissionID: ${aSubmission?._id} Inactive Days: ${this.emailParams.inactiveSubmissionDays} Accessed: ${getFormattedDateTime(aSubmission?.accessedAt)} Current: ${getCurrentTime()}  ${logDaysDifference(aSubmission?.accessedAt, aSubmission?._id)}`);
+                 console.log(`submissionID: ${aSubmission?._id} Inactive Days: ${this.emailParams.inactiveSubmissionDays} Accessed: ${getFormattedDateTime(aSubmission?.accessedAt)} Current: ${getFormattedDateTime(getCurrentTime())}  ${logDaysDifference(aSubmission?.accessedAt, aSubmission?._id)}`);
              } catch (e) {
                  console.log("failed to log", `submissionID: ${aSubmission?._id}`)
              }
@@ -1796,7 +1796,7 @@ const sendEmails = {
             isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
         if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.REMIND_EXPIRE)) {
             console.error("sending emails to", `id=${aSubmission?._id}`);
-            console.log(`submissionID: 1 ${aSubmission?._id} Inactive Days: ${pastDays} Accessed: ${getFormattedDateTime(aSubmission?.accessedAt)} Current: ${getCurrentTime()}  ${logDaysDifference(aSubmission?.accessedAt, aSubmission?._id)}`);
+            console.log(`submissionID: 1 ${aSubmission?._id} Inactive Days: ${pastDays} Accessed: ${getFormattedDateTime(aSubmission?.accessedAt)} Current: ${getFormattedDateTime(getCurrentTime())}  ${logDaysDifference(aSubmission?.accessedAt, aSubmission?._id)}`);
             await notificationService.inactiveSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
                 firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
             }, {
@@ -1806,7 +1806,7 @@ const sendEmails = {
                 pastDays: pastDays || NA,
                 url: emailParams.url || NA
             });
-            console.log(`submissionID: 2 ${aSubmission?._id} Inactive Days: ${pastDays} Accessed: ${getFormattedDateTime(aSubmission?.accessedAt)} Current: ${getCurrentTime()}  ${logDaysDifference(aSubmission?.accessedAt, aSubmission?._id)}`);
+            console.log(`submissionID: 2 ${aSubmission?._id} Inactive Days: ${pastDays} Accessed: ${getFormattedDateTime(aSubmission?.accessedAt)} Current: ${getFormattedDateTime(getCurrentTime())}  ${logDaysDifference(aSubmission?.accessedAt, aSubmission?._id)}`);
         }
     },
     finalRemindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService) => {
@@ -1825,7 +1825,7 @@ const sendEmails = {
             u?._id !== aSubmitter?._id &&
             isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
         if (aSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.REMIND_EXPIRE)) {
-            console.log(`submissionID: 1 ${aSubmission?._id} Inactive Days: ${emailParams.finalRemindSubmissionDay} Accessed: ${getFormattedDateTime(aSubmission?.accessedAt)} Current: ${getCurrentTime()}  ${logDaysDifference(aSubmission?.accessedAt, aSubmission?._id)}`);
+            console.log(`submissionID: 1 ${aSubmission?._id} Inactive Days: ${emailParams.finalRemindSubmissionDay} Accessed: ${getFormattedDateTime(aSubmission?.accessedAt)} Current: ${getFormattedDateTime(getCurrentTime())}  ${logDaysDifference(aSubmission?.accessedAt, aSubmission?._id)}`);
             await notificationService.finalInactiveSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
                 firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
             }, {
@@ -1834,7 +1834,7 @@ const sendEmails = {
                 days: emailParams.finalRemindSubmissionDay || NA,
                 url: emailParams.url || NA
             });
-            console.log(`submissionID: 2 ${aSubmission?._id} Inactive Days: ${emailParams.finalRemindSubmissionDay} Accessed: ${getFormattedDateTime(aSubmission?.accessedAt)} Current: ${getCurrentTime()}  ${logDaysDifference(aSubmission?.accessedAt, aSubmission?._id)}`);
+            console.log(`submissionID: 2 ${aSubmission?._id} Inactive Days: ${emailParams.finalRemindSubmissionDay} Accessed: ${getFormattedDateTime(aSubmission?.accessedAt)} Current: ${getFormattedDateTime(getCurrentTime())}  ${logDaysDifference(aSubmission?.accessedAt, aSubmission?._id)}`);
         }
     }
 }
