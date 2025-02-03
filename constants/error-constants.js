@@ -9,7 +9,7 @@ const ERROR = {
     APPLICATION_INVALID_STATUES: "Requested statues $item$ is not valid",
     FAILED_RESTORE_APPLICATION: "An error occurred while restoring an application",
     MISSING_PROGRAM_INFO: "The program property is required to approve the submission request.",
-    INVALID_APPLICATION_RESTORE_STATE: "Application is failed to restore because of the invalid previous history",
+    INVALID_APPLICATION_RESTORE_STATE: "Failed to restore application because the application history data is invalid",
     UPDATE_FAILED: "Update unsuccessful",
     VERIFY: {
         UNDEFINED_APPLICATION: "Application array is undefined",
