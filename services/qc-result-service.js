@@ -152,8 +152,8 @@ class QcResultService{
             const errorMsg = QCResultError.create(
                 record.error.title,
                 replaceErrorString(record.error.desc, `'${record.fileName}'`),
-                record.error.code,
-                record.error.severity
+                record.error.severity,
+                record.error.code
             );
             return QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, record.fileName, null, null, VALIDATION_STATUS.ERROR, getCurrentTime(), getCurrentTime(), [errorMsg], [], record.dataRecordID, record?.origin);
         });
