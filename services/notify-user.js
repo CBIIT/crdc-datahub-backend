@@ -423,6 +423,7 @@ class NotifyUser {
                     message, ...template_params
                 }),
                 email,
+                [],
                 BCCEmails
             );
         });
