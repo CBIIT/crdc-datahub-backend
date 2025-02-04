@@ -670,7 +670,7 @@ class Application {
             await this.notificationService.cancelApplicationNotification(applicantInfo?.email, BCCUserEmails, {
                 firstName: `${applicantInfo.firstName} ${applicantInfo.lastName || ""}`
             },{
-                studyName: `${application?.studyName?.trim()},` || "NA,",
+                studyName: `${application?.studyName?.trim() || "NA"},`,
                 canceledNameBy: `${userCanceledBy.firstName} ${userCanceledBy.lastName || ""}`,
                 contactEmail: `${this.emailParams.conditionalSubmissionContact}.`
             });
@@ -688,7 +688,7 @@ class Application {
             await this.notificationService.restoreApplicationNotification(applicantInfo?.email, BCCUserEmails,{
                 firstName: `${applicantInfo.firstName} ${applicantInfo.lastName || ""}`
             },{
-                studyName: `${application?.studyName?.trim()},` || "NA,",
+                studyName: `${application?.studyName?.trim() || "NA"},`,
                 contactEmail: `${this.emailParams.conditionalSubmissionContact}.`
             });
         }

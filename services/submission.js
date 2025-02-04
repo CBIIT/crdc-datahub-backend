@@ -1681,7 +1681,7 @@ const sendEmails = {
                 // only one study
                 studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
                 conciergeName: aOrganization?.conciergeName || NA,
-                conciergeEmail: `${aOrganization?.conciergeEmail}.` || `${NA}.`
+                conciergeEmail: `${aOrganization?.conciergeEmail || NA}.`
             });
         }
     },
@@ -1709,7 +1709,7 @@ const sendEmails = {
                 submissionName: aSubmission?.name,
                 studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
                 canceledBy: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
-                conciergeEmail: `${aOrganization?.conciergeEmail}.` || `${NA}.`,
+                conciergeEmail: `${aOrganization?.conciergeEmail || NA}.`,
                 conciergeName: aOrganization?.conciergeName || NA
             });
         }
@@ -1770,7 +1770,7 @@ const sendEmails = {
             submissionName: aSubmission?.name,
             // only one study
             studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
-            techSupportEmail: `${emailParams.techSupportEmail}.` || `${NA}.`
+            techSupportEmail: `${emailParams.techSupportEmail || NA}.`
         })
     },
     rejectSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
@@ -1796,7 +1796,7 @@ const sendEmails = {
             }, {
                 submissionID: aSubmission?._id,
                 submissionName: aSubmission?.name,
-                conciergeEmail: `${aOrganization?.conciergeEmail}.` || `${NA}.`,
+                conciergeEmail: `${aOrganization?.conciergeEmail || NA}.`,
                 conciergeName: aOrganization?.conciergeName || NA
             });
         }
