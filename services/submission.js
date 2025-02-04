@@ -1709,8 +1709,8 @@ const sendEmails = {
                 submissionName: aSubmission?.name,
                 studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
                 canceledBy: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
-                conciergeEmail: aOrganization?.conciergeEmail || NA,
-                conciergeName: `${aOrganization?.conciergeName}.` || `${NA}.`
+                conciergeEmail: `${aOrganization?.conciergeEmail}.` || `${NA}.`,
+                conciergeName: aOrganization?.conciergeName || NA
             });
         }
     },
