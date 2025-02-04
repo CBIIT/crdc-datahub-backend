@@ -712,12 +712,7 @@ class DataRecordService {
             dataCommons: dataCommons,
             nodeType: nodeType,
             nodeID: nodeID,
-            $expr: {
-                $eq: [
-                  { $arrayElemAt: ["$status", -1] }, // Get the last element of the array
-                  status                                // Check if it equals nodeStatus
-                ]
-              }
+            status: status
         };
         const results = await this.releaseCollection.aggregate([{
             $match: query
