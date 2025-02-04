@@ -1256,7 +1256,7 @@ class Submission {
                  isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
              await this.notificationService.deleteSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
                  firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`}, {
-                 submissionName: aSubmission?.name,
+                 submissionName: `${aSubmission?.name},`,
                  studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
                  inactiveDays: this.emailParams.inactiveSubmissionDays,
                  contactName: `${aSubmission?.conciergeName || 'NA'}`,
@@ -1646,10 +1646,10 @@ const sendEmails = {
             await notificationService.submitDataSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
                     firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
                 }, {
-                    submissionName: aSubmission?.name,
+                    submissionName: `${aSubmission?.name},`,
                     dataCommonsName: aSubmission?.dataCommons,
                     contactName: `${aSubmission?.conciergeName || 'NA'}`,
-                    contactEmail: `${aSubmission?.contactEmail || 'NA'}`
+                    contactEmail: `${aSubmission?.contactEmail || 'NA'}.`
                 }
             );
         }
@@ -1672,11 +1672,11 @@ const sendEmails = {
             await notificationsService.completeSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
                 firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
             }, {
-                submissionName: aSubmission?.name,
+                submissionName: `${aSubmission?.name},`,
                 // only one study
                 studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
                 conciergeName: aOrganization?.conciergeName || NA,
-                conciergeEmail: aOrganization?.conciergeEmail || NA
+                conciergeEmail: `${aOrganization?.conciergeEmail}.` || `${NA}.`
             });
         }
     },
@@ -1705,7 +1705,7 @@ const sendEmails = {
                 studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
                 canceledBy: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
                 conciergeEmail: aOrganization?.conciergeEmail || NA,
-                conciergeName: aOrganization?.conciergeName || NA
+                conciergeName: `${aOrganization?.conciergeName}.` || `${NA}.`
             });
         }
     },
@@ -1765,7 +1765,7 @@ const sendEmails = {
             submissionName: aSubmission?.name,
             // only one study
             studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
-            techSupportEmail: emailParams.techSupportEmail || NA
+            techSupportEmail: `${emailParams.techSupportEmail}.` || `${NA}.`
         })
     },
     rejectSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
@@ -1791,7 +1791,7 @@ const sendEmails = {
             }, {
                 submissionID: aSubmission?._id,
                 submissionName: aSubmission?.name,
-                conciergeEmail: aOrganization?.conciergeEmail || NA,
+                conciergeEmail: `${aOrganization?.conciergeEmail}.` || `${NA}.`,
                 conciergeName: aOrganization?.conciergeName || NA
             });
         }
