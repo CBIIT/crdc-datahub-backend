@@ -43,6 +43,7 @@ const ERROR = {
     FAILED_NEW_BATCH_NO_ROOT_PATH: "The batch creation is aborted because the current submission is missing a rootpath",
     INVALID_BATCH_PERMISSION: "You do not have permission to run a batch operation",
     SUBMISSION_NOT_EXIST: "The submission you are trying to access does not exist",
+    INVALID_STATUS_EDIT_COLLABORATOR: "Submission status is invalid to edit collaborator; $item$",
     BATCH_NOT_EXIST: "The batch you are trying to access does not exist",
     INVALID_UPDATE_BATCH_STATUS: "The batch update is aborted because the current batch status is not suitable for modification",
     FAILED_BATCH_UPDATE: "An error occurred while updating a batch",

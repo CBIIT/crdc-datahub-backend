@@ -1001,7 +1001,7 @@ class Submission {
      * API: editSubmissionCollaborators
      * @param {*} params 
      * @param {*} context 
-     * @returns 
+     * @returns submission document
      */
     async editSubmissionCollaborators(params, context) {
         verifySession(context)
@@ -1014,6 +1014,11 @@ class Submission {
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
+
+        if (![NEW, IN_PROGRESS, SUBMITTED, RELEASED, ARCHIVED, REJECTED, WITHDRAWN].includes(aSubmission?.status)) {
+            throw new Error(replaceErrorString(ERROR.INVALID_STATUS_EDIT_COLLABORATOR, `'${aSubmission?.status}'`));
+        }
+
         if (!aSubmission.studyID) {
             throw new Error(ERROR.INVALID_SUBMISSION_STUDY);
         }
@@ -1047,7 +1052,7 @@ class Submission {
         // if passed validation
         aSubmission.collaborators = collaborators;  
         aSubmission.updatedAt = new Date(); 
-        const result = await this.submissionCollection.update( aSubmission);
+        const result = await this.submissionCollection.update(aSubmission);
         if (result?.modifiedCount === 1) {
             return aSubmission;
         }
