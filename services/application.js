@@ -67,7 +67,7 @@ class Application {
         const study = study_arr[0];
         if(study?.controlledAccess && !study?.dbGaPID){
             application.conditional = true;
-            application.pendingConditions = (!application?.pendingConditions)? [ERROR.CONTROLLED_STUDY_NO_DBGAPID] : application.pendingConditions.push(CONTROLLED_STUDY_NO_DBGAPID);
+            application.pendingConditions = (!application?.pendingConditions)? [ERROR.CONTROLLED_STUDY_NO_DBGAPID] : application.pendingConditions.push(ERROR.CONTROLLED_STUDY_NO_DBGAPID);
         }
         else {
             application.conditional = false;
