@@ -643,7 +643,7 @@ class UserService {
         const query= {
             "userStatus": USER.STATUSES.ACTIVE,
             "role": USER.ROLES.DATA_COMMONS_PERSONNEL,
-            ...(dataCommonsArr.length > 0 ? { "dataCommons": dataCommonsArr } : {})
+            ...(dataCommonsArr.length > 0 ? { "dataCommons": {$in: dataCommonsArr} } : {})
         };
         return await this.userCollection.aggregate([{"$match": query}]);
     }
