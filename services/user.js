@@ -39,7 +39,6 @@ const createToken = (userInfo, token_secret, token_timeout)=> {
 class UserService {
     #allPermissionNamesSet = new Set([...Object.values(SUBMISSION_REQUEST), ...Object.values(DATA_SUBMISSION), ...Object.values(ADMIN)]);
     #allEmailNotificationNamesSet = new Set([...Object.values(EN.SUBMISSION_REQUEST), ...Object.values(EN.DATA_SUBMISSION), ...Object.values(EN.USER_ACCOUNT)]);
-    #ALL = "All";
     constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, approvedStudiesService, inactiveUserDays, configurationService) {
         this.userCollection = userCollection;
         this.logCollection = logCollection;
@@ -295,8 +294,7 @@ class UserService {
         verifySession(context)
             .verifyInitialized()
             .verifyPermission([USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_STUDIES, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_PROGRAMS]);
-        const dataCommons = params?.dataCommons?.includes(this.#ALL) ? [] : params?.dataCommons;
-        const DCPUsers = await this.getDCPs(dataCommons || []);
+        const DCPUsers = await this.getDCPs(params.dataCommons || []);
         return DCPUsers?.map((user) => ({
             userID: user._id,
             firstName: user.firstName,
@@ -643,7 +641,7 @@ class UserService {
         const query= {
             "userStatus": USER.STATUSES.ACTIVE,
             "role": USER.ROLES.DATA_COMMONS_PERSONNEL,
-            ...(dataCommonsArr.length > 0 ? { "dataCommons": {$in: dataCommonsArr} } : {})
+            ...(dataCommonsArr.includes("All") ? {} : { "dataCommons": {$in: dataCommonsArr} })
         };
         return await this.userCollection.aggregate([{"$match": query}]);
     }
