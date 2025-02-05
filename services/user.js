@@ -39,6 +39,7 @@ const createToken = (userInfo, token_secret, token_timeout)=> {
 class UserService {
     #allPermissionNamesSet = new Set([...Object.values(SUBMISSION_REQUEST), ...Object.values(DATA_SUBMISSION), ...Object.values(ADMIN)]);
     #allEmailNotificationNamesSet = new Set([...Object.values(EN.SUBMISSION_REQUEST), ...Object.values(EN.DATA_SUBMISSION), ...Object.values(EN.USER_ACCOUNT)]);
+    #ALL = "All";
     constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, approvedStudiesService, inactiveUserDays, configurationService) {
         this.userCollection = userCollection;
         this.logCollection = logCollection;
@@ -274,6 +275,29 @@ class UserService {
 
         const curators = await this.getActiveCurators();
         return curators?.map((user) => ({
+            userID: user._id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            createdAt: user.createdAt,
+            updateAt: user.updateAt,
+        })) || [];
+    }
+
+
+    /**
+     * List Active Data-Commons Personnel API Interface.
+     * @api
+     * @param {Object} params Endpoint parameters
+     * @param {{ cookie: Object, userInfo: Object }} context API request context
+     * @returns {Promise<User[]>} An array of Data-Commons Personnel Users
+     */
+    async listActiveDCPsAPI(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission([USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_STUDIES, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_PROGRAMS]);
+        const dataCommons = params?.dataCommons?.includes(this.#ALL) ? [] : params?.dataCommons;
+        const DCPUsers = await this.getDCPs(dataCommons || []);
+        return DCPUsers?.map((user) => ({
             userID: user._id,
             firstName: user.firstName,
             lastName: user.lastName,
@@ -615,10 +639,11 @@ class UserService {
      * @returns {Promise<Array>} user[]
      */
     async getDCPs(dataCommons) {
+        const dataCommonsArr = Array.isArray(dataCommons) ? dataCommons : [dataCommons];
         const query= {
             "userStatus": USER.STATUSES.ACTIVE,
             "role": USER.ROLES.DATA_COMMONS_PERSONNEL,
-            "dataCommons": {$in: Array.isArray(dataCommons) ? dataCommons : [dataCommons]}
+            ...(dataCommonsArr.length > 0 ? { "dataCommons": dataCommonsArr } : {})
         };
         return await this.userCollection.aggregate([{"$match": query}]);
     }

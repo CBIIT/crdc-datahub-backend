@@ -617,6 +617,7 @@ type Query {
 
     getSubmission(_id: ID!): Submission
     submissionStats(_id: ID!): SubmissionStats
+    listActiveDCPs(dataCommons: [String]!): [UserInfo]
 
     aggregatedSubmissionQCResults(
         submissionID: ID!,
