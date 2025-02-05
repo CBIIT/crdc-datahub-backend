@@ -461,6 +461,13 @@ class Application {
                         promises.push(this.organizationService.upsertByProgramName(name, abbreviation, description, [approvedStudies]));
                     }
                 }
+                // Program already exists, and append a new study into the program
+                const existingProgram = await this.organizationService.getOrganizationByID(questionnaire?.program?._id);
+                const programStudies = existingProgram?.studies || [];
+                const filteredStudies = programStudies.filter((study)=> study?._id === approvedStudies?._id);
+                if (existingProgram && (programStudies.length === 0 || filteredStudies.length === 0)) {
+                    promises.push(this.organizationService.organizationCollection.update({_id: existingProgram?._id, studies: [...programStudies, approvedStudies], updatedAt: getCurrentTime()}));
+                }
             }
             promises.push(this.logCollection.insert(
                 UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, APPROVED)
