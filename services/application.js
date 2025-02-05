@@ -551,7 +551,7 @@ class Application {
                     ?.filter((u) => u?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_DELETE))
                     ?.map((u) => u?._id)
             );
-            const history = HistoryEventBuilder.createEvent(0, DELETED, "Deleted because of no activities after submission");
+            const history = HistoryEventBuilder.createEvent("", DELETED, "Deleted because of no activities after submission");
             const updated = await this.dbService.updateMany(APPLICATION,
                 inactiveCondition,
                 {   // Once the submission request is deleted, the reminder email should not be sent.
