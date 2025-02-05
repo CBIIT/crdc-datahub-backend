@@ -15,7 +15,7 @@ class HistoryEventBuilder {
         let event = {};
         if (this._status) event.status = this._status;
         if (this._comment) event.reviewComment = this._comment;
-        if (this._userID) event.userID = this._userID;
+        if (this._userID != null) event.userID = this._userID;
         event.dateTime = getCurrentTime();
         return event;
     }
