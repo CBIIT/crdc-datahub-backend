@@ -52,3 +52,38 @@ Commands:
         db.users.countDocuments({$or: [{permissions: null}, {notifications: null}]})
       find: |
         db.users.find({$or: [{permissions: null}, {notifications: null}]})
+  - Cleanup QCResuls collection (CRDCDH-2323): |
+      db.qcResults.deleteMany({"errors.code": "Error", "origin": "API: submissionStats"})
+  - Update application history (CRDCDH-2306): |
+      db.applications.updateMany(
+      { "history": { $in: [null] } }, // Find documents where history contains null
+      {
+        $set: {
+          "history.$[elem]": { status: "Deleted", userID: "" }
+        }
+      },
+      {
+        arrayFilters: [{ "elem": null }] // Only update elements that are null
+      });
+        
+      // checking null or undefined userID and set the userID to ""
+      db.applications.updateMany(
+      {
+        $or: [
+          { "history.userID": { $in: [null] } },  // Find userID that is null or empty
+          { "history.userID": { $exists: false } }   // Find userID that is undefined (missing)
+        ]
+      },
+      {
+        $set: {
+          "history.$[elem].userID": "" // Set userID to empty string
+        }
+      },
+      {
+        arrayFilters: [{
+          $or: [
+            { "elem.userID": { $in: [null] } },  // Update if null or empty string
+            { "elem.userID": { $exists: false } }   // Update if undefined
+          ]
+        }]
+      });
