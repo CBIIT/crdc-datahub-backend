@@ -33,6 +33,7 @@ const COMPLETED_RETENTION_DAYS = "COMPLETED_RETENTION_DAYS";
 const INACTIVE_SUBMISSION_DAYS_DELETE = "INACTIVE_SUBMISSION_DAYS_DELETE";
 const DASHBOARD_SESSION_TIMEOUT = "DASHBOARD_SESSION_TIMEOUT";
 const INACTIVE_SUBMISSION_NOTIFY_DAYS = "INACTIVE_SUBMISSION_NOTIFY_DAYS";
+const INACTIVE_APPLICATION_NOTIFY_DAYS = "INACTIVE_APPLICATION_NOTIFY_DAYS";
 const LIST_OF_S3_BUCKETS = "LIST_OF_S3_BUCKETS";
 const SUBMISSION_BUCKET = "SUBMISSION_BUCKET";
 
@@ -70,6 +71,8 @@ let config = {
         const inactiveSubmissionDaysConf = scheduledJobsConf?.[INACTIVE_SUBMISSION_DAYS_DELETE];
         const completedSubmissionDaysConf = scheduledJobsConf?.[COMPLETED_RETENTION_DAYS];
         const inactiveSubmissionNotifyDaysConf = scheduledJobsConf?.[INACTIVE_SUBMISSION_NOTIFY_DAYS];
+        const inactiveApplicationNotifyDaysConf = scheduledJobsConf?.[INACTIVE_APPLICATION_NOTIFY_DAYS];
+
         const scheduledJobTime = scheduledJobsConf?.[SCHEDULED_JOBS];
         // EMAIL_SMTP
         const emailSmtpConf = await configurationService.findByType(EMAIL_SMTP);
@@ -141,7 +144,8 @@ let config = {
             inactive_submission_days: inactiveSubmissionDaysConf || (process.env.INACTIVE_SUBMISSION_DAYS_DELETE || 120),
             completed_submission_days: completedSubmissionDaysConf || (process.env.COMPLETED_RETENTION_DAYS || 30),
             dashboardSessionTimeout: dashboardSessionTimeoutConf || (process.env.DASHBOARD_SESSION_TIMEOUT || 3600), // 60 minutes by default
-            inactiveSubmissionNotifyDays: inactiveSubmissionNotifyDaysConf || [7, 30, 60], // 7, 30, 60 days by default
+            inactiveSubmissionNotifyDays: inactiveSubmissionNotifyDaysConf || [7, 30, 60],
+            inactiveApplicationNotifyDays: inactiveApplicationNotifyDaysConf || [7, 15, 30], // 7, 15, 30 days by default
             conditionalSubmissionContact: submissionRequestEmailConf || "NCICRDC@mail.nih.gov",
             submissionGuideUrl: submissionGuideURLConf || "https://datacommons.cancer.gov/data-submission-instructions",
             scheduledJobTime: scheduledJobTime || "1 0 1 * * *"

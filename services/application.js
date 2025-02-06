@@ -19,6 +19,8 @@ const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/cons
 
 class Application {
     #ALL_FILTER="All";
+    #FINAL_INACTIVE_REMINDER = "finalInactiveReminder";
+    #INACTIVE_REMINDER = "inactiveReminder";
     constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService, configurationService) {
         this.logCollection = logCollection;
         this.applicationCollection = applicationCollection;
@@ -580,34 +582,93 @@ class Application {
     }
 
     async remindApplicationSubmission() {
-        const inactiveDuration = this.emailParams.remindDay;
-        const remindCondition = {
-            updatedAt: {
-                $lt: subtractDaysFromNow(inactiveDuration)
-            },
-            status: {$in: [NEW, IN_PROGRESS, INQUIRED]},
-            inactiveReminder: {$ne: true}
-        };
-        const applications = await this.applicationCollection.aggregate([{$match: remindCondition}]);
-        if (applications?.length > 0) {
-            const applicantUsers = await this.#findUsersByApplicantIDs(applications);
-            const permittedUserIDs = new Set(
-                applicantUsers
-                    ?.filter((u) => u?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_EXPIRING))
-                    ?.map((u) => u?._id)
-            );
-            await Promise.all(applications.map(async (app) => {
-                if (permittedUserIDs.has(app?.applicant?.applicantID)) {
-                    await sendEmails.remindApplication(this.notificationService, this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app);
-                }
+        // The system sends an email reminder a day before the data submission expires
+        const finalInactiveApplications = await this.#getInactiveSubmissions(this.emailParams.inactiveDays - 1, this.#FINAL_INACTIVE_REMINDER)
+        if (finalInactiveApplications?.length > 0) {
+            await Promise.all(finalInactiveApplications.map(async (aApplication) => {
+                await this.#sendEmailFinalInactiveApplication(aApplication);
             }));
-            const applicationIDs = applications.map(app => app._id);
+            const applicationIDs = finalInactiveApplications
+                .map(application => application._id);
             const query = {_id: {$in: applicationIDs}};
-            const updatedReminder = await this.applicationCollection.updateMany(query, {inactiveReminder: true});
+            // Disable all reminders to ensure no notifications are sent.
+            const everyReminderDays = this.#getEveryReminderQuery(this.emailParams.inactiveApplicationNotifyDays, true);
+            const updatedReminder = await this.applicationCollection.updateMany(query, everyReminderDays);
             if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
-                console.error("The email reminder flag intended to notify the inactive application user is not being stored");
+                console.error("The email reminder flag intended to notify the inactive submission request (FINAL) is not being stored", `submissionIDs: ${applicationIDs.join(', ')}`);
             }
         }
+        // Map over inactiveDays to create an array of tuples [day, promise]
+        const inactiveApplicationsPromises = [];
+        for (const day of this.emailParams.inactiveApplicationNotifyDays) {
+            const pastInactiveDays = this.emailParams.inactiveDays - day;
+            inactiveApplicationsPromises.push([pastInactiveDays, await this.#getInactiveSubmissions(pastInactiveDays, `${this.#INACTIVE_REMINDER}_${day}`)]);
+        }
+        const inactiveApplicationsResult = await Promise.all(inactiveApplicationsPromises);
+        const inactiveApplicationMapByDays = inactiveApplicationsResult.reduce((acc, [key, value]) => {
+            acc[key] = value;
+            return acc;
+        }, {});
+        // For Sorting, the oldest submission about to expire submission will be sent at once.
+        const sortedKeys = Object.keys(inactiveApplicationMapByDays).sort((a, b) => b - a);
+        let uniqueSet = new Set();  // Set to track used _id values
+        sortedKeys.forEach((key) => {
+            // Filter out _id values that have already been used
+            inactiveApplicationMapByDays[key] = inactiveApplicationMapByDays[key].filter(obj => {
+                if (!uniqueSet.has(obj._id)) {
+                    uniqueSet.add(obj._id);
+                    return true;  // Keep this object
+                }
+                return false;  // Remove this object as it's already been used
+            });
+        });
+
+        if (uniqueSet.size > 0) {
+            const emailPromises = [];
+            let inactiveApplications = [];
+            for (const [pastDays, aApplicationArray] of Object.entries(inactiveApplicationMapByDays)) {
+                for (const aApplication of aApplicationArray) {
+                    const emailPromise = (async (pastDays) => {
+                        // by default, final reminder 180 days
+                        await this.#sendEmailInactiveApplication(aApplication, pastDays);
+                    })(pastDays);
+                    emailPromises.push(emailPromise);
+                    inactiveApplications.push([aApplication?._id, pastDays]);
+                }
+            }
+            await Promise.all(emailPromises);
+            const submissionReminderDays = this.emailParams.inactiveApplicationNotifyDays;
+            for (const inactiveApplication of inactiveApplications) {
+                const applicationID = inactiveApplication[0];
+                const pastDays = inactiveApplication[1];
+                const expiredDays = this.emailParams.inactiveDays - pastDays;
+                const reminderDays = submissionReminderDays.filter((d) => expiredDays < d || expiredDays === d);
+                // The applications with the closest expiration dates will be flagged as true; no sent any notification anymore
+                // A notification will be sent at each interval. ex) 7, 30, 60 days before expiration
+                const reminderFilter = reminderDays.reduce((acc, day) => {
+                    acc[`${this.#INACTIVE_REMINDER}_${day}`] = true;
+                    return acc;
+                }, {});
+                const updatedReminder = await this.applicationCollection.update({_id: applicationID, ...reminderFilter});
+                if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
+                    console.error("The email reminder flag intended to notify the inactive submission request is not being stored", applicationID);
+                }
+            }
+        }
+    }
+
+    async #getInactiveSubmissions(inactiveDays, inactiveFlagField) {
+        const remindCondition = {
+            updatedAt: {
+                $lt: subtractDaysFromNow(inactiveDays),
+            },
+            status: {
+                $in: [NEW, IN_PROGRESS, INQUIRED]
+            },
+            // Tracks whether the notification has already been sent
+            [inactiveFlagField]: {$ne: true}
+        };
+        return await this.applicationCollection.aggregate([{$match: remindCondition}]);
     }
 
     async #findUsersByApplicantIDs(applications) {
@@ -701,6 +762,68 @@ class Application {
         }
 
     }
+
+    async #sendEmailFinalInactiveApplication(application) {
+        const [aSubmitter, BCCUsers] = await Promise.all([
+            this.userService.getUserByID(application?.applicant?.applicantID),
+            this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_EXPIRING],
+                [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN])
+        ]);
+
+        const filteredBCCUsers = BCCUsers.filter((u) => u?._id !== aSubmitter?._id);
+        if (!aSubmitter?.email) {
+            console.log("The final inactive application reminder was not sent.", `Submission Request ID: ${application?._id}`);
+            return;
+        }
+
+        if (aSubmitter?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_EXPIRING)) {
+            const studyName = application?.studyAbbreviation?.trim();
+            await this.notificationService.finalRemindApplicationsNotification(aSubmitter?.email,
+                getUserEmails(filteredBCCUsers), {
+                    firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`,
+                    studyName: studyName?.length > 0 ? studyName : "N/A"
+                },{
+                    inactiveDays: this.emailParams.inactiveDays,
+                    url: this.emailParams.url
+                });
+            logDaysDifference(this.emailParams.inactiveDays - 1, application?.updatedAt, application?._id);
+        }
+    }
+
+    async #sendEmailInactiveApplication(application, interval) {
+        const [aSubmitter, BCCUsers] = await Promise.all([
+            this.userService.getUserByID(application?.applicant?.applicantID),
+            this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_EXPIRING],
+                [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN])
+        ]);
+
+        if (!aSubmitter?.email) {
+            console.log("The inactive application reminder was not sent.", `${interval} days Submission Request ID: ${application?._id}`);
+            return;
+        }
+
+        if (aSubmitter?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_EXPIRING)) {
+            const studyName = application?.studyAbbreviation?.trim();
+            await this.notificationService.remindApplicationsNotification(aSubmitter?.email,
+                getUserEmails(BCCUsers), {
+                    firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`,
+                    studyName: studyName?.length > 0 ? studyName : "N/A"
+                },{
+                    remainDays: this.emailParams.inactiveDays - interval,
+                    inactiveDays: interval,
+                    url: this.emailParams.url
+                });
+            logDaysDifference(interval, application?.updatedAt, application?._id);
+        }
+    }
+
+    // Generates a query for the status of all email notification reminder.
+    #getEveryReminderQuery(remindSubmissionDay, status) {
+        return remindSubmissionDay.reduce((acc, day) => {
+            acc[`${this.#INACTIVE_REMINDER}_${day}`] = status;
+            return acc;
+        }, {[`${this.#FINAL_INACTIVE_REMINDER}`]: status});
+    }
 }
 
 function verifyReviewerPermission(context){
@@ -739,16 +862,6 @@ const setDefaultIfNoName = (str) => {
 }
 
 const sendEmails = {
-    remindApplication: async (notificationService, emailParams, email, applicantName, application) => {
-        await notificationService.remindApplicationsNotification(email, {
-            firstName: applicantName
-        },{
-            study: setDefaultIfNoName(application?.studyAbbreviation),
-            remindDay: emailParams.remindDay,
-            differDay: emailParams.inactiveDays - emailParams.remindDay,
-            url: emailParams.url
-        });
-    },
     inactiveApplications: async (notificationService, emailParams, email, applicantName, application, BCCEmails) => {
         await notificationService.inactiveApplicationsNotification(email,
             BCCEmails, {
@@ -759,6 +872,7 @@ const sendEmails = {
             inactiveDays: emailParams.inactiveDays,
             url: emailParams.url
         });
+        logDaysDifference(emailParams.inactiveDays, application?.updatedAt, application?._id);
     },
     submitApplication: async (notificationService, userService, emailParams, userInfo, application) => {
         const applicantInfo = (await userService.userCollection.find(application?.applicant?.applicantID))?.pop();
@@ -853,6 +967,17 @@ const getApplicationQuestionnaire = (aApplication) => {
         return null;
     }
     return questionnaire;
+}
+
+// TODO remove temporary for QA
+function logDaysDifference(inactiveDays, accessedAt, applicationID) {
+    const startedDate = accessedAt; // Ensure it's a Date object
+    const endDate = getCurrentTime();
+    const differenceMs = endDate - startedDate; // Difference in milliseconds
+    const days = Math.floor(differenceMs / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((differenceMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((differenceMs % (1000 * 60 * 60)) / (1000 * 60));
+    console.log(`Application ID: ${applicationID}, Inactive Days: ${inactiveDays}, Last Accessed: ${startedDate}, Current Time: ${endDate}  Difference: ${days} days, ${hours} hours, ${minutes} minutes`);
 }
 
 module.exports = {
