@@ -633,6 +633,7 @@ class Application {
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW)) {
             if (!conditional) {
                 await this.notificationService.approveQuestionNotification(application?.applicant?.applicantEmail,
+                    getCCEmails(application?.applicant?.applicantEmail, application),
                     toBCCEmails,
                     {
                         firstName: application?.applicant?.applicantName,
@@ -645,6 +646,7 @@ class Application {
                 return;
             }
             await this.notificationService.conditionalApproveQuestionNotification(application?.applicant?.applicantEmail,
+                getCCEmails(application?.applicant?.applicantEmail, application),
                 toBCCEmails,
                 {
                     firstName: application?.applicant?.applicantName,
@@ -738,9 +740,20 @@ const setDefaultIfNoName = (str) => {
     return (name.length > 0) ? (name) : "NA";
 }
 
+const getCCEmails = (submitterEmail, application) => {
+    const questionnaire = getApplicationQuestionnaire(application);
+    if (!questionnaire || !submitterEmail) {
+        return [];
+    }
+    const CCEmailsSet = new Set([questionnaire?.primaryContact?.email, questionnaire?.pi?.email]
+        .filter((email) => email && email !== submitterEmail));
+    return CCEmailsSet.toArray();
+}
+
 const sendEmails = {
     remindApplication: async (notificationService, emailParams, email, applicantName, application) => {
-        await notificationService.remindApplicationsNotification(email, {
+        await notificationService.remindApplicationsNotification(email,
+            getCCEmails(email, application), {
             firstName: applicantName
         },{
             study: setDefaultIfNoName(application?.studyAbbreviation),
@@ -751,6 +764,7 @@ const sendEmails = {
     },
     inactiveApplications: async (notificationService, emailParams, email, applicantName, application, BCCEmails) => {
         await notificationService.inactiveApplicationsNotification(email,
+            getCCEmails(email, application),
             BCCEmails, {
             firstName: applicantName},{
             pi: `${applicantName}`,
@@ -767,6 +781,7 @@ const sendEmails = {
                 [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL]);
 
             await notificationService.submitRequestReceivedNotification(application?.applicant?.applicantEmail,
+                getCCEmails(application?.applicant?.applicantEmail, application),
                 getUserEmails(BCCUsers),
                 {helpDesk: `${emailParams.conditionalSubmissionContact}.`},
                 {userName: application?.applicant?.applicantName}
@@ -784,7 +799,9 @@ const sendEmails = {
             const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_READY_REVIEW],
                 [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL]);
 
-            await notificationService.submitQuestionNotification(getUserEmails(toUsers), getUserEmails(BCCUsers), {
+            await notificationService.submitQuestionNotification(getUserEmails(toUsers),
+                getCCEmails(application?.applicant?.applicantEmail, application),
+                getUserEmails(BCCUsers), {
                 pi: `${userInfo.firstName} ${userInfo.lastName},`,
                 programName: application?.programName?.trim() || "NA",
                 study: application?.studyAbbreviation || "NA",
@@ -801,7 +818,9 @@ const sendEmails = {
         const [toBCCUsers, applicant] = res;
         const applicantInfo = (applicant)?.pop();
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW)) {
-            await notificationService.inquireQuestionNotification(application?.applicant?.applicantEmail, getUserEmails(toBCCUsers),{
+            await notificationService.inquireQuestionNotification(application?.applicant?.applicantEmail,
+                getCCEmails(application?.applicant?.applicantEmail, application),
+                getUserEmails(toBCCUsers),{
                 firstName: application?.applicant?.applicantName,
                 reviewComments,
             }, {
@@ -814,7 +833,9 @@ const sendEmails = {
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW)) {
             const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
                 [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD]);
-            await notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail, getUserEmails(BCCUsers), {
+            await notificationService.rejectQuestionNotification(application?.applicant?.applicantEmail,
+                getCCEmails(application?.applicant?.applicantEmail, application),
+                getUserEmails(BCCUsers), {
                 firstName: application?.applicant?.applicantName,
                 reviewComments
             }, {
