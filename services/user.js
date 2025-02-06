@@ -462,9 +462,9 @@ class UserService {
             else {
                 // ** Must store Approved studies ID only **
                 if (approvedStudyIDs?.includes("All")) {
-                    updatedUser.studies = validStudies;
+                    updatedUser.studies = [{_id: "All"}];
                 } else {
-                    updatedUser.studies = (approvedStudyIDs instanceof Object)?approvedStudyIDs:approvedStudyIDs.map(str => ({ _id: str }));
+                    updatedUser.studies = approvedStudyIDs.map(str => ({ _id: str }));
                 }
             }
         }
