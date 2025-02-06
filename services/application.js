@@ -16,7 +16,7 @@ const {isUndefined, replaceErrorString} = require("../utility/string-util");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const {EMAIL_NOTIFICATIONS} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
-
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 class Application {
     #ALL_FILTER="All";
     constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService, configurationService) {
@@ -746,7 +746,7 @@ const getCCEmails = (submitterEmail, application) => {
         return [];
     }
     const CCEmailsSet = new Set([questionnaire?.primaryContact?.email, questionnaire?.pi?.email]
-        .filter((email) => email && email !== submitterEmail));
+        .filter((email) => email && email !== submitterEmail && EMAIL_REGEX.test(email)));
     return CCEmailsSet.toArray();
 }
 
