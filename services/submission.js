@@ -1731,10 +1731,8 @@ const sendEmails = {
         }
 
         const filteredBCCUsers = BCCUsers.filter((u) => isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
-        const aDCPUser = filteredDCPUsers?.pop();
-        // The Withdrawal email for BCC email should be sent only once.
-        await notificationsService.withdrawSubmissionNotification(aDCPUser?.email, getUserEmails(filteredBCCUsers), {
-            firstName: `${aDCPUser.firstName} ${aDCPUser?.lastName || ''}`
+        await notificationsService.withdrawSubmissionNotification(getUserEmails(filteredDCPUsers), getUserEmails(filteredBCCUsers), {
+            firstName: `${aSubmission?.dataCommons} Data Commons Personnel`
         }, {
             submissionID: aSubmission?._id,
             submissionName: aSubmission?.name,
@@ -1743,19 +1741,6 @@ const sendEmails = {
             withdrawnByName: `${userInfo.firstName} ${userInfo?.lastName || ''}.`,
             withdrawnByEmail: `${userInfo?.email}`
         });
-
-        await Promise.all(filteredDCPUsers.map(async (u) => {
-            await notificationsService.withdrawSubmissionNotification(u?.email, [], {
-                firstName: `${u.firstName} ${u?.lastName || ''}`
-            }, {
-                submissionID: aSubmission?._id,
-                submissionName: aSubmission?.name,
-                // only one study
-                studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
-                withdrawnByName: `${userInfo.firstName} ${userInfo?.lastName || ''}.`,
-                withdrawnByEmail: `${userInfo?.email}`
-            });
-        }));
     },
     releaseSubmission: async (emailParams, userInfo, aSubmission, userService, organizationService, notificationsService) => {
         const [DCPRoleUsers, BCCUsers, aOrganization] = await Promise.all([
