@@ -35,6 +35,7 @@ const DATA_MODEL_SEMANTICS = 'semantics';
 const DATA_MODEL_FILE_NODES = 'file-nodes';
 const COMPLETE_SUBMISSION = "Complete Submission";
 const GENERATE_DCF_MANIFEST = "Generate DCF Manifest";
+const RESTORE_DELETED_DATA_FILE = "Restore Deleted Data File";
 const DELETE_METADATA = "Delete Metadata";
 const INACTIVE_REMINDER = "inactiveReminder";
 const FINAL_INACTIVE_REMINDER = "finalInactiveReminder";
@@ -423,6 +424,9 @@ class Submission {
         if (action === ACTIONS.RELEASE) {
             completePromise.push(this.dataRecordService.exportMetadata(submissionID));
             completePromise.push(this.#sendCompleteMessage({type: GENERATE_DCF_MANIFEST, submissionID}, submissionID));
+        }
+        if (action === ACTIONS.REJECT) {
+            completePromise.push(this.#sendCompleteMessage({type: RESTORE_DELETED_DATA_FILE, submissionID}, submissionID));
         }
 
         //log event and send notification
