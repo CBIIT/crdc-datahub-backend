@@ -1265,7 +1265,7 @@ class Submission {
                  studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
                  inactiveDays: this.emailParams.inactiveSubmissionDays,
                  contactName: `${aSubmission?.conciergeName || 'NA'}`,
-                 contactEmail: `${aSubmission?.conciergeEmail || 'NA'}`
+                 contactEmail: `${aSubmission?.conciergeEmail || 'NA'}.`
              });
              logDaysDifference(this.emailParams.inactiveSubmissionDays + " Deleted Action", aSubmission?.accessedAt, aSubmission?._id);
          }
