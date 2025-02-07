@@ -33,7 +33,7 @@ class NotifyUser {
         console.error("Unable to load email constants from file, email not sent");
     }
 
-    async submitQuestionNotification(toEmails, BCCEmails, messageVariables) {
+    async submitQuestionNotification(toEmails, CCEmails, BCCEmails, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.SUBMISSION_CONTENT, messageVariables);
         const subject = this.email_constants.SUBMISSION_SUBJECT;
         return await this.send(async () => {
@@ -44,13 +44,13 @@ class NotifyUser {
                     message, firstName: this.email_constants.APPLICATION_COMMITTEE_NAME
                 }),
                 toEmails,
-                [],
+                CCEmails,
                 BCCEmails
             );
         });
     }
 
-    async submitRequestReceivedNotification(email, BCCsEmails, messageVariables, templateParams) {
+    async submitRequestReceivedNotification(email, CCEmails, BCCsEmails, messageVariables, templateParams) {
         const message = replaceMessageVariables(this.email_constants.SUBMISSION_SUBMIT_RECEIVE_CONTENT_FIRST, {});
         const secondMessage = replaceMessageVariables(this.email_constants.SUBMISSION_SUBMIT_RECEIVE_CONTENT_SECOND, messageVariables);
         const subject = this.email_constants.SUBMISSION_SUBMIT_RECEIVE_SUBJECT;
@@ -62,7 +62,7 @@ class NotifyUser {
                     message, secondMessage, firstName: templateParams.userName
                 }),
                 email,
-                [],
+                CCEmails,
                 BCCsEmails
             );
             if (res?.accepted?.length === 0) {
@@ -71,7 +71,7 @@ class NotifyUser {
         });
     }
 
-    async inactiveApplicationsNotification(email, BCCEmails, template_params, messageVariables) {
+    async inactiveApplicationsNotification(email, CCEmails, BCCEmails, template_params, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.INACTIVE_APPLICATION_CONTENT, messageVariables);
         const subject = this.email_constants.INACTIVE_APPLICATION_SUBJECT;
         return await this.send(async () => {
@@ -82,7 +82,7 @@ class NotifyUser {
                     message, ...template_params
                 }),
                 email,
-                [],
+                CCEmails,
                 BCCEmails
             );
         });
@@ -130,7 +130,7 @@ class NotifyUser {
         });
     }
 
-    async inquireQuestionNotification(email, BCCEmails, templateParams, messageVariables) {
+    async inquireQuestionNotification(email, CCEmails, BCCEmails, templateParams, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.INQUIRE_CONTENT, messageVariables);
         const secondMessage = replaceMessageVariables(this.email_constants.INQUIRE_SECOND_CONTENT, messageVariables);
         const subject = this.email_constants.INQUIRE_SUBJECT;
@@ -142,13 +142,13 @@ class NotifyUser {
                     message, secondMessage, ...templateParams
                 }),
                 email,
-                [],
+                CCEmails,
                 BCCEmails
             );
         });
     }
 
-    async rejectQuestionNotification(email, toBCCEmails, templateParams, messageVariables) {
+    async rejectQuestionNotification(email, toCCEmails, toBCCEmails, templateParams, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.REJECT_CONTENT, messageVariables);
         const secondMessage = replaceMessageVariables(this.email_constants.REJECT_SECOND_CONTENT, {});
         const subject = this.email_constants.REJECT_SUBJECT;
@@ -160,13 +160,13 @@ class NotifyUser {
                     message, secondMessage, ...templateParams
                 }),
                 email,
-                [],
+                toCCEmails,
                 toBCCEmails
             );
         });
     }
 
-    async approveQuestionNotification(email, BCCEmails, templateParams, messageVariables) {
+    async approveQuestionNotification(email, CCEmails, BCCEmails, templateParams, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.APPROVE_CONTENT, messageVariables);
         const secondMessage = replaceMessageVariables(this.email_constants.APPROVE_SECOND_CONTENT, messageVariables);
         const thirdMessage = replaceMessageVariables(this.email_constants.APPROVE_THIRD_CONTENT, messageVariables);
@@ -179,13 +179,13 @@ class NotifyUser {
                     message, secondMessage, thirdMessage, ...templateParams
                 }),
                 email,
-                [],
+                CCEmails,
                 BCCEmails
             );
         });
     }
 
-    async conditionalApproveQuestionNotification(email, BCCEmails, templateParams) {
+    async conditionalApproveQuestionNotification(email, CCEmails, BCCEmails, templateParams) {
         const subject = this.email_constants.CONDITIONAL_APPROVE_SUBJECT;
         return await this.send(async () => {
             await this.emailService.sendNotification(
@@ -193,7 +193,7 @@ class NotifyUser {
                 isTierAdded(this.tier) ? `${this.tier} ${subject}` : subject,
                 await createEmailTemplate("notification-template-submission-request.html", templateParams),
                 email,
-                [],
+                CCEmails,
                 BCCEmails
             );
         });
@@ -278,7 +278,7 @@ class NotifyUser {
         });
     }
 
-    async remindApplicationsNotification(email, BCCEmails, templateParams, messageVariables) {
+    async remindApplicationsNotification(email, CCEmails, BCCEmails, templateParams, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.REMIND_EXPIRED_APPLICATION_CONTENT, messageVariables);
         const secondMessage = replaceMessageVariables(this.email_constants.REMIND_EXPIRED_APPLICATION_SECOND_CONTENT, messageVariables);
         const subject = replaceMessageVariables(this.email_constants.REMIND_EXPIRED_APPLICATION_SUBJECT, messageVariables);
@@ -290,13 +290,13 @@ class NotifyUser {
                     message, secondMessage, ...templateParams
                 }),
                 email,
-                [],
+                CCEmails,
                 BCCEmails
             );
         });
     }
 
-    async finalRemindApplicationsNotification(email, BCCEmails, templateParams, messageVariables) {
+    async finalRemindApplicationsNotification(email, CCEmails, BCCEmails, templateParams, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.FINAL_INACTIVE_APPLICATION_CONTENT, messageVariables);
         const secondMessage = replaceMessageVariables(this.email_constants.FINAL_INACTIVE_APPLICATION_SECOND_CONTENT, messageVariables);
         const thirdMessage = replaceMessageVariables(this.email_constants.FINAL_INACTIVE_APPLICATION_THIRD_CONTENT, messageVariables);
@@ -309,7 +309,7 @@ class NotifyUser {
                     message, secondMessage, thirdMessage, ...templateParams
                 }),
                 email,
-                [],
+                CCEmails,
                 BCCEmails
             );
         });
