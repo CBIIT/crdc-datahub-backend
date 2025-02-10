@@ -425,7 +425,8 @@ class Submission {
             completePromise.push(this.dataRecordService.exportMetadata(submissionID));
             completePromise.push(this.#sendCompleteMessage({type: GENERATE_DCF_MANIFEST, submissionID}, submissionID));
         }
-        if (action === ACTIONS.REJECT) {
+        if (action === ACTIONS.REJECT && submission?.intention === INTENTION.DELETE) {
+            //based on CRDCDH-2338 to send a restoring deleted data file SQS message so validator can execute the restoration.
             completePromise.push(this.#sendCompleteMessage({type: RESTORE_DELETED_DATA_FILE, submissionID}, submissionID));
         }
 
