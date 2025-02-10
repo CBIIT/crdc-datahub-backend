@@ -387,6 +387,7 @@ class Submission {
         if (!submission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST, submissionID);
         }
+        const oldStatus = submission.status;
         const userInfo = context.userInfo;
         // verify if the action is valid based on current submission status
         const verifier = verifySubmissionAction(action, submission.status, comment);
@@ -425,7 +426,7 @@ class Submission {
             completePromise.push(this.dataRecordService.exportMetadata(submissionID));
             completePromise.push(this.#sendCompleteMessage({type: GENERATE_DCF_MANIFEST, submissionID}, submissionID));
         }
-        if (action === ACTIONS.REJECT && submission?.intention === INTENTION.DELETE) {
+        if (action === ACTIONS.REJECT && submission?.intention === INTENTION.DELETE && oldStatus === RELEASED) {
             //based on CRDCDH-2338 to send a restoring deleted data file SQS message so validator can execute the restoration.
             completePromise.push(this.#sendCompleteMessage({type: RESTORE_DELETED_DATA_FILE, submissionID}, submissionID));
         }
