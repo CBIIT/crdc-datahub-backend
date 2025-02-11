@@ -1660,7 +1660,7 @@ const sendEmails = {
                     submissionName: `${aSubmission?.name},`,
                     dataCommonsName: aSubmission?.dataCommons,
                     contactName: `${aSubmission?.conciergeName || 'NA'}`,
-                    contactEmail: `${aSubmission?.contactEmail || 'NA'}.`
+                    contactEmail: `${aSubmission?.conciergeEmail || 'NA'}.`
                 }
             );
         }
