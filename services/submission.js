@@ -1557,13 +1557,13 @@ class Submission {
         const baseConditions = { ...statusCondition, ...organizationCondition, ...nameCondition,
             ...dbGaPIDCondition, ...dataCommonsCondition, ...submitterNameCondition };
         return (() => {
+            const userStudies = Array.isArray(studies) && studies.length > 0 ? studies : [];
+            // TODO remove multiple types
+            const studyIDs = userStudies?.map(s => s?._id || s).filter(Boolean);
             switch (role) {
                 case ROLES.ADMIN:
                     return baseConditions;
                 case ROLES.FEDERAL_LEAD:
-                    const userStudies = Array.isArray(studies) && studies.length > 0 ? studies : [];
-                    // TODO remove multiple types
-                    const studyIDs = userStudies?.map(s => s?._id || s).filter(Boolean);
                     const studyQuery = isAllStudy(userStudies) ? {} : {studyID: {$in: studyIDs}};
                     return {...baseConditions, ...studyQuery};
                 case ROLES.DATA_COMMONS_PERSONNEL:
@@ -1571,8 +1571,12 @@ class Submission {
                     return {...baseConditions, dataCommons: {$in: dataCommonsParams !== ALL_FILTER ? aFilteredDataCommon : dataCommons}};
                 // Submitter or User role
                 default:
+                    if (isAllStudy(userStudies)) {
+                        return baseConditions;
+                    }
                     return {...baseConditions, "$or": [
                         {"submitterID": _id},
+                        {"studyID": {$in: studyIDs || []}},
                         {"collaborators.collaboratorID": _id, "collaborators.permission": {$in: [COLLABORATOR_PERMISSIONS.CAN_EDIT]}}]};
             }
         })();
