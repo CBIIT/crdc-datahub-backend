@@ -212,7 +212,7 @@ type ApprovedStudy {
     PI: String
     ORCID: String
     createdAt: Date
-    program: UserOrganization #retrieve dynamically by studyID
+    programs: [UserOrganization] #retrieve dynamically by studyID
     primaryContact: User
 }
 
@@ -815,7 +815,7 @@ type Mutation {
         dbGaPID: String, # required only Controlled
         ORCID: String, #optional in format of 0000-1234-2345-3456
         PI: String #optional
-        primaryContactID: String! #primary contact user ID
+        primaryContactID: String #primary contact user ID
     ): ApprovedStudy
 
     updateApprovedStudy(
@@ -827,7 +827,7 @@ type Mutation {
         dbGaPID: String, # required only Controlled
         ORCID: String, #optional in format of 0000-1234-2345-3456
         PI: String #optional 
-        primaryContactID: String! #primary contact user ID
+        primaryContactID: String #primary contact user ID
     ): ApprovedStudy
 
     requestAccess(

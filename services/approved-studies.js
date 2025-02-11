@@ -75,8 +75,8 @@ class ApprovedStudiesService {
         }
         let returnStudy = study[0];
         // find program/organization by study ID
-        returnStudy.program = await this.#findOrganizationByStudyID(_id)
-        // file primaryContact
+        returnStudy.programs = await this.#findOrganizationByStudyID(_id)
+        // find primaryContact
         if (returnStudy?.primaryContactID)
         {
             returnStudy.primaryContact = await this.#findUserByID(returnStudy.primaryContactID);
@@ -89,7 +89,8 @@ class ApprovedStudiesService {
     {
         const orgIds = await this.organizationService.findByStudyID(studyID);
         if (orgIds && orgIds.length > 0 ) {
-            return await this.organizationService.organizationCollection.findOne(orgIds[0]);
+            const filters = {_id: {"$in": orgIds}};
+            return await this.organizationService.organizationCollection.aggregate([{ "$match": filters }]);
         }
         return null;
     }
@@ -219,12 +220,15 @@ class ApprovedStudiesService {
         // check if name is unique
         await this.#validateStudyName(name)
         // check primaryContactID 
-        const primaryContact = await this.#findUserByID(primaryContactID);
-        if (!primaryContact) {
-            throw new Error(ERROR.INVALID_PRIMARY_CONTACT);
-        }
-        if (primaryContact.role !== USER.ROLES.DATA_COMMONS_PERSONNEL){
-            throw new Error(ERROR.INVALID_PRIMARY_CONTACT_ROLE);
+        let primaryContact = null;
+        if (!primaryContactID) {
+            const primaryContact = await this.#findUserByID(primaryContactID);
+            if (!primaryContact) {  
+                throw new Error(ERROR.INVALID_PRIMARY_CONTACT);
+            }
+            if (primaryContact.role !== USER.ROLES.DATA_COMMONS_PERSONNEL){
+                throw new Error(ERROR.INVALID_PRIMARY_CONTACT_ROLE);
+            }
         }
         const current_date = new Date();
         if (!acronym){
@@ -284,12 +288,15 @@ class ApprovedStudiesService {
         if (PI !== undefined) {
             updateStudy.PI = PI;
         }
-        const primaryContact = await this.#findUserByID(primaryContactID);
-        if (!primaryContact) {
-            throw new Error(ERROR.INVALID_PRIMARY_CONTACT);
-        }
-        if (primaryContact.role !== USER.ROLES.DATA_COMMONS_PERSONNEL){
-            throw new Error(ERROR.INVALID_PRIMARY_CONTACT_ROLE);
+        let  primaryContact = null;
+        if(primaryContactID){
+            primaryContact = await this.#findUserByID(primaryContactID);
+            if (!primaryContact) {
+                throw new Error(ERROR.INVALID_PRIMARY_CONTACT);
+            }
+            if (primaryContact.role !== USER.ROLES.DATA_COMMONS_PERSONNEL){
+                throw new Error(ERROR.INVALID_PRIMARY_CONTACT_ROLE);
+            }
         }
         updateStudy.primaryContactID = primaryContactID;
         
@@ -299,8 +306,8 @@ class ApprovedStudiesService {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_UPDATE);
         }
         // find program/organization by study ID
-        const program = await this.#findOrganizationByStudyID(studyID)
-        return {...updateStudy, program: program, primaryContact: primaryContact};  
+        const programs = await this.#findOrganizationByStudyID(studyID)
+        return {...updateStudy, programs: programs, primaryContact: primaryContact};  
     }
     /**
      * internal method to find user by ID since can't use the userService to avoid cross-referencing
