@@ -95,6 +95,14 @@
             "disabled": false
           },
           {
+            "_id": "data_submission:cancel",
+            "group": "Data Submission Permissions",
+            "name": "Cancel",
+            "order": 6,
+            "checked": false,
+            "disabled": false
+          },
+          {
             "_id": "user:manage",
             "group": "Admin Permissions",
             "name": "Manage User",
@@ -354,6 +362,14 @@
             "group": "Data Submission Permissions",
             "name": "Confirm",
             "order": 5,
+            "checked": true,
+            "disabled": false
+          },
+          {
+            "_id": "data_submission:cancel",
+            "group": "Data Submission Permissions",
+            "name": "Cancel",
+            "order": 6,
             "checked": true,
             "disabled": false
           },
@@ -621,6 +637,14 @@
             "disabled": false
           },
           {
+            "_id": "data_submission:cancel",
+            "group": "Data Submission Permissions",
+            "name": "Cancel",
+            "order": 6,
+            "checked": false,
+            "disabled": false
+          },
+          {
             "_id": "user:manage",
             "group": "Admin Permissions",
             "name": "Manage User",
@@ -884,6 +908,14 @@
             "disabled": true
           },
           {
+            "_id": "data_submission:cancel",
+            "group": "Data Submission Permissions",
+            "name": "Cancel",
+            "order": 6,
+            "checked": true,
+            "disabled": true
+          },
+          {
             "_id": "user:manage",
             "group": "Admin Permissions",
             "name": "Manage User",
@@ -1143,6 +1175,14 @@
             "group": "Data Submission Permissions",
             "name": "Confirm",
             "order": 5,
+            "checked": false,
+            "disabled": true
+          },
+          {
+            "_id": "data_submission:cancel",
+            "group": "Data Submission Permissions",
+            "name": "Cancel",
+            "order": 6,
             "checked": false,
             "disabled": true
           },
