@@ -88,7 +88,7 @@ class NotifyUser {
         });
     }
 
-    async cancelApplicationNotification(email, BCCsEmails, templateParams, messageVariables) {
+    async cancelApplicationNotification(email, CCEmails, BCCsEmails, templateParams, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.CANCEL_APPLICATION_CONTENT, messageVariables);
         const subject = this.email_constants.CANCEL_APPLICATION_SUBJECT;
         return await this.send(async () => {
@@ -99,7 +99,7 @@ class NotifyUser {
                     message, firstName: templateParams.firstName
                 }),
                 email,
-                [],
+                CCEmails,
                 BCCsEmails
             );
             if (res?.accepted?.length === 0) {
@@ -108,7 +108,7 @@ class NotifyUser {
         });
     }
 
-    async restoreApplicationNotification(email, BCCsEmails, templateParams, messageVariables) {
+    async restoreApplicationNotification(email, CCEmails, BCCsEmails, templateParams, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.RESTORE_APPLICATION_CONTENT, messageVariables);
         const secondMessage = replaceMessageVariables(this.email_constants.RESTORE_APPLICATION_SECOND_CONTENT, messageVariables);
         const thirdMessage = replaceMessageVariables(this.email_constants.RESTORE_APPLICATION_THIRD_CONTENT, messageVariables);
@@ -121,7 +121,7 @@ class NotifyUser {
                     message, secondMessage, thirdMessage, firstName: templateParams.firstName
                 }),
                 email,
-                [],
+                CCEmails,
                 BCCsEmails
             );
             if (res?.accepted?.length === 0) {
@@ -278,18 +278,39 @@ class NotifyUser {
         });
     }
 
-    async remindApplicationsNotification(email, CCEmails, template_params, messageVariables) {
+    async remindApplicationsNotification(email, CCEmails, BCCEmails, templateParams, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.REMIND_EXPIRED_APPLICATION_CONTENT, messageVariables);
-        const subject = this.email_constants.REMIND_EXPIRED_APPLICATION_SUBJECT;
+        const secondMessage = replaceMessageVariables(this.email_constants.REMIND_EXPIRED_APPLICATION_SECOND_CONTENT, messageVariables);
+        const subject = replaceMessageVariables(this.email_constants.REMIND_EXPIRED_APPLICATION_SUBJECT, messageVariables);
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
                 isTierAdded(this.tier) ? `${this.tier} ${subject}` : subject,
                 await createEmailTemplate("notification-template.html", {
-                    message, ...template_params
+                    message, secondMessage, ...templateParams
                 }),
                 email,
-                CCEmails
+                CCEmails,
+                BCCEmails
+            );
+        });
+    }
+
+    async finalRemindApplicationsNotification(email, CCEmails, BCCEmails, templateParams, messageVariables) {
+        const message = replaceMessageVariables(this.email_constants.FINAL_INACTIVE_APPLICATION_CONTENT, messageVariables);
+        const secondMessage = replaceMessageVariables(this.email_constants.FINAL_INACTIVE_APPLICATION_SECOND_CONTENT, messageVariables);
+        const thirdMessage = replaceMessageVariables(this.email_constants.FINAL_INACTIVE_APPLICATION_THIRD_CONTENT, messageVariables);
+        const subject = this.email_constants.FINAL_INACTIVE_APPLICATION_SUBJECT;
+        return await this.send(async () => {
+            await this.emailService.sendNotification(
+                this.email_constants.NOTIFICATION_SENDER,
+                isTierAdded(this.tier) ? `${this.tier} ${subject}` : subject,
+                await createEmailTemplate("notification-template.html", {
+                    message, secondMessage, thirdMessage, ...templateParams
+                }),
+                email,
+                CCEmails,
+                BCCEmails
             );
         });
     }
