@@ -82,7 +82,7 @@ class Submission {
             .verifyPermission(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
         const userInfo = context?.userInfo;
         const hasStudies = userInfo?.studies?.length > 0;
-        const isRoleWithoutStudies = userInfo?.role === ROLES.DATA_COMMONS_PERSONNEL;
+        const isRoleWithoutStudies = userInfo?.role === ROLES.DATA_COMMONS_PERSONNEL || userInfo?.role === ROLES.ADMIN;
         if (!hasStudies && !isRoleWithoutStudies){
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
         }
