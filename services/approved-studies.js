@@ -222,7 +222,7 @@ class ApprovedStudiesService {
         // check primaryContactID 
         let primaryContact = null;
         if (!primaryContactID) {
-            const primaryContact = await this.#findUserByID(primaryContactID);
+            primaryContact = await this.#findUserByID(primaryContactID);
             if (!primaryContact) {  
                 throw new Error(ERROR.INVALID_PRIMARY_CONTACT);
             }
