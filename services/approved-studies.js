@@ -221,7 +221,7 @@ class ApprovedStudiesService {
         await this.#validateStudyName(name)
         // check primaryContactID 
         let primaryContact = null;
-        if (!primaryContactID) {
+        if (primaryContactID) {
             primaryContact = await this.#findUserByID(primaryContactID);
             if (!primaryContact) {  
                 throw new Error(ERROR.INVALID_PRIMARY_CONTACT);
