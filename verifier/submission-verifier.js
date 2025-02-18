@@ -110,7 +110,7 @@ const submissionActionMap = [
     {action:ACTIONS.REJECT_RELEASE, fromStatus: [RELEASED], toStatus:REJECTED, permissions: [USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CONFIRM]},
     // TODO Complete, Reject (after released) double check if the release status before reject
     {action:ACTIONS.COMPLETE, fromStatus: [RELEASED], toStatus:COMPLETED, permissions: [USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CONFIRM]},
-    {action:ACTIONS.CANCEL, fromStatus: [NEW,IN_PROGRESS, REJECTED], toStatus:CANCELED, permissions: [USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE]},
+    {action:ACTIONS.CANCEL, fromStatus: [NEW,IN_PROGRESS, REJECTED], toStatus:CANCELED, permissions: [USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CANCEL]},
     {action:ACTIONS.ARCHIVE, fromStatus: [COMPLETED], toStatus:ARCHIVED, permissions: []},
     {action:ACTIONS.RESUME, fromStatus: [REJECTED], toStatus:IN_PROGRESS, permissions: []},
 ];

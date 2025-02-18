@@ -87,3 +87,13 @@ Commands:
           ]
         }]
       });
+  - Added user's cancel permission (CRDCDH-2255): |
+      db.users.updateMany(
+      {
+        role: { $in: ["Submitter", "Data Curator"] },
+        permissions: { $ne: "data_submission:cancel" }
+      },
+      {
+        $addToSet: { permissions: "data_submission:cancel" }
+      }
+      );
