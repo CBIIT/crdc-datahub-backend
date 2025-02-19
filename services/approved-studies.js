@@ -5,16 +5,29 @@ const { verifySession } = require('../verifier/user-info-verifier');
 const {ApprovedStudies} = require("../crdc-datahub-database-drivers/domain/approved-studies");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {ADMIN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+const {
+    NEW,
+    IN_PROGRESS,
+    SUBMITTED,
+    WITHDRAWN,
+    RELEASED,
+    REJECTED,
+    COMPLETED,
+    CANCELED,
+    DELETED, ARCHIVED
+} = require("../constants/submission-constants");
+const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const CONTROLLED_ACCESS_ALL = "All";
 const CONTROLLED_ACCESS_OPEN = "Open";
 const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
 const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN, CONTROLLED_ACCESS_CONTROLLED];
 class ApprovedStudiesService {
 
-    constructor(approvedStudiesCollection, userCollection, organizationService) {
+    constructor(approvedStudiesCollection, userCollection, organizationService, submissionCollection) {
         this.approvedStudiesCollection = approvedStudiesCollection;
         this.userCollection = userCollection;
         this.organizationService = organizationService;
+        this.submissionCollection = submissionCollection;
     }
 
     async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName) {
@@ -299,13 +312,24 @@ class ApprovedStudiesService {
             }
         }
         updateStudy.primaryContactID = primaryContactID;
-        
-        updateStudy.updatedAt = new Date();
+        updateStudy.updatedAt = getCurrentTime();
         const result = await this.approvedStudiesCollection.update(updateStudy);
         if (!result?.acknowledged) {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_UPDATE);
         }
-        // find program/organization by study ID
+
+        const [conciergeName, conciergeEmail] = [`${primaryContact?.firstName} ${primaryContact?.lastName || ''}`, primaryContact?.email];
+        const updatedSubmissions = await this.submissionCollection.updateMany({
+                studyID: updateStudy._id,
+                status: {$in: [NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, CANCELED, DELETED, ARCHIVED]},
+                conciergeName: { "$ne": conciergeName },
+                conciergeEmail: { "$ne": conciergeEmail }}, {
+            // To update the primary contacts
+            conciergeName, conciergeEmail, updatedAt: getCurrentTime()});
+        if (!updatedSubmissions?.acknowledged) {
+            console.log(ERROR.FAILED_PRIMARY_CONTACT_UPDATE, `StudyID: ${studyID}`);
+            throw new Error(ERROR.FAILED_PRIMARY_CONTACT_UPDATE);
+        }
         const programs = await this.#findOrganizationByStudyID(studyID)
         return {...updateStudy, programs: programs, primaryContact: primaryContact};  
     }

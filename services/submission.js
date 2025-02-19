@@ -2061,7 +2061,7 @@ class DataSubmission {
 
     #getConciergeName(approvedStudy, aProgram){
         if (approvedStudy?.primaryContact) {
-            return approvedStudy.primaryContact.firstName + " " + approvedStudy.primaryContact.lastName;
+            return `${approvedStudy.primaryContact?.firstName} ${approvedStudy.primaryContact?.lastName || ''}`
         } else if (aProgram) {
             return aProgram?.conciergeName;
         } else {
