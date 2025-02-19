@@ -89,9 +89,7 @@ class Submission {
 
         if (!isAllStudy(userInfo.studies) && !isRoleWithoutStudies) {
             const study = userInfo.studies.find(study =>
-                // TODO remove multiple types after data migration
-                (typeof study === 'object' && study._id === params.studyID) ||
-                (typeof study === 'string' && study === params.studyID)
+                study._id === params.studyID
             );
             if (!study) {
                 throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
@@ -286,11 +284,6 @@ class Submission {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
 
-        // if user role is Federal Monitor, only can access his studies.
-        if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
-            throw new Error(ERROR.INVALID_ROLE_STUDY);
-        }
-
         if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
             throw new Error(ERROR.INVALID_ROLE);
         }
@@ -313,10 +306,6 @@ class Submission {
             history.userName = user.firstName + " " + user.lastName;
         }
         if (aSubmission?.studyID) {
-            // if user role is Federal Monitor, only can access his studies.
-            if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
-                throw new Error(ERROR.INVALID_ROLE_STUDY);
-            }
             const submissions = await this.submissionCollection.aggregate([
                 {"$match": {$and: [
                     {studyID: aSubmission.studyID},
@@ -570,10 +559,6 @@ class Submission {
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
-        // if user role is Federal Monitor, only can access his studies.
-        if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
-            throw new Error(ERROR.INVALID_ROLE_STUDY);
-        }
 
         if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
             throw new Error(ERROR.INVALID_ROLE);
@@ -650,35 +635,6 @@ class Submission {
         }
         return result;
     }
-    /**
-     * API to export dataRecords of the submission to tsv file by async process
-     * @param {*} params
-     * @param {*} context
-     * @returns AsyncProcessResult
-     */
-    // TODO remove
-    async exportSubmission(params, context) {
-        verifySession(context)
-            .verifyInitialized()
-            .verifyRole([ROLES.ADMIN, ROLES.CURATOR, ROLES.SUBMITTER]);
-        const aSubmission = await findByID(this.submissionCollection, params._id);
-        if(!aSubmission){
-            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
-        }
-        const userInfo = context.userInfo;
-        const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
-        const isCollaborator = collaboratorUserIDs.includes(userInfo._id);
-        const isPermitted = (this.userService.isAdmin(userInfo.role) ||
-            aSubmission?.submitterID === userInfo?._id || // Submitter
-            (userInfo.role === ROLES.CURATOR && userInfo?.dataCommons.includes(aSubmission?.dataCommons)) || isCollaborator)
-        if (!isPermitted) {
-            throw new Error(ERROR.INVALID_EXPORT_METADATA);
-        }
-        if (aSubmission.status !== SUBMITTED) {
-            throw new Error(`${ERROR.VERIFY.INVALID_SUBMISSION_ACTION_STATUS} ${EXPORT}!`);
-        }
-        return await this.dataRecordService.exportMetadata(params._id);
-    }
 
     async submissionCrossValidationResults(params, context){
         verifySession(context)
@@ -687,10 +643,6 @@ class Submission {
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
-        }
-        // if user role is Federal Monitor, only can access his studies.
-        if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
-            throw new Error(ERROR.INVALID_ROLE_STUDY);
         }
 
         const userInfo = context.userInfo;
@@ -739,11 +691,6 @@ class Submission {
         const aSubmission = await findByID(this.submissionCollection, submissionID);
         if (!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
-        }
-
-        // if user role is Federal Monitor, only can access his studies.
-        if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
-            throw new Error(ERROR.INVALID_ROLE_STUDY);
         }
 
         if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
@@ -901,11 +848,6 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        // if user role is Federal Monitor, only can access his studies.
-        if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
-            throw new Error(ERROR.INVALID_ROLE_STUDY);
-        }
-
         if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
             throw new Error(ERROR.INVALID_ROLE);
         }
@@ -925,11 +867,6 @@ class Submission {
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
-        }
-
-        // if user role is Federal Monitor, only can access his studies.
-        if (context?.userInfo?.role === ROLES.FEDERAL_MONITOR && (!context?.userInfo?.studies || !context?.userInfo?.studies.includes(aSubmission?.studyID))) {
-            throw new Error(ERROR.INVALID_ROLE_STUDY);
         }
 
         if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
@@ -1417,16 +1354,6 @@ class Submission {
         const logEvent = DeleteRecordEvent.create(userInfo._id, userInfo.email, userName, submissionID, nodeType, nodeIDs);
         await this.logCollection.insert(logEvent);
     }
-    // TODO remove
-    async #isValidPermission(userInfo, aSubmission) {
-        const orgOwners = await this.userService.getOrgOwnerByOrgName(aSubmission?.organization?.name) || [];
-        const isOrgOwners = orgOwners.some((aUser) => isPermittedUser(aUser, userInfo));
-        const isSubmitter = aSubmission?.submitterID === userInfo?._id;
-        const isDataCurator = ROLES.CURATOR === userInfo?.role && userInfo?.dataCommons.includes(aSubmission?.dataCommons);
-        const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
-        const isCollaborator = collaboratorUserIDs.includes(userInfo?._id);
-        return this.userService.isAdmin(userInfo?.role) || isOrgOwners || isSubmitter || isDataCurator || isCollaborator;
-    }
 
     async #requestDeleteDataRecords(message, queueName, deDuplicationId, submissionID) {
         try {
@@ -1562,8 +1489,7 @@ class Submission {
                     return baseConditions;
                 case ROLES.FEDERAL_LEAD:
                     const userStudies = Array.isArray(studies) && studies.length > 0 ? studies : [];
-                    // TODO remove multiple types
-                    const studyIDs = userStudies?.map(s => s?._id || s).filter(Boolean);
+                    const studyIDs = userStudies?.map(s => s?._id).filter(Boolean);
                     const studyQuery = isAllStudy(userStudies) ? {} : {studyID: {$in: studyIDs}};
                     return {...baseConditions, ...studyQuery};
                 case ROLES.DATA_COMMONS_PERSONNEL:
@@ -1872,9 +1798,7 @@ const isUserScope = (userID, userRole, userStudies, userDataCommons, aSubmission
         case ROLES.FEDERAL_LEAD:
             const studies = Array.isArray(userStudies) && userStudies.length > 0 ? userStudies : [];
             return isAllStudy(studies) ? true : studies.find(study =>
-                // TODO remove multiple types
-                (typeof study === 'object' && study._id === aSubmission.studyID) ||
-                (typeof study === 'string' && study === aSubmission.studyID)
+                study._id === aSubmission.studyID
             );
         case ROLES.DATA_COMMONS_PERSONNEL:
             return userDataCommons.includes(aSubmission.dataCommons); // Access to assigned data commons.
@@ -1932,10 +1856,6 @@ const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
         throw new Error(ERROR.INVALID_BATCH_PERMISSION);
     }
 }
-// TODO remove
-const isPermittedUser = (aTargetUser, userInfo) => {
-    return aTargetUser?.email === userInfo.email && aTargetUser?.IDP === userInfo.IDP
-}
 
 function validateCreateSubmissionParams (params, allowedDataCommons, hiddenDataCommons, intention, dataType, userInfo) {
     if (!params.name || params?.name?.trim().length === 0 || !params.studyID || !params.dataCommons) {
@@ -1965,22 +1885,6 @@ function validateListSubmissionsParams (params) {
     if (invalidStatues?.length > 0) {
         throw new Error(replaceErrorString(ERROR.LIST_SUBMISSION_INVALID_STATUS_FILTER, `'${invalidStatues.join(",")}'`));
     }
-}
-// TODO remove
-const isSubmissionPermitted = (aSubmission, userInfo) => {
-    const userRole = userInfo?.role;
-    const allSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD, USER.ROLES.FEDERAL_MONITOR];
-    const isOrgOwner = userRole === USER.ROLES.ORG_OWNER && userInfo?.organization?.orgID === aSubmission?.organization?._id;
-    const isSubmitter = userRole === USER.ROLES.SUBMITTER && userInfo?._id === aSubmission?.submitterID;
-    const isPOC = userRole === USER.ROLES.DC_POC && userInfo?.dataCommons.includes(aSubmission?.dataCommons);
-    const isCurator = userRole === USER.ROLES.CURATOR && userInfo?.dataCommons.includes(aSubmission?.dataCommons);
-    const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getViewableCollaboratorIDs();
-    const isCollaborator = collaboratorUserIDs.includes(userInfo?._id);
-
-    if (allSubmissionRoles.includes(userRole) || isOrgOwner || isSubmitter || isPOC || isCurator || isCollaborator) {
-        return;
-    }
-    throw new Error(ERROR.INVALID_STATS_SUBMISSION_PERMISSION);
 }
 
 class ValidationRecord {
@@ -2097,19 +2001,10 @@ class Collaborators {
         return this.collaborators
             .map(i => i?.collaboratorName) || [];
     }
-    // TODO remove
-    getViewableCollaboratorIDs() {
-        return this.#getViewableCollaborators(this.collaborators)
-            .map(i => i?.collaboratorID) || [];
-    }
 
     getEditableCollaboratorIDs() {
         return this.#getEditableCollaborators(this.collaborators)
             .map(i => i?.collaboratorID) || [];
-    }
-    // TODO remove
-    #getViewableCollaborators(collaborators) {
-        return collaborators
     }
 
     #getEditableCollaborators(collaborators) {
@@ -2118,7 +2013,6 @@ class Collaborators {
     }
 }
 
-// TODO remove temporary for QA
 function logDaysDifference(inactiveDays, accessedAt, submissionID) {
     const startedDate = accessedAt; // Ensure it's a Date object
     const endDate = getCurrentTime();

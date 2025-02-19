@@ -164,7 +164,6 @@ dbConnector.connect().then(async () => {
         editUser : userService.editUser.bind(userService),
         grantToken : userService.grantToken.bind(userService),
         listActiveDCPs: userService.listActiveDCPsAPI.bind(userService),
-        listActiveCurators: userService.listActiveCuratorsAPI.bind(userService),
         listOrganizations : organizationService.listOrganizationsAPI.bind(organizationService),
         getOrganization : organizationService.getOrganizationAPI.bind(organizationService),
         editOrganization : organizationService.editOrganizationAPI.bind(organizationService),

@@ -226,7 +226,7 @@ type User {
   firstName: String
   lastName: String
   userStatus: String # [Active, Inactive]
-  role: String # [User, Submitter, Organization Owner, Federal Lead, Data Curator, Data Commons POC, Admin]
+  role: String # [User, Submitter, Federal Lead, Admin, Data Commons Personnel]
   IDP: String # [NIH, Login.gov]
   email: String
   organization: OrgInfo # Organization
@@ -234,17 +234,7 @@ type User {
   createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
   updateAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
   studies: [ApprovedStudy]
-  # Submission Action Permissions
-  # [Create, Upload, Submit, Withdraw, Cancel, Validate, CrossValidate, Release, Reject, AdminSubmit, CompleteRelease, RejectRelease]
-  # TODO By Mr.Peter Gu - Submission Request Action Permissions
-  # [View, Create, Submit, Review]
-  # User Action Permissions
-  # [RequestAccess]
   permissions: [String]
-  # Submission Email Permissions
-  # [Submit, Approve, Cancel, Reject, Release, Complete, Delete, Withdraw, Remind Expire]
-  # Submission Request Email Permissions
-  # [Request Submit, Request Approve, Request Reject, Request Additional Info]
   notifications: [String]
 }
 
@@ -252,7 +242,6 @@ type UserInfo {
   userID: ID # MongoDB native ID or UUID
   firstName: String
   lastName: String
-#  orgRole: String # [Owner, Submitter, Concierge], Concierge can only be assign to a Curator
 #  orgStatus: String # [Active, Inactive, Disabled]
   createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
   updateAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
@@ -261,7 +250,6 @@ type UserInfo {
 type OrgInfo {
   orgID: ID # MongoDB native ID or UUID
   orgName: String
-#  orgRole: String # [Owner, Submitter, Concierge], Concierge can only be assign to a Curator
 #  orgStatus: String # [Active, Inactive, Disabled]
   status: String
   createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
@@ -272,8 +260,8 @@ type UserOrganization {
   _id: ID # MongoDB native ID or UUID
   name: String
   status: String # [Active, Inactive], default to Active
-  conciergeID: ID # The user's IDs are stored for the organization curators, aka. primary contact
-  conciergeName: String # The user's name (first + last) is stored for the organization curators, aka. primary contact
+  conciergeID: ID # The user's IDs are stored for the Data Commons Personnel, aka. primary contact
+  conciergeName: String # The user's name (first + last) is stored for the Data Commons Personnel, aka. primary contact
   conciergeEmail: String
   studies: [ApprovedStudy] # Study names and abbreviations
   abbreviation: String
