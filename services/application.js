@@ -537,7 +537,7 @@ class Application {
             const [applicantUsers, BCCUsers] = await Promise.all([
                 this.#findUsersByApplicantIDs(applications),
                 this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_DELETE],
-                    [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL]),
+                    [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]),
             ]);
 
             const permittedUserIDs = new Set(
@@ -669,7 +669,7 @@ class Application {
     async sendEmailAfterApproveApplication(context, application, comment, conditional = false) {
         const res = await Promise.all([
             this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
-                [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD]),
+                [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD, ROLES.ADMIN]),
             this.userService.userCollection.find(application?.applicant?.applicantID)
         ]);
 
@@ -894,7 +894,7 @@ const sendEmails = {
         const applicantInfo = (await userService.userCollection.find(application?.applicant?.applicantID))?.pop();
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_SUBMIT)) {
             const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_SUBMIT],
-                [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL]);
+                [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]);
             const CCEmails = getCCEmails(application?.applicant?.applicantEmail, application);
             const toBCCEmails = getUserEmails(BCCUsers)
                 ?.filter((email) => !CCEmails.includes(email) && applicantInfo?.email !== email);
@@ -916,7 +916,7 @@ const sendEmails = {
         }
         if (toUsers?.length > 0) {
             const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_READY_REVIEW],
-                [ROLES.DATA_COMMONS_PERSONNEL]);
+                [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]);
             const toEmails = getUserEmails(toUsers);
             const toBCCEmails = getUserEmails(BCCUsers)
                 ?.filter((email) => !toEmails?.includes(email));
@@ -933,7 +933,7 @@ const sendEmails = {
     inquireApplication: async(notificationService, userService, emailParams, application, reviewComments) => {
         const res = await Promise.all([
             userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
-                [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD]),
+                [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD, ROLES.ADMIN]),
             userService.userCollection.find(application?.applicant?.applicantID)
         ]);
         const [toBCCUsers, applicant] = res;
@@ -956,7 +956,7 @@ const sendEmails = {
         const applicantInfo = (await userService.userCollection.find(application?.applicant?.applicantID))?.pop();
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW)) {
             const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
-                [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD]);
+                [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD, ROLES.ADMIN]);
             const CCEmails = getCCEmails(application?.applicant?.applicantEmail, application);
             const toBCCEmails = getUserEmails(BCCUsers)
                 ?.filter((email) => !CCEmails.includes(email) && applicantInfo?.email !== email);
