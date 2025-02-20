@@ -12,7 +12,6 @@ const {
     WITHDRAWN,
     RELEASED,
     REJECTED,
-    COMPLETED,
     CANCELED,
     DELETED, ARCHIVED
 } = require("../constants/submission-constants");
