@@ -916,14 +916,12 @@ const sendEmails = {
         }
         if (toUsers?.length > 0) {
             const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_READY_REVIEW],
-                [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL]);
+                [ROLES.DATA_COMMONS_PERSONNEL]);
             const toEmails = getUserEmails(toUsers);
-            const CCEmails = getCCEmails(application?.applicant?.applicantEmail, application)
-                ?.filter((email) => !toEmails?.includes(email))
             const toBCCEmails = getUserEmails(BCCUsers)
-                ?.filter((email) => !CCEmails.includes(email) && applicantInfo?.email !== email && !toEmails?.includes(email));
+                ?.filter((email) => !toEmails?.includes(email));
             await notificationService.submitQuestionNotification(getUserEmails(toUsers),
-                CCEmails,
+                [],
                 toBCCEmails, {
                 pi: `${userInfo.firstName} ${userInfo.lastName},`,
                 programName: application?.programName?.trim() || "NA",
