@@ -82,7 +82,7 @@ class Submission {
             .verifyPermission(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
         const userInfo = context?.userInfo;
         const hasStudies = userInfo?.studies?.length > 0;
-        const isRoleWithoutStudies = userInfo?.role === ROLES.DATA_COMMONS_PERSONNEL;
+        const isRoleWithoutStudies = userInfo?.role === ROLES.DATA_COMMONS_PERSONNEL || userInfo?.role === ROLES.ADMIN;
         if (!hasStudies && !isRoleWithoutStudies){
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
         }
@@ -1208,10 +1208,9 @@ class Submission {
      * description: overnight job to set inactive submission status to "Deleted", delete related data and files
      */
      async deleteInactiveSubmissions(){
-        //get target inactive date, current date - config.inactive_submission_days (default 120 days)
-        const targetInactiveDate = new Date();
-        targetInactiveDate.setDate(targetInactiveDate.getDate() - this.emailParams.inactiveSubmissionDays - 1);
-        const query = [{"$match": {"status": {"$in":[IN_PROGRESS, NEW, REJECTED, WITHDRAWN]}, "accessedAt": {"$exists": true, "$ne": null, "$lte": targetInactiveDate}}}];
+        const query = [{"$match": {
+                "status": {"$in":[IN_PROGRESS, NEW, REJECTED, WITHDRAWN]},
+                "accessedAt": {"$exists": true, "$ne": null, "$lt": subtractDaysFromNow(this.emailParams.inactiveSubmissionDays)}}}];
         try {
             const inactiveSubs = await this.submissionCollection.aggregate(query);
             if (!inactiveSubs || inactiveSubs.length === 0) {
