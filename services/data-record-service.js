@@ -89,13 +89,6 @@ class DataRecordService {
         stat.countNodeType(VALIDATION_STATUS.ERROR, recordErrors.length);
         stat.countNodeType(VALIDATION_STATUS.NEW, orphanedFiles.length);
 
-        // submission warning should be under data file's s3FileInfo.status == "Warning", plus count of Submission.fileWarnings
-        aSubmission?.fileWarnings?.forEach(file => {
-            if (file?.type === DATA_FILE) {
-                stat.countNodeType(VALIDATION_STATUS.WARNING, 1);
-            }
-        });
-
         const dataFileNameSet = dataFiles?.map((node) => node?.fileName)?.filter(Boolean);
         dataFiles.forEach(node => {
             if (dataFileNameSet.has(node.fileName) && (node?.status === VALIDATION_STATUS.NEW || node?.status === VALIDATION_STATUS.PASSED)) {
