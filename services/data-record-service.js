@@ -63,69 +63,15 @@ class DataRecordService {
             ?.filter((f)=> f && f.Key !== `${aSubmission.rootPath}/${FILE}/`)
             ?.map((f)=> f.Key.replace(`${aSubmission.rootPath}/${FILE}/`, ''));
         // This dataFiles represents the intersection of the orphanedFiles.
-        const [orphanedFiles, dataFiles, missingFileSet] = this.#dataFilesStats(uploadedFiles, fileRecords);
-        // The data file might have been deleted, fixing the missing file to match the submission stat.
-        await this.#updateDataFileNode(aSubmission?._id, fileRecords, missingFileSet);
+        const [orphanedFiles, dataFiles] = this.#dataFilesStats(uploadedFiles, fileRecords);
         this.#saveDataFileStats(submissionStats, orphanedFiles, dataFiles, fileRecords, aSubmission);
         return [orphanedFiles, submissionStats];
-    }
-
-    async #updateDataFileNode(submissionID, fileRecords, missingFileSet) {
-        const updateRecords = [];
-        const qcResultErrorRecords = [];
-
-        const qcResultErrors = await this.qcResultsService.getQCResultsErrors(submissionID, VALIDATION.TYPES.DATA_FILE);
-        const errorFiles = new Set(qcResultErrors
-            .filter((file) => file.dataRecordID !== null)
-            .map((file) => file.submittedID));
-        fileRecords.forEach((node) => {
-            if (node?.s3FileInfo?.status !== VALIDATION_STATUS.NEW && missingFileSet.has(node?.s3FileInfo?.fileName)) {
-                if (!errorFiles.has(node?.s3FileInfo?.fileName)) {
-                    qcResultErrorRecords.push({
-                        fileName: node?.s3FileInfo?.fileName,
-                        dataRecordID: node?._id,
-                        origin: SUBMISSION_STATS_ORIGIN_API,
-                        error: {
-                            severity: ERRORS.QC_RESULT.ERROR_TYPE.ERROR,
-                            code: ERRORS.CODES.F001_FILE_MISSING_FROM_BUCKET,
-                            title: ERRORS.MISSING_DATA_FILE.TITLE,
-                            desc: ERRORS.MISSING_DATA_FILE.CONTENTS
-                        }
-                    });
-                }
-                if (node.s3FileInfo.status !== VALIDATION_STATUS.ERROR) {
-                    node.s3FileInfo.status = VALIDATION_STATUS.ERROR;
-                    node.s3FileInfo.warnings = [];
-                    updateRecords.push(node);
-                }
-            }
-        });
-        if (qcResultErrorRecords.length > 0) {
-            await this.qcResultsService.insertErrorRecord(submissionID, qcResultErrorRecords);
-        }
-        if (updateRecords.length > 0) {
-            await Promise.all(updateRecords.map(async (aRecord) => {
-                console.log(`update the error in the data record(${aRecord?._id}) because of missing data files in s3 bucket.`);
-                await this.dataRecordsCollection.updateOne({_id: aRecord?._id}, {...aRecord, updatedAt: getCurrentTime()});
-            }));
-        }
-    }
-
-    async isNodeErrorsBySubmissionID(submissionID) {
-        const errorNodes = await this.dataRecordsCollection.aggregate([{
-            $match: {
-                submissionID: submissionID,
-                "s3FileInfo.status": VALIDATION_STATUS.ERROR
-            }},
-            {$limit: 1}
-        ]);
-        return errorNodes.length > 0;
     }
 
     #dataFilesStats(s3SubmissionFiles, fileRecords) {
         const s3FileSet = new Set(s3SubmissionFiles);
         const fileDataRecordsMap = new Map(fileRecords.map(file => [file?.s3FileInfo?.fileName, file?.s3FileInfo]));
-        const [orphanedFiles, missingFileSet, dataFiles] = [[], new Set(), []];
+        const [orphanedFiles, dataFiles] = [[], []];
         s3FileSet.forEach(file => {
             if (fileDataRecordsMap.has(file)) {
                 dataFiles.push(fileDataRecordsMap.get(file));
@@ -133,20 +79,15 @@ class DataRecordService {
                 orphanedFiles.push(file);
             }
         });
-
-        fileRecords.forEach(file => {
-            if (!s3FileSet.has(file?.s3FileInfo?.fileName)) {
-                missingFileSet.add(file?.s3FileInfo?.fileName);
-            }
-        });
-        return [orphanedFiles, dataFiles, missingFileSet];
+        return [orphanedFiles, dataFiles];
     }
 
-    #saveDataFileStats(submissionStats, orphanedFiles, dataFiles, fileRecords, aSubmission) {
+    #saveDataFileStats(submissionStats, orphanedFiles, dataFiles, fileRecords) {
         const stat = Stat.createStat(DATA_FILE);
         // submission error should be under data file's s3FileInfo.status == "Error", plus count of orphanedFiles, plus db file nodes
         const recordErrors = fileRecords.filter(({file}) => file?.s3FileInfo?.status === VALIDATION_STATUS.ERROR);
-        stat.countNodeType(VALIDATION_STATUS.ERROR, orphanedFiles.length + recordErrors.length);
+        stat.countNodeType(VALIDATION_STATUS.ERROR, recordErrors.length);
+        stat.countNodeType(VALIDATION_STATUS.NEW, orphanedFiles.length);
 
         // submission warning should be under data file's s3FileInfo.status == "Warning", plus count of Submission.fileWarnings
         aSubmission?.fileWarnings?.forEach(file => {
@@ -155,24 +96,21 @@ class DataRecordService {
             }
         });
 
+        const dataFileNameSet = dataFiles?.map((node) => node?.fileName)?.filter(Boolean);
         dataFiles.forEach(node => {
-            if (node?.status === VALIDATION_STATUS.NEW || node?.status === VALIDATION_STATUS.PASSED) {
+            if (dataFileNameSet.has(node.fileName) && (node?.status === VALIDATION_STATUS.NEW || node?.status === VALIDATION_STATUS.PASSED)) {
                 stat.countNodeType(node?.status, 1);
             }
         });
 
-        // A data file error is thrown when the file isn't in the S3 bucket.
         fileRecords.forEach((node) => {
-            if (node?.s3FileInfo?.status === VALIDATION_STATUS.ERROR || node?.s3FileInfo?.status === VALIDATION_STATUS.WARNING) {
+            if (dataFileNameSet.has(node?.s3FileInfo?.fileName) || (node?.s3FileInfo?.status === VALIDATION_STATUS.ERROR || node?.s3FileInfo?.status === VALIDATION_STATUS.WARNING)) {
                 stat.countNodeType(node?.s3FileInfo?.status, 1);
             }
         });
 
-        // total should be orphaned files(s3) + db file nodes
-        const missingFiles = fileRecords.filter(({file}) => file?.s3FileInfo?.status !== VALIDATION_STATUS.NEW);
-        const total = orphanedFiles.length + missingFiles.length;
-        if (stat.total > 0 && total > 0) {
-            stat.total = total;
+        if (stat.total > 0 && dataFileNameSet.size > 0) {
+            stat.total = dataFileNameSet.size;
             submissionStats.stats = submissionStats?.stats || [];
             submissionStats.stats.push(stat);
         }

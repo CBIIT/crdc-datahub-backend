@@ -579,20 +579,8 @@ class Submission {
             throw new Error(ERROR.INVALID_ROLE);
         }
 
-        const [orphanedFiles, submissionStats] = await this.dataRecordService.submissionStats(aSubmission);
-        const isNodeError = await this.dataRecordService.isNodeErrorsBySubmissionID(aSubmission?._id);
+        const [submissionStats] = await this.dataRecordService.submissionStats(aSubmission);
 
-        const qcRecords = await this.#generateQCRecord(orphanedFiles, aSubmission._id);
-        if (qcRecords.length > 0) {
-            await this.qcResultsService.insertErrorRecord(aSubmission?._id, qcRecords);
-        }
-        if (aSubmission.fileValidationStatus !== VALIDATION_STATUS.ERROR && isNodeError) {
-            await this.submissionCollection.update({
-                _id: aSubmission?._id,
-                updatedAt: getCurrentTime(),
-                fileValidationStatus : VALIDATION_STATUS.ERROR
-            });
-        }
         return {
             submissionID: submissionStats?.submissionID || aSubmission._id,
             stats: submissionStats?.stats || []
@@ -1466,28 +1454,6 @@ class Submission {
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
             throw new Error(ERROR.FAILED_VALIDATE_METADATA);
         }
-    }
-
-    async #generateQCRecord(orphanedFiles, submissionID) {
-        const qcResultErrors = await this.qcResultsService.getQCResultsErrors(submissionID, VALIDATION.TYPES.DATA_FILE);
-        const qcResultFileNames = new Set(
-            qcResultErrors
-                .filter(qcResult => qcResult.dataRecordID === null)
-                .map(qcResult => qcResult.submittedID)
-        );
-        return orphanedFiles
-            .filter(fileName => !qcResultFileNames.has(fileName))
-            .map(fileName => ({
-                fileName,
-                origin: SUBMISSION_STATS_ORIGIN_API,
-                dataRecordID: null,
-                error: {
-                    severity: ERRORS.QC_RESULT.ERROR_TYPE.ERROR,
-                    code: ERRORS.CODES.F008_MISSING_DATA_NODE_FILE,
-                    title: ERROR.MISSING_DATA_NODE_FILE_TITLE,
-                    desc: ERROR.MISSING_DATA_NODE_FILE_DESC
-                }
-            }));
     }
 
     #getModelVersion(dataModelInfo, dataCommonType) {
