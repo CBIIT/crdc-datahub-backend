@@ -4,11 +4,9 @@ const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants.js");
-const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const BATCH_SIZE = 300;
 const ERROR = "Error";
 const WARNING = "Warning";
-const SUBMISSION_STATS_ORIGIN_API = "API: submissionStats";
 const NODE_VIEW = {
     submissionID: "$submissionID",
     nodeType: "$nodeType",
@@ -32,17 +30,15 @@ const NODE_RELATION_TYPES = [NODE_RELATION_TYPE_PARENT, NODE_RELATION_TYPE_CHILD
 
 const FILE = "file";
 class DataRecordService {
-    constructor(dataRecordsCollection, dataRecordArchiveCollection, releaseCollection, fileQueueName, metadataQueueName, awsService, s3Service, qcResultsService, exportQueue) {
+    constructor(dataRecordsCollection, dataRecordArchiveCollection, releaseCollection, fileQueueName, metadataQueueName, awsService, s3Service, exportQueue) {
         this.dataRecordsCollection = dataRecordsCollection;
         this.fileQueueName = fileQueueName;
         this.metadataQueueName = metadataQueueName;
         this.awsService = awsService;
         this.s3Service = s3Service;
         this.dataRecordArchiveCollection = dataRecordArchiveCollection;
-        this.qcResultsService = qcResultsService;
         this.exportQueue = exportQueue;
         this.releaseCollection = releaseCollection;
-
     }
 
     async submissionStats(aSubmission) {
@@ -65,7 +61,7 @@ class DataRecordService {
         // This dataFiles represents the intersection of the orphanedFiles.
         const [orphanedFiles, dataFiles] = this.#dataFilesStats(uploadedFiles, fileRecords);
         this.#saveDataFileStats(submissionStats, orphanedFiles, dataFiles, fileRecords, aSubmission);
-        return [orphanedFiles, submissionStats];
+        return submissionStats;
     }
 
     #dataFilesStats(s3SubmissionFiles, fileRecords) {
@@ -84,26 +80,16 @@ class DataRecordService {
 
     #saveDataFileStats(submissionStats, orphanedFiles, dataFiles, fileRecords) {
         const stat = Stat.createStat(DATA_FILE);
-        // submission error should be under data file's s3FileInfo.status == "Error", plus count of orphanedFiles, plus db file nodes
-        const recordErrors = fileRecords.filter(({file}) => file?.s3FileInfo?.status === VALIDATION_STATUS.ERROR);
-        stat.countNodeType(VALIDATION_STATUS.ERROR, recordErrors.length);
         stat.countNodeType(VALIDATION_STATUS.NEW, orphanedFiles.length);
 
-        const dataFileNameSet = dataFiles?.map((node) => node?.fileName)?.filter(Boolean);
+        const validStatusSet = new Set([VALIDATION_STATUS.NEW, VALIDATION_STATUS.PASSED, VALIDATION_STATUS.ERROR, VALIDATION_STATUS.WARNING]);
         dataFiles.forEach(node => {
-            if (dataFileNameSet.has(node.fileName) && (node?.status === VALIDATION_STATUS.NEW || node?.status === VALIDATION_STATUS.PASSED)) {
+            if (validStatusSet.has(node?.status)) {
                 stat.countNodeType(node?.status, 1);
             }
         });
 
-        fileRecords.forEach((node) => {
-            if (dataFileNameSet.has(node?.s3FileInfo?.fileName) || (node?.s3FileInfo?.status === VALIDATION_STATUS.ERROR || node?.s3FileInfo?.status === VALIDATION_STATUS.WARNING)) {
-                stat.countNodeType(node?.s3FileInfo?.status, 1);
-            }
-        });
-
-        if (stat.total > 0 && dataFileNameSet.size > 0) {
-            stat.total = dataFileNameSet.size;
+        if (stat.total > 0) {
             submissionStats.stats = submissionStats?.stats || [];
             submissionStats.stats.push(stat);
         }

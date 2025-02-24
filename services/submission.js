@@ -579,7 +579,7 @@ class Submission {
             throw new Error(ERROR.INVALID_ROLE);
         }
 
-        const [submissionStats] = await this.dataRecordService.submissionStats(aSubmission);
+        const submissionStats = await this.dataRecordService.submissionStats(aSubmission);
 
         return {
             submissionID: submissionStats?.submissionID || aSubmission._id,
