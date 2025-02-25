@@ -97,3 +97,14 @@ Commands:
         $addToSet: { permissions: "data_submission:cancel" }
       }
       );
+  - Update Federal Lead Manage User permission to disabled and unchecked (CRDCDH-2297): |
+      db.configuration.updateOne(
+        {"type": "PBAC"},
+        {$set: {"Defaults.$[r].permissions.$[p].disabled": true}},
+        {arrayFilters: [{"r.role": "Federal Lead"}, {"p._id": "user:manage"}]}
+      );
+      db.configuration.updateOne(
+        {"type": "PBAC"},
+        {$set: {"Defaults.$[r].permissions.$[p].checked": false}},
+        {arrayFilters: [{"r.role": "Federal Lead"}, {"p._id": "user:manage"}]}
+      );
