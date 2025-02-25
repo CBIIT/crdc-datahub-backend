@@ -53,16 +53,28 @@ class DataRecordService {
                 {"$project": {"s3FileInfo.status": 1,"s3FileInfo.fileName": 1,}}
             ]),
             // submission's root path should be matched, otherwise the other file node count return wrong
-            this.s3Service.listFileInDir(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}/`)
+            this.s3Service.listFileInDir(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}/`),
+            // search for the orphaned file errors
+            this.qcResultsService.findBySubmissionErrorCodes(aSubmission?._id, ERRORS.CODES.F008_MISSING_DATA_NODE_FILE)
         ]);
-        const [submissionStatsRes, fileRecords, s3SubmissionFiles] = res;
+        const [submissionStatsRes, fileRecords, s3SubmissionFiles, submissionErrorFiles] = res;
         const submissionStats = submissionStatsRes?.pop() || {};
         const uploadedFiles = s3SubmissionFiles
             ?.filter((f)=> f && f.Key !== `${aSubmission.rootPath}/${FILE}/`)
             ?.map((f)=> f.Key.replace(`${aSubmission.rootPath}/${FILE}/`, ''));
         // This dataFiles represents the intersection of the orphanedFiles.
         const [orphanedFiles, dataFiles] = this.#dataFilesStats(uploadedFiles, fileRecords);
-        this.#saveDataFileStats(submissionStats, orphanedFiles, dataFiles, fileRecords, aSubmission);
+        const orphanedFileNameSet = new Set(submissionErrorFiles
+            ?.map((f) => f?.submittedID));
+
+        const [validatedOrphanedFiles, nonValidatedOrphanedFiles] = orphanedFiles.reduce(
+            ([validated, nonValidated], file) => {
+                orphanedFileNameSet.has(file) ? validated.push(file) : nonValidated.push(file);
+                return [validated, nonValidated];
+            },
+            [[], []]
+        );
+        this.#saveDataFileStats(submissionStats, validatedOrphanedFiles, nonValidatedOrphanedFiles, dataFiles);
         return submissionStats;
     }
 
@@ -80,9 +92,10 @@ class DataRecordService {
         return [orphanedFiles, dataFiles];
     }
 
-    #saveDataFileStats(submissionStats, orphanedFiles, dataFiles, fileRecords) {
+    #saveDataFileStats(submissionStats, validatedOrphanedFiles, nonValidatedOrphanedFiles, dataFiles) {
         const stat = Stat.createStat(DATA_FILE);
-        stat.countNodeType(VALIDATION_STATUS.NEW, orphanedFiles.length);
+        stat.countNodeType(VALIDATION_STATUS.NEW, nonValidatedOrphanedFiles.length);
+        stat.countNodeType(VALIDATION_STATUS.ERROR, validatedOrphanedFiles.length);
 
         const validStatusSet = new Set([VALIDATION_STATUS.NEW, VALIDATION_STATUS.PASSED, VALIDATION_STATUS.ERROR, VALIDATION_STATUS.WARNING]);
         dataFiles.forEach(node => {
