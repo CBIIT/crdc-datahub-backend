@@ -806,7 +806,12 @@ class Submission {
         //2) populate s3Files and sorting and paging 3) retrieve file node info from dataRecords
         if (!listedObjects || listedObjects.length === 0)
             return returnVal;
-        // populate s3Files list and 
+        // populate s3Files list and
+
+        const orphanedErrorFiles = await this.qcResultsService.findBySubmissionErrorCodes(params.submissionID, ERRORS.CODES.F008_MISSING_DATA_NODE_FILE);
+        const orphanedErrorFileNameSet = new Set(orphanedErrorFiles
+            ?.map((f) => f?.submittedID));
+
         for (let file of listedObjects) {
             //don't retrieve logs
             if (file.Key.endsWith('/log'))
@@ -818,7 +823,7 @@ class Submission {
                 submissionID: params.submissionID,
                 nodeType: DATA_FILE,
                 nodeID: file_name,
-                status: VALIDATION_STATUS.NEW,
+                status: orphanedErrorFileNameSet?.has(file_name) ? VALIDATION_STATUS.ERROR : VALIDATION_STATUS.NEW,
                 "Batch ID": "N/A",
                 "File Name": file_name,
                 "File Size": file.Size,
