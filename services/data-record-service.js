@@ -30,15 +30,17 @@ const NODE_RELATION_TYPES = [NODE_RELATION_TYPE_PARENT, NODE_RELATION_TYPE_CHILD
 
 const FILE = "file";
 class DataRecordService {
-    constructor(dataRecordsCollection, dataRecordArchiveCollection, releaseCollection, fileQueueName, metadataQueueName, awsService, s3Service, exportQueue) {
+    constructor(dataRecordsCollection, dataRecordArchiveCollection, releaseCollection, fileQueueName, metadataQueueName, awsService, s3Service, qcResultsService, exportQueue) {
         this.dataRecordsCollection = dataRecordsCollection;
         this.fileQueueName = fileQueueName;
         this.metadataQueueName = metadataQueueName;
         this.awsService = awsService;
         this.s3Service = s3Service;
         this.dataRecordArchiveCollection = dataRecordArchiveCollection;
+        this.qcResultsService = qcResultsService;
         this.exportQueue = exportQueue;
         this.releaseCollection = releaseCollection;
+
     }
 
     async submissionStats(aSubmission) {
