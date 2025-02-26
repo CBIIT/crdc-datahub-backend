@@ -1518,8 +1518,8 @@ class Submission {
         const organizationCondition = organizationID && organizationID !== ALL_FILTER ?
             { "organization._id": organizationID } : {};
 
-        const nameCondition = submissionName ? {name: { $regex: submissionName?.trim(), $options: "i" }} : {};
-        const dbGaPIDCondition = dbGaPID ? {dbGaPID: { $regex: dbGaPID?.trim(), $options: "i" }} : {};
+        const nameCondition = submissionName ? {name: { $regex: submissionName?.trim().replace(/\\/g, "\\\\"), $options: "i" }} : {};
+        const dbGaPIDCondition = dbGaPID ? {dbGaPID: { $regex: dbGaPID?.trim().replace(/\\/g, "\\\\"), $options: "i" }} : {};
         const dataCommonsCondition = (dataCommonsParams && dataCommonsParams !== ALL_FILTER) ? {dataCommons: dataCommonsParams?.trim()} : {};
         const submitterNameCondition = (submitterName && submitterName !== ALL_FILTER) ? {submitterName: submitterName?.trim()} : {};
 
