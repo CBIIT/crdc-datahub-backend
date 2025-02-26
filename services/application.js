@@ -186,11 +186,11 @@ class Application {
             { status: { $in: statues || [] } } : { status: { $in: validApplicationStatus } };
         // Allowing empty string SubmitterName, ProgramName, StudyName
         // Submitter Name should be partial match
-        const submitterQuery = submitterName?.trim().length > 0 ? {$regex: submitterName?.trim(), $options: "i"} : submitterName;
+        const submitterQuery = submitterName?.trim().length > 0 ? {$regex: submitterName.trim().replace(/\\/g, "\\\\"), $options: "i"} : submitterName;
         const submitterNameCondition = (submitterName != null && submitterName !== this.#ALL_FILTER) ? {"applicant.applicantName": submitterQuery} : {};
         const programNameCondition = (programName != null && programName !== this.#ALL_FILTER) ? {programName: programName} : {};
         // Study Name should be partial match
-        const studyQuery = studyName?.trim().length > 0 ? {$regex: studyName?.trim(), $options: "i"} : studyName;
+        const studyQuery = studyName?.trim().length > 0 ? {$regex: studyName?.trim().replace(/\\/g, "\\\\"), $options: "i"} : studyName;
         const studyNameCondition = (studyName != null && studyName !== this.#ALL_FILTER) ? {studyName: studyQuery} : {};
 
         const baseConditions = {...statusCondition, ...programNameCondition, ...studyNameCondition, ...submitterNameCondition};
