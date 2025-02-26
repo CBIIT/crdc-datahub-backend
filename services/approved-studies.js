@@ -317,7 +317,7 @@ class ApprovedStudiesService {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_UPDATE);
         }
 
-        const [conciergeName, conciergeEmail] = [`${primaryContact?.firstName} ${primaryContact?.lastName || ''}`, primaryContact?.email];
+        const [conciergeName, conciergeEmail] = [`${primaryContact?.firstName || ""} ${primaryContact?.lastName || ''}`, primaryContact?.email || ""];
         const updatedSubmissions = await this.submissionCollection.updateMany({
                 studyID: updateStudy._id,
                 status: {$in: [NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, CANCELED, DELETED, ARCHIVED]},
