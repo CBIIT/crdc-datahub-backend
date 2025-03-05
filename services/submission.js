@@ -1241,11 +1241,11 @@ class Submission {
 
 
     async #sendEmailsDeletedSubmissions(aSubmission) {
-         const [aSubmitter, BCCUsers, aOrganization] = await Promise.all([
+         const [aSubmitter, BCCUsers, approvedStudy] = await Promise.all([
             this.userService.getUserByID(aSubmission?.submitterID),
             this.userService.getUsersByNotifications([EN.DATA_SUBMISSION.DELETE],
                 [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]),
-            this.organizationService.getOrganizationByID(aSubmission?.organization?._id)
+            this.userService.approvedStudiesCollection.find(aSubmission?.studyID)
          ]);
          if (!aSubmitter?.email) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER, "Delete", `id=${aSubmission?._id}`);
@@ -1259,7 +1259,7 @@ class Submission {
              await this.notificationService.deleteSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
                  firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`}, {
                  submissionName: `${aSubmission?.name},`,
-                 studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                 studyName: approvedStudy?.length > 0 ? (approvedStudy[0]?.studyName || NA) : NA,
                  inactiveDays: this.emailParams.inactiveSubmissionDays,
                  contactName: `${aSubmission?.conciergeName || 'NA'}`,
                  contactEmail: `${aSubmission?.conciergeEmail || 'NA'}.`
@@ -1639,11 +1639,12 @@ const sendEmails = {
         }
     },
     completeSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService) => {
-        const [aSubmitter, BCCUsers, aOrganization] = await Promise.all([
+        const [aSubmitter, BCCUsers, aOrganization, approvedStudy] = await Promise.all([
             userService.getUserByID(aSubmission?.submitterID),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.COMPLETE],
                 [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]),
-            organizationService.getOrganizationByID(aSubmission?.organization?._id)
+            organizationService.getOrganizationByID(aSubmission?.organization?._id),
+            userService.approvedStudiesCollection.find(aSubmission?.studyID)
         ]);
 
         if (!aSubmitter?.email) {
@@ -1658,18 +1659,19 @@ const sendEmails = {
             }, {
                 submissionName: `${aSubmission?.name},`,
                 // only one study
-                studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                studyName: approvedStudy?.length > 0 ? (approvedStudy[0]?.studyName || NA) : NA,
                 conciergeName: aOrganization?.conciergeName || NA,
                 conciergeEmail: `${aOrganization?.conciergeEmail || NA}.`
             });
         }
     },
     cancelSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
-        const [aSubmitter, BCCUsers, aOrganization] = await Promise.all([
+        const [aSubmitter, BCCUsers, aOrganization, approvedStudy] = await Promise.all([
             userService.getUserByID(aSubmission?.submitterID),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.CANCEL],
                 [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]),
-            organizationService.getOrganizationByID(aSubmission?.organization?._id)
+            organizationService.getOrganizationByID(aSubmission?.organization?._id),
+            userService.approvedStudiesCollection.find(aSubmission?.studyID)
         ]);
 
         if (!aSubmitter?.email) {
@@ -1686,7 +1688,7 @@ const sendEmails = {
             }, {
                 submissionID: aSubmission?._id,
                 submissionName: aSubmission?.name,
-                studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                studyName: approvedStudy?.length > 0 ? approvedStudy[0]?.studyName : NA,
                 canceledBy: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
                 conciergeEmail: `${aOrganization?.conciergeEmail || NA}.`,
                 conciergeName: aOrganization?.conciergeName || NA
@@ -1694,11 +1696,11 @@ const sendEmails = {
         }
     },
     withdrawSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService) => {
-        const [DCPRoleUsers, BCCUsers, aOrganization] = await Promise.all([
+        const [DCPRoleUsers, BCCUsers, approvedStudy] = await Promise.all([
             userService.getDCPs(aSubmission?.dataCommons),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.WITHDRAW],
                 [ROLES.FEDERAL_LEAD, ROLES.SUBMITTER, ROLES.ADMIN]),
-            organizationService.getOrganizationByID(aSubmission?.organization?._id)
+            userService.approvedStudiesCollection.find(aSubmission?.studyID)
         ]);
         const filteredDCPUsers = DCPRoleUsers.filter((u) =>
             u?.notifications?.includes(EN.DATA_SUBMISSION.WITHDRAW) &&
@@ -1716,17 +1718,17 @@ const sendEmails = {
             submissionID: aSubmission?._id,
             submissionName: aSubmission?.name,
             // only one study
-            studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+            studyName: approvedStudy?.length > 0 ? (approvedStudy[0]?.studyName || NA) : NA,
             withdrawnByName: `${userInfo.firstName} ${userInfo?.lastName || ''}.`,
             withdrawnByEmail: `${userInfo?.email}`
         });
     },
     releaseSubmission: async (emailParams, userInfo, aSubmission, userService, organizationService, notificationsService) => {
-        const [DCPRoleUsers, BCCUsers, aOrganization] = await Promise.all([
+        const [DCPRoleUsers, BCCUsers, approvedStudy] = await Promise.all([
             userService.getDCPs(aSubmission?.dataCommons),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.RELEASE],
                 [ROLES.FEDERAL_LEAD, ROLES.SUBMITTER, ROLES.ADMIN]),
-            organizationService.getOrganizationByID(aSubmission?.organization?._id)
+            userService.approvedStudiesCollection.find(aSubmission?.studyID)
         ]);
         const filteredDCPUsers = DCPRoleUsers.filter((u) =>
             u?.notifications?.includes(EN.DATA_SUBMISSION.WITHDRAW) &&
@@ -1746,7 +1748,7 @@ const sendEmails = {
             dataCommonName: aSubmission?.dataCommons}, {
             submissionName: aSubmission?.name,
             // only one study
-            studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+            studyName: approvedStudy?.length > 0 ? (approvedStudy[0]?.studyName || NA) : NA,
             techSupportEmail: `${emailParams.techSupportEmail || NA}.`
         })
     },
@@ -1779,11 +1781,11 @@ const sendEmails = {
         }
     },
     remindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService, expiredDays, pastDays) => {
-        const [aSubmitter, BCCUsers, aOrganization] = await Promise.all([
+        const [aSubmitter, BCCUsers, approvedStudy] = await Promise.all([
             userService.getUserByID(aSubmission?.submitterID),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.REMIND_EXPIRE],
                 [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]),
-            organizationService.getOrganizationByID(aSubmission?.organization?._id)
+            userService.approvedStudiesCollection.find(aSubmission?.studyID)
         ]);
 
         if (!aSubmitter?.email) {
@@ -1800,7 +1802,7 @@ const sendEmails = {
             }, {
                 title: aSubmission?.name,
                 expiredDays: expiredDays || NA,
-                studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                studyName: approvedStudy?.length > 0 ? (approvedStudy[0]?.studyName || NA) : NA,
                 pastDays: pastDays || NA,
                 url: emailParams.url || NA
             });
@@ -1808,11 +1810,11 @@ const sendEmails = {
         }
     },
     finalRemindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService) => {
-        const [aSubmitter, BCCUsers, aOrganization] = await Promise.all([
+        const [aSubmitter, BCCUsers, approvedStudy] = await Promise.all([
             userService.getUserByID(aSubmission?.submitterID),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.REMIND_EXPIRE],
                 [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]),
-            organizationService.getOrganizationByID(aSubmission?.organization?._id)
+            userService.approvedStudiesCollection.find(aSubmission?.studyID)
         ]);
         if (!aSubmitter?.email) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER, "Final Reminder", `id=${aSubmission?._id}`);
@@ -1827,7 +1829,7 @@ const sendEmails = {
                 firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
             }, {
                 title: aSubmission?.name,
-                studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                studyName: approvedStudy?.length > 0 ? (approvedStudy[0]?.studyName || NA) : NA,
                 days: emailParams.finalRemindSubmissionDay || NA,
                 url: emailParams.url || NA
             });
@@ -1864,14 +1866,6 @@ const isAllStudy = (userStudies) => {
         (typeof study === 'object' && study._id === "All") ||
         (typeof study === 'string' && study === "All")
     );
-}
-
-// only one study name
-const getSubmissionStudyName = (studies, aSubmission) => {
-    const studyNames = studies
-        ?.filter((aStudy) => aStudy?._id === aSubmission?.studyID)
-        ?.map((aStudy) => aStudy.studyName);
-    return studyNames?.length > 0 ? studyNames[0] : NA;
 }
 
 const getUserEmails = (users) => {
