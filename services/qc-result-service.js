@@ -59,10 +59,22 @@ class QcResultService{
             }
         });
         // Filter by severity
+        let arrayWithElements = {
+            $exists: true,
+            $type: 'array',
+            $ne: []
+        }
         if (severities === VALIDATION_STATUS.ERROR){
             pipeline.push({
                 $match: {
-                    severity: VALIDATION_STATUS.ERROR
+                    errors: arrayWithElements
+                }
+            });
+        }
+        else if (severities === VALIDATION_STATUS.WARNING){
+            pipeline.push({
+                $match: {
+                    warnings: arrayWithElements
                 }
             });
         }
