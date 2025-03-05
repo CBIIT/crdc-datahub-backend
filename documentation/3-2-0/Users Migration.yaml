@@ -108,3 +108,26 @@ Commands:
         {$set: {"Defaults.$[r].permissions.$[p].checked": false}},
         {arrayFilters: [{"r.role": "Federal Lead"}, {"p._id": "user:manage"}]}
       );
+  - Add missing version to applications: |
+      db.applications.updateMany({
+            version: {
+              $exists: false
+            }
+          },
+      [
+        {
+          $set:
+            {
+              version: {
+                $cond: {
+                  if: {
+                    $in: ["$status", ["New", "In Progress", "Inquired"]]
+                  },
+                  then: "2.0.0",
+                  else: "1.0.0"
+                }
+              }
+            }
+        }
+      ]
+      );
