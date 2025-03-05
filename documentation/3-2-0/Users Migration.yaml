@@ -20,7 +20,7 @@ Commands:
   - Set User Notifications: |
     db.users.updateMany({role: "User", notifications: null}, [{$set: {notifications: ["submission_request:submitted","submission_request:reviewed","submission_request:deleted","submission_request:expiring","account:inactivated"]}}]);
   - Set Federal Lead Permissions: |
-    db.users.updateMany({role: "Federal Lead", permissions: null}, [{$set: {permissions: ["submission_request:view"",submission_request:submit","submission_request:cancel","data_submission:view","dashboard:view"]}}]);
+    db.users.updateMany({role: "Federal Lead", permissions: null}, [{$set: {permissions: ["submission_request:view","submission_request:submit","submission_request:cancel","data_submission:view","dashboard:view"]}}]);
   - Set Federal Lead Notifications: |
     db.users.updateMany({role: "Federal Lead", notifications: null}, [{$set: {notifications: ["submission_request:to_be_reviewed","submission_request:reviewed","submission_request:deleted","submission_request:expiring","account:inactivated"]}}]);
   - Set Federal Monitor Permissions: |
