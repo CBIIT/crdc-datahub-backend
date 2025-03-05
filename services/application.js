@@ -700,7 +700,8 @@ class Application {
                     firstName: application?.applicant?.applicantName,
                     contactEmail: this.emailParams?.conditionalSubmissionContact,
                     reviewComments: comment && comment?.trim()?.length > 0 ? comment?.trim() : "N/A",
-                    study: setDefaultIfNoName(application?.studyName)
+                    study: setDefaultIfNoName(application?.studyName),
+                    submissionGuideURL: this.emailParams?.submissionGuideURL
                 }
             );
         }
