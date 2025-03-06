@@ -2116,7 +2116,7 @@ class Collaborators {
     }
 }
 
-// MM/DD/YYYY, HH:MM PM
+// Month/Date/Year, Hour:Minutes PM or AM
 const formatDate = (date) => {
     return `${date.toLocaleString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}`;
 }
