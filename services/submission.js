@@ -133,8 +133,8 @@ class Submission {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
         }
 
-        if (!approvedStudy?.primaryContactID) {
-            await this.#sendNoPrimaryContactEmail(newSubmission.name, approvedStudy, program);
+        if (!(newSubmission?.conciergeName?.trim()) || !(newSubmission?.conciergeEmail?.trim())) {
+            await this.#sendNoPrimaryContactEmail(newSubmission, approvedStudy, program);
         }
 
         return newSubmission;
@@ -1262,11 +1262,14 @@ class Submission {
         if (adminUsers?.length > 0) {
             await this.notificationService.remindNoPrimaryContact(getUserEmails(adminUsers), getUserEmails(CCUsers), {
                 submissionName: `${aSubmission?.name},`,
-                studyName: approvedStudy?.length > 0 ? (approvedStudy[0]?.studyName || NA) : NA,
+                studyName: approvedStudy?.studyName || NA,
                 programName: aProgram.name,
+                createDate: formatDate(aSubmission?.createdAt || getCurrentTime())
             });
         }
     }
+
+
 
     async #sendEmailsDeletedSubmissions(aSubmission) {
          const [aSubmitter, BCCUsers, approvedStudy] = await Promise.all([
@@ -2111,6 +2114,11 @@ class Collaborators {
         return collaborators
             .filter(i => i?.permission === COLLABORATOR_PERMISSIONS.CAN_EDIT);
     }
+}
+
+// MM/DD/YYYY, HH:MM PM
+const formatDate = (date) => {
+    return `${date.toLocaleString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}`;
 }
 
 // TODO remove temporary for QA
