@@ -3,7 +3,7 @@ const {USER} = require("../crdc-datahub-database-drivers/constants/user-constant
 const {ValidationHandler} = require("../utility/validation-handler");
 const ERROR = require("../constants/error-constants");
 const {ERROR: SUBMODULE_ERROR} = require("../crdc-datahub-database-drivers/constants/error-constants");
-const {replaceErrorString, extractAndJoinFields} = require("../utility/string-util");
+const {replaceErrorString} = require("../utility/string-util");
 const config = require("../config");
 const {getCurrentTime, subtractDaysFromNowTimestamp} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {UpdateProfileEvent, ReactivateUserEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
@@ -16,7 +16,7 @@ const {
     SUBMISSION_REQUEST,
     ADMIN,
     DATA_SUBMISSION,
-    EMAIL_NOTIFICATIONS: EN, EMAIL_NOTIFICATIONS,
+    EMAIL_NOTIFICATIONS: EN
 } = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 
 const isLoggedInOrThrow = (context) => {
@@ -94,21 +94,6 @@ class UserService {
     }
 
     /**
-     * Retrieves user documents from the userCollection by matching organization ID.
-     * @param {String} orgID - a organization ID
-     * @returns {Array} - An array of user documents.
-     */
-    async getOrgOwner(orgID) {
-        return await this.userCollection.aggregate([{
-            "$match": {
-                "organization.orgID": orgID,
-                role: USER.ROLES.ORG_OWNER,
-                userStatus: USER.STATUSES.ACTIVE
-            }
-        }]);
-    }
-
-    /**
      * Retrieves user documents from the userCollection for a Federal Lead role.
      * @returns {Array} - An array of user documents.
      */
@@ -173,21 +158,6 @@ class UserService {
         } else {
             return null;
         }
-    }
-
-    /**
-     * Retrieves user documents from the userCollection by matching multiple organization IDs.
-     * @param {Array} organizationIDs - An array of organization IDs
-     * @returns {Array} - An array of user documents.
-     */
-    async getUsersByOrganizationIDs(organizationIDs) {
-        const result = await this.userCollection.aggregate([{
-            "$match": {
-                userStatus: USER.STATUSES.ACTIVE,
-                "organization.orgID": { "$in": organizationIDs } // userIDs should be an array of IDs
-            }
-        }]);
-        return (result?.length > 0) ? result : [];
     }
 
     async #findStudiesNames(studies) {
@@ -258,32 +228,6 @@ class UserService {
     }
 
     /**
-     * List Active Curators API Interface.
-     *
-     * - `ADMIN` can call this API only
-     *
-     * @api
-     * @param {Object} params Endpoint parameters
-     * @param {{ cookie: Object, userInfo: Object }} context API request context
-     * @returns {Promise<Object[]>} An array of Curator Users mapped to the `UserInfo` type
-     */
-    async listActiveCuratorsAPI(params, context) {
-        verifySession(context)
-            .verifyInitialized()
-            .verifyPermission([USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_STUDIES, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_PROGRAMS]);
-
-        const curators = await this.getActiveCurators();
-        return curators?.map((user) => ({
-            userID: user._id,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            createdAt: user.createdAt,
-            updateAt: user.updateAt,
-        })) || [];
-    }
-
-
-    /**
      * List Active Data-Commons Personnel API Interface.
      * @api
      * @param {Object} params Endpoint parameters
@@ -304,19 +248,6 @@ class UserService {
         })) || [];
     }
 
-    /**
-     * Get all users with the `CURATOR` role and `ACTIVE` status.
-     *
-     * @async
-     * @returns {Promise<Object[]>} An array of Users
-     */
-    async getActiveCurators() {
-        const filters = { role: USER.ROLES.CURATOR, userStatus: USER.STATUSES.ACTIVE };
-        const result = await this.userCollection.aggregate([{ "$match": filters }]);
-
-        return result || [];
-    }
-
     async getAdmin() {
         let result = await this.userCollection.aggregate([{
             "$match": {
@@ -325,32 +256,6 @@ class UserService {
             }
         }]);
         return result || [];
-    }
-
-    /**
-     * Retrieves user documents from the userCollection by matching multiple data commons.
-     * @param {Array} dataCommons - An array of data commons IDs
-     * @returns {Array} - An array of user documents.
-     */
-    async getPOCs(dataCommons) {
-        const result = await this.userCollection.aggregate([{
-            "$match": {
-                role: USER.ROLES.DC_POC,
-                userStatus: USER.STATUSES.ACTIVE,
-                "dataCommons": {$in: Array.isArray(dataCommons) ? dataCommons : [dataCommons]}
-            }
-        }]);
-        return result || [];
-    }
-
-    async getConcierge(orgID) {
-        let result = await this.userCollection.aggregate([{
-            "$match": {
-                "organization.orgID": orgID,
-                role: USER.ROLES.CURATOR
-            }
-        }]);
-        return result;
     }
 
     async updateMyUser(params, context) {
@@ -576,62 +481,6 @@ class UserService {
     }
 
     /**
-     * getOrgOwnerByOrgName
-     * @param {*} orgName
-     * @returns {Promise<Array>} user[]
-     */
-    async getOrgOwnerByOrgName(orgName) {
-        const orgOwner= {
-            "userStatus": USER.STATUSES.ACTIVE,
-            "role": USER.ROLES.ORG_OWNER,
-            "organization.orgName": orgName
-        };
-        return await this.userCollection.aggregate([{"$match": orgOwner}]);
-    }
-
-    /**
-     * getOrgOwnerByOrgName
-     * @param {*} orgID
-     * @returns {Promise<Array>} user[]
-     */
-    async getOrgOwnerByOrgID(orgID) {
-        const orgOwner= {
-            "userStatus": USER.STATUSES.ACTIVE,
-            "role": USER.ROLES.ORG_OWNER,
-            "organization.orgID": orgID
-        };
-        return await this.userCollection.aggregate([{"$match": orgOwner}]);
-    }
-
-    /**
-     * getFederalMonitors
-     * @param {*} studyID
-     * @returns {Promise<Array>} user[]
-     */
-    async getFederalMonitors(studyID) {
-        const query= {
-            "userStatus": USER.STATUSES.ACTIVE,
-            "role": USER.ROLES.FEDERAL_MONITOR,
-            "studies": {$in: [studyID]}
-        };
-        return await this.userCollection.aggregate([{"$match": query}]);
-    }
-
-    /**
-     * getCurators
-     * @param {*} dataCommons
-     * @returns {Promise<Array>} user[]
-     */
-    async getCurators(dataCommons) {
-        const query= {
-            "userStatus": USER.STATUSES.ACTIVE,
-            "role": USER.ROLES.CURATOR,
-            "dataCommons": {$in: Array.isArray(dataCommons) ? dataCommons : [dataCommons]}
-        };
-        return await this.userCollection.aggregate([{"$match": query}]);
-    }
-
-    /**
      * get Data Commons Personnel
      * @param {*} dataCommons
      * @returns {Promise<Array>} user[]
@@ -849,7 +698,7 @@ class DataCommon {
      * @param {Array} newDataCommons - The new data commons to update the user.
      * @returns {Array} - return a data commons array.
      */
-    // TODO check user role is required
+
     static get(currentDataCommons, newDataCommons) {
         const dataCommons = new DataCommon(currentDataCommons, newDataCommons);
         return dataCommons.#getDataCommons() || [];
