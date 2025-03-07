@@ -653,6 +653,8 @@ class UserService {
     async getCollaboratorsByStudyID(studyID, submitterID) {
         const query = {
             _id: {"$ne": submitterID},
+            "role": USER.ROLES.SUBMITTER,
+            "userStatus": USER.STATUSES.ACTIVE,
             "permissions": {"$in": [USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE]},
             "$or": [{"studies": {"$in": [studyID, "All"]}}, {"studies._id": {"$in": [studyID, "All"]}}]
         }; // user's studies contains studyID

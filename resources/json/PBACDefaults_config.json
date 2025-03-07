@@ -71,10 +71,18 @@
             "disabled": false
           },
           {
+            "_id": "data_submission:cancel",
+            "group": "Data Submission Permissions",
+            "name": "Cancel",
+            "order": 3,
+            "checked": false,
+            "disabled": false
+          },
+          {
             "_id": "data_submission:review",
             "group": "Data Submission Permissions",
             "name": "Review",
-            "order": 3,
+            "order": 4,
             "checked": false,
             "disabled": false
           },
@@ -82,7 +90,7 @@
             "_id": "data_submission:admin_submit",
             "group": "Data Submission Permissions",
             "name": "Admin Submit",
-            "order": 4,
+            "order": 5,
             "checked": false,
             "disabled": true
           },
@@ -90,18 +98,11 @@
             "_id": "data_submission:confirm",
             "group": "Data Submission Permissions",
             "name": "Confirm",
-            "order": 5,
-            "checked": false,
-            "disabled": false
-          },
-          {
-            "_id": "data_submission:cancel",
-            "group": "Data Submission Permissions",
-            "name": "Cancel",
             "order": 6,
             "checked": false,
             "disabled": false
           },
+          
           {
             "_id": "user:manage",
             "group": "Admin Permissions",
@@ -342,10 +343,18 @@
             "disabled": false
           },
           {
+            "_id": "data_submission:cancel",
+            "group": "Data Submission Permissions",
+            "name": "Cancel",
+            "order": 3,
+            "checked": true,
+            "disabled": false
+          },
+          {
             "_id": "data_submission:review",
             "group": "Data Submission Permissions",
             "name": "Review",
-            "order": 3,
+            "order": 4,
             "checked": true,
             "disabled": false
           },
@@ -353,7 +362,7 @@
             "_id": "data_submission:admin_submit",
             "group": "Data Submission Permissions",
             "name": "Admin Submit",
-            "order": 4,
+            "order": 5,
             "checked": true,
             "disabled": false
           },
@@ -361,18 +370,11 @@
             "_id": "data_submission:confirm",
             "group": "Data Submission Permissions",
             "name": "Confirm",
-            "order": 5,
-            "checked": true,
-            "disabled": false
-          },
-          {
-            "_id": "data_submission:cancel",
-            "group": "Data Submission Permissions",
-            "name": "Cancel",
             "order": 6,
             "checked": true,
             "disabled": false
           },
+         
           {
             "_id": "user:manage",
             "group": "Admin Permissions",
@@ -613,10 +615,18 @@
             "disabled": false
           },
           {
+            "_id": "data_submission:cancel",
+            "group": "Data Submission Permissions",
+            "name": "Cancel",
+            "order": 3,
+            "checked": false,
+            "disabled": false
+          },
+          {
             "_id": "data_submission:review",
             "group": "Data Submission Permissions",
             "name": "Review",
-            "order": 3,
+            "order": 4,
             "checked": false,
             "disabled": false
           },
@@ -624,7 +634,7 @@
             "_id": "data_submission:admin_submit",
             "group": "Data Submission Permissions",
             "name": "Admin Submit",
-            "order": 4,
+            "order": 5,
             "checked": true,
             "disabled": false
           },
@@ -632,18 +642,11 @@
             "_id": "data_submission:confirm",
             "group": "Data Submission Permissions",
             "name": "Confirm",
-            "order": 5,
-            "checked": false,
-            "disabled": false
-          },
-          {
-            "_id": "data_submission:cancel",
-            "group": "Data Submission Permissions",
-            "name": "Cancel",
             "order": 6,
             "checked": false,
             "disabled": false
           },
+          
           {
             "_id": "user:manage",
             "group": "Admin Permissions",
@@ -884,10 +887,18 @@
             "disabled": true
           },
           {
+            "_id": "data_submission:cancel",
+            "group": "Data Submission Permissions",
+            "name": "Cancel",
+            "order": 3,
+            "checked": true,
+            "disabled": true
+          },
+          {
             "_id": "data_submission:review",
             "group": "Data Submission Permissions",
             "name": "Review",
-            "order": 3,
+            "order": 4,
             "checked": false,
             "disabled": true
           },
@@ -895,7 +906,7 @@
             "_id": "data_submission:admin_submit",
             "group": "Data Submission Permissions",
             "name": "Admin Submit",
-            "order": 4,
+            "order": 5,
             "checked": false,
             "disabled": true
           },
@@ -903,18 +914,11 @@
             "_id": "data_submission:confirm",
             "group": "Data Submission Permissions",
             "name": "Confirm",
-            "order": 5,
+            "order": 6,
             "checked": false,
             "disabled": true
           },
-          {
-            "_id": "data_submission:cancel",
-            "group": "Data Submission Permissions",
-            "name": "Cancel",
-            "order": 6,
-            "checked": true,
-            "disabled": true
-          },
+          
           {
             "_id": "user:manage",
             "group": "Admin Permissions",
@@ -1155,10 +1159,18 @@
             "disabled": true
           },
           {
+            "_id": "data_submission:cancel",
+            "group": "Data Submission Permissions",
+            "name": "Cancel",
+            "order": 3,
+            "checked": false,
+            "disabled": true
+          },
+          {
             "_id": "data_submission:review",
             "group": "Data Submission Permissions",
             "name": "Review",
-            "order": 3,
+            "order": 4,
             "checked": false,
             "disabled": true
           },
@@ -1166,7 +1178,7 @@
             "_id": "data_submission:admin_submit",
             "group": "Data Submission Permissions",
             "name": "Admin Submit",
-            "order": 4,
+            "order": 5,
             "checked": false,
             "disabled": true
           },
@@ -1174,18 +1186,11 @@
             "_id": "data_submission:confirm",
             "group": "Data Submission Permissions",
             "name": "Confirm",
-            "order": 5,
-            "checked": false,
-            "disabled": true
-          },
-          {
-            "_id": "data_submission:cancel",
-            "group": "Data Submission Permissions",
-            "name": "Cancel",
             "order": 6,
             "checked": false,
             "disabled": true
           },
+          
           {
             "_id": "user:manage",
             "group": "Admin Permissions",

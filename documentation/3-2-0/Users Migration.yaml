@@ -20,7 +20,7 @@ Commands:
   - Set User Notifications: |
     db.users.updateMany({role: "User", notifications: null}, [{$set: {notifications: ["submission_request:submitted","submission_request:reviewed","submission_request:deleted","submission_request:expiring","account:inactivated"]}}]);
   - Set Federal Lead Permissions: |
-    db.users.updateMany({role: "Federal Lead", permissions: null}, [{$set: {permissions: ["submission_request:view"",submission_request:submit","submission_request:cancel","data_submission:view","dashboard:view"]}}]);
+    db.users.updateMany({role: "Federal Lead", permissions: null}, [{$set: {permissions: ["submission_request:view","submission_request:submit","submission_request:cancel","data_submission:view","dashboard:view"]}}]);
   - Set Federal Lead Notifications: |
     db.users.updateMany({role: "Federal Lead", notifications: null}, [{$set: {notifications: ["submission_request:to_be_reviewed","submission_request:reviewed","submission_request:deleted","submission_request:expiring","account:inactivated"]}}]);
   - Set Federal Monitor Permissions: |
@@ -87,3 +87,47 @@ Commands:
           ]
         }]
       });
+  - Added user's cancel permission (CRDCDH-2255): |
+      db.users.updateMany(
+      {
+        role: { $in: ["Submitter", "Data Curator"] },
+        permissions: { $ne: "data_submission:cancel" }
+      },
+      {
+        $addToSet: { permissions: "data_submission:cancel" }
+      }
+      );
+  - Update Federal Lead Manage User permission to disabled and unchecked (CRDCDH-2297): |
+      db.configuration.updateOne(
+        {"type": "PBAC"},
+        {$set: {"Defaults.$[r].permissions.$[p].disabled": true}},
+        {arrayFilters: [{"r.role": "Federal Lead"}, {"p._id": "user:manage"}]}
+      );
+      db.configuration.updateOne(
+        {"type": "PBAC"},
+        {$set: {"Defaults.$[r].permissions.$[p].checked": false}},
+        {arrayFilters: [{"r.role": "Federal Lead"}, {"p._id": "user:manage"}]}
+      );
+  - Add missing version to applications: |
+      db.applications.updateMany({
+            version: {
+              $exists: false
+            }
+          },
+      [
+        {
+          $set:
+            {
+              version: {
+                $cond: {
+                  if: {
+                    $in: ["$status", ["New", "In Progress", "Inquired"]]
+                  },
+                  then: "2.0.0",
+                  else: "1.0.0"
+                }
+              }
+            }
+        }
+      ]
+      );

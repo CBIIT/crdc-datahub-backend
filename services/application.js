@@ -42,21 +42,18 @@ class Application {
         if (application.status === APPROVED){
             await this.#checkConditionalApproval(application);
         }
-        // populate the version if not stored in
-        if (!application?.version){
-            application.version  = await this.#getApplicationVersionByStatus(application.status);
-        }
+        // populate the version with auto upgrade based on configuration
+        application.version  = await this.#getApplicationVersionByStatus(application.status, application.version);
         return application;
     }
 
-    async #getApplicationVersionByStatus(status) {   
-        const defaultVersion = "1.0";
-        const newVersion = "2.0"; 
+    async #getApplicationVersionByStatus(status, version = null ) {   
         const config = await this.configurationService.findByType("APPLICATION_FORM_VERSIONS"); //get version config dynamically
-        const currentVersion = config?.current || defaultVersion;
-        const newStatusVersion = config?.new || newVersion;
-
-        return [NEW, IN_PROGRESS, INQUIRED].includes(status) ? newStatusVersion : currentVersion;
+        const currentVersion = config?.current || "2.0";
+        const newStatusVersion = config?.new || "3.0";
+        // auto upgrade version based on configuration if status is NEW, IN_PROGRESS, INQUIRED
+        // for status other than NEW, IN_PROGRESS, INQUIRED, keep original version if exists, else set current version.
+        return [NEW, IN_PROGRESS, INQUIRED].includes(status) ? newStatusVersion : (!version)? currentVersion : version;
     }
 
     async #checkConditionalApproval(application) {
@@ -106,10 +103,8 @@ class Application {
                 });
             }
         }
-        // populate the version if not stored in
-        if (application && !application?.version){
-            application.version  = await this.#getApplicationVersionByStatus(application.status);
-        }
+        // populate the version with auto upgrade based on configuration
+        application.version  = await this.#getApplicationVersionByStatus(application.status, application.version);
         return application || null;
     }
 
@@ -156,8 +151,8 @@ class Application {
         const storedApplication = await this.getApplicationById(id);
         const prevStatus = storedApplication?.status;
         let application = {...storedApplication, ...inputApplication, status: IN_PROGRESS};
-        if (!application?.version)
-            application.version = await this.#getApplicationVersionByStatus(IN_PROGRESS);
+        // auto upgrade version based on configuration
+        application.version = await this.#getApplicationVersionByStatus(IN_PROGRESS);
         application = await updateApplication(this.applicationCollection, application, prevStatus, context?.userInfo?._id);
         if (prevStatus !== application.status){
             await logStateChange(this.logCollection, context.userInfo, application, prevStatus);
@@ -180,8 +175,8 @@ class Application {
         ];
         const result = await this.applicationCollection.aggregate(pipeline);
         const application = result.length > 0 ? result[0] : null;
-        if (!application?.version)
-            application.version = await this.#getApplicationVersionByStatus(IN_PROGRESS);
+        // auto upgrade version
+        application.version = await this.#getApplicationVersionByStatus(IN_PROGRESS);
         return application;
     }
 
@@ -191,11 +186,11 @@ class Application {
             { status: { $in: statues || [] } } : { status: { $in: validApplicationStatus } };
         // Allowing empty string SubmitterName, ProgramName, StudyName
         // Submitter Name should be partial match
-        const submitterQuery = submitterName?.trim().length > 0 ? {$regex: submitterName?.trim(), $options: "i"} : submitterName;
+        const submitterQuery = submitterName?.trim().length > 0 ? {$regex: submitterName.trim().replace(/\\/g, "\\\\"), $options: "i"} : submitterName;
         const submitterNameCondition = (submitterName != null && submitterName !== this.#ALL_FILTER) ? {"applicant.applicantName": submitterQuery} : {};
         const programNameCondition = (programName != null && programName !== this.#ALL_FILTER) ? {programName: programName} : {};
         // Study Name should be partial match
-        const studyQuery = studyName?.trim().length > 0 ? {$regex: studyName?.trim(), $options: "i"} : studyName;
+        const studyQuery = studyName?.trim().length > 0 ? {$regex: studyName?.trim().replace(/\\/g, "\\\\"), $options: "i"} : studyName;
         const studyNameCondition = (studyName != null && studyName !== this.#ALL_FILTER) ? {studyName: studyQuery} : {};
 
         const baseConditions = {...statusCondition, ...programNameCondition, ...studyNameCondition, ...submitterNameCondition};
@@ -267,11 +262,7 @@ class Application {
         for (let app of applications?.filter(a=>a.status === APPROVED)) {
             await this.#checkConditionalApproval(app);
         }
-        // add version if not stored in DB
-        await applications.forEach((app) => {
-            if (!app?.version)
-                app.version = this.#getApplicationVersionByStatus(app.status);
-        });
+
         return {
             applications: applications,
             total: results[1]?.length > 0 ? results[1][0]?.count : 0,
@@ -295,8 +286,8 @@ class Application {
             .notEmpty()
             .state(validStatus);
         // In Progress -> In Submitted
-        if (!application?.version)
-            application.version = await this.#getApplicationVersionByStatus(application.status);
+        // auto upgrade version
+        application.version = await this.#getApplicationVersionByStatus(application.status, application?.version);
         const history = application.history || [];
         const historyEvent = HistoryEventBuilder.createEvent(context.userInfo._id, SUBMITTED, null);
         history.push(historyEvent)
@@ -322,8 +313,7 @@ class Application {
             .verifyInitialized()
             .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CREATE);
         const application = await this.getApplicationById(document._id);
-        if (!application?.version)
-            application.version = await this.#getApplicationVersionByStatus(application.status);
+        application.version = await this.#getApplicationVersionByStatus(application.status, application?.version);
         // TODO 1. If Reviewer opened the application, the status changes to IN_REVIEW
         if (application && application.status) {
             const history = HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, null);
@@ -353,8 +343,7 @@ class Application {
         if (!validApplicationStatus.includes(aApplication.status)) {
             throw new Error(ERROR.VERIFY.INVALID_STATE_APPLICATION);
         }
-        if (!aApplication?.version)
-            aApplication.version = await this.#getApplicationVersionByStatus(aApplication.status);
+        aApplication.version = await this.#getApplicationVersionByStatus(aApplication.status, aApplication?.version);
         const userInfo = context?.userInfo;
         const isEnabledPBAC = userInfo?.permissions?.includes(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
         const isPowerRole = [ROLES.FEDERAL_LEAD, ROLES.ADMIN, ROLES.DATA_COMMONS_PERSONNEL].includes(userInfo?.role);
@@ -426,9 +415,7 @@ class Application {
         verifyApplication(application)
             .notEmpty()
             .state([IN_REVIEW, SUBMITTED]);
-        if (!application?.version)
-            application.version = await this.#getApplicationVersionByStatus(application.status);
-
+        application.version = await this.#getApplicationVersionByStatus(application.status, application?.version);
         const approvedStudies = await this.approvedStudiesService.findByStudyName(application?.studyName);
         if (approvedStudies.length > 0) {
             throw new Error(replaceErrorString(ERROR.DUPLICATE_APPROVED_STUDY_NAME, `'${application?.studyName}'`));
@@ -486,8 +473,7 @@ class Application {
         verifyApplication(application)
             .notEmpty()
             .state([IN_REVIEW, SUBMITTED]);
-        if (!application?.version)
-            application.version = await this.#getApplicationVersionByStatus(application.status);
+        application.version = await this.#getApplicationVersionByStatus(application.status, application?.version);
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, REJECTED, document.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
             $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime, version: application.version},
@@ -515,8 +501,8 @@ class Application {
         verifyApplication(application)
             .notEmpty()
             .state([IN_REVIEW, SUBMITTED]);
-        if (!application?.version)
-            application.version = await this.#getApplicationVersionByStatus(application.status);
+        // auto upgrade version
+        application.version = await this.#getApplicationVersionByStatus(application.status);
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, INQUIRED, document.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
             $set: {reviewComment: document.comment, status: INQUIRED, updatedAt: history.dateTime, version: application.version},
@@ -551,7 +537,7 @@ class Application {
             const [applicantUsers, BCCUsers] = await Promise.all([
                 this.#findUsersByApplicantIDs(applications),
                 this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_DELETE],
-                    [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL]),
+                    [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]),
             ]);
 
             const permittedUserIDs = new Set(
@@ -683,7 +669,7 @@ class Application {
     async sendEmailAfterApproveApplication(context, application, comment, conditional = false) {
         const res = await Promise.all([
             this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
-                [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD]),
+                [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD, ROLES.ADMIN]),
             this.userService.userCollection.find(application?.applicant?.applicantID)
         ]);
 
@@ -714,7 +700,8 @@ class Application {
                     firstName: application?.applicant?.applicantName,
                     contactEmail: this.emailParams?.conditionalSubmissionContact,
                     reviewComments: comment && comment?.trim()?.length > 0 ? comment?.trim() : "N/A",
-                    study: setDefaultIfNoName(application?.studyName)
+                    study: setDefaultIfNoName(application?.studyName),
+                    submissionGuideURL: this.emailParams?.submissionGuideURL
                 }
             );
         }
@@ -908,7 +895,7 @@ const sendEmails = {
         const applicantInfo = (await userService.userCollection.find(application?.applicant?.applicantID))?.pop();
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_SUBMIT)) {
             const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_SUBMIT],
-                [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL]);
+                [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]);
             const CCEmails = getCCEmails(application?.applicant?.applicantEmail, application);
             const toBCCEmails = getUserEmails(BCCUsers)
                 ?.filter((email) => !CCEmails.includes(email) && applicantInfo?.email !== email);
@@ -930,14 +917,12 @@ const sendEmails = {
         }
         if (toUsers?.length > 0) {
             const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_READY_REVIEW],
-                [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL]);
+                [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]);
             const toEmails = getUserEmails(toUsers);
-            const CCEmails = getCCEmails(application?.applicant?.applicantEmail, application)
-                ?.filter((email) => !toEmails?.includes(email))
             const toBCCEmails = getUserEmails(BCCUsers)
-                ?.filter((email) => !CCEmails.includes(email) && applicantInfo?.email !== email && !toEmails?.includes(email));
+                ?.filter((email) => !toEmails?.includes(email));
             await notificationService.submitQuestionNotification(getUserEmails(toUsers),
-                CCEmails,
+                [],
                 toBCCEmails, {
                 pi: `${userInfo.firstName} ${userInfo.lastName},`,
                 programName: application?.programName?.trim() || "NA",
@@ -949,7 +934,7 @@ const sendEmails = {
     inquireApplication: async(notificationService, userService, emailParams, application, reviewComments) => {
         const res = await Promise.all([
             userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
-                [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD]),
+                [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD, ROLES.ADMIN]),
             userService.userCollection.find(application?.applicant?.applicantID)
         ]);
         const [toBCCUsers, applicant] = res;
@@ -972,7 +957,7 @@ const sendEmails = {
         const applicantInfo = (await userService.userCollection.find(application?.applicant?.applicantID))?.pop();
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW)) {
             const BCCUsers = await userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
-                [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD]);
+                [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD, ROLES.ADMIN]);
             const CCEmails = getCCEmails(application?.applicant?.applicantEmail, application);
             const toBCCEmails = getUserEmails(BCCUsers)
                 ?.filter((email) => !CCEmails.includes(email) && applicantInfo?.email !== email);

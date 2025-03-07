@@ -5,16 +5,28 @@ const { verifySession } = require('../verifier/user-info-verifier');
 const {ApprovedStudies} = require("../crdc-datahub-database-drivers/domain/approved-studies");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {ADMIN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+const {
+    NEW,
+    IN_PROGRESS,
+    SUBMITTED,
+    WITHDRAWN,
+    RELEASED,
+    REJECTED,
+    CANCELED,
+    DELETED, ARCHIVED
+} = require("../constants/submission-constants");
+const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const CONTROLLED_ACCESS_ALL = "All";
 const CONTROLLED_ACCESS_OPEN = "Open";
 const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
 const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN, CONTROLLED_ACCESS_CONTROLLED];
 class ApprovedStudiesService {
 
-    constructor(approvedStudiesCollection, userCollection, organizationService) {
+    constructor(approvedStudiesCollection, userCollection, organizationService, submissionCollection) {
         this.approvedStudiesCollection = approvedStudiesCollection;
         this.userCollection = userCollection;
         this.organizationService = organizationService;
+        this.submissionCollection = submissionCollection;
     }
 
     async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName) {
@@ -75,8 +87,8 @@ class ApprovedStudiesService {
         }
         let returnStudy = study[0];
         // find program/organization by study ID
-        returnStudy.program = await this.#findOrganizationByStudyID(_id)
-        // file primaryContact
+        returnStudy.programs = await this.#findOrganizationByStudyID(_id)
+        // find primaryContact
         if (returnStudy?.primaryContactID)
         {
             returnStudy.primaryContact = await this.#findUserByID(returnStudy.primaryContactID);
@@ -89,7 +101,8 @@ class ApprovedStudiesService {
     {
         const orgIds = await this.organizationService.findByStudyID(studyID);
         if (orgIds && orgIds.length > 0 ) {
-            return await this.organizationService.organizationCollection.findOne(orgIds[0]);
+            const filters = {_id: {"$in": orgIds}};
+            return await this.organizationService.organizationCollection.aggregate([{ "$match": filters }]);
         }
         return null;
     }
@@ -219,12 +232,15 @@ class ApprovedStudiesService {
         // check if name is unique
         await this.#validateStudyName(name)
         // check primaryContactID 
-        const primaryContact = await this.#findUserByID(primaryContactID);
-        if (!primaryContact) {
-            throw new Error(ERROR.INVALID_PRIMARY_CONTACT);
-        }
-        if (primaryContact.role !== USER.ROLES.DATA_COMMONS_PERSONNEL){
-            throw new Error(ERROR.INVALID_PRIMARY_CONTACT_ROLE);
+        let primaryContact = null;
+        if (primaryContactID) {
+            primaryContact = await this.#findUserByID(primaryContactID);
+            if (!primaryContact) {  
+                throw new Error(ERROR.INVALID_PRIMARY_CONTACT);
+            }
+            if (primaryContact.role !== USER.ROLES.DATA_COMMONS_PERSONNEL){
+                throw new Error(ERROR.INVALID_PRIMARY_CONTACT_ROLE);
+            }
         }
         const current_date = new Date();
         if (!acronym){
@@ -284,23 +300,37 @@ class ApprovedStudiesService {
         if (PI !== undefined) {
             updateStudy.PI = PI;
         }
-        const primaryContact = await this.#findUserByID(primaryContactID);
-        if (!primaryContact) {
-            throw new Error(ERROR.INVALID_PRIMARY_CONTACT);
-        }
-        if (primaryContact.role !== USER.ROLES.DATA_COMMONS_PERSONNEL){
-            throw new Error(ERROR.INVALID_PRIMARY_CONTACT_ROLE);
+        let  primaryContact = null;
+        if(primaryContactID){
+            primaryContact = await this.#findUserByID(primaryContactID);
+            if (!primaryContact) {
+                throw new Error(ERROR.INVALID_PRIMARY_CONTACT);
+            }
+            if (primaryContact.role !== USER.ROLES.DATA_COMMONS_PERSONNEL){
+                throw new Error(ERROR.INVALID_PRIMARY_CONTACT_ROLE);
+            }
         }
         updateStudy.primaryContactID = primaryContactID;
-        
-        updateStudy.updatedAt = new Date();
+        updateStudy.updatedAt = getCurrentTime();
         const result = await this.approvedStudiesCollection.update(updateStudy);
         if (!result?.acknowledged) {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_UPDATE);
         }
-        // find program/organization by study ID
-        const program = await this.#findOrganizationByStudyID(studyID)
-        return {...updateStudy, program: program, primaryContact: primaryContact};  
+
+        const [conciergeName, conciergeEmail] = [`${primaryContact?.firstName || ""} ${primaryContact?.lastName || ''}`, primaryContact?.email || ""];
+        const updatedSubmissions = await this.submissionCollection.updateMany({
+                studyID: updateStudy._id,
+                status: {$in: [NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, CANCELED, DELETED, ARCHIVED]},
+                conciergeName: { "$ne": conciergeName },
+                conciergeEmail: { "$ne": conciergeEmail }}, {
+            // To update the primary contacts
+            conciergeName, conciergeEmail, updatedAt: getCurrentTime()});
+        if (!updatedSubmissions?.acknowledged) {
+            console.log(ERROR.FAILED_PRIMARY_CONTACT_UPDATE, `StudyID: ${studyID}`);
+            throw new Error(ERROR.FAILED_PRIMARY_CONTACT_UPDATE);
+        }
+        const programs = await this.#findOrganizationByStudyID(studyID)
+        return {...updateStudy, programs: programs, primaryContact: primaryContact};  
     }
     /**
      * internal method to find user by ID since can't use the userService to avoid cross-referencing

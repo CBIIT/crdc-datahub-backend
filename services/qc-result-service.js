@@ -59,10 +59,22 @@ class QcResultService{
             }
         });
         // Filter by severity
+        let arrayWithElements = {
+            $exists: true,
+            $type: 'array',
+            $ne: []
+        }
         if (severities === VALIDATION_STATUS.ERROR){
             pipeline.push({
                 $match: {
-                    severity: VALIDATION_STATUS.ERROR
+                    errors: arrayWithElements
+                }
+            });
+        }
+        else if (severities === VALIDATION_STATUS.WARNING){
+            pipeline.push({
+                $match: {
+                    warnings: arrayWithElements
                 }
             });
         }
@@ -147,24 +159,12 @@ class QcResultService{
         }
     }
 
-    async insertErrorRecord(submissionID, qcRecords) {
-        const qcResultErrors = qcRecords?.map((record) => {
-            const errorMsg = QCResultError.create(
-                record.error.title,
-                replaceErrorString(record.error.desc, `'${record.fileName}'`),
-                record.error.severity,
-                record.error.code
-            );
-            return QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, record.fileName, null, null, VALIDATION_STATUS.ERROR, getCurrentTime(), getCurrentTime(), [errorMsg], [], record.dataRecordID, record?.origin);
-        });
-
-        await Promise.all(qcResultErrors.map(async (qcResult) => {
-            const res = await this.qcResultCollection.findOneAndUpdate({ submissionID: submissionID, submittedID: qcResult.submittedID, type: VALIDATION.TYPES.DATA_FILE},
-                qcResult, {returnDocument: 'after', upsert: true});
-            if (!res?.value) {
-                console.error(ERROR.FAILED_INSERT_QC_RESULT + ` submissionID: ${submissionID}`);
-            }
-        }));
+    async findBySubmissionErrorCodes(submissionID, errorCode) {
+        const result = await this.qcResultCollection.aggregate([
+            {"$match": { submissionID: submissionID, "errors.code": errorCode}},
+            {"$project": {submittedID: 1, submissionID: 1}}
+        ]);
+        return result || [];
     }
 
     async getQCResultsErrors(submissionID, errorType) {
