@@ -43,7 +43,6 @@ const FINAL_INACTIVE_REMINDER = "finalInactiveReminder";
 const SUBMISSION_ID = "Submission ID";
 const DATA_SUBMISSION_TYPE = "Data Submission Type";
 const DESTINATION_LOCATION = "Destination Location";
-const SUBMISSION_STATS_ORIGIN_API = "API: submissionStats";
 // Set to array
 Set.prototype.toArray = function() {
     return Array.from(this);
@@ -82,7 +81,7 @@ class Submission {
             .verifyPermission(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
         const userInfo = context?.userInfo;
         const hasStudies = userInfo?.studies?.length > 0;
-        const isRoleWithoutStudies = userInfo?.role === ROLES.DATA_COMMONS_PERSONNEL;
+        const isRoleWithoutStudies = userInfo?.role === ROLES.DATA_COMMONS_PERSONNEL || userInfo?.role === ROLES.ADMIN;
         if (!hasStudies && !isRoleWithoutStudies){
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
         }
@@ -564,20 +563,8 @@ class Submission {
             throw new Error(ERROR.INVALID_ROLE);
         }
 
-        const [orphanedFiles, submissionStats] = await this.dataRecordService.submissionStats(aSubmission);
-        const isNodeError = await this.dataRecordService.isNodeErrorsBySubmissionID(aSubmission?._id);
+        const submissionStats = await this.dataRecordService.submissionStats(aSubmission);
 
-        const qcRecords = await this.#generateQCRecord(orphanedFiles, aSubmission._id);
-        if (qcRecords.length > 0) {
-            await this.qcResultsService.insertErrorRecord(aSubmission?._id, qcRecords);
-        }
-        if (aSubmission.fileValidationStatus !== VALIDATION_STATUS.ERROR && isNodeError) {
-            await this.submissionCollection.update({
-                _id: aSubmission?._id,
-                updatedAt: getCurrentTime(),
-                fileValidationStatus : VALIDATION_STATUS.ERROR
-            });
-        }
         return {
             submissionID: submissionStats?.submissionID || aSubmission._id,
             stats: submissionStats?.stats || []
@@ -765,7 +752,12 @@ class Submission {
         //2) populate s3Files and sorting and paging 3) retrieve file node info from dataRecords
         if (!listedObjects || listedObjects.length === 0)
             return returnVal;
-        // populate s3Files list and 
+        // populate s3Files list and
+
+        const orphanedErrorFiles = await this.qcResultsService.findBySubmissionErrorCodes(params.submissionID, ERRORS.CODES.F008_MISSING_DATA_NODE_FILE);
+        const orphanedErrorFileNameSet = new Set(orphanedErrorFiles
+            ?.map((f) => f?.submittedID));
+
         for (let file of listedObjects) {
             //don't retrieve logs
             if (file.Key.endsWith('/log'))
@@ -777,7 +769,7 @@ class Submission {
                 submissionID: params.submissionID,
                 nodeType: DATA_FILE,
                 nodeID: file_name,
-                status:  "Error",
+                status: orphanedErrorFileNameSet?.has(file_name) ? VALIDATION_STATUS.ERROR : VALIDATION_STATUS.NEW,
                 "Batch ID": "N/A",
                 "File Name": file_name,
                 "File Size": file.Size,
@@ -1145,10 +1137,9 @@ class Submission {
      * description: overnight job to set inactive submission status to "Deleted", delete related data and files
      */
      async deleteInactiveSubmissions(){
-        //get target inactive date, current date - config.inactive_submission_days (default 120 days)
-        const targetInactiveDate = new Date();
-        targetInactiveDate.setDate(targetInactiveDate.getDate() - this.emailParams.inactiveSubmissionDays - 1);
-        const query = [{"$match": {"status": {"$in":[IN_PROGRESS, NEW, REJECTED, WITHDRAWN]}, "accessedAt": {"$exists": true, "$ne": null, "$lte": targetInactiveDate}}}];
+        const query = [{"$match": {
+                "status": {"$in":[IN_PROGRESS, NEW, REJECTED, WITHDRAWN]},
+                "accessedAt": {"$exists": true, "$ne": null, "$lt": subtractDaysFromNow(this.emailParams.inactiveSubmissionDays)}}}];
         try {
             const inactiveSubs = await this.submissionCollection.aggregate(query);
             if (!inactiveSubs || inactiveSubs.length === 0) {
@@ -1187,11 +1178,11 @@ class Submission {
 
 
     async #sendEmailsDeletedSubmissions(aSubmission) {
-         const [aSubmitter, BCCUsers, aOrganization] = await Promise.all([
+         const [aSubmitter, BCCUsers, approvedStudy] = await Promise.all([
             this.userService.getUserByID(aSubmission?.submitterID),
             this.userService.getUsersByNotifications([EN.DATA_SUBMISSION.DELETE],
                 [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]),
-            this.organizationService.getOrganizationByID(aSubmission?.organization?._id)
+            this.userService.approvedStudiesCollection.find(aSubmission?.studyID)
          ]);
          if (!aSubmitter?.email) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER, "Delete", `id=${aSubmission?._id}`);
@@ -1205,7 +1196,7 @@ class Submission {
              await this.notificationService.deleteSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
                  firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`}, {
                  submissionName: `${aSubmission?.name},`,
-                 studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                 studyName: approvedStudy?.length > 0 ? (approvedStudy[0]?.studyName || NA) : NA,
                  inactiveDays: this.emailParams.inactiveSubmissionDays,
                  contactName: `${aSubmission?.conciergeName || 'NA'}`,
                  contactEmail: `${aSubmission?.conciergeEmail || 'NA'}.`
@@ -1396,28 +1387,6 @@ class Submission {
         }
     }
 
-    async #generateQCRecord(orphanedFiles, submissionID) {
-        const qcResultErrors = await this.qcResultsService.getQCResultsErrors(submissionID, VALIDATION.TYPES.DATA_FILE);
-        const qcResultFileNames = new Set(
-            qcResultErrors
-                .filter(qcResult => qcResult.dataRecordID === null)
-                .map(qcResult => qcResult.submittedID)
-        );
-        return orphanedFiles
-            .filter(fileName => !qcResultFileNames.has(fileName))
-            .map(fileName => ({
-                fileName,
-                origin: SUBMISSION_STATS_ORIGIN_API,
-                dataRecordID: null,
-                error: {
-                    severity: ERRORS.QC_RESULT.ERROR_TYPE.ERROR,
-                    code: ERRORS.CODES.F008_MISSING_DATA_NODE_FILE,
-                    title: ERROR.MISSING_DATA_NODE_FILE_TITLE,
-                    desc: ERROR.MISSING_DATA_NODE_FILE_DESC
-                }
-            }));
-    }
-
     #getModelVersion(dataModelInfo, dataCommonType) {
         const modelVersion = dataModelInfo?.[dataCommonType]?.["current-version"];
         if (modelVersion) {
@@ -1476,20 +1445,20 @@ class Submission {
         const organizationCondition = organizationID && organizationID !== ALL_FILTER ?
             { "organization._id": organizationID } : {};
 
-        const nameCondition = submissionName ? {name: { $regex: submissionName?.trim(), $options: "i" }} : {};
-        const dbGaPIDCondition = dbGaPID ? {dbGaPID: { $regex: dbGaPID?.trim(), $options: "i" }} : {};
+        const nameCondition = submissionName ? {name: { $regex: submissionName?.trim().replace(/\\/g, "\\\\"), $options: "i" }} : {};
+        const dbGaPIDCondition = dbGaPID ? {dbGaPID: { $regex: dbGaPID?.trim().replace(/\\/g, "\\\\"), $options: "i" }} : {};
         const dataCommonsCondition = (dataCommonsParams && dataCommonsParams !== ALL_FILTER) ? {dataCommons: dataCommonsParams?.trim()} : {};
         const submitterNameCondition = (submitterName && submitterName !== ALL_FILTER) ? {submitterName: submitterName?.trim()} : {};
 
         const baseConditions = { ...statusCondition, ...organizationCondition, ...nameCondition,
             ...dbGaPIDCondition, ...dataCommonsCondition, ...submitterNameCondition };
         return (() => {
+            const userStudies = Array.isArray(studies) && studies.length > 0 ? studies : [];
+            const studyIDs = userStudies?.map(s => s?._id).filter(Boolean);
             switch (role) {
                 case ROLES.ADMIN:
                     return baseConditions;
                 case ROLES.FEDERAL_LEAD:
-                    const userStudies = Array.isArray(studies) && studies.length > 0 ? studies : [];
-                    const studyIDs = userStudies?.map(s => s?._id).filter(Boolean);
                     const studyQuery = isAllStudy(userStudies) ? {} : {studyID: {$in: studyIDs}};
                     return {...baseConditions, ...studyQuery};
                 case ROLES.DATA_COMMONS_PERSONNEL:
@@ -1497,8 +1466,12 @@ class Submission {
                     return {...baseConditions, dataCommons: {$in: dataCommonsParams !== ALL_FILTER ? aFilteredDataCommon : dataCommons}};
                 // Submitter or User role
                 default:
+                    if (isAllStudy(userStudies)) {
+                        return baseConditions;
+                    }
                     return {...baseConditions, "$or": [
                         {"submitterID": _id},
+                        {"studyID": {$in: studyIDs || []}},
                         {"collaborators.collaboratorID": _id, "collaborators.permission": {$in: [COLLABORATOR_PERMISSIONS.CAN_EDIT]}}]};
             }
         })();
@@ -1592,11 +1565,12 @@ const sendEmails = {
         }
     },
     completeSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService) => {
-        const [aSubmitter, BCCUsers, aOrganization] = await Promise.all([
+        const [aSubmitter, BCCUsers, aOrganization, approvedStudy] = await Promise.all([
             userService.getUserByID(aSubmission?.submitterID),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.COMPLETE],
                 [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]),
-            organizationService.getOrganizationByID(aSubmission?.organization?._id)
+            organizationService.getOrganizationByID(aSubmission?.organization?._id),
+            userService.approvedStudiesCollection.find(aSubmission?.studyID)
         ]);
 
         if (!aSubmitter?.email) {
@@ -1611,18 +1585,19 @@ const sendEmails = {
             }, {
                 submissionName: `${aSubmission?.name},`,
                 // only one study
-                studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                studyName: approvedStudy?.length > 0 ? (approvedStudy[0]?.studyName || NA) : NA,
                 conciergeName: aOrganization?.conciergeName || NA,
                 conciergeEmail: `${aOrganization?.conciergeEmail || NA}.`
             });
         }
     },
     cancelSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
-        const [aSubmitter, BCCUsers, aOrganization] = await Promise.all([
+        const [aSubmitter, BCCUsers, aOrganization, approvedStudy] = await Promise.all([
             userService.getUserByID(aSubmission?.submitterID),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.CANCEL],
                 [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]),
-            organizationService.getOrganizationByID(aSubmission?.organization?._id)
+            organizationService.getOrganizationByID(aSubmission?.organization?._id),
+            userService.approvedStudiesCollection.find(aSubmission?.studyID)
         ]);
 
         if (!aSubmitter?.email) {
@@ -1639,7 +1614,7 @@ const sendEmails = {
             }, {
                 submissionID: aSubmission?._id,
                 submissionName: aSubmission?.name,
-                studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                studyName: approvedStudy?.length > 0 ? approvedStudy[0]?.studyName : NA,
                 canceledBy: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
                 conciergeEmail: `${aOrganization?.conciergeEmail || NA}.`,
                 conciergeName: aOrganization?.conciergeName || NA
@@ -1647,11 +1622,11 @@ const sendEmails = {
         }
     },
     withdrawSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService) => {
-        const [DCPRoleUsers, BCCUsers, aOrganization] = await Promise.all([
+        const [DCPRoleUsers, BCCUsers, approvedStudy] = await Promise.all([
             userService.getDCPs(aSubmission?.dataCommons),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.WITHDRAW],
                 [ROLES.FEDERAL_LEAD, ROLES.SUBMITTER, ROLES.ADMIN]),
-            organizationService.getOrganizationByID(aSubmission?.organization?._id)
+            userService.approvedStudiesCollection.find(aSubmission?.studyID)
         ]);
         const filteredDCPUsers = DCPRoleUsers.filter((u) =>
             u?.notifications?.includes(EN.DATA_SUBMISSION.WITHDRAW) &&
@@ -1669,17 +1644,17 @@ const sendEmails = {
             submissionID: aSubmission?._id,
             submissionName: aSubmission?.name,
             // only one study
-            studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+            studyName: approvedStudy?.length > 0 ? (approvedStudy[0]?.studyName || NA) : NA,
             withdrawnByName: `${userInfo.firstName} ${userInfo?.lastName || ''}.`,
             withdrawnByEmail: `${userInfo?.email}`
         });
     },
     releaseSubmission: async (emailParams, userInfo, aSubmission, userService, organizationService, notificationsService) => {
-        const [DCPRoleUsers, BCCUsers, aOrganization] = await Promise.all([
+        const [DCPRoleUsers, BCCUsers, approvedStudy] = await Promise.all([
             userService.getDCPs(aSubmission?.dataCommons),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.RELEASE],
                 [ROLES.FEDERAL_LEAD, ROLES.SUBMITTER, ROLES.ADMIN]),
-            organizationService.getOrganizationByID(aSubmission?.organization?._id)
+            userService.approvedStudiesCollection.find(aSubmission?.studyID)
         ]);
         const filteredDCPUsers = DCPRoleUsers.filter((u) =>
             u?.notifications?.includes(EN.DATA_SUBMISSION.WITHDRAW) &&
@@ -1699,7 +1674,7 @@ const sendEmails = {
             dataCommonName: aSubmission?.dataCommons}, {
             submissionName: aSubmission?.name,
             // only one study
-            studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+            studyName: approvedStudy?.length > 0 ? (approvedStudy[0]?.studyName || NA) : NA,
             techSupportEmail: `${emailParams.techSupportEmail || NA}.`
         })
     },
@@ -1732,11 +1707,11 @@ const sendEmails = {
         }
     },
     remindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService, expiredDays, pastDays) => {
-        const [aSubmitter, BCCUsers, aOrganization] = await Promise.all([
+        const [aSubmitter, BCCUsers, approvedStudy] = await Promise.all([
             userService.getUserByID(aSubmission?.submitterID),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.REMIND_EXPIRE],
                 [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]),
-            organizationService.getOrganizationByID(aSubmission?.organization?._id)
+            userService.approvedStudiesCollection.find(aSubmission?.studyID)
         ]);
 
         if (!aSubmitter?.email) {
@@ -1753,7 +1728,7 @@ const sendEmails = {
             }, {
                 title: aSubmission?.name,
                 expiredDays: expiredDays || NA,
-                studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                studyName: approvedStudy?.length > 0 ? (approvedStudy[0]?.studyName || NA) : NA,
                 pastDays: pastDays || NA,
                 url: emailParams.url || NA
             });
@@ -1761,11 +1736,11 @@ const sendEmails = {
         }
     },
     finalRemindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService) => {
-        const [aSubmitter, BCCUsers, aOrganization] = await Promise.all([
+        const [aSubmitter, BCCUsers, approvedStudy] = await Promise.all([
             userService.getUserByID(aSubmission?.submitterID),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.REMIND_EXPIRE],
                 [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]),
-            organizationService.getOrganizationByID(aSubmission?.organization?._id)
+            userService.approvedStudiesCollection.find(aSubmission?.studyID)
         ]);
         if (!aSubmitter?.email) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER, "Final Reminder", `id=${aSubmission?._id}`);
@@ -1780,7 +1755,7 @@ const sendEmails = {
                 firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
             }, {
                 title: aSubmission?.name,
-                studyName: getSubmissionStudyName(aOrganization?.studies, aSubmission),
+                studyName: approvedStudy?.length > 0 ? (approvedStudy[0]?.studyName || NA) : NA,
                 days: emailParams.finalRemindSubmissionDay || NA,
                 url: emailParams.url || NA
             });
@@ -1815,14 +1790,6 @@ const isAllStudy = (userStudies) => {
         (typeof study === 'object' && study._id === "All") ||
         (typeof study === 'string' && study === "All")
     );
-}
-
-// only one study name
-const getSubmissionStudyName = (studies, aSubmission) => {
-    const studyNames = studies
-        ?.filter((aStudy) => aStudy?._id === aSubmission?.studyID)
-        ?.map((aStudy) => aStudy.studyName);
-    return studyNames?.length > 0 ? studyNames[0] : NA;
 }
 
 const getUserEmails = (users) => {
@@ -1965,7 +1932,8 @@ class DataSubmission {
 
     #getConciergeName(approvedStudy, aProgram){
         if (approvedStudy?.primaryContact) {
-            return approvedStudy.primaryContact.firstName + " " + approvedStudy.primaryContact.lastName;
+            const conciergeName = `${approvedStudy.primaryContact?.firstName} ${approvedStudy.primaryContact?.lastName || ''}`;
+            return conciergeName?.trim();
         } else if (aProgram) {
             return aProgram?.conciergeName;
         } else {
