@@ -1373,7 +1373,7 @@ class Submission {
         const allModelVersions = this.#getAllModelVersions(dataModels, aSubmission?.dataCommons);
 
         if (!allModelVersions.includes(version)) {
-            throw new Error(replaceErrorString(ERROR.INVALID_MODEL_VERSION, `${version}`));
+            throw new Error(replaceErrorString(ERROR.INVALID_MODEL_VERSION, `${version || " "}`));
         }
 
         if (![IN_PROGRESS, NEW].includes(aSubmission?.status)) {
