@@ -1004,7 +1004,6 @@ const getApplicationQuestionnaire = (aApplication) => {
     return questionnaire;
 }
 
-// TODO remove temporary for QA
 function logDaysDifference(inactiveDays, accessedAt, applicationID) {
     const startedDate = accessedAt; // Ensure it's a Date object
     const endDate = getCurrentTime();
