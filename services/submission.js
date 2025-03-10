@@ -1366,32 +1366,33 @@ class Submission {
         const {_id, version} = params;
         const aSubmission = await findByID(this.submissionCollection, _id);
         if(!aSubmission){
-            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
         const dataModels = await this.fetchDataModelInfo();
         const allModelVersions = this.#getAllModelVersions(dataModels, aSubmission?.dataCommons);
 
         if (!allModelVersions.includes(version)) {
-            // TODO version odes not exists
+            throw new Error(replaceErrorString(ERROR.INVALID_MODEL_VERSION, `${version}`));
         }
 
         if (![IN_PROGRESS, NEW].includes(aSubmission?.status)) {
-            // TODO
-
+            throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_STATUS_MODEL_VERSION, `${aSubmission?.status}`));
         }
 
         const userInfo = context.userInfo;
         const isPermitted = userInfo.role === ROLES.DATA_COMMONS_PERSONNEL && userInfo.dataCommons?.includes(aSubmission?.dataCommons);
         if (!isPermitted) {
-            // TODO
+            throw new Error(ERROR.INVALID_MODEL_VERSION_PERMISSION);
         }
 
         const updatedSubmission = await this.submissionCollection.findOneAndUpdate({_id: aSubmission?._id},
             {updatedAt: getCurrentTime()},
             {returnDocument: 'after'});
 
-        // TODO throw error it did not store correctly
+        if (!updatedSubmission.value) {
+            throw new Error(ERROR.FAILED_UPDATE_MODEL_VERSION);
+        }
         return updatedSubmission.value;
     }
 
