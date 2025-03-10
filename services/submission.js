@@ -1370,9 +1370,9 @@ class Submission {
         }
 
         const dataModels = await this.fetchDataModelInfo();
-        const allModelVersions = this.#getAllModelVersions(dataModels, aSubmission?.dataCommons);
+        const validVersions = this.#getAllModelVersions(dataModels, aSubmission?.dataCommons);
 
-        if (!allModelVersions.includes(version)) {
+        if (!validVersions.includes(version)) {
             throw new Error(replaceErrorString(ERROR.INVALID_MODEL_VERSION, `${version || " "}`));
         }
 
@@ -1386,11 +1386,18 @@ class Submission {
             throw new Error(ERROR.INVALID_MODEL_VERSION_PERMISSION);
         }
 
-        const updatedSubmission = await this.submissionCollection.findOneAndUpdate({_id: aSubmission?._id},
-            {updatedAt: getCurrentTime()},
-            {returnDocument: 'after'});
+        if (aSubmission?.modelVersion === version) {
+            return aSubmission;
+        }
+
+        const updatedSubmission = await this.submissionCollection.findOneAndUpdate(
+            {_id: aSubmission?._id, modelVersion: {"$ne": version}},
+            {modelVersion: version, updatedAt: getCurrentTime()},
+            {returnDocument: 'after'}
+        );
 
         if (!updatedSubmission.value) {
+            console.error(ERROR.FAILED_UPDATE_MODEL_VERSION, `SubmissionID: ${aSubmission?._id}`)
             throw new Error(ERROR.FAILED_UPDATE_MODEL_VERSION);
         }
         return updatedSubmission.value;
