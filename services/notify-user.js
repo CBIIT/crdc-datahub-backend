@@ -14,7 +14,6 @@ const ACCOUNT_TYPE = "Account Type";
 const ACCOUNT_EMAIL = "Account Email";
 const REQUESTED_ROLE = "Requested Role";
 const ADDITIONAL_INFO = "Additional Info";
-const AFFILIATED_ORGANIZATION = "Affiliated Organization";
 class NotifyUser {
 
     constructor(emailService, tier) {
