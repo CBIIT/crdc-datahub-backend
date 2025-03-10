@@ -69,7 +69,7 @@ dbConnector.connect().then(async () => {
     const fetchDataModelInfo = async () => {
         return utilityService.fetchJsonFromUrl(config.model_url)
     };
-    const uploadingChecker = UploadingChecker.getInstance(batchCollection);
+    const uploadingChecker = UploadingChecker.getInstance(batchCollection, configuration.uploading_check_interval);
     // start uploading checker
     uploadingChecker.start()
     const batchService = new BatchService(s3Service, batchCollection, config.sqs_loader_queue, awsService, config.prod_url, fetchDataModelInfo, uploadingChecker);

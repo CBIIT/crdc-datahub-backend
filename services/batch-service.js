@@ -232,12 +232,13 @@ const createPrefix = (params, rootPath) => {
 //singleton class, UploadingChecker, to add/remove {batchID: updatedAt} into/from global variable uploading_batch_pool. Check all uploading batches in the pool if updatedAT is older than 15 min. if older than 15min, call updateBatch and set status to failed.
 class UploadingChecker {
     static instance;
-    constructor(batchCollection) {
+    constructor(batchCollection, interval) {
         this.batchCollection = batchCollection;
+        this.interval = interval;
     }
-    static getInstance(batchCollection) {
+    static getInstance(batchCollection, interval) {
         if (!UploadingChecker.instance) {
-            UploadingChecker.instance = new UploadingChecker(batchCollection);
+            UploadingChecker.instance = new UploadingChecker(batchCollection, interval);
         }
         return UploadingChecker.instance;
     }
@@ -248,9 +249,11 @@ class UploadingChecker {
         for (const batchID of Object.keys(uploading_batch_pool)) {
             const updatedAt = new Date(uploading_batch_pool[batchID]);
             const diff = now - updatedAt;
-            if (diff > 15 * 1000 * 60) {
+            if (diff > this.interval) {
                 //update batch with status failed if older than 15 min
                 await this.batchCollection.update({"_id": batchID}, {$set: {"status": BATCH.STATUSES.FAILED, "updatedAt": now}});
+                // remove failed batch from the pool
+                delete uploading_batch_pool[batchID];
             }
         }
     }
@@ -270,6 +273,10 @@ class UploadingChecker {
 
     // remove uploading batch if uploading completed or failed.
     removeUploadingBatch(batchID) {
+        // check if the pool contains the batchID, if not, return
+       if (!uploading_batch_pool[batchID]) {
+            return;
+        }
         delete uploading_batch_pool[batchID];
     }
 } 
