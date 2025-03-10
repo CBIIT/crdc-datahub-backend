@@ -52,7 +52,7 @@ class Submission {
     constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService,
                 dataRecordService, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList,
                 hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs, 
-                submissionBucketName, configurationService) {
+                submissionBucketName, configurationService, uploadingChecker) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -72,7 +72,8 @@ class Submission {
         this.qcResultsService = qcResultsService;
         this.uploaderCLIConfigs = uploaderCLIConfigs;
         this.submissionBucketName = submissionBucketName;
-        this.configurationService = configurationService
+        this.configurationService = configurationService;
+        this.uploadingChecker = uploadingChecker;
     }
 
     async createSubmission(params, context) {
@@ -261,6 +262,12 @@ class Submission {
         const aSubmission = await findByID(this.submissionCollection, aBatch.submissionID);
         // submission owner & submitter's Org Owner
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
+        // if the call is for check uploading heart beating
+        if (params?.uploading === true) {
+            //add uploading batch
+            uploadingChecker.addUploadingBatch(aBatch._id);
+            return {}
+        }
         const res = await this.batchService.updateBatch(aBatch, aSubmission?.bucketName, params?.files);
         // new status is ready for the validation
         if (res.status === BATCH.STATUSES.UPLOADED) {
