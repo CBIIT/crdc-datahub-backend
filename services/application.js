@@ -17,6 +17,7 @@ const {EMAIL_NOTIFICATIONS} = require("../crdc-datahub-database-drivers/constant
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 class Application {
+    #DELETE_REVIEW_COMMENT="This Submission Request has been deleted by the system due to inactivity.";
     #ALL_FILTER="All";
     #FINAL_INACTIVE_REMINDER = "finalInactiveReminder";
     #INACTIVE_REMINDER = "inactiveReminder";
@@ -153,7 +154,7 @@ class Application {
         let application = {...storedApplication, ...inputApplication, status: IN_PROGRESS};
         // auto upgrade version based on configuration
         application.version = await this.#getApplicationVersionByStatus(IN_PROGRESS);
-        application = await updateApplication(this.applicationCollection, application, prevStatus, context?.userInfo?._id);
+        application = await this.#updateApplication(application, prevStatus, context?.userInfo?._id);
         if (prevStatus !== application.status){
             await logStateChange(this.logCollection, context.userInfo, application, prevStatus);
         }
@@ -308,17 +309,23 @@ class Application {
         return application;
     }
 
+
+    #getInProgressComment(history) {
+        const isValidComment = history?.length > 1 && [DELETED, INQUIRED].includes(history?.at(-1)?.status);
+        return isValidComment ? history?.at(-1)?.reviewComment : null;
+    }
+
     async reopenApplication(document, context) {
         verifySession(context)
             .verifyInitialized()
             .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CREATE);
         const application = await this.getApplicationById(document._id);
         application.version = await this.#getApplicationVersionByStatus(application.status, application?.version);
-        // TODO 1. If Reviewer opened the application, the status changes to IN_REVIEW
         if (application && application.status) {
-            const history = HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, null);
+            const reviewComment = this.#getInProgressComment(application?.history);
+            const history = HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, reviewComment);
             const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-                $set: {status: IN_PROGRESS, updatedAt: history.dateTime, version: application.version},
+                $set: {status: IN_PROGRESS, updatedAt: history.dateTime, version: application.version, reviewComment: reviewComment || ""},
                 $push: {history}
             });
             if (updated?.modifiedCount && updated?.modifiedCount > 0) {
@@ -356,9 +363,9 @@ class Application {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
-        const history = HistoryEventBuilder.createEvent(context.userInfo._id, CANCELED, null);
+        const history = HistoryEventBuilder.createEvent(context.userInfo._id, CANCELED, document?.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-            $set: {status: CANCELED, updatedAt: history.dateTime, version: aApplication.version},
+            $set: {status: CANCELED, updatedAt: history.dateTime, version: aApplication.version, reviewComment: (document?.comment || "")},
             $push: {history}
         });
 
@@ -392,9 +399,9 @@ class Application {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         const prevStatus = aApplication?.history?.at(-2)?.status;
-        const history = HistoryEventBuilder.createEvent(context.userInfo._id, prevStatus, null);
+        const history = HistoryEventBuilder.createEvent(context.userInfo._id, prevStatus, document?.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: aApplication._id}, {
-            $set: {status: prevStatus, updatedAt: history.dateTime},
+            $set: {status: prevStatus, updatedAt: history.dateTime, reviewComment: (document?.comment || "")},
             $push: {history},
 
         });
@@ -425,7 +432,7 @@ class Application {
         const questionnaire = getApplicationQuestionnaire(application);
         const approvalConditional = (questionnaire?.accessTypes?.includes("Controlled Access") && !questionnaire?.study?.dbGaPPPHSNumber);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-            $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime, version: application.version},
+            $set: {reviewComment: (document?.comment || ""), wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime, version: application.version},
             $push: {history}
         });
 
@@ -476,7 +483,7 @@ class Application {
         application.version = await this.#getApplicationVersionByStatus(application.status, application?.version);
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, REJECTED, document.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-            $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime, version: application.version},
+            $set: {reviewComment: (document?.comment || ""), status: REJECTED, updatedAt: history.dateTime, version: application.version},
             $push: {history}
         });
 
@@ -505,7 +512,7 @@ class Application {
         application.version = await this.#getApplicationVersionByStatus(application.status);
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, INQUIRED, document.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-            $set: {reviewComment: document.comment, status: INQUIRED, updatedAt: history.dateTime, version: application.version},
+            $set: {reviewComment: (document?.comment || ""), status: INQUIRED, updatedAt: history.dateTime, version: application.version},
             $push: {history}
         });
         await sendEmails.inquireApplication(this.notificationService, this.userService, this.emailParams, application, document?.comment);
@@ -545,11 +552,11 @@ class Application {
                     ?.filter((u) => u?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_DELETE))
                     ?.map((u) => u?._id)
             );
-            const history = HistoryEventBuilder.createEvent("", DELETED, "Deleted because of no activities after submission");
+            const history = HistoryEventBuilder.createEvent("", DELETED, this.#DELETE_REVIEW_COMMENT);
             const updated = await this.dbService.updateMany(APPLICATION,
                 inactiveCondition,
                 {   // Once the submission request is deleted, the reminder email should not be sent.
-                    $set: {status: DELETED, updatedAt: history.dateTime, inactiveReminder: true},
+                    $set: {status: DELETED, updatedAt: history.dateTime, inactiveReminder: true, reviewComment: this.#DELETE_REVIEW_COMMENT},
                     $push: {history}});
             if (updated?.modifiedCount && updated?.modifiedCount > 0) {
                 console.log("Executed to delete application(s) because of no activities at " + getCurrentTime());
@@ -827,28 +834,32 @@ class Application {
             return acc;
         }, {[`${this.#FINAL_INACTIVE_REMINDER}`]: status});
     }
+
+    async #updateApplication(application, prevStatus, userID) {
+        const reviewComment = this.#getInProgressComment(application?.history);
+        if (application?.reviewComment !== reviewComment && application?.status === IN_PROGRESS) {
+            application.reviewComment = reviewComment;
+        }
+        if (prevStatus !== IN_PROGRESS) {
+            application = {history: [], ...application};
+            const historyEvent = HistoryEventBuilder.createEvent(userID, IN_PROGRESS, null);
+            application.history.push(historyEvent);
+        }
+        // Save an email reminder when an inactive application is reactivated.
+        application.inactiveReminder = false;
+        application.updatedAt = getCurrentTime();
+        const updateResult = await this.applicationCollection.update(application);
+        if ((updateResult?.matchedCount || 0) < 1) {
+            throw new Error(ERROR.APPLICATION_NOT_FOUND + application?._id);
+        }
+        return application;
+    }
 }
 
 function verifyReviewerPermission(context){
     verifySession(context)
         .verifyInitialized()
         .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.REVIEW);
-}
-
-async function updateApplication(applicationCollection, application, prevStatus, userID) {
-    if (prevStatus !== IN_PROGRESS) {
-        application = {history: [], ...application};
-        const historyEvent = HistoryEventBuilder.createEvent(userID, IN_PROGRESS, null);
-        application.history.push(historyEvent);
-    }
-    // Save an email reminder when an inactive application is reactivated.
-    application.inactiveReminder = false;
-    application.updatedAt = getCurrentTime();
-    const updateResult = await applicationCollection.update(application);
-    if ((updateResult?.matchedCount || 0) < 1) {
-        throw new Error(ERROR.APPLICATION_NOT_FOUND + application?._id);
-    }
-    return application;
 }
 
 async function logStateChange(logCollection, userInfo, application, prevStatus) {

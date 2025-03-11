@@ -26,6 +26,7 @@ type Application {
     programAbbreviation: String,
     programDescription: String,
     version: String
+    reviewComment: String
 }
 
 type Event {
@@ -735,8 +736,8 @@ type Mutation {
     rejectApplication (_id: ID!, comment: String!): Application
     inquireApplication (_id: ID!, comment: String!): Application
 
-    deleteApplication (_id: ID!): Application
-    restoreApplication (_id: ID!): Application
+    deleteApplication (_id: ID!, comment: String!): Application
+    restoreApplication (_id: ID!, comment: String!): Application
 
     "Submitter or Org Owner"
     createSubmission (studyID: String!, dataCommons: String!, name: String!, intention: String!, dataType: String!): Submission

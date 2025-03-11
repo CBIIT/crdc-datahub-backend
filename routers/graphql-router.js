@@ -124,8 +124,14 @@ dbConnector.connect().then(async () => {
             return dataInterface.inquireApplication({...params, comment}, context);
         },
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
-        deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
-        restoreApplication: dataInterface.restoreApplication.bind(dataInterface),
+        deleteApplication: (params, context)=> {
+            const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
+            return dataInterface.deleteApplication({...params, comment}, context);
+        },
+        restoreApplication: (params, context)=> {
+            const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
+            return dataInterface.restoreApplication({...params, comment}, context);
+        },
         listApprovedStudies: approvedStudiesService.listApprovedStudiesAPI.bind(approvedStudiesService),
         createApprovedStudy: approvedStudiesService.addApprovedStudyAPI.bind(approvedStudiesService),
         updateApprovedStudy: approvedStudiesService.editApprovedStudyAPI.bind(approvedStudiesService),
