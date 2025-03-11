@@ -10,16 +10,16 @@ const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo
 const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
 const LOAD_METADATA = "Load Metadata";
 const OMIT_DCF_PREFIX = 'omit-DCF-prefix';
-var uploading_batch_pool = {} //{batchID: updatedAt}
+
 class BatchService {
-    constructor(s3Service, batchCollection, sqsLoaderQueue, awsService, prodURL, fetchDataModelInfo, uploadingChecker) {
+    constructor(s3Service, batchCollection, sqsLoaderQueue, awsService, prodURL, fetchDataModelInfo, uploadingMonitor) {
         this.s3Service = s3Service;
         this.batchCollection = batchCollection;
         this.sqsLoaderQueue = sqsLoaderQueue;
         this.awsService = awsService;
         this.prodURL = prodURL;
         this.fetchDataModelInfo = fetchDataModelInfo;
-        this.uploadingChecker = uploadingChecker;
+        this.uploadingMonitor = uploadingMonitor;
     }
 
     async createBatch(params, aSubmission, user) {
@@ -52,7 +52,7 @@ class BatchService {
     }
     async updateBatch(aBatch, bucketName, files) {
         // remove the uploading batch from UploadingChecker
-        this.uploadingChecker.removeUploadingBatch(aBatch?._id);
+        this.uploadingMonitor.removeUploadingBatch(aBatch?._id);
         const uploadFiles = new Map(files
             .filter(aFile => (aFile?.fileName) && aFile?.fileName.trim().length > 0)
             .map(file => [file?.fileName, file]));
@@ -229,49 +229,72 @@ const createPrefix = (params, rootPath) => {
     return prefixArray.join("/");
 }
 
-//singleton class, UploadingChecker, to add/remove {batchID: updatedAt} into/from global variable uploading_batch_pool. Check all uploading batches in the pool if updatedAT is older than 15 min. if older than 15min, call updateBatch and set status to failed.
-class UploadingChecker {
+/**
+ * singleton class: UploadingMonitor 
+ * save/remove {batchID: updatedAt} into/from global variable uploading_batch_pool. 
+ * monitor all uploading batches in the pool to check if updatedAT is older than 15 min. 
+ * if older than 15min, call updateBatch and set status to failed.
+*/ 
+class UploadingMonitor {
     static instance;
+    static uploading_batch_pool = {}; //global variable {batchID: updatedAt}
     constructor(batchCollection, interval) {
         this.batchCollection = batchCollection;
         this.interval = interval;
+        this.#startScheduler();
     }
+    /**
+     * getInstance
+     * @param {*} batchCollection 
+     * @param {*} interval 
+     * @returns UploadingChecker
+     */
     static getInstance(batchCollection, interval) {
         if (!UploadingChecker.instance) {
             UploadingChecker.instance = new UploadingChecker(batchCollection, interval);
         }
         return UploadingChecker.instance;
     }
+
     async #checkUploadingBatches() {
+        if (Object.keys(uploading_batch_pool).length === 0) {
+            return;
+        }
         const now = new Date();
         // loop through all uploading batches in uploading_batch_pool which is a object {batchID: updatedAt} 
-        // and check if the updatedAt is older than 15 min. if older than 15 min, update batch with status failed.
+        // and check if the updatedAt is older than 5*3 min. if older than 15 min, update batch with status failed.
         for (const batchID of Object.keys(uploading_batch_pool)) {
             const updatedAt = new Date(uploading_batch_pool[batchID]);
             const diff = now - updatedAt;
-            if (diff > this.interval) {
+            if (diff > this.interval * 3) {
                 //update batch with status failed if older than 15 min
                 await this.batchCollection.update({"_id": batchID}, {$set: {"status": BATCH.STATUSES.FAILED, "updatedAt": now}});
                 // remove failed batch from the pool
                 delete uploading_batch_pool[batchID];
             }
         }
+        return;
     }
 
-    // start a scheduler to check uploading batches every 15 min.
-    start() {
+    // start a scheduler to monitor uploading batches every 5 min.
+    #startScheduler() {
         setInterval(async () => {
             await this.#checkUploadingBatches();
-        }, 15 * 1000 * 60);
+        }, this.interval);
     }
     
-
-    //create a public function to add uploading_batch_pool with batchID and updatedAt
-    addUploadingBatch(batchID) {
+    /**
+     * saveUploadingBatch
+     * @param {*} batchID 
+     */
+    saveUploadingBatch(batchID) {
         uploading_batch_pool[batchID] = new Date();
     } 
 
-    // remove uploading batch if uploading completed or failed.
+    /**
+     * removeUploadingBatch
+     * @param {*} batchID 
+     */
     removeUploadingBatch(batchID) {
         // check if the pool contains the batchID, if not, return
        if (!uploading_batch_pool[batchID]) {
@@ -282,5 +305,5 @@ class UploadingChecker {
 } 
 
 module.exports = {
-    BatchService, UploadingChecker
+    BatchService, UploadingMonitor
 }

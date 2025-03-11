@@ -52,7 +52,7 @@ class Submission {
     constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService,
                 dataRecordService, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList,
                 hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs, 
-                submissionBucketName, configurationService, uploadingChecker) {
+                submissionBucketName, configurationService, uploadingMonitor) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -73,7 +73,7 @@ class Submission {
         this.uploaderCLIConfigs = uploaderCLIConfigs;
         this.submissionBucketName = submissionBucketName;
         this.configurationService = configurationService;
-        this.uploadingChecker = uploadingChecker;
+        this.uploadingMonitor = uploadingMonitor;
     }
 
     async createSubmission(params, context) {
@@ -256,18 +256,19 @@ class Submission {
         if (!aBatch) {
             throw new Error(ERROR.BATCH_NOT_EXIST);
         }
+        // if the call is for monitoring uploading heart beating
+        if (params?.uploading === true) {
+            //save the batch in the uploading batch pool for monitoring heart beat
+            uploadingMonitor.saveUploadingBatch(aBatch._id);
+            return {}
+        }
         if (![BATCH.STATUSES.UPLOADING].includes(aBatch?.status)) {
             throw new Error(ERROR.INVALID_UPDATE_BATCH_STATUS);
         }
         const aSubmission = await findByID(this.submissionCollection, aBatch.submissionID);
         // submission owner & submitter's Org Owner
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
-        // if the call is for check uploading heart beating
-        if (params?.uploading === true) {
-            //add uploading batch
-            uploadingChecker.addUploadingBatch(aBatch._id);
-            return {}
-        }
+       
         const res = await this.batchService.updateBatch(aBatch, aSubmission?.bucketName, params?.files);
         // new status is ready for the validation
         if (res.status === BATCH.STATUSES.UPLOADED) {

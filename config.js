@@ -58,7 +58,7 @@ let config = {
     token_secret: process.env.SESSION_SECRET,
     token_timeout: parseInt(process.env.TOKEN_TIMEOUT) * 1000 || 30 * 24 * 60 * 60 * 1000,
     // uploading heart beating check interval
-    uploading_check_interval: 15 * 60 * 1000,
+    uploading_check_interval: 5 * 60 * 1000,
     //aws sts assume role
     role_arn: process.env.ROLE_ARN,
     updateConfig: async (dbConnector)=> {
