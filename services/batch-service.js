@@ -1,5 +1,6 @@
 const {Batch} = require("../domain/batch");
 const {BATCH, FILE} = require("../crdc-datahub-database-drivers/constants/batch-constants");
+const { UPLOADING_HEARTBEAT_CONFIG_TYPE } = require("../constants/submission-constants");
 const ERROR = require("../constants/error-constants");
 const {NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED, REJECTED, WITHDRAWN, VALIDATION, INTENTION} = require("../constants/submission-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
@@ -12,14 +13,13 @@ const LOAD_METADATA = "Load Metadata";
 const OMIT_DCF_PREFIX = 'omit-DCF-prefix';
 
 class BatchService {
-    constructor(s3Service, batchCollection, sqsLoaderQueue, awsService, prodURL, fetchDataModelInfo, uploadingMonitor) {
+    constructor(s3Service, batchCollection, sqsLoaderQueue, awsService, prodURL, fetchDataModelInfo) {
         this.s3Service = s3Service;
         this.batchCollection = batchCollection;
         this.sqsLoaderQueue = sqsLoaderQueue;
         this.awsService = awsService;
         this.prodURL = prodURL;
         this.fetchDataModelInfo = fetchDataModelInfo;
-        this.uploadingMonitor = uploadingMonitor;
     }
 
     async createBatch(params, aSubmission, user) {
@@ -51,8 +51,6 @@ class BatchService {
         return newBatch;
     }
     async updateBatch(aBatch, bucketName, files) {
-        // remove the uploading batch from UploadingChecker
-        this.uploadingMonitor.removeUploadingBatch(aBatch?._id);
         const uploadFiles = new Map(files
             .filter(aFile => (aFile?.fileName) && aFile?.fileName.trim().length > 0)
             .map(file => [file?.fileName, file]));
@@ -235,42 +233,51 @@ const createPrefix = (params, rootPath) => {
  * monitor all uploading batches in the pool to check if updatedAT is older than 15 min. 
  * if older than 15min, call updateBatch and set status to failed.
 */ 
+
 class UploadingMonitor {
     static instance;
-    static uploading_batch_pool = {}; //global variable {batchID: updatedAt}
-    constructor(batchCollection, interval) {
+    constructor(batchCollection, configurationService) {
         this.batchCollection = batchCollection;
-        this.interval = interval;
+        this.#initialize(configurationService);
+    }
+
+    async #initialize(configurationService) {
+        const config = await configurationService.findByType(UPLOADING_HEARTBEAT_CONFIG_TYPE);
+        this.interval = (config?.interval || 300) * 1000; // 5 min
+        this.max_age = (config?.age || 900) * 1000; // 15 min
+        this.uploading_batch_pool = {}; //{batchID: updatedAt}
         this.#startScheduler();
     }
+
     /**
      * getInstance
      * @param {*} batchCollection 
      * @param {*} interval 
      * @returns UploadingChecker
      */
-    static getInstance(batchCollection, interval) {
-        if (!UploadingChecker.instance) {
-            UploadingChecker.instance = new UploadingChecker(batchCollection, interval);
+    static getInstance(batchCollection, configurationService) {
+        if (!UploadingMonitor.instance) {
+            UploadingMonitor.instance = new UploadingMonitor(batchCollection, configurationService);
         }
-        return UploadingChecker.instance;
+        return UploadingMonitor.instance;
     }
 
     async #checkUploadingBatches() {
-        if (Object.keys(uploading_batch_pool).length === 0) {
+        if (Object.keys(this.uploading_batch_pool).length === 0) {
             return;
         }
         const now = new Date();
         // loop through all uploading batches in uploading_batch_pool which is a object {batchID: updatedAt} 
         // and check if the updatedAt is older than 5*3 min. if older than 15 min, update batch with status failed.
-        for (const batchID of Object.keys(uploading_batch_pool)) {
-            const updatedAt = new Date(uploading_batch_pool[batchID]);
+        for (const batchID of Object.keys(this.uploading_batch_pool)) {
+            const updatedAt = new Date(this.uploading_batch_pool[batchID]);
             const diff = now - updatedAt;
-            if (diff > this.interval * 3) {
+            if (diff > this.max_age) {
                 //update batch with status failed if older than 15 min
-                await this.batchCollection.update({"_id": batchID}, {$set: {"status": BATCH.STATUSES.FAILED, "updatedAt": now}});
+                const error = ERROR.UPLOADING_BATCH_CRASHED;
+                await this.batchCollection.update({"_id": batchID}, {$set: {"status": BATCH.STATUSES.FAILED, "errors": [error],"updatedAt": now}});
                 // remove failed batch from the pool
-                delete uploading_batch_pool[batchID];
+                delete this.uploading_batch_pool[batchID];
             }
         }
         return;
@@ -288,7 +295,7 @@ class UploadingMonitor {
      * @param {*} batchID 
      */
     saveUploadingBatch(batchID) {
-        uploading_batch_pool[batchID] = new Date();
+        this.uploading_batch_pool[batchID] = new Date();
     } 
 
     /**
@@ -297,10 +304,10 @@ class UploadingMonitor {
      */
     removeUploadingBatch(batchID) {
         // check if the pool contains the batchID, if not, return
-       if (!uploading_batch_pool[batchID]) {
+       if (!this.uploading_batch_pool[batchID]) {
             return;
         }
-        delete uploading_batch_pool[batchID];
+        delete this.uploading_batch_pool[batchID];
     }
 } 
 

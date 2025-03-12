@@ -69,8 +69,7 @@ dbConnector.connect().then(async () => {
     const fetchDataModelInfo = async () => {
         return utilityService.fetchJsonFromUrl(config.model_url)
     };
-    const uploadingMonitor = UploadingMonitor.getInstance(batchCollection, configuration.uploading_check_interval);
-    const batchService = new BatchService(s3Service, batchCollection, config.sqs_loader_queue, awsService, config.prod_url, fetchDataModelInfo, uploadingMonitor);
+    const batchService = new BatchService(s3Service, batchCollection, config.sqs_loader_queue, awsService, config.prod_url, fetchDataModelInfo);
     const institutionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, INSTITUTION_COLLECTION);
     const institutionService = new InstitutionService(institutionCollection);
 
@@ -89,10 +88,11 @@ dbConnector.connect().then(async () => {
         techSupportEmail: config.techSupportEmail, conditionalSubmissionContact: config.conditionalSubmissionContact, submissionGuideURL: config.submissionGuideUrl,
         completedSubmissionDays: config.completed_submission_days, inactiveSubmissionDays: config.inactive_submission_days, finalRemindSubmissionDay: config.inactive_submission_days,
         inactiveApplicationNotifyDays: config.inactiveApplicationNotifyDays};
-
+        
+    const uploadingMonitor = UploadingMonitor.getInstance(batchCollection, configurationService);
     const submissionService = new Submission(logCollection, submissionCollection, batchService, userService,
         organizationService, notificationsService, dataRecordService, fetchDataModelInfo, awsService, config.export_queue,
-        s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService, config.uploaderCLIConfigs, config.submission_bucket,
+        s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService, config.uploaderCLIConfigs,
         config.submission_bucket, configurationService, uploadingMonitor);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService, configurationService);
 

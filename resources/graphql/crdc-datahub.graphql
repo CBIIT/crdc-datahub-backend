@@ -539,7 +539,8 @@ type DataFileConfig {
     name_field: String!
     size_field: String!
     md5_field: String!
-    omit_DCF_prefix: Boolean
+    omit_DCF_prefix: Boolean,
+    heartbeat_interval: Int
 }
 
 type Released_Node {

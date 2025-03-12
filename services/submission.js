@@ -1,6 +1,6 @@
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
     REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, INTENTION, DATA_TYPE, DELETED, DATA_FILE,
-    CONSTRAINTS, COLLABORATOR_PERMISSIONS
+    CONSTRAINTS, COLLABORATOR_PERMISSIONS, UPLOADING_HEARTBEAT_CONFIG_TYPE
 } = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
@@ -259,8 +259,12 @@ class Submission {
         // if the call is for monitoring uploading heart beating
         if (params?.uploading === true) {
             //save the batch in the uploading batch pool for monitoring heart beat
-            uploadingMonitor.saveUploadingBatch(aBatch._id);
+            this.uploadingMonitor.saveUploadingBatch(aBatch._id);
             return {}
+        }
+        else {
+            // remove uploading batch from the uploading batch pool if uploaded
+            this.uploadingMonitor.removeUploadingBatch(aBatch._id);
         }
         if (![BATCH.STATUSES.UPLOADING].includes(aBatch?.status)) {
             throw new Error(ERROR.INVALID_UPDATE_BATCH_STATUS);
@@ -933,12 +937,15 @@ class Submission {
         // data model file node properties into the string
         const latestDataModel = await this.fetchDataModelInfo();
         const fileConfig = this.#getModelFileNodeInfo(aSubmission, latestDataModel);
+        const uploadingHeartbeatConfig = await this.configurationService.findByType(UPLOADING_HEARTBEAT_CONFIG_TYPE);
         return {id_field: fileConfig["id-field"],
             name_field: fileConfig["name-field"],
             size_field: fileConfig["size-field"],
             md5_field: fileConfig["md5-field"],
-            omit_DCF_prefix: fileConfig["omit-DCF-prefix"]};
-    }
+            omit_DCF_prefix: fileConfig["omit-DCF-prefix"],
+            heartbeat_interval: uploadingHeartbeatConfig?.interval || 300
+        };
+    };
 
     /**
      * API: editSubmissionCollaborators
