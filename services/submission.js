@@ -360,7 +360,16 @@ class Submission {
                 const user = await this.userService.getUserByID(history.userID);
                 history.userName = user.firstName + " " + user.lastName;
             }
-            return aSubmission
+            const programs = await this.organizationService.organizationCollection.aggregate([{ "$match": { "studies._id": aSubmission.studyID } }, { "$limit": 1 }]);
+            const aProgram = programs?.length > 0 ? programs?.pop() : {};
+            // The primary contact in the listing submission API only applies if the getSubmission is triggered.
+            if (aProgram?._id !== aSubmission?.organization?._id || aProgram?.name !== aSubmission?.organization?.name) {
+                const updatedSubmission = await this.submissionCollection.updateOne({"_id": aSubmission?._id}, {organization: {_id: aProgram?._id, name: aProgram?.name}, updatedAt: getCurrentTime()});
+                if (!updatedSubmission.acknowledged) {
+                    console.error(`Failed to update the program in the submission: ${aSubmission?._id}`);
+                }
+            }
+            return {...aSubmission, organization: {_id: aProgram?._id, name: aProgram?.name}}
         }
         throw new Error(ERROR.INVALID_ROLE);
     }
