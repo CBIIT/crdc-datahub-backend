@@ -131,3 +131,23 @@ Commands:
         }
       ]
       );
+# 3.3.0 data migration
+  - Add inherited permissions to user document CRDCDH-2321: |
+      db.users.updateMany(
+      {
+        permissions: { $in: ["submission_request:create", "submission_request:review"] },
+      },
+      {
+        $addToSet: { permissions: "submission_request:view" }
+      }
+      );
+      
+      db.users.updateMany(
+      {
+        permissions: { $in: ["data_submission:create", "data_submission:review"] },
+      },
+      {
+        $addToSet: { permissions: "data_submission:view" }
+      }
+      );
+
