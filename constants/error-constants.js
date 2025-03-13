@@ -1,5 +1,6 @@
 const ERROR = {
     NOT_LOGGED_IN: "A user must be logged in to call this API",
+    DISABLED_USER: "User is inactive, please contact admin to be reactivated.",
     SESSION_NOT_INITIALIZED: "Internal error, a user is logged in but user data has not been initialized in the session",
     DATABASE_OPERATION_FAILED: "Database operation failed, please see logs for more information",
     // Application
