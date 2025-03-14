@@ -616,14 +616,14 @@ class UserService {
         }
 
         return {
-            filteredPermissions: this.#setFilteredPermissions(isUserRoleChange, userRole, permissions, accessControl?.permissions?.permitted),
+            filteredPermissions: this.#setFilteredPermissions(isUserRoleChange, userRole, permissions, accessControl?.permissions?.permitted, accessControl?.permissions?.getInherited),
             filteredNotifications: this.#setFilteredNotifications(isUserRoleChange, userRole, notifications, accessControl?.notifications?.permitted)
         }
     }
-
-    #setFilteredPermissions(isUserRoleChange, userRole, permissions, defaultPermissions) {
+    // note for inheritedCallback; Some permissions are automatically enforced if they are inherited from the PBAC settings.
+    #setFilteredPermissions(isUserRoleChange, userRole, permissions, defaultPermissions, inheritedCallback) {
         const updatedPermissions = isUserRoleChange && permissions === undefined ? defaultPermissions : permissions;
-        return [...(updatedPermissions || [])];
+        return [...(updatedPermissions || []), ...inheritedCallback(updatedPermissions)];
     }
 
     #setFilteredNotifications(isUserRoleChange, userRole, notifications, defaultNotifications) {
@@ -640,13 +640,13 @@ class UserService {
 
         if (isUserRoleChange || (!isUserRoleChange && permissions !== undefined)) {
             if (!isIdenticalArrays(currRole?.permissions, filteredPermissions) && filteredPermissions) {
-                updatedUser.permissions = filteredPermissions;
+                updatedUser.permissions = new Set(filteredPermissions || []).toArray();
             }
         }
 
         if (isUserRoleChange || (!isUserRoleChange && notifications !== undefined)) {
             if (!isIdenticalArrays(currRole?.notifications, filteredNotifications) && filteredNotifications) {
-                updatedUser.notifications = filteredNotifications;
+                updatedUser.notifications = new Set(filteredNotifications).toArray();
             }
         }
     } 
