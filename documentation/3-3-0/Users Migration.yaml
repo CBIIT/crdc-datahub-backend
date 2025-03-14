@@ -1,0 +1,34 @@
+Commands:
+  - Create backup: Recommended to use MonogoDB Compass and use the 'Export Data' button to export the full 'users' collection as a JSON file.
+  - Select database:
+      For DEV2 or QA2: |
+        use crdc-datahub2
+      For all other tiers: |
+        use crdc-datahub
+  - Add inherited permissions to user document CRDCDH-2321: |
+      db.users.updateMany(
+      {
+        permissions: { $in: ["submission_request:create", "submission_request:review"] },
+      },
+      {
+        $addToSet: { permissions: "submission_request:view" }
+      }
+      );
+      
+      db.users.updateMany(
+      {
+        permissions: { $in: ["data_submission:create", "data_submission:review"] },
+      },
+      {
+        $addToSet: { permissions: "data_submission:view" }
+      }
+      );
+  - Add the missing primary contact email notifications to admin user CRDCDH-2398: |
+      db.users.updateMany(
+      {
+        role: "Admin",
+      },
+      {
+        $addToSet: { notifications: "data_submission:missing_primary_contact" }
+      }
+      );
