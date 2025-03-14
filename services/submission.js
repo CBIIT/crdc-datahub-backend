@@ -130,6 +130,11 @@ class Submission {
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
         }
+
+        if (!(newSubmission?.conciergeName?.trim()) || !(newSubmission?.conciergeEmail?.trim())) {
+            await this.#sendNoPrimaryContactEmail(newSubmission, approvedStudy, program);
+        }
+
         return newSubmission;
     }
     async #findApprovedStudies(studies) {
@@ -1176,6 +1181,29 @@ class Submission {
         }
     }
 
+    async #sendNoPrimaryContactEmail(aSubmission, approvedStudy, aProgram) {
+        const [adminUsers, CCUsers] = await Promise.all([
+            this.userService.userCollection.aggregate([{"$match": {
+                    "userStatus": USER.STATUSES.ACTIVE,
+                    "notifications": {"$in": [EN.DATA_SUBMISSION.MISSING_CONTACT]},
+                    "role": USER.ROLES.ADMIN
+                }}]) || [],
+            this.userService.userCollection.aggregate([{"$match": {
+                    "userStatus": USER.STATUSES.ACTIVE,
+                    "notifications": {"$in": [EN.DATA_SUBMISSION.MISSING_CONTACT]},
+                    "$or": [{"role": USER.ROLES.DATA_COMMONS_PERSONNEL}, {"role": USER.ROLES.FEDERAL_LEAD}]
+                }}]) || []
+        ]);
+
+        if (adminUsers?.length > 0) {
+            await this.notificationService.remindNoPrimaryContact(getUserEmails(adminUsers), getUserEmails(CCUsers), {
+                submissionName: `${aSubmission?.name},`,
+                studyName: approvedStudy?.studyName || NA,
+                programName: aProgram.name,
+                createDate: formatDate(aSubmission?.createdAt || getCurrentTime())
+            });
+        }
+    }
 
     async #sendEmailsDeletedSubmissions(aSubmission) {
          const [aSubmitter, BCCUsers, approvedStudy] = await Promise.all([
@@ -1981,6 +2009,12 @@ class Collaborators {
     }
 }
 
+// Month/Date/Year, Hour:Minutes PM or AM
+const formatDate = (date) => {
+    return `${date.toLocaleString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}`;
+}
+
+// TODO remove temporary for QA
 function logDaysDifference(inactiveDays, accessedAt, submissionID) {
     const startedDate = accessedAt; // Ensure it's a Date object
     const endDate = getCurrentTime();

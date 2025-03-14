@@ -277,6 +277,19 @@ class NotifyUser {
         });
     }
 
+    async remindNoPrimaryContact(toEmails, CCEmails, templateParams) {
+        const subject = this.email_constants.REMIND_PRIMARY_CONTACT_SUBJECT;
+        return await this.send(async () => {
+            return await this.emailService.sendNotification(
+                this.email_constants.NOTIFICATION_SENDER,
+                isTierAdded(this.tier) ? `${this.tier} ${subject}` : subject,
+                await createEmailTemplate("notification-template-submission.html", templateParams),
+                toEmails,
+                CCEmails
+            );
+        });
+    }
+
     async remindApplicationsNotification(email, CCEmails, BCCEmails, templateParams, messageVariables) {
         const message = replaceMessageVariables(this.email_constants.REMIND_EXPIRED_APPLICATION_CONTENT, messageVariables);
         const secondMessage = replaceMessageVariables(this.email_constants.REMIND_EXPIRED_APPLICATION_SECOND_CONTENT, messageVariables);
