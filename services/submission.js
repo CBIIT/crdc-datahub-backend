@@ -1318,6 +1318,58 @@ class Submission {
     }
 
     /**
+     * API: update the data-model version for the submission.
+     * @param {*} params
+     * @param {*} context
+     * @returns {Promise<Submission>}
+     */
+    async updateSubmissionModelVersion(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW);
+
+        const {_id, version} = params;
+        const aSubmission = await findByID(this.submissionCollection, _id);
+        if(!aSubmission){
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
+        }
+
+        const dataModels = await this.fetchDataModelInfo();
+        const validVersions = this.#getAllModelVersions(dataModels, aSubmission?.dataCommons);
+
+        if (!validVersions.includes(version)) {
+            throw new Error(replaceErrorString(ERROR.INVALID_MODEL_VERSION, `${version || " "}`));
+        }
+
+        if (![IN_PROGRESS, NEW].includes(aSubmission?.status)) {
+            throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_STATUS_MODEL_VERSION, `${aSubmission?.status}`));
+        }
+
+        const userInfo = context.userInfo;
+        const isPermitted = userInfo.role === ROLES.DATA_COMMONS_PERSONNEL && userInfo.dataCommons?.includes(aSubmission?.dataCommons);
+        if (!isPermitted) {
+            throw new Error(ERROR.INVALID_MODEL_VERSION_PERMISSION);
+        }
+
+        if (aSubmission?.modelVersion === version) {
+            return aSubmission;
+        }
+
+        const updatedSubmission = await this.submissionCollection.findOneAndUpdate(
+            {_id: aSubmission?._id, modelVersion: {"$ne": version}},
+            {modelVersion: version, updatedAt: getCurrentTime()},
+            {returnDocument: 'after'}
+        );
+
+        if (!updatedSubmission.value) {
+            console.error(ERROR.FAILED_UPDATE_MODEL_VERSION, `SubmissionID: ${aSubmission?._id}`)
+            throw new Error(ERROR.FAILED_UPDATE_MODEL_VERSION);
+        }
+        return updatedSubmission.value;
+    }
+
+
+    /**
      * API: get releases data
      * @param {*} params 
      * @param {*} context 
@@ -1414,6 +1466,12 @@ class Submission {
             throw new Error(ERROR.FAILED_VALIDATE_METADATA);
         }
     }
+
+    // Get all data-model version from the given url.
+    #getAllModelVersions(dataModels, dataCommonType) {
+        return dataModels?.[dataCommonType]?.["versions"] || [];
+    }
+
 
     #getModelVersion(dataModelInfo, dataCommonType) {
         const modelVersion = dataModelInfo?.[dataCommonType]?.["current-version"];
