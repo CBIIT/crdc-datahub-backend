@@ -39,6 +39,7 @@ const createToken = (userInfo, token_secret, token_timeout)=> {
 class UserService {
     #allPermissionNamesSet = new Set([...Object.values(SUBMISSION_REQUEST), ...Object.values(DATA_SUBMISSION), ...Object.values(ADMIN)]);
     #allEmailNotificationNamesSet = new Set([...Object.values(EN.SUBMISSION_REQUEST), ...Object.values(EN.DATA_SUBMISSION), ...Object.values(EN.USER_ACCOUNT)]);
+    #NIH = "nih";
     constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, approvedStudiesService, inactiveUserDays, configurationService) {
         this.userCollection = userCollection;
         this.logCollection = logCollection;
@@ -523,7 +524,9 @@ class UserService {
         // filter out users where status is not "Active"
         pipeline.push({
             $match: {
-                [USER_FIELDS.STATUS]: USER.STATUSES.ACTIVE
+                [USER_FIELDS.STATUS]: USER.STATUSES.ACTIVE,
+                // Disable auto-deactivated for NIH user
+                [USER_FIELDS.IDP]: {$not: {$regex: this.#NIH, $options: "i"}},
             }
         });
         // collect log events where the log event email matches the user's email and store the events in an array
