@@ -517,6 +517,7 @@ type Permission {
     order: Int,
     checked: Boolean,
     disabled: Boolean
+    inherited: [String]
 }
 
 type Notification {
