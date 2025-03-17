@@ -256,15 +256,18 @@ class Submission {
         if (!aBatch) {
             throw new Error(ERROR.BATCH_NOT_EXIST);
         }
-        // if the call is for monitoring uploading heart beating
+        // check if it's a heartbeat call sent by CLI of uploading data file.
+        // CLI uploader sends uploading heartbeat every 5 min by calling the API with a parameter, uploading: true
         if (params?.uploading === true) {
             //save the batch in the uploading batch pool for monitoring heart beat
             this.uploadingMonitor.saveUploadingBatch(aBatch._id);
             return {}
         }
         else {
-            // remove uploading batch from the uploading batch pool if uploaded
-            this.uploadingMonitor.removeUploadingBatch(aBatch._id);
+            if (aBatch.type === VALIDATION.TYPES.DATA_FILE) {
+                // remove uploading batch from the uploading batch pool if uploading is completed or failed
+                this.uploadingMonitor.removeUploadingBatch(aBatch._id);
+            }
         }
         if (![BATCH.STATUSES.UPLOADING].includes(aBatch?.status)) {
             throw new Error(ERROR.INVALID_UPDATE_BATCH_STATUS);

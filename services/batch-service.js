@@ -228,25 +228,16 @@ const createPrefix = (params, rootPath) => {
 }
 
 /**
- * singleton class: UploadingMonitor 
- * save/remove {batchID: updatedAt} into/from global variable uploading_batch_pool. 
- * monitor all uploading batches in the pool to check if updatedAT is older than 15 min. 
- * if older than 15min, call updateBatch and set status to failed.
+ * UploadingMonitor: a singleton to hold uploading batch pool and scheduler to check the pool every 5 min.
+ * public functions to save/remove {batchID: updatedAt} into/from the pool. 
+ * private function to monitor all uploading batches in the pool to check if updatedAT is older than 15 min, 
+ * if older than 15min, update the batch and set status to failed with errors.
 */ 
-
 class UploadingMonitor {
     static instance;
     constructor(batchCollection, configurationService) {
         this.batchCollection = batchCollection;
         this.#initialize(configurationService);
-    }
-
-    async #initialize(configurationService) {
-        const config = await configurationService.findByType(UPLOADING_HEARTBEAT_CONFIG_TYPE);
-        this.interval = (config?.interval || 300) * 1000; // 5 min
-        this.max_age = (config?.age || 900) * 1000; // 15 min
-        this.uploading_batch_pool = {}; //{batchID: updatedAt}
-        this.#startScheduler();
     }
 
     /**
@@ -262,25 +253,44 @@ class UploadingMonitor {
         return UploadingMonitor.instance;
     }
 
+    /**
+     * private function:  #initialize
+     * @param {*} configurationService 
+     */
+    async #initialize(configurationService) {
+        const config = await configurationService.findByType(UPLOADING_HEARTBEAT_CONFIG_TYPE);
+        this.interval = (config?.interval || 300) * 1000; // 5 min
+        this.max_age = (config?.age || 900) * 1000; // 15 min
+        this.uploading_batch_pool = {}; //initialize the pool, {batchID: updatedAt}
+        this.#startScheduler();
+    }
+    
     async #checkUploadingBatches() {
         if (Object.keys(this.uploading_batch_pool).length === 0) {
             return;
         }
         const now = new Date();
-        // loop through all uploading batches in uploading_batch_pool which is a object {batchID: updatedAt} 
-        // and check if the updatedAt is older than 5*3 min. if older than 15 min, update batch with status failed.
+        // loop through all uploading batches in uploading_batch_pool 
+        // and check if updatedAt is older than 5*3 min. if older than 15 min, update batch with status failed.
         for (const batchID of Object.keys(this.uploading_batch_pool)) {
             const updatedAt = new Date(this.uploading_batch_pool[batchID]);
             const diff = now - updatedAt;
             if (diff > this.max_age) {
                 //update batch with status failed if older than 15 min
                 const error = ERROR.UPLOADING_BATCH_CRASHED;
-                await this.batchCollection.update({"_id": batchID}, {$set: {"status": BATCH.STATUSES.FAILED, "errors": [error],"updatedAt": now}});
-                // remove failed batch from the pool
-                delete this.uploading_batch_pool[batchID];
+                try {
+                    await this.batchCollection.update({"_id": batchID}, 
+                        {$set: {"status": BATCH.STATUSES.FAILED, "errors": [error],"updatedAt": now}});
+                }
+                catch (e) {
+                    console.error(`Failed to update batch ${batchID} with error: ${e.message}`);
+                }
+                finally {
+                    // remove failed batch from the pool
+                    delete this.uploading_batch_pool[batchID];
+                } 
             }
         }
-        return;
     }
 
     // start a scheduler to monitor uploading batches every 5 min.
@@ -289,7 +299,6 @@ class UploadingMonitor {
             await this.#checkUploadingBatches();
         }, this.interval);
     }
-    
     /**
      * saveUploadingBatch
      * @param {*} batchID 
