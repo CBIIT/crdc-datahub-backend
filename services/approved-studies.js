@@ -317,19 +317,19 @@ class ApprovedStudiesService {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_UPDATE);
         }
 
-        if (primaryContact) {
-            const [conciergeName, conciergeEmail] = [`${primaryContact?.firstName || ""} ${primaryContact?.lastName || ''}`, primaryContact?.email || ""];
-            const updatedSubmissions = await this.submissionCollection.updateMany({
-                studyID: updateStudy._id,
-                status: {$in: [NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, CANCELED, DELETED, ARCHIVED]},
-                $or: [{conciergeName: { "$ne": conciergeName?.trim() }}, {conciergeEmail: { "$ne": conciergeEmail }}]}, {
-                // To update the primary contacts
-                conciergeName: conciergeName?.trim(), conciergeEmail, updatedAt: getCurrentTime()});
-            if (!updatedSubmissions?.acknowledged) {
-                console.log(ERROR.FAILED_PRIMARY_CONTACT_UPDATE, `StudyID: ${studyID}`);
-                throw new Error(ERROR.FAILED_PRIMARY_CONTACT_UPDATE);
-            }
+        const [conciergeName, conciergeEmail] = (primaryContact)? [`${primaryContact?.firstName || ""} ${primaryContact?.lastName || ''}`, primaryContact?.email || ""] :
+                        ["",""];
+        const updatedSubmissions = await this.submissionCollection.updateMany({
+            studyID: updateStudy._id,
+            status: {$in: [NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, CANCELED, DELETED, ARCHIVED]},
+            $or: [{conciergeName: { "$ne": conciergeName?.trim() }}, {conciergeEmail: { "$ne": conciergeEmail }}]}, {
+            // To update the primary contacts
+            conciergeName: conciergeName?.trim(), conciergeEmail, updatedAt: getCurrentTime()});
+        if (!updatedSubmissions?.acknowledged) {
+            console.log(ERROR.FAILED_PRIMARY_CONTACT_UPDATE, `StudyID: ${studyID}`);
+            throw new Error(ERROR.FAILED_PRIMARY_CONTACT_UPDATE);
         }
+    
         const programs = await this.#findOrganizationByStudyID(studyID)
         return {...updateStudy, programs: programs, primaryContact: primaryContact};  
     }
