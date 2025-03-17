@@ -316,7 +316,7 @@ class ApprovedStudiesService {
         if (!result?.acknowledged) {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_UPDATE);
         }
-
+        //update conciergeName and conciergeEmail in submissions no matter if primaryContact is null or not
         const [conciergeName, conciergeEmail] = (primaryContact)? [`${primaryContact?.firstName || ""} ${primaryContact?.lastName || ''}`, primaryContact?.email || ""] :
                         ["",""];
         const updatedSubmissions = await this.submissionCollection.updateMany({
