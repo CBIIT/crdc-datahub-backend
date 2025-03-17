@@ -7,6 +7,7 @@ const {USER} = require("../crdc-datahub-database-drivers/constants/user-constant
 const {SUBMISSIONS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {replaceErrorString} = require("../utility/string-util");
+const {writeObject2JsonFile, readJsonFile2Object} = require("../utility/io-util");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
 const LOAD_METADATA = "Load Metadata";
@@ -233,6 +234,7 @@ const createPrefix = (params, rootPath) => {
  * private function to monitor all uploading batches in the pool to check if updatedAT is older than 15 min, 
  * if older than 15min, update the batch and set status to failed with errors.
 */ 
+const UPLOADING_BATCH_POOL_FILE = "./logs/uploading_batch_pool.json";
 class UploadingMonitor {
     static instance;
     constructor(batchCollection, configurationService) {
@@ -261,7 +263,7 @@ class UploadingMonitor {
         const config = await configurationService.findByType(UPLOADING_HEARTBEAT_CONFIG_TYPE);
         this.interval = (config?.interval || 300) * 1000; // 5 min
         this.max_age = (config?.age || 900) * 1000; // 15 min
-        this.uploading_batch_pool = {}; //initialize the pool, {batchID: updatedAt}
+        this.uploading_batch_pool = readJsonFile2Object(UPLOADING_BATCH_POOL_FILE);
         this.#startScheduler();
     }
     
@@ -287,7 +289,7 @@ class UploadingMonitor {
                 }
                 finally {
                     // remove failed batch from the pool
-                    delete this.uploading_batch_pool[batchID];
+                    this.removeUploadingBatch(batchID);
                 } 
             }
         }
@@ -305,6 +307,7 @@ class UploadingMonitor {
      */
     saveUploadingBatch(batchID) {
         this.uploading_batch_pool[batchID] = new Date();
+        this.#savePool2JsonFile();
     } 
 
     /**
@@ -312,11 +315,21 @@ class UploadingMonitor {
      * @param {*} batchID 
      */
     removeUploadingBatch(batchID) {
-        // check if the pool contains the batchID, if not, return
+         // check if the pool contains the batchID, if not, return
        if (!this.uploading_batch_pool[batchID]) {
             return;
         }
         delete this.uploading_batch_pool[batchID];
+        this.#savePool2JsonFile();
+    }
+
+    // persistent save the pool to json file
+    #savePool2JsonFile() {
+        try{writeObject2JsonFile(this.uploading_batch_pool, UPLOADING_BATCH_POOL_FILE)
+        }
+        catch (e) {
+            console.error(`Failed to save uploading batch pool to ${UPLOADING_BATCH_POOL_FILE} with error: ${e.message}`)
+        }
     }
 } 
 
