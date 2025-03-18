@@ -1217,7 +1217,7 @@ class Submission {
             await this.notificationService.remindNoPrimaryContact(getUserEmails(adminUsers), getUserEmails(CCUsers), {
                 submissionName: `${aSubmission?.name},`,
                 studyName: approvedStudy?.studyName || NA,
-                programName: aProgram.name,
+                programName: aProgram?.name || NA,
                 createDate: formatDate(aSubmission?.createdAt || getCurrentTime())
             });
         }
