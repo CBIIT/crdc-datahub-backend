@@ -1,15 +1,18 @@
 const {Batch} = require("../domain/batch");
 const {BATCH, FILE} = require("../crdc-datahub-database-drivers/constants/batch-constants");
+const { UPLOADING_HEARTBEAT_CONFIG_TYPE } = require("../constants/submission-constants");
 const ERROR = require("../constants/error-constants");
 const {NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED, REJECTED, WITHDRAWN, VALIDATION, INTENTION} = require("../constants/submission-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {SUBMISSIONS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {replaceErrorString} = require("../utility/string-util");
+const {writeObject2JsonFile, readJsonFile2Object} = require("../utility/io-util");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
 const LOAD_METADATA = "Load Metadata";
 const OMIT_DCF_PREFIX = 'omit-DCF-prefix';
+
 class BatchService {
     constructor(s3Service, batchCollection, sqsLoaderQueue, awsService, prodURL, fetchDataModelInfo) {
         this.s3Service = s3Service;
@@ -225,6 +228,111 @@ const createPrefix = (params, rootPath) => {
     return prefixArray.join("/");
 }
 
+/**
+ * UploadingMonitor: a singleton to hold uploading batch pool and scheduler to check the pool every 5 min.
+ * public functions to save/remove {batchID: updatedAt} into/from the pool. 
+ * private function to monitor all uploading batches in the pool to check if updatedAT is older than 15 min, 
+ * if older than 15min, update the batch and set status to failed with errors.
+*/ 
+const UPLOADING_BATCH_POOL_FILE = "./logs/uploading_batch_pool.json";
+class UploadingMonitor {
+    static instance;
+    constructor(batchCollection, configurationService) {
+        this.batchCollection = batchCollection;
+        this.#initialize(configurationService);
+    }
+
+    /**
+     * getInstance
+     * @param {*} batchCollection 
+     * @param {*} interval 
+     * @returns UploadingChecker
+     */
+    static getInstance(batchCollection, configurationService) {
+        if (!UploadingMonitor.instance) {
+            UploadingMonitor.instance = new UploadingMonitor(batchCollection, configurationService);
+        }
+        return UploadingMonitor.instance;
+    }
+
+    /**
+     * private function:  #initialize
+     * @param {*} configurationService 
+     */
+    async #initialize(configurationService) {
+        const config = await configurationService.findByType(UPLOADING_HEARTBEAT_CONFIG_TYPE);
+        this.interval = (config?.interval || 300) * 1000; // 5 min
+        this.max_age = (config?.age || 900) * 1000; // 15 min
+        this.uploading_batch_pool = readJsonFile2Object(UPLOADING_BATCH_POOL_FILE);
+        this.#startScheduler();
+    }
+    
+    async #checkUploadingBatches() {
+        if (Object.keys(this.uploading_batch_pool).length === 0) {
+            return;
+        }
+        const now = new Date();
+        // loop through all uploading batches in uploading_batch_pool 
+        // and check if updatedAt is older than 5*3 min. if older than 15 min, update batch with status failed.
+        for (const batchID of Object.keys(this.uploading_batch_pool)) {
+            const updatedAt = new Date(this.uploading_batch_pool[batchID]);
+            const diff = now - updatedAt;
+            if (diff > this.max_age) {
+                //update batch with status failed if older than 15 min
+                const error = ERROR.UPLOADING_BATCH_CRASHED;
+                try {
+                    await this.batchCollection.update({"_id": batchID}, 
+                        {$set: {"status": BATCH.STATUSES.FAILED, "errors": [error],"updatedAt": now}});
+                }
+                catch (e) {
+                    console.error(`Failed to update batch ${batchID} with error: ${e.message}`);
+                }
+                finally {
+                    // remove failed batch from the pool
+                    this.removeUploadingBatch(batchID);
+                } 
+            }
+        }
+    }
+
+    // start a scheduler to monitor uploading batches every 5 min.
+    #startScheduler() {
+        setInterval(async () => {
+            await this.#checkUploadingBatches();
+        }, this.interval);
+    }
+    /**
+     * saveUploadingBatch
+     * @param {*} batchID 
+     */
+    saveUploadingBatch(batchID) {
+        this.uploading_batch_pool[batchID] = new Date();
+        this.#savePool2JsonFile();
+    } 
+
+    /**
+     * removeUploadingBatch
+     * @param {*} batchID 
+     */
+    removeUploadingBatch(batchID) {
+         // check if the pool contains the batchID, if not, return
+       if (!this.uploading_batch_pool[batchID]) {
+            return;
+        }
+        delete this.uploading_batch_pool[batchID];
+        this.#savePool2JsonFile();
+    }
+
+    // persistent save the pool to json file
+    #savePool2JsonFile() {
+        try{writeObject2JsonFile(this.uploading_batch_pool, UPLOADING_BATCH_POOL_FILE)
+        }
+        catch (e) {
+            console.error(`Failed to save uploading batch pool to ${UPLOADING_BATCH_POOL_FILE} with error: ${e.message}`)
+        }
+    }
+} 
+
 module.exports = {
-    BatchService
+    BatchService, UploadingMonitor
 }

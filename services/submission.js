@@ -1,6 +1,6 @@
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
     REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, INTENTION, DATA_TYPE, DELETED, DATA_FILE,
-    CONSTRAINTS, COLLABORATOR_PERMISSIONS
+    CONSTRAINTS, COLLABORATOR_PERMISSIONS, UPLOADING_HEARTBEAT_CONFIG_TYPE
 } = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
@@ -52,7 +52,7 @@ class Submission {
     constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService,
                 dataRecordService, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList,
                 hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs, 
-                submissionBucketName, configurationService) {
+                submissionBucketName, configurationService, uploadingMonitor) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -72,7 +72,8 @@ class Submission {
         this.qcResultsService = qcResultsService;
         this.uploaderCLIConfigs = uploaderCLIConfigs;
         this.submissionBucketName = submissionBucketName;
-        this.configurationService = configurationService
+        this.configurationService = configurationService;
+        this.uploadingMonitor = uploadingMonitor;
     }
 
     async createSubmission(params, context) {
@@ -260,12 +261,26 @@ class Submission {
         if (!aBatch) {
             throw new Error(ERROR.BATCH_NOT_EXIST);
         }
+        // check if it's a heartbeat call sent by CLI of uploading data file.
+        // CLI uploader sends uploading heartbeat every 5 min by calling the API with a parameter, uploading: true
+        if (params?.uploading === true) {
+            //save the batch in the uploading batch pool for monitoring heart beat
+            this.uploadingMonitor.saveUploadingBatch(aBatch._id);
+            return {}
+        }
+        else {
+            if (aBatch.type === VALIDATION.TYPES.DATA_FILE) {
+                // remove uploading batch from the uploading batch pool if uploading is completed or failed
+                this.uploadingMonitor.removeUploadingBatch(aBatch._id);
+            }
+        }
         if (![BATCH.STATUSES.UPLOADING].includes(aBatch?.status)) {
             throw new Error(ERROR.INVALID_UPDATE_BATCH_STATUS);
         }
         const aSubmission = await findByID(this.submissionCollection, aBatch.submissionID);
         // submission owner & submitter's Org Owner
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
+       
         const res = await this.batchService.updateBatch(aBatch, aSubmission?.bucketName, params?.files);
         // new status is ready for the validation
         if (res.status === BATCH.STATUSES.UPLOADED) {
@@ -930,12 +945,15 @@ class Submission {
         // data model file node properties into the string
         const latestDataModel = await this.fetchDataModelInfo();
         const fileConfig = this.#getModelFileNodeInfo(aSubmission, latestDataModel);
+        const uploadingHeartbeatConfig = await this.configurationService.findByType(UPLOADING_HEARTBEAT_CONFIG_TYPE);
         return {id_field: fileConfig["id-field"],
             name_field: fileConfig["name-field"],
             size_field: fileConfig["size-field"],
             md5_field: fileConfig["md5-field"],
-            omit_DCF_prefix: fileConfig["omit-DCF-prefix"]};
-    }
+            omit_DCF_prefix: fileConfig["omit-DCF-prefix"],
+            heartbeat_interval: uploadingHeartbeatConfig?.interval || 300
+        };
+    };
 
     /**
      * API: editSubmissionCollaborators

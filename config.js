@@ -36,12 +36,11 @@ const INACTIVE_SUBMISSION_NOTIFY_DAYS = "INACTIVE_SUBMISSION_NOTIFY_DAYS";
 const INACTIVE_APPLICATION_NOTIFY_DAYS = "INACTIVE_APPLICATION_NOTIFY_DAYS";
 const LIST_OF_S3_BUCKETS = "LIST_OF_S3_BUCKETS";
 const SUBMISSION_BUCKET = "SUBMISSION_BUCKET";
-
+const AWS_SQS_QUEUE = "AWS_SQS_QUEUE";
 const EMAIL_SMTP = "EMAIL_SMTP";
 const SCHEDULED_JOBS = "SCHEDULED_JOBS";
 const LIST_OF_EMAIL_ADDRESS = "LIST_OF_EMAIL_ADDRESS";
 const LIST_OF_URLS = "LIST_OF_URLS";
-const AWS_SQS_QUEUE = "AWS_SQS_QUEUE";
 const TIMEOUT = "TIMEOUT";
 let config = {
     //info variables
@@ -58,6 +57,8 @@ let config = {
     session_timeout: parseInt(process.env.SESSION_TIMEOUT_SECONDS) * 1000 || 30 * 60 * 1000,
     token_secret: process.env.SESSION_SECRET,
     token_timeout: parseInt(process.env.TOKEN_TIMEOUT) * 1000 || 30 * 24 * 60 * 60 * 1000,
+    // uploading heart beating check interval
+    uploading_check_interval: 5 * 60 * 1000,
     //aws sts assume role
     role_arn: process.env.ROLE_ARN,
     updateConfig: async (dbConnector)=> {

@@ -23,7 +23,7 @@ const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-c
 const {EmailService} = require("../services/email");
 const {NotifyUser} = require("../services/notify-user");
 const {ApprovedStudiesService} = require("../services/approved-studies");
-const {BatchService} = require("../services/batch-service");
+const {BatchService, UploadingMonitor} = require("../services/batch-service");
 const {S3Service} = require("../services/s3-service");
 const {Organization} = require("../crdc-datahub-database-drivers/services/organization");
 const {DataRecordService} = require("../services/data-record-service");
@@ -69,7 +69,6 @@ dbConnector.connect().then(async () => {
     const fetchDataModelInfo = async () => {
         return utilityService.fetchJsonFromUrl(config.model_url)
     };
-
     const batchService = new BatchService(s3Service, batchCollection, config.sqs_loader_queue, awsService, config.prod_url, fetchDataModelInfo);
     const institutionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, INSTITUTION_COLLECTION);
     const institutionService = new InstitutionService(institutionCollection);
@@ -89,11 +88,12 @@ dbConnector.connect().then(async () => {
         techSupportEmail: config.techSupportEmail, conditionalSubmissionContact: config.conditionalSubmissionContact, submissionGuideURL: config.submissionGuideUrl,
         completedSubmissionDays: config.completed_submission_days, inactiveSubmissionDays: config.inactive_submission_days, finalRemindSubmissionDay: config.inactive_submission_days,
         inactiveApplicationNotifyDays: config.inactiveApplicationNotifyDays};
-
+        
+    const uploadingMonitor = UploadingMonitor.getInstance(batchCollection, configurationService);
     const submissionService = new Submission(logCollection, submissionCollection, batchService, userService,
         organizationService, notificationsService, dataRecordService, fetchDataModelInfo, awsService, config.export_queue,
-        s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService, config.uploaderCLIConfigs, config.submission_bucket,
-        config.submission_bucket, configurationService);
+        s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService, config.uploaderCLIConfigs,
+        config.submission_bucket, configurationService, uploadingMonitor);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService, configurationService);
 
     const dashboardService = new DashboardService(userService, awsService, configurationService, {sessionTimeout: config.dashboardSessionTimeout});
