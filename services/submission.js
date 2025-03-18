@@ -34,7 +34,6 @@ const FILE = "file";
 const DATA_MODEL_SEMANTICS = 'semantics';
 const DATA_MODEL_FILE_NODES = 'file-nodes';
 const COMPLETE_SUBMISSION = "Complete Submission";
-const GENERATE_DCF_MANIFEST = "Generate DCF Manifest";
 const RESTORE_DELETED_DATA_FILES = "Restore Deleted Data Files";
 const DELETE_METADATA = "Delete Metadata";
 const INACTIVE_REMINDER = "inactiveReminder";
@@ -432,7 +431,6 @@ class Submission {
         }
         if (action === ACTIONS.RELEASE) {
             completePromise.push(this.dataRecordService.exportMetadata(submissionID));
-            completePromise.push(this.#sendCompleteMessage({type: GENERATE_DCF_MANIFEST, submissionID}, submissionID));
         }
         if (action === ACTIONS.REJECT && submission?.intention === INTENTION.DELETE && oldStatus === RELEASED) {
             //based on CRDCDH-2338 to send a restoring deleted data file SQS message so validator can execute the restoration.
