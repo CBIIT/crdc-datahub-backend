@@ -91,6 +91,35 @@ const isValidFileExtension = (name) => {
     return regex.test(name);
 }
 
+
+/**
+ * Formats a given file size in bytes with appropriate units (KB, MB, GB, TB).
+ *
+ * @param {number} bytes - The file size in bytes (default is 0).
+ * @returns {string} - The formatted file size with two decimal places.
+ */
+const fileSizeFormatter = (bytes = 0) => {
+    const KB = 1024;
+    const MB = KB * 1024;
+    const GB = MB * 1024;
+    const TB = GB * 1024;
+
+    let formattedSize = "0";
+
+    if (bytes >= TB) {
+        formattedSize = (bytes / TB).toFixed(2) + " TB";
+    } else if (bytes >= GB) {
+        formattedSize = (bytes / GB).toFixed(2) + " GB";
+    } else if (bytes >= MB) {
+        formattedSize = (bytes / MB).toFixed(2) + " MB";
+    } else if (bytes > 0) {
+        formattedSize = (bytes / KB).toFixed(2) + " KB";
+    }
+
+    // Apply thousands separator for readability
+    return formattedSize.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
 module.exports = {
     isCaseInsensitiveEqual,
     isElementInArray,
@@ -102,5 +131,6 @@ module.exports = {
     extractAndJoinFields,
     toPascalCase,
     replaceErrorString,
-    isValidFileExtension
+    isValidFileExtension,
+    fileSizeFormatter
 }
