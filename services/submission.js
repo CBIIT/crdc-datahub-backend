@@ -181,7 +181,7 @@ class Submission {
                 dataFileSize: {
                     $cond: {
                         if: { $in: ["$status", [DELETED, CANCELED]] },
-                        then: { size: 0, formatted: "NA" },
+                        then: { size: 0, formatted: NA },
                         else: "$dataFileSize"
                     }
                 }
