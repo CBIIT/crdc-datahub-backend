@@ -1,5 +1,6 @@
 const ERROR = {
     NOT_LOGGED_IN: "A user must be logged in to call this API",
+    DISABLED_USER: "User is inactive, please contact admin to be reactivated.",
     SESSION_NOT_INITIALIZED: "Internal error, a user is logged in but user data has not been initialized in the session",
     DATABASE_OPERATION_FAILED: "Database operation failed, please see logs for more information",
     // Application
@@ -94,6 +95,10 @@ const ERROR = {
     INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS: "You do not have permission to view the validation results for this submission",
     INVALID_PERMISSION_TO_VIEW_NODE_TYPES: "You do not have permission to view the node types included in this submission",
     MISSING_SUBMISSION_FILE_ERRORS: "The file errors property is missing from the submission",
+    INVALID_MODEL_VERSION: "The provided model version was not found in the data-commons: $item$",
+    INVALID_SUBMISSION_STATUS_MODEL_VERSION: "Invalid submission status to update the model-version: $item$",
+    INVALID_MODEL_VERSION_PERMISSION: "You do not have the correct permissions to update the model-version",
+    FAILED_UPDATE_MODEL_VERSION: "Failed to update the model-version for the submission.",
     // Token
     INVALID_TOKEN_EMPTY: "Invalid token: it is empty string!",
     INVALID_TOKEN_NO_USER_ID: 'Invalid token: no user id!',
@@ -185,6 +190,7 @@ const ERROR = {
     INVALID_NOTIFICATION_NAME: "Invalid email notification is requested: $item$",
     INVALID_PRIMARY_CONTACT: "No primary contact found with the primary contact ID",
     INVALID_PRIMARY_CONTACT_ROLE: "The user role for a primary contact must be Data Commons Personnel",
+    UPLOADING_BATCH_CRASHED: "CLI stopped responding while uploading data files.",
 }
 
 module.exports = ERROR;

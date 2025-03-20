@@ -57,6 +57,7 @@ module.exports = Object.freeze({
     },
     COLLABORATOR_PERMISSIONS: {
         CAN_EDIT: "Can Edit"
-    }
+    },
+    UPLOADING_HEARTBEAT_CONFIG_TYPE: "UPLOADING_HEARTBEAT"
 
 });

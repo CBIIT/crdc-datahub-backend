@@ -39,6 +39,7 @@ const createToken = (userInfo, token_secret, token_timeout)=> {
 class UserService {
     #allPermissionNamesSet = new Set([...Object.values(SUBMISSION_REQUEST), ...Object.values(DATA_SUBMISSION), ...Object.values(ADMIN)]);
     #allEmailNotificationNamesSet = new Set([...Object.values(EN.SUBMISSION_REQUEST), ...Object.values(EN.DATA_SUBMISSION), ...Object.values(EN.USER_ACCOUNT)]);
+    #NIH = "nih";
     constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, approvedStudiesService, inactiveUserDays, configurationService) {
         this.userCollection = userCollection;
         this.logCollection = logCollection;
@@ -523,7 +524,9 @@ class UserService {
         // filter out users where status is not "Active"
         pipeline.push({
             $match: {
-                [USER_FIELDS.STATUS]: USER.STATUSES.ACTIVE
+                [USER_FIELDS.STATUS]: USER.STATUSES.ACTIVE,
+                // Disable auto-deactivated for NIH user
+                [USER_FIELDS.IDP]: {$not: {$regex: this.#NIH, $options: "i"}},
             }
         });
         // collect log events where the log event email matches the user's email and store the events in an array
@@ -616,14 +619,14 @@ class UserService {
         }
 
         return {
-            filteredPermissions: this.#setFilteredPermissions(isUserRoleChange, userRole, permissions, accessControl?.permissions?.permitted),
+            filteredPermissions: this.#setFilteredPermissions(isUserRoleChange, userRole, permissions, accessControl?.permissions?.permitted, accessControl?.permissions?.getInherited),
             filteredNotifications: this.#setFilteredNotifications(isUserRoleChange, userRole, notifications, accessControl?.notifications?.permitted)
         }
     }
-
-    #setFilteredPermissions(isUserRoleChange, userRole, permissions, defaultPermissions) {
+    // note for inheritedCallback; Some permissions are automatically enforced if they are inherited from the PBAC settings.
+    #setFilteredPermissions(isUserRoleChange, userRole, permissions, defaultPermissions, inheritedCallback) {
         const updatedPermissions = isUserRoleChange && permissions === undefined ? defaultPermissions : permissions;
-        return [...(updatedPermissions || [])];
+        return [...(updatedPermissions || []), ...inheritedCallback(updatedPermissions)];
     }
 
     #setFilteredNotifications(isUserRoleChange, userRole, notifications, defaultNotifications) {
@@ -640,13 +643,13 @@ class UserService {
 
         if (isUserRoleChange || (!isUserRoleChange && permissions !== undefined)) {
             if (!isIdenticalArrays(currRole?.permissions, filteredPermissions) && filteredPermissions) {
-                updatedUser.permissions = filteredPermissions;
+                updatedUser.permissions = new Set(filteredPermissions || []).toArray();
             }
         }
 
         if (isUserRoleChange || (!isUserRoleChange && notifications !== undefined)) {
             if (!isIdenticalArrays(currRole?.notifications, filteredNotifications) && filteredNotifications) {
-                updatedUser.notifications = filteredNotifications;
+                updatedUser.notifications = new Set(filteredNotifications).toArray();
             }
         }
     } 

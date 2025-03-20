@@ -287,8 +287,6 @@ class Application {
             .notEmpty()
             .state(validStatus);
         // In Progress -> In Submitted
-        // auto upgrade version
-        application.version = await this.#getApplicationVersionByStatus(application.status, application?.version);
         const history = application.history || [];
         const historyEvent = HistoryEventBuilder.createEvent(context.userInfo._id, SUBMITTED, null);
         history.push(historyEvent)

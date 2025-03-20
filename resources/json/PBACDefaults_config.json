@@ -18,6 +18,7 @@
             "_id": "submission_request:create",
             "group": "Submission Request Permissions",
             "name": "Create",
+            "inherited": ["submission_request:view"],
             "order": 2,
             "checked": false,
             "disabled": false
@@ -26,6 +27,7 @@
             "_id": "submission_request:review",
             "group": "Submission Request Permissions",
             "name": "Review",
+            "inherited": ["submission_request:view"],
             "order": 4,
             "checked": false,
             "disabled": false
@@ -65,6 +67,7 @@
           {
             "_id": "data_submission:create",
             "group": "Data Submission Permissions",
+            "inherited": ["data_submission:view"],
             "name": "Create",
             "order": 2,
             "checked": false,
@@ -82,6 +85,7 @@
             "_id": "data_submission:review",
             "group": "Data Submission Permissions",
             "name": "Review",
+            "inherited": ["data_submission:view"],
             "order": 4,
             "checked": false,
             "disabled": false
@@ -250,6 +254,14 @@
             "disabled": false
           },
           {
+            "_id": "data_submission:missing_primary_contact",
+            "group": "Data Submission Emails",
+            "name": "Missing Primary Contact",
+            "order": 9,
+            "checked": false,
+            "disabled": false
+          },
+          {
             "_id": "access:requested",
             "group": "Miscellaneous",
             "name": "Request Access",
@@ -290,6 +302,7 @@
             "_id": "submission_request:create",
             "group": "Submission Request Permissions",
             "name": "Create",
+            "inherited": ["submission_request:view"],
             "order": 2,
             "checked": false,
             "disabled": false
@@ -298,6 +311,7 @@
             "_id": "submission_request:review",
             "group": "Submission Request Permissions",
             "name": "Review",
+            "inherited": ["submission_request:view"],
             "order": 4,
             "checked": false,
             "disabled": false
@@ -337,6 +351,7 @@
           {
             "_id": "data_submission:create",
             "group": "Data Submission Permissions",
+            "inherited": ["data_submission:view"],
             "name": "Create",
             "order": 2,
             "checked": false,
@@ -353,6 +368,7 @@
           {
             "_id": "data_submission:review",
             "group": "Data Submission Permissions",
+            "inherited": ["data_submission:view"],
             "name": "Review",
             "order": 4,
             "checked": true,
@@ -522,6 +538,14 @@
             "disabled": false
           },
           {
+            "_id": "data_submission:missing_primary_contact",
+            "group": "Data Submission Emails",
+            "name": "Missing Primary Contact",
+            "order": 9,
+            "checked": false,
+            "disabled": false
+          },
+          {
             "_id": "access:requested",
             "group": "Miscellaneous",
             "name": "Request Access",
@@ -561,6 +585,7 @@
           {
             "_id": "submission_request:create",
             "group": "Submission Request Permissions",
+            "inherited": ["submission_request:view"],
             "name": "Create",
             "order": 2,
             "checked": false,
@@ -569,6 +594,7 @@
           {
             "_id": "submission_request:review",
             "group": "Submission Request Permissions",
+            "inherited": ["submission_request:view"],
             "name": "Review",
             "order": 4,
             "checked": false,
@@ -610,6 +636,7 @@
             "_id": "data_submission:create",
             "group": "Data Submission Permissions",
             "name": "Create",
+            "inherited": ["data_submission:view"],
             "order": 2,
             "checked": false,
             "disabled": false
@@ -625,6 +652,7 @@
           {
             "_id": "data_submission:review",
             "group": "Data Submission Permissions",
+            "inherited": ["data_submission:view"],
             "name": "Review",
             "order": 4,
             "checked": false,
@@ -790,6 +818,14 @@
             "group": "Data Submission Emails",
             "name": "When deleted",
             "order": 8,
+            "checked": true,
+            "disabled": false
+          },
+          {
+            "_id": "data_submission:missing_primary_contact",
+            "group": "Data Submission Emails",
+            "name": "Missing Primary Contact",
+            "order": 9,
             "checked": true,
             "disabled": false
           },
@@ -833,6 +869,7 @@
           {
             "_id": "submission_request:create",
             "group": "Submission Request Permissions",
+            "inherited": ["submission_request:view"],
             "name": "Create",
             "order": 2,
             "checked": true,
@@ -841,6 +878,7 @@
           {
             "_id": "submission_request:review",
             "group": "Submission Request Permissions",
+            "inherited": ["submission_request:view"],
             "name": "Review",
             "order": 4,
             "checked": false,
@@ -882,6 +920,7 @@
             "_id": "data_submission:create",
             "group": "Data Submission Permissions",
             "name": "Create",
+            "inherited": ["data_submission:view"],
             "order": 2,
             "checked": true,
             "disabled": true
@@ -897,6 +936,7 @@
           {
             "_id": "data_submission:review",
             "group": "Data Submission Permissions",
+            "inherited": ["data_submission:view"],
             "name": "Review",
             "order": 4,
             "checked": false,
@@ -1063,6 +1103,14 @@
             "name": "When deleted",
             "order": 8,
             "checked": true,
+            "disabled": true
+          },
+          {
+            "_id": "data_submission:missing_primary_contact",
+            "group": "Data Submission Emails",
+            "name": "Missing Primary Contact",
+            "order": 9,
+            "checked": false,
             "disabled": true
           },
           {
@@ -1105,6 +1153,7 @@
           {
             "_id": "submission_request:create",
             "group": "Submission Request Permissions",
+            "inherited": ["submission_request:view"],
             "name": "Create",
             "order": 2,
             "checked": true,
@@ -1113,6 +1162,7 @@
           {
             "_id": "submission_request:review",
             "group": "Submission Request Permissions",
+            "inherited": ["submission_request:view"],
             "name": "Review",
             "order": 4,
             "checked": false,
@@ -1154,6 +1204,7 @@
             "_id": "data_submission:create",
             "group": "Data Submission Permissions",
             "name": "Create",
+            "inherited": ["data_submission:view"],
             "order": 2,
             "checked": false,
             "disabled": true
@@ -1169,6 +1220,7 @@
           {
             "_id": "data_submission:review",
             "group": "Data Submission Permissions",
+            "inherited": ["data_submission:view"],
             "name": "Review",
             "order": 4,
             "checked": false,
@@ -1334,6 +1386,14 @@
             "group": "Data Submission Emails",
             "name": "When deleted",
             "order": 8,
+            "checked": false,
+            "disabled": true
+          },
+          {
+            "_id": "data_submission:missing_primary_contact",
+            "group": "Data Submission Emails",
+            "name": "Missing Primary Contact",
+            "order": 9,
             "checked": false,
             "disabled": true
           },

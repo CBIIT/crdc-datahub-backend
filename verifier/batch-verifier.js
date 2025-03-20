@@ -10,6 +10,7 @@ class BatchVerifier {
         this.batchType = batch?.type;
         this.files = batch?.files;
         this.batchID = batch?.batchID;
+        this.uploading = batch?.uploading;
     }
 
     isUndefined() {
@@ -26,7 +27,7 @@ class BatchVerifier {
     }
 
     notEmpty() {
-        if (!this.files||!this.files?.length || this.files.length === 0) {
+        if (this.uploading !== true && (!this.files||!this.files?.length || this.files.length === 0)) {
             throw new Error(ERROR.VERIFY.EMPTY_BATCH_FILE);
         }
         return this;

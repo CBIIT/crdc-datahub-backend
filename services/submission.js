@@ -1,6 +1,6 @@
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
     REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, INTENTION, DATA_TYPE, DELETED, DATA_FILE,
-    CONSTRAINTS, COLLABORATOR_PERMISSIONS
+    CONSTRAINTS, COLLABORATOR_PERMISSIONS, UPLOADING_HEARTBEAT_CONFIG_TYPE
 } = require("../constants/submission-constants");
 const {v4} = require('uuid')
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
@@ -34,7 +34,6 @@ const FILE = "file";
 const DATA_MODEL_SEMANTICS = 'semantics';
 const DATA_MODEL_FILE_NODES = 'file-nodes';
 const COMPLETE_SUBMISSION = "Complete Submission";
-const GENERATE_DCF_MANIFEST = "Generate DCF Manifest";
 const RESTORE_DELETED_DATA_FILES = "Restore Deleted Data Files";
 const DELETE_METADATA = "Delete Metadata";
 const INACTIVE_REMINDER = "inactiveReminder";
@@ -52,7 +51,7 @@ class Submission {
     constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService,
                 dataRecordService, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList,
                 hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs, 
-                submissionBucketName, configurationService) {
+                submissionBucketName, configurationService, uploadingMonitor) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -72,7 +71,8 @@ class Submission {
         this.qcResultsService = qcResultsService;
         this.uploaderCLIConfigs = uploaderCLIConfigs;
         this.submissionBucketName = submissionBucketName;
-        this.configurationService = configurationService
+        this.configurationService = configurationService;
+        this.uploadingMonitor = uploadingMonitor;
     }
 
     async createSubmission(params, context) {
@@ -130,6 +130,11 @@ class Submission {
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
         }
+
+        if (!(newSubmission?.conciergeName?.trim()) || !(newSubmission?.conciergeEmail?.trim())) {
+            await this.#sendNoPrimaryContactEmail(newSubmission, approvedStudy, program);
+        }
+
         return newSubmission;
     }
     async #findApprovedStudies(studies) {
@@ -255,12 +260,26 @@ class Submission {
         if (!aBatch) {
             throw new Error(ERROR.BATCH_NOT_EXIST);
         }
+        // check if it's a heartbeat call sent by CLI of uploading data file.
+        // CLI uploader sends uploading heartbeat every 5 min by calling the API with a parameter, uploading: true
+        if (params?.uploading === true) {
+            //save the batch in the uploading batch pool for monitoring heart beat
+            this.uploadingMonitor.saveUploadingBatch(aBatch._id);
+            return {}
+        }
+        else {
+            if (aBatch.type === VALIDATION.TYPES.DATA_FILE) {
+                // remove uploading batch from the uploading batch pool if uploading is completed or failed
+                this.uploadingMonitor.removeUploadingBatch(aBatch._id);
+            }
+        }
         if (![BATCH.STATUSES.UPLOADING].includes(aBatch?.status)) {
             throw new Error(ERROR.INVALID_UPDATE_BATCH_STATUS);
         }
         const aSubmission = await findByID(this.submissionCollection, aBatch.submissionID);
         // submission owner & submitter's Org Owner
         await verifyBatchPermission(this.userService, aSubmission, userInfo);
+       
         const res = await this.batchService.updateBatch(aBatch, aSubmission?.bucketName, params?.files);
         // new status is ready for the validation
         if (res.status === BATCH.STATUSES.UPLOADED) {
@@ -349,7 +368,16 @@ class Submission {
                 const user = await this.userService.getUserByID(history.userID);
                 history.userName = user.firstName + " " + user.lastName;
             }
-            return aSubmission
+            const programs = await this.organizationService.organizationCollection.aggregate([{ "$match": { "studies._id": aSubmission.studyID } }, { "$limit": 1 }]);
+            const aProgram = programs?.length > 0 ? programs?.pop() : {};
+            // The primary contact in the listing submission API only applies if the getSubmission is triggered.
+            if (aProgram?._id !== aSubmission?.organization?._id || aProgram?.name !== aSubmission?.organization?.name) {
+                const updatedSubmission = await this.submissionCollection.updateOne({"_id": aSubmission?._id}, {organization: {_id: aProgram?._id, name: aProgram?.name}, updatedAt: getCurrentTime()});
+                if (!updatedSubmission.acknowledged) {
+                    console.error(`Failed to update the program in the submission: ${aSubmission?._id}`);
+                }
+            }
+            return {...aSubmission, organization: {_id: aProgram?._id, name: aProgram?.name}}
         }
         throw new Error(ERROR.INVALID_ROLE);
     }
@@ -412,7 +440,6 @@ class Submission {
         }
         if (action === ACTIONS.RELEASE) {
             completePromise.push(this.dataRecordService.exportMetadata(submissionID));
-            completePromise.push(this.#sendCompleteMessage({type: GENERATE_DCF_MANIFEST, submissionID}, submissionID));
         }
         if (action === ACTIONS.REJECT && submission?.intention === INTENTION.DELETE && oldStatus === RELEASED) {
             //based on CRDCDH-2338 to send a restoring deleted data file SQS message so validator can execute the restoration.
@@ -925,12 +952,15 @@ class Submission {
         // data model file node properties into the string
         const latestDataModel = await this.fetchDataModelInfo();
         const fileConfig = this.#getModelFileNodeInfo(aSubmission, latestDataModel);
+        const uploadingHeartbeatConfig = await this.configurationService.findByType(UPLOADING_HEARTBEAT_CONFIG_TYPE);
         return {id_field: fileConfig["id-field"],
             name_field: fileConfig["name-field"],
             size_field: fileConfig["size-field"],
             md5_field: fileConfig["md5-field"],
-            omit_DCF_prefix: fileConfig["omit-DCF-prefix"]};
-    }
+            omit_DCF_prefix: fileConfig["omit-DCF-prefix"],
+            heartbeat_interval: uploadingHeartbeatConfig?.interval || 300
+        };
+    };
 
     /**
      * API: editSubmissionCollaborators
@@ -1176,6 +1206,29 @@ class Submission {
         }
     }
 
+    async #sendNoPrimaryContactEmail(aSubmission, approvedStudy, aProgram) {
+        const [adminUsers, CCUsers] = await Promise.all([
+            this.userService.userCollection.aggregate([{"$match": {
+                    "userStatus": USER.STATUSES.ACTIVE,
+                    "notifications": {"$in": [EN.DATA_SUBMISSION.MISSING_CONTACT]},
+                    "role": USER.ROLES.ADMIN
+                }}]) || [],
+            this.userService.userCollection.aggregate([{"$match": {
+                    "userStatus": USER.STATUSES.ACTIVE,
+                    "notifications": {"$in": [EN.DATA_SUBMISSION.MISSING_CONTACT]},
+                    "$or": [{"role": USER.ROLES.DATA_COMMONS_PERSONNEL}, {"role": USER.ROLES.FEDERAL_LEAD}]
+                }}]) || []
+        ]);
+
+        if (adminUsers?.length > 0) {
+            await this.notificationService.remindNoPrimaryContact(getUserEmails(adminUsers), getUserEmails(CCUsers), {
+                submissionName: `${aSubmission?.name},`,
+                studyName: approvedStudy?.studyName || NA,
+                programName: aProgram?.name || NA,
+                createDate: formatDate(aSubmission?.createdAt || getCurrentTime())
+            });
+        }
+    }
 
     async #sendEmailsDeletedSubmissions(aSubmission) {
          const [aSubmitter, BCCUsers, approvedStudy] = await Promise.all([
@@ -1290,6 +1343,58 @@ class Submission {
     }
 
     /**
+     * API: update the data-model version for the submission.
+     * @param {*} params
+     * @param {*} context
+     * @returns {Promise<Submission>}
+     */
+    async updateSubmissionModelVersion(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW);
+
+        const {_id, version} = params;
+        const aSubmission = await findByID(this.submissionCollection, _id);
+        if(!aSubmission){
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
+        }
+
+        const dataModels = await this.fetchDataModelInfo();
+        const validVersions = this.#getAllModelVersions(dataModels, aSubmission?.dataCommons);
+
+        if (!validVersions.includes(version)) {
+            throw new Error(replaceErrorString(ERROR.INVALID_MODEL_VERSION, `${version || " "}`));
+        }
+
+        if (![IN_PROGRESS, NEW].includes(aSubmission?.status)) {
+            throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_STATUS_MODEL_VERSION, `${aSubmission?.status}`));
+        }
+
+        const userInfo = context.userInfo;
+        const isPermitted = userInfo.role === ROLES.DATA_COMMONS_PERSONNEL && userInfo.dataCommons?.includes(aSubmission?.dataCommons);
+        if (!isPermitted) {
+            throw new Error(ERROR.INVALID_MODEL_VERSION_PERMISSION);
+        }
+
+        if (aSubmission?.modelVersion === version) {
+            return aSubmission;
+        }
+
+        const updatedSubmission = await this.submissionCollection.findOneAndUpdate(
+            {_id: aSubmission?._id, modelVersion: {"$ne": version}},
+            {modelVersion: version, updatedAt: getCurrentTime()},
+            {returnDocument: 'after'}
+        );
+
+        if (!updatedSubmission.value) {
+            console.error(ERROR.FAILED_UPDATE_MODEL_VERSION, `SubmissionID: ${aSubmission?._id}`)
+            throw new Error(ERROR.FAILED_UPDATE_MODEL_VERSION);
+        }
+        return updatedSubmission.value;
+    }
+
+
+    /**
      * API: get releases data
      * @param {*} params 
      * @param {*} context 
@@ -1386,6 +1491,12 @@ class Submission {
             throw new Error(ERROR.FAILED_VALIDATE_METADATA);
         }
     }
+
+    // Get all data-model version from the given url.
+    #getAllModelVersions(dataModels, dataCommonType) {
+        return dataModels?.[dataCommonType]?.["versions"] || [];
+    }
+
 
     #getModelVersion(dataModelInfo, dataCommonType) {
         const modelVersion = dataModelInfo?.[dataCommonType]?.["current-version"];
@@ -1981,6 +2092,12 @@ class Collaborators {
     }
 }
 
+// Month/Date/Year, Hour:Minutes PM or AM
+const formatDate = (date) => {
+    return `${date.toLocaleString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}`;
+}
+
+// TODO remove temporary for QA
 function logDaysDifference(inactiveDays, accessedAt, submissionID) {
     const startedDate = accessedAt; // Ensure it's a Date object
     const endDate = getCurrentTime();

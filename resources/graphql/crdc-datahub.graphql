@@ -518,6 +518,7 @@ type Permission {
     order: Int,
     checked: Boolean,
     disabled: Boolean
+    inherited: [String]
 }
 
 type Notification {
@@ -540,7 +541,8 @@ type DataFileConfig {
     name_field: String!
     size_field: String!
     md5_field: String!
-    omit_DCF_prefix: Boolean
+    omit_DCF_prefix: Boolean,
+    heartbeat_interval: Int
 }
 
 type Released_Node {
@@ -750,8 +752,8 @@ type Mutation {
 
     deleteDataRecords(submissionID: String!, nodeType: String!, nodeIDs: [String!]): DataValidation
     createBatch (submissionID: ID!, type: String, files: [String!]!): NewBatch
-    updateBatch (batchID: ID!, files: [UploadResult]): Batch
-    createTempCredentials (submissionID: ID!): TempCredentials
+    updateBatch (batchID: ID!, files: [UploadResult], uploading: Boolean): Batch #uploading param is for CLI heartbeat.
+    createTempCredentials (submissionID: ID!): TempCredentials  
     validateSubmission(
         _id: ID!,
         types: [String] # [file, metadata]
@@ -824,4 +826,6 @@ type Mutation {
         studies: [String]!, # Approved Studies IDs
         additionalInfo: String,
     ): AsyncProcessResult
+
+    updateSubmissionModelVersion(_id: String!, version: String!): Submission
 }
