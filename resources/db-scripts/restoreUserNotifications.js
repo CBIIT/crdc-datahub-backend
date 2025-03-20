@@ -11,14 +11,14 @@ function restoreUserNotifications(notification, filter) {
     result = db.users.updateMany(
         filter,
         {
-        $addToSet: { notifications: notification}
+            $addToSet: { notifications: notification}
         }
     );
     matchedCount = result.matchedCount;
     updatedCount = result.modifiedCount;
     console.log(`Matched Records: ${matchedCount}`);
     console.log(`Updated Records: ${updatedCount}`);
-    console.log(`${new Date()} -> Restored data field: "notifications" by adding "${notification}" t0 users`);
+    console.log(`${new Date()} -> Restored data field: "notifications" by adding "${notification}" to users`);
     print("----------------------");
     print("\n");
 }
