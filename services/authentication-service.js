@@ -1,6 +1,7 @@
 const ERROR = require("../constants/error-constants");
 const {decodeToken} = require("../verifier/token-verifier");
 const config = require("../config");
+const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 
 class AuthenticationService {
 
@@ -29,6 +30,11 @@ class AuthenticationService {
                 // the user ID encoded in the token does not correspond to a user account
                 throw new Error(ERROR.INVALID_TOKEN_INVALID_USER_ID);
             }
+
+            if (user?.userStatus !== USER.STATUSES.ACTIVE) {
+                throw new Error(ERROR.DISABLED_USER);
+            }
+
             let whitelist = user?.tokens || []
             if (!whitelist.includes(token)) {
                 // token is not present in the corresponding user's whitelist
