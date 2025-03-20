@@ -11,7 +11,7 @@ function restoreUserNotifications(notification, filter) {
     result = db.users.updateMany(
         filter,
         {
-        $addToSet: { notifications: "account:access_change" }
+        $addToSet: { notifications: notification}
         }
     );
     matchedCount = result.matchedCount;
