@@ -34,7 +34,6 @@ const FILE = "file";
 const DATA_MODEL_SEMANTICS = 'semantics';
 const DATA_MODEL_FILE_NODES = 'file-nodes';
 const COMPLETE_SUBMISSION = "Complete Submission";
-const GENERATE_DCF_MANIFEST = "Generate DCF Manifest";
 const RESTORE_DELETED_DATA_FILES = "Restore Deleted Data Files";
 const DELETE_METADATA = "Delete Metadata";
 const INACTIVE_REMINDER = "inactiveReminder";
@@ -323,7 +322,7 @@ class Submission {
         return this.batchService.listBatches(params, context);
     }
 
-    async getSubmission(params, context){
+  async getSubmission(params, context){
         verifySession(context)
             .verifyInitialized()
             .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
@@ -535,7 +534,6 @@ class Submission {
         }
         if (action === ACTIONS.RELEASE) {
             completePromise.push(this.dataRecordService.exportMetadata(submissionID));
-            completePromise.push(this.#sendCompleteMessage({type: GENERATE_DCF_MANIFEST, submissionID}, submissionID));
         }
         if (action === ACTIONS.REJECT && submission?.intention === INTENTION.DELETE && oldStatus === RELEASED) {
             //based on CRDCDH-2338 to send a restoring deleted data file SQS message so validator can execute the restoration.
@@ -1320,7 +1318,7 @@ class Submission {
             await this.notificationService.remindNoPrimaryContact(getUserEmails(adminUsers), getUserEmails(CCUsers), {
                 submissionName: `${aSubmission?.name},`,
                 studyName: approvedStudy?.studyName || NA,
-                programName: aProgram.name,
+                programName: aProgram?.name || NA,
                 createDate: formatDate(aSubmission?.createdAt || getCurrentTime())
             });
         }
