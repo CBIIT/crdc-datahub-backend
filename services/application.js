@@ -309,7 +309,9 @@ class Application {
 
 
     #getInProgressComment(history) {
-        const isValidComment = history?.length > 1 && [DELETED, INQUIRED].includes(history?.at(-1)?.status);
+        const isValidComment = history?.length > 1 &&
+            (DELETED === history?.at(-2)?.status // Restored Reason
+            || INQUIRED === history?.at(-1)?.status);
         return isValidComment ? history?.at(-1)?.reviewComment : null;
     }
 
