@@ -411,7 +411,7 @@ class Submission {
                 {"$project": {_id: 1, bucketName: 1, updatedAt: 1, rootPath: 1 } }]);
             const updateSubmissions = [];
 
-            const chunkSize = 20; // Adjust based on performance
+            const chunkSize = 40; // Adjust based on performance
             for (let i = 0; i < allSubmissions.length; i += chunkSize) {
                 const chunk = allSubmissions.slice(i, i + chunkSize);
                 await Promise.all(chunk.map(async (aSubmission) => {
@@ -1399,13 +1399,17 @@ class Submission {
             }
             const deletedFiles = await this.#deleteDataFiles(existingFiles, aSubmission);
             if (deletedFiles.length > 0) {
-                // note: file deleted in s3 bucket should be deleted
-                await this.qcResultsService.deleteQCResultBySubmissionID(aSubmission._id, VALIDATION.TYPES.DATA_FILE, deletedFiles);
-                await this.#logDataRecord(context?.userInfo, aSubmission._id, VALIDATION.TYPES.DATA_FILE, deletedFiles);
-                const submissionDataFiles = await this.#getAllSubmissionDataFiles(aSubmission?.bucketName, aSubmission?.rootPath);
+                const [submissionDataFiles, dataFileSize] = await Promise.all([
+                    // note: file deleted in s3 bucket should be deleted
+                    this.#getAllSubmissionDataFiles(aSubmission?.bucketName, aSubmission?.rootPath),
+                    this.#getS3DirectorySize(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/`),
+                    // note: file deleted in s3 bucket should be deleted
+                    this.qcResultsService.deleteQCResultBySubmissionID(aSubmission._id, VALIDATION.TYPES.DATA_FILE, deletedFiles),
+                    this.#logDataRecord(context?.userInfo, aSubmission._id, VALIDATION.TYPES.DATA_FILE, deletedFiles),
+                ]);
                 // note: reset fileValidationStatus if the number of data files changed. No data files exists if null
                 const fileValidationStatus = submissionDataFiles.length > 0 ? VALIDATION_STATUS.NEW : null;
-                await this.submissionCollection.updateOne({_id: aSubmission?._id}, {fileValidationStatus: fileValidationStatus, updatedAt: getCurrentTime()});
+                await this.submissionCollection.updateOne({_id: aSubmission?._id}, {fileValidationStatus: fileValidationStatus, dataFileSize, updatedAt: getCurrentTime()});
             }
             return ValidationHandler.success(`${deletedFiles.length} extra files deleted`)
         }
