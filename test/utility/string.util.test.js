@@ -1,5 +1,5 @@
 const {isCaseInsensitiveEqual, isElementInArray, isElementInArrayCaseInsensitive, parseArrToStr,
-    replaceMessageVariables, extractAndJoinFields, replaceErrorString, isValidFileExtension
+    replaceMessageVariables, extractAndJoinFields, replaceErrorString, isValidFileExtension, fileSizeFormatter
 } = require("../../utility/string-util");
 const {parseJsonString} = require("../../crdc-datahub-database-drivers/utility/string-utility");
 describe('Util Test', () => {
@@ -228,5 +228,20 @@ describe('Util Test', () => {
         expect(isValidFileExtension("test.test?      ")).toBe(false);
         expect(isValidFileExtension("&&&.&&&&")).toBe(false);
         expect(isValidFileExtension("tes.&&&")).toBe(false);
+    });
+
+
+    test('test file size formatter', () => {
+        expect(fileSizeFormatter(undefined)).toBe("0");
+        expect(fileSizeFormatter(null)).toBe("0");
+        expect(fileSizeFormatter("xxxx")).toBe("0");
+        expect(fileSizeFormatter("null")).toBe("0");
+        expect(fileSizeFormatter("         ")).toBe("0");
+        expect(fileSizeFormatter(" ")).toBe("0");
+        expect(fileSizeFormatter(0)).toBe("0");
+        expect(fileSizeFormatter(500)).toBe("0.49 KB");
+        expect(fileSizeFormatter(50000)).toBe("48.83 KB");
+        expect(fileSizeFormatter(500000000000)).toBe("465.66 GB");
+        expect(fileSizeFormatter(50000000000000)).toBe("45.47 TB");
     });
 });

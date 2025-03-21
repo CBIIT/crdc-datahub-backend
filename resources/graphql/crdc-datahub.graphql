@@ -124,6 +124,12 @@ type Submission {
     inactiveReminder_7: Boolean
     inactiveReminder_30: Boolean
     inactiveReminder_60: Boolean
+    dataFileSize: FileSize
+}
+
+type FileSize {
+    formatted: String
+    size: Float
 }
 
 # not being used currently
@@ -601,7 +607,7 @@ type Query {
         first: Int = -1,
         offset: Int = 0,
         # ["updatedAt", "createdAt", "name", "dataCommons", "organization", "studyAbbreviation",
-        #              "dbGapID", "status", "concierge"]
+        #              "dbGapID", "status", "concierge", "dataFileSize.size"]
         orderBy: String = "updatedAt",
         sortDirection: String = "DESC"): ListSubmissions
 

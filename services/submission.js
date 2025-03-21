@@ -22,7 +22,7 @@ const NA = "NA"
 const config = require("../config");
 const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
-const {isUndefined, replaceErrorString, isValidFileExtension} = require("../utility/string-util");
+const {isUndefined, replaceErrorString, isValidFileExtension, fileSizeFormatter} = require("../utility/string-util");
 const {NODE_RELATION_TYPES} = require("./data-record-service");
 const {verifyToken} = require("../verifier/token-verifier");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
@@ -48,6 +48,8 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
+    // Flag to verify if any file has been uploaded
+    #latestBatchID = null;
     constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService,
                 dataRecordService, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList,
                 hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs, 
@@ -175,7 +177,17 @@ class Submission {
         ]
 
         const [listConditions, dataCommonsCondition, submitterNameCondition, organizationCondition, statusCondition] = filterConditions;
-        const pipeline = [{"$match": listConditions}];
+        const pipeline = [{"$match": listConditions}, {
+            $addFields: {
+                dataFileSize: {
+                    $cond: {
+                        if: { $in: ["$status", [DELETED, CANCELED]] },
+                        then: { size: 0, formatted: NA },
+                        else: "$dataFileSize"
+                    }
+                }
+            }
+        }];
         const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
         const noPaginationPipeline = pipeline.concat(paginationPipe.getNoLimitPipeline());
         const promises = [
@@ -318,42 +330,66 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        // add userName in each history
-        for (const history of aSubmission.history) {
-            const user = await this.userService.getUserByID(history.userID);
-            history.userName = user.firstName + " " + user.lastName;
-        }
-        if (aSubmission?.studyID) {
-            const submissions = await this.submissionCollection.aggregate([
-                {"$match": {$and: [
-                    {studyID: aSubmission.studyID},
-                    {status: {$in: [IN_PROGRESS, SUBMITTED, RELEASED, REJECTED, WITHDRAWN]}},
-                    {_id: { $not: { $eq: params._id}}}]}}]);
-            const otherSubmissions = {
-                [IN_PROGRESS]: [],
-                [SUBMITTED]: [],
-                [RELEASED]: [],
-                [REJECTED]: [],
-                [WITHDRAWN]: [],
-            };
-            submissions.forEach((submission) => {
-                otherSubmissions[submission.status].push(submission._id);
-            });
-            aSubmission.otherSubmissions = JSON.stringify(otherSubmissions);
-        }
-
-        // dynamically count records in dataRecords
-        if (!aSubmission?.archived) {
-          const submissionNodeCount = await this.dataRecordService.countNodesBySubmissionID(aSubmission?._id);
-          if (aSubmission.nodeCount !== submissionNodeCount) {
-              await this.submissionCollection.update({_id: aSubmission?._id, updatedAt: getCurrentTime(), nodeCount: submissionNodeCount});
-              aSubmission.nodeCount = submissionNodeCount;
-          }
-        }
-
-        const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
-        if (await this.#isViewablePermission(context?.userInfo, aSubmission)) {
+        const [isPermitted] = await Promise.all([
+            this.#isViewablePermission(context?.userInfo, aSubmission),
+            this.#updateAllSubmissionsFileSize(),
+            // Store data file size into submission document
+            (async () => {
+                const dataFileSize = await this.#getS3DirectorySize(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/`);
+                const isDataFileChanged = aSubmission?.dataFileSize?.size !== dataFileSize.size || aSubmission?.dataFileSize?.formatted !== dataFileSize.formatted;
+                if (isDataFileChanged) {
+                    const updatedSubmission = await this.submissionCollection.findOneAndUpdate({_id: aSubmission?._id}, {dataFileSize, updatedAt: getCurrentTime()}, {returnDocument: 'after', upsert: true});
+                    if (!updatedSubmission?.value) {
+                        throw new Error(ERROR.FAILED_RECORD_FILESIZE_PROPERTY, `SubmissionID: ${aSubmission?._id}`);
+                    }
+                }
+                aSubmission.dataFileSize = dataFileSize;
+            })(),
+            (async () => {
+                if (aSubmission?.studyID) {
+                    const submissions = await this.submissionCollection.aggregate([
+                        {"$match": {$and: [
+                            {studyID: aSubmission.studyID},
+                            {status: {$in: [IN_PROGRESS, SUBMITTED, RELEASED, REJECTED, WITHDRAWN]}},
+                            {_id: { $not: { $eq: params._id}}}]}}]);
+                    const otherSubmissions = {
+                          [IN_PROGRESS]: [],
+                          [SUBMITTED]: [],
+                          [RELEASED]: [],
+                          [REJECTED]: [],
+                          [WITHDRAWN]: [],
+                    };
+                    submissions.forEach((submission) => {
+                        otherSubmissions[submission.status].push(submission._id);
+                    });
+                    aSubmission.otherSubmissions = JSON.stringify(otherSubmissions);
+                }
+            })(),
+            // dynamically calculate the node-count for the submission.
+            (async () => {
+              if (!aSubmission?.archived) {
+                  const submissionNodeCount = await this.dataRecordService.countNodesBySubmissionID(aSubmission?._id);
+                  if (aSubmission.nodeCount !== submissionNodeCount) {
+                      await this.submissionCollection.update({_id: aSubmission?._id, updatedAt: getCurrentTime(), nodeCount: submissionNodeCount});
+                      aSubmission.nodeCount = submissionNodeCount;
+                  }
+              }
+            })(),
+            (async () => {
+              // add userName in each history
+              for (const history of aSubmission?.history) {
+                  if (history?.userName) continue;
+                  if (!history?.userID) continue;
+                  const user = await this.userService.getUserByID(history?.userID);
+                  if (user) {
+                      history.userName = user?.firstName + " " + user?.lastName;
+                  }
+              }
+            })()
+        ]);
+        if (isPermitted) {
             // Store the timestamp for the inactive submission purpose
+            const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
             if (conditionSubmitter) {
                 const everyReminderDays = this.#getEveryReminderQuery(this.emailParams.remindSubmissionDay, false);
                 const updateSubmission = await this.submissionCollection.findOneAndUpdate({_id: aSubmission?._id},
@@ -361,32 +397,85 @@ class Submission {
                     {returnDocument: 'after'});
                 aSubmission = updateSubmission.value;
             }
-            // add userName in each history
-            for (const history of aSubmission?.history) {
-                if (history?.userName) continue;
-                if (!history?.userID) continue;
-                const user = await this.userService.getUserByID(history.userID);
-                history.userName = user.firstName + " " + user.lastName;
-            }
-            const programs = await this.organizationService.organizationCollection.aggregate([{ "$match": { "studies._id": aSubmission.studyID } }, { "$limit": 1 }]);
-            const aProgram = programs?.length > 0 ? programs?.pop() : {};
-            // The primary contact in the listing submission API only applies if the getSubmission is triggered.
-            if (aProgram?._id !== aSubmission?.organization?._id || aProgram?.name !== aSubmission?.organization?.name) {
-                const updatedSubmission = await this.submissionCollection.updateOne({"_id": aSubmission?._id}, {organization: {_id: aProgram?._id, name: aProgram?.name}, updatedAt: getCurrentTime()});
-                if (!updatedSubmission.acknowledged) {
-                    console.error(`Failed to update the program in the submission: ${aSubmission?._id}`);
-                }
-            }
-            return {...aSubmission, organization: {_id: aProgram?._id, name: aProgram?.name}}
+            return aSubmission;
         }
         throw new Error(ERROR.INVALID_ROLE);
     }
+
+    async #updateAllSubmissionsFileSize() {
+        const latestBatch = await this.#getLatestBatch();
+        const isDataFileChanged = latestBatch && this.#latestBatchID !== latestBatch?._id
+        if (isDataFileChanged) {
+            const allSubmissions = await this.submissionCollection.aggregate([
+                {"$match": {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, ARCHIVED, CANCELED, WITHDRAWN]}}},
+                {"$project": {_id: 1, bucketName: 1, updatedAt: 1, rootPath: 1 } }]);
+            const updateSubmissions = [];
+
+            const chunkSize = 20; // Adjust based on performance
+            for (let i = 0; i < allSubmissions.length; i += chunkSize) {
+                const chunk = allSubmissions.slice(i, i + chunkSize);
+                await Promise.all(chunk.map(async (aSubmission) => {
+                    const dataFileSize = await this.#getS3DirectorySize(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/`);
+                    if (dataFileSize.size > 0) {
+                        updateSubmissions.push([aSubmission?._id, dataFileSize]);
+                    }
+                }));
+            }
+
+            const bulkOperations = [];
+            updateSubmissions.forEach((item) => {
+                const [submissionID, dataFileSize] = item;
+                bulkOperations.push({
+                    updateOne: {
+                        filter: {
+                            _id: submissionID, $or: [{"dataFileSize.size": { "$ne": dataFileSize.size } }, {"dataFileSize.formatted": { "$ne": dataFileSize.formatted } }],
+                        },
+                        update: { $set: { dataFileSize} }
+                    }
+                });
+            });
+
+            try {
+                const bulkRes = await this.submissionCollection.bulkWrite(bulkOperations);
+                if (!bulkRes.modifiedCount) {
+                    console.error(ERROR.FAILED_RECORD_FILESIZE_PROPERTY);
+                }
+            } catch (error) {
+                console.error("Failed to operate the bulk update the data file size in the submission:", error);
+            }
+
+            this.#latestBatchID = latestBatch?._id;
+        }
+    }
+
+    async #getLatestBatch() {
+        const batches = await this.batchService.batchCollection.aggregate([
+            { "$match": { status: BATCH.STATUSES.UPLOADED } },
+            { "$sort": { "updatedAt": -1 } },
+            { "$project": { "_id": 1, "updatedAt": 1 } },
+            { "$limit": 1 }
+        ]);
+        return batches?.pop();
+    }
+
 
     async #isViewablePermission(userInfo, aSubmission) {
         const collaborativeUsers =  await this.userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
         const collaborativeUserIDs = collaborativeUsers.map(u => u._id);
         const conditionCollaborator = collaborativeUserIDs.includes(userInfo?._id);
         return isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission) || conditionCollaborator;
+    }
+
+    /**
+     * Retrieve the total file size within the specified path in the S3 bucket.
+     * @param {string} bucketName - The name of the S3 bucket.
+     * @param {string} prefix - The path (prefix) within the S3 bucket.
+     * @returns {Promise<{formatted: string, size: number}>}
+     */
+    async #getS3DirectorySize(bucketName, prefix){
+        const dataFiles = await this.s3Service.listFileInDir(bucketName, prefix);
+        const fileSize = dataFiles.reduce((sum, file) => sum + file.Size, 0);
+        return FileSize.createFileSize(fileSize);
     }
 
     /**
@@ -422,6 +511,11 @@ class Submission {
         // admin permission and submit action only can leave a comment
         const isCommentRequired = ACTIONS.REJECT === action || (!verifier.isSubmitActionCommentRequired(submission, isAdminAction, params?.comment));
         events.push(HistoryEventBuilder.createEvent(userInfo._id, newStatus, isCommentRequired ? params?.comment : null));
+
+        // When the status changes to COMPLETED, store the total data size of the S3 directory in the submission document.
+        if (newStatus === COMPLETED) {
+            submission.dataFileSize = this.#getS3DirectorySize(submission?.bucketName, `${submission?.rootPath}/${FILE}/`);
+        }
         submission = {
             ...submission,
             status: newStatus,
@@ -2035,6 +2129,7 @@ class DataSubmission {
         }
         this.ORCID = approvedStudy?.ORCID || null;
         this.accessedAt = getCurrentTime();
+        this.dataFileSize = FileSize.createFileSize(0);
     }
 
     static createSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization, submissionBucketName) {
@@ -2059,6 +2154,17 @@ class DataSubmission {
         } else {
             return null;
         }
+    }
+}
+
+class FileSize {
+    constructor(size = 0) {
+        this.formatted = fileSizeFormatter(size);
+        this.size = size;
+    }
+
+    static createFileSize(size) {
+        return new FileSize(size);
     }
 }
 

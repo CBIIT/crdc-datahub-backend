@@ -32,3 +32,10 @@ Commands:
         $addToSet: { notifications: "data_submission:missing_primary_contact" }
       }
       );
+  - Set all submissions to include the fileSize property within the submission document for CRDCDH-2432:  |
+      db.submissions.updateMany(
+          { "dataFileSize": { $exists: false } },
+          {
+              $set: { "dataFileSize": { formatted: "0", size: 0 } }
+          }
+      );

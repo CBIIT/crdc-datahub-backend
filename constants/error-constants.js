@@ -85,6 +85,7 @@ const ERROR = {
     FAILED_COMPLETE_SUBMISSION: "Failed to send a complete submission message",
     FAILED_RECORD_VALIDATION_PROPERTY: "Failed to record the validation property for a submission",
     FAILED_INSERT_VALIDATION_OBJECT: "Failed to insert the validation object into the validation collection",
+    FAILED_RECORD_FILESIZE_PROPERTY: "Failed to record the file size property for a submission",
     NO_VALIDATION_FILE: "No file manifest(s) are uploaded for file validation",
     NO_VALIDATION_METADATA: "No metadata for validation",
     NO_NEW_VALIDATION_METADATA: "No new metadata for validation",
