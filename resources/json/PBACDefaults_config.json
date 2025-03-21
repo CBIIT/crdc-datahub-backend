@@ -270,7 +270,7 @@
             "disabled": true
           },
           {
-            "_id": "account:access_change",
+            "_id": "account:access_changed",
             "group": "Miscellaneous",
             "name": "Account Access Change",
             "order": 2,
@@ -562,7 +562,7 @@
             "disabled": true
           },
           {
-            "_id": "account:access_change",
+            "_id": "account:access_changed",
             "group": "Miscellaneous",
             "name": "Account Access Change",
             "order": 2,
@@ -854,7 +854,7 @@
             "disabled": true
           },
           {
-            "_id": "account:access_change",
+            "_id": "account:access_changed",
             "group": "Miscellaneous",
             "name": "Account Access Change",
             "order": 2,
@@ -1146,7 +1146,7 @@
             "disabled": true
           },
           {
-            "_id": "account:access_change",
+            "_id": "account:access_changed",
             "group": "Miscellaneous",
             "name": "Account Access Change",
             "order": 2,
@@ -1438,7 +1438,7 @@
             "disabled": true
           },
           {
-            "_id": "account:access_change",
+            "_id": "account:access_changed",
             "group": "Miscellaneous",
             "name": "Account Access Change",
             "order": 2,
