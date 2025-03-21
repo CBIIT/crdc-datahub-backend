@@ -48,8 +48,6 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
-    // Flag to verify if any file has been uploaded
-    #latestBatchID = null;
     constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService,
                 dataRecordService, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList,
                 hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs, 
@@ -332,7 +330,6 @@ class Submission {
         }
         const [isPermitted] = await Promise.all([
             this.#isViewablePermission(context?.userInfo, aSubmission),
-            this.#updateAllSubmissionsFileSize(),
             // Store data file size into submission document
             (async () => {
                 const dataFileSize = await this.#getS3DirectorySize(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/`);
@@ -401,63 +398,6 @@ class Submission {
         }
         throw new Error(ERROR.INVALID_ROLE);
     }
-
-    async #updateAllSubmissionsFileSize() {
-        const latestBatch = await this.#getLatestBatch();
-        const isDataFileChanged = latestBatch && this.#latestBatchID !== latestBatch?._id
-        if (isDataFileChanged) {
-            const allSubmissions = await this.submissionCollection.aggregate([
-                {"$match": {status: {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, ARCHIVED, CANCELED, WITHDRAWN]}}},
-                {"$project": {_id: 1, bucketName: 1, updatedAt: 1, rootPath: 1 } }]);
-            const updateSubmissions = [];
-
-            const chunkSize = 40; // Adjust based on performance
-            for (let i = 0; i < allSubmissions.length; i += chunkSize) {
-                const chunk = allSubmissions.slice(i, i + chunkSize);
-                await Promise.all(chunk.map(async (aSubmission) => {
-                    const dataFileSize = await this.#getS3DirectorySize(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/`);
-                    if (dataFileSize.size > 0) {
-                        updateSubmissions.push([aSubmission?._id, dataFileSize]);
-                    }
-                }));
-            }
-
-            const bulkOperations = [];
-            updateSubmissions.forEach((item) => {
-                const [submissionID, dataFileSize] = item;
-                bulkOperations.push({
-                    updateOne: {
-                        filter: {
-                            _id: submissionID, $or: [{"dataFileSize.size": { "$ne": dataFileSize.size } }, {"dataFileSize.formatted": { "$ne": dataFileSize.formatted } }],
-                        },
-                        update: { $set: { dataFileSize} }
-                    }
-                });
-            });
-
-            try {
-                const bulkRes = await this.submissionCollection.bulkWrite(bulkOperations);
-                if (!bulkRes.modifiedCount) {
-                    console.error(ERROR.FAILED_RECORD_FILESIZE_PROPERTY);
-                }
-            } catch (error) {
-                console.error("Failed to operate the bulk update the data file size in the submission:", error);
-            }
-
-            this.#latestBatchID = latestBatch?._id;
-        }
-    }
-
-    async #getLatestBatch() {
-        const batches = await this.batchService.batchCollection.aggregate([
-            { "$match": { status: BATCH.STATUSES.UPLOADED } },
-            { "$sort": { "updatedAt": -1 } },
-            { "$project": { "_id": 1, "updatedAt": 1 } },
-            { "$limit": 1 }
-        ]);
-        return batches?.pop();
-    }
-
 
     async #isViewablePermission(userInfo, aSubmission) {
         const collaborativeUsers =  await this.userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
