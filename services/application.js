@@ -310,7 +310,7 @@ class Application {
 
     #getInProgressComment(history) {
         const isValidComment = history?.length > 1 &&
-            (DELETED === history?.at(-2)?.status // Restored Reason
+            (CANCELED === history?.at(-1)?.status // Restored Reason
             || INQUIRED === history?.at(-1)?.status);
         return isValidComment ? history?.at(-1)?.reviewComment : null;
     }
@@ -346,7 +346,7 @@ class Application {
             .verifyInitialized()
             .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
         const aApplication = await this.getApplicationById(document._id);
-        const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED, INQUIRED];
+        const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, INQUIRED];
         if (!validApplicationStatus.includes(aApplication.status)) {
             throw new Error(ERROR.VERIFY.INVALID_STATE_APPLICATION);
         }
