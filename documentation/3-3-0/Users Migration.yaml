@@ -32,3 +32,17 @@ Commands:
         $addToSet: { notifications: "data_submission:missing_primary_contact" }
       }
       );
+  - Update all history records in the Submission Request where status is 'Deleted'. CRDCDH-2434: |
+      db.applications.updateMany(
+        { "history.status": "Deleted" },
+        {
+          $set: {
+                  "history.$[elem].reviewComment": "This Submission Request has been deleted by the system due to inactivity."
+              }
+        },
+        {
+          arrayFilters: [
+              { "elem.status": "Deleted" }
+          ]
+        }
+      )
