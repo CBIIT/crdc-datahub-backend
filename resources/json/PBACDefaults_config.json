@@ -270,10 +270,18 @@
             "disabled": true
           },
           {
+            "_id": "account:access_changed",
+            "group": "Miscellaneous",
+            "name": "Account Access Change",
+            "order": 2,
+            "checked": true,
+            "disabled": false
+          },
+          {
             "_id": "account:inactivated",
             "group": "Miscellaneous",
             "name": "Account Disabled",
-            "order": 2,
+            "order": 3,
             "checked": true,
             "disabled": true
           },
@@ -281,7 +289,7 @@
             "_id": "account:users_inactivated",
             "group": "Miscellaneous",
             "name": "Account Disabled (Consolidated)",
-            "order": 3,
+            "order": 4,
             "checked": false,
             "disabled": true
           }
@@ -554,10 +562,18 @@
             "disabled": true
           },
           {
+            "_id": "account:access_changed",
+            "group": "Miscellaneous",
+            "name": "Account Access Change",
+            "order": 2,
+            "checked": true,
+            "disabled": false
+          },
+          {
             "_id": "account:inactivated",
             "group": "Miscellaneous",
             "name": "Account Disabled",
-            "order": 2,
+            "order": 3,
             "checked": true,
             "disabled": true
           },
@@ -565,7 +581,7 @@
             "_id": "account:users_inactivated",
             "group": "Miscellaneous",
             "name": "Account Disabled (Consolidated)",
-            "order": 3,
+            "order": 4,
             "checked": false,
             "disabled": true
           }
@@ -827,7 +843,7 @@
             "name": "Missing Primary Contact",
             "order": 9,
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "access:requested",
@@ -838,10 +854,18 @@
             "disabled": true
           },
           {
+            "_id": "account:access_changed",
+            "group": "Miscellaneous",
+            "name": "Account Access Change",
+            "order": 2,
+            "checked": true,
+            "disabled": false
+          },
+          {
             "_id": "account:inactivated",
             "group": "Miscellaneous",
             "name": "Account Disabled",
-            "order": 2,
+            "order": 3,
             "checked": true,
             "disabled": false
           },
@@ -849,7 +873,7 @@
             "_id": "account:users_inactivated",
             "group": "Miscellaneous",
             "name": "Account Disabled (Consolidated)",
-            "order": 3,
+            "order": 4,
             "checked": true,
             "disabled": false
           }
@@ -1122,10 +1146,18 @@
             "disabled": true
           },
           {
+            "_id": "account:access_changed",
+            "group": "Miscellaneous",
+            "name": "Account Access Change",
+            "order": 2,
+            "checked": true,
+            "disabled": true
+          },
+          {
             "_id": "account:inactivated",
             "group": "Miscellaneous",
             "name": "Account Disabled",
-            "order": 2,
+            "order": 3,
             "checked": true,
             "disabled": true
           },
@@ -1133,7 +1165,7 @@
             "_id": "account:users_inactivated",
             "group": "Miscellaneous",
             "name": "Account Disabled (Consolidated)",
-            "order": 3,
+            "order": 4,
             "checked": false,
             "disabled": true
           }
@@ -1406,10 +1438,18 @@
             "disabled": true
           },
           {
+            "_id": "account:access_changed",
+            "group": "Miscellaneous",
+            "name": "Account Access Change",
+            "order": 2,
+            "checked": true,
+            "disabled": true
+          },
+          {
             "_id": "account:inactivated",
             "group": "Miscellaneous",
             "name": "Account Disabled",
-            "order": 2,
+            "order": 3,
             "checked": true,
             "disabled": true
           },
@@ -1417,7 +1457,7 @@
             "_id": "account:users_inactivated",
             "group": "Miscellaneous",
             "name": "Account Disabled (Consolidated)",
-            "order": 3,
+            "order": 4,
             "checked": false,
             "disabled": true
           }

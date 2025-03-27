@@ -45,4 +45,11 @@ Commands:
               { "elem.status": "Deleted" }
           ]
         }
-      )
+      );
+  - Set all submissions to include the fileSize property within the submission document for CRDCDH-2432:  |
+      db.submissions.updateMany(
+          { "dataFileSize": { $exists: false } },
+          {
+              $set: { "dataFileSize": { formatted: "0", size: 0 } }
+          }
+      );

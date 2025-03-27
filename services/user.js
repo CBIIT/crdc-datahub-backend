@@ -397,22 +397,24 @@ class UserService {
     }
 
     async #notifyUpdatedUser(prevUser, newUser, newRole) {
-        const baseRoleCondition = newRole && Object.values(USER.ROLES).includes(newRole);
-        const isRoleChange = baseRoleCondition && prevUser.role !== newUser.role;
-        const isDataCommonsChange = newUser?.dataCommons?.length > 0 && JSON.stringify(prevUser?.dataCommons) !== JSON.stringify(newUser?.dataCommons);
-        const isStudiesChange = newUser.studies?.length > 0 && JSON.stringify(prevUser.studies) !== JSON.stringify(newUser.studies);
-        if (isRoleChange || isDataCommonsChange || isStudiesChange) {
-            const userDataCommons = [USER.ROLES.DATA_COMMONS_PERSONNEL].includes(newUser.role) ? newUser.dataCommons : undefined;
-            const studyNames = await this.#findStudiesNames(newUser.studies);
-            await this.notificationsService.userRoleChangeNotification(newUser.email,
-                {
-                    accountType: newUser.IDP,
-                    email: newUser.email,
-                    role: newUser.role,
-                    dataCommons: userDataCommons,
-                    ...([USER.ROLES.SUBMITTER, USER.ROLES.FEDERAL_LEAD].includes(newUser.role) && { studies: studyNames }),
-                },
-                {url: this.appUrl, helpDesk: `${this.officialEmail}.`});
+        if (newUser?.notifications?.includes(EN.USER_ACCOUNT.USER_ACCESS_CHANGED)) {
+            const baseRoleCondition = newRole && Object.values(USER.ROLES).includes(newRole);
+            const isRoleChange = baseRoleCondition && prevUser.role !== newUser.role;
+            const isDataCommonsChange = newUser?.dataCommons?.length > 0 && JSON.stringify(prevUser?.dataCommons) !== JSON.stringify(newUser?.dataCommons);
+            const isStudiesChange = newUser.studies?.length > 0 && JSON.stringify(prevUser.studies) !== JSON.stringify(newUser.studies);
+            if (isRoleChange || isDataCommonsChange || isStudiesChange) {
+                const userDataCommons = [USER.ROLES.DATA_COMMONS_PERSONNEL].includes(newUser.role) ? newUser.dataCommons : undefined;
+                const studyNames = await this.#findStudiesNames(newUser.studies);
+                await this.notificationsService.userRoleChangeNotification(newUser.email,
+                    {
+                        accountType: newUser.IDP,
+                        email: newUser.email,
+                        role: newUser.role,
+                        dataCommons: userDataCommons,
+                        ...([USER.ROLES.SUBMITTER, USER.ROLES.FEDERAL_LEAD].includes(newUser.role) && { studies: studyNames }),
+                    },
+                    {url: this.appUrl, helpDesk: `${this.officialEmail}.`});
+            }
         }
     }
 
