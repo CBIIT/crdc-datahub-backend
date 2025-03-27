@@ -17,6 +17,7 @@ const {EMAIL_NOTIFICATIONS} = require("../crdc-datahub-database-drivers/constant
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 class Application {
+    #DELETE_REVIEW_COMMENT="This Submission Request has been deleted by the system due to inactivity.";
     #ALL_FILTER="All";
     #FINAL_INACTIVE_REMINDER = "finalInactiveReminder";
     #INACTIVE_REMINDER = "inactiveReminder";
@@ -306,15 +307,23 @@ class Application {
         return application;
     }
 
+
+    #getInProgressComment(history) {
+        const isValidComment = history?.length > 1 &&
+            (CANCELED === history?.at(-1)?.status // Restored Reason
+            || INQUIRED === history?.at(-1)?.status);
+        return isValidComment ? history?.at(-1)?.reviewComment : null;
+    }
+
     async reopenApplication(document, context) {
         verifySession(context)
             .verifyInitialized()
             .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CREATE);
         const application = await this.getApplicationById(document._id);
         application.version = await this.#getApplicationVersionByStatus(application.status, application?.version);
-        // TODO 1. If Reviewer opened the application, the status changes to IN_REVIEW
         if (application && application.status) {
-            const history = HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, null);
+            const reviewComment = this.#getInProgressComment(application?.history);
+            const history = HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, reviewComment);
             const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
                 $set: {status: IN_PROGRESS, updatedAt: history.dateTime, version: application.version},
                 $push: {history}
@@ -337,7 +346,7 @@ class Application {
             .verifyInitialized()
             .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
         const aApplication = await this.getApplicationById(document._id);
-        const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, REJECTED, INQUIRED];
+        const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, INQUIRED];
         if (!validApplicationStatus.includes(aApplication.status)) {
             throw new Error(ERROR.VERIFY.INVALID_STATE_APPLICATION);
         }
@@ -354,7 +363,7 @@ class Application {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
-        const history = HistoryEventBuilder.createEvent(context.userInfo._id, CANCELED, null);
+        const history = HistoryEventBuilder.createEvent(context.userInfo._id, CANCELED, document?.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
             $set: {status: CANCELED, updatedAt: history.dateTime, version: aApplication.version},
             $push: {history}
@@ -390,7 +399,7 @@ class Application {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         const prevStatus = aApplication?.history?.at(-2)?.status;
-        const history = HistoryEventBuilder.createEvent(context.userInfo._id, prevStatus, null);
+        const history = HistoryEventBuilder.createEvent(context.userInfo._id, prevStatus, document?.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: aApplication._id}, {
             $set: {status: prevStatus, updatedAt: history.dateTime},
             $push: {history},
@@ -543,7 +552,7 @@ class Application {
                     ?.filter((u) => u?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_DELETE))
                     ?.map((u) => u?._id)
             );
-            const history = HistoryEventBuilder.createEvent("", DELETED, "Deleted because of no activities after submission");
+            const history = HistoryEventBuilder.createEvent("", DELETED, this.#DELETE_REVIEW_COMMENT);
             const updated = await this.dbService.updateMany(APPLICATION,
                 inactiveCondition,
                 {   // Once the submission request is deleted, the reminder email should not be sent.
