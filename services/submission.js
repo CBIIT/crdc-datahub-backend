@@ -444,7 +444,8 @@ class Submission {
         }
         const newStatus = verifier.getNewStatus();
         const isAdminAction = userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.ADMIN_SUBMIT);
-        verifier.isValidSubmitAction(isAdminAction, submission, params?.comment);
+        const dataFileSize = await this.#getS3DirectorySize(submission?.bucketName, `${submission?.rootPath}/${FILE}/`);
+        verifier.isValidSubmitAction(isAdminAction, submission, params?.comment, dataFileSize?.size);
         await this.#isValidReleaseAction(action, submission?._id, submission?.studyID, submission?.crossSubmissionStatus);
         //update submission
         let events = submission.history || [];
@@ -454,7 +455,7 @@ class Submission {
 
         // When the status changes to COMPLETED, store the total data size of the S3 directory in the submission document.
         if (newStatus === COMPLETED) {
-            submission.dataFileSize = this.#getS3DirectorySize(submission?.bucketName, `${submission?.rootPath}/${FILE}/`);
+            submission.dataFileSize = dataFileSize;
         }
         submission = {
             ...submission,

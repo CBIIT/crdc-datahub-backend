@@ -28,7 +28,7 @@ const ERROR = {
         // submission action
         INVALID_SUBMISSION_ACTION: "Invalid submission action:",
         INVALID_SUBMISSION_ACTION_STATUS: "Invalid submission status for the action:",
-        INVALID_SUBMIT_ACTION: "Invalid submission action, user role and submission status requirements are not met.",
+        INVALID_SUBMIT_ACTION: "Invalid submission action, user role, submission status, or data file size requirements are not met.",
         INVALID_RELEASE_ACTION: "Invalid release action, cross submission validation is not passed.",
         INVALID_SUBMISSION_ACTION_ROLE: "Invalid user role for the action:",
         INVALID_SUBMISSION_ID: "submissionID can't be empty!",

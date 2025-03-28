@@ -57,14 +57,14 @@ class SubmissionActionVerifier {
     }
 
 
-    isValidSubmitAction(isAdminAction, aSubmission, comment) {
+    isValidSubmitAction(isAdminAction, aSubmission, comment, dataFileSize) {
         if(this.#actionName === ACTIONS.SUBMIT) {
-            const isInvalidAdminStatus = !this.#isValidAdminStatus(isAdminAction, aSubmission);
+            const isInvalidAdminStatus = !this.#isValidAdminStatus(isAdminAction, aSubmission, dataFileSize);
             const validStatus = [VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING];
             // if deleted intention, allow it to be submitted without any data files. Ignore any value if meta-data only data file
             const ignoreFileValidationStatus = aSubmission?.dataType === DATA_TYPE.METADATA_ONLY;
             const isValidatedStatus = aSubmission?.intention === INTENTION.DELETE || (validStatus.includes(aSubmission?.metadataValidationStatus)
-                && (ignoreFileValidationStatus || validStatus.includes(aSubmission?.fileValidationStatus)));
+                && (ignoreFileValidationStatus || dataFileSize > 0));
 
             if (isInvalidAdminStatus) {
                 if (isAdminAction ||(!isAdminAction && (!isValidatedStatus))) {
@@ -89,13 +89,12 @@ class SubmissionActionVerifier {
     }
 
     // Private Function
-    #isValidAdminStatus(isAdminSubmitAction, aSubmission) {
+    #isValidAdminStatus(isAdminSubmitAction, aSubmission, dataFileSize) {
         const isMetadataInvalid = aSubmission?.metadataValidationStatus === VALIDATION_STATUS.NEW;
-        const isFileInValid = aSubmission?.fileValidationStatus === VALIDATION_STATUS.NEW;
         const isDeleteIntention = aSubmission?.intention === INTENTION.DELETE;
         const ignoreFileValidationStatus = aSubmission?.dataType === DATA_TYPE.METADATA_ONLY;
         // if deleted intention, allow it to be submitted without any data files, if metadata only, any value is ignored for fileValidationStatus
-        const isDataFileValidated = isDeleteIntention || !isMetadataInvalid && (ignoreFileValidationStatus || (aSubmission?.fileValidationStatus === null || !isFileInValid));
+        const isDataFileValidated = isDeleteIntention || !isMetadataInvalid && (ignoreFileValidationStatus || dataFileSize > 0);
         // null fileValidationStatus means this submission doesn't have any files uploaded
         return isAdminSubmitAction && isDataFileValidated;
     }
