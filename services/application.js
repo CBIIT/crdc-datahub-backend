@@ -928,11 +928,11 @@ const sendEmails = {
             const toEmails = getUserEmails(toUsers);
             const toBCCEmails = getUserEmails(BCCUsers)
                 ?.filter((email) => !toEmails?.includes(email));
+            const programName = application?.programName?.trim() || "NA";
             await notificationService.submitQuestionNotification(getUserEmails(toUsers),
                 [],
                 toBCCEmails, {
-                pi: `${userInfo.firstName} ${userInfo.lastName},`,
-                programName: application?.programName?.trim() || "NA",
+                pi: `${userInfo.firstName} ${userInfo.lastName}${programName === "NA" ? "." : `, and associated with the ${programName} program.`}`,
                 study: application?.studyAbbreviation || "NA",
                 url: emailParams.url
             });
