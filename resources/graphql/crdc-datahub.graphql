@@ -81,6 +81,12 @@ type ListSubmissions {
     organizations: [Organization]
 }
 
+type ListInstitutions {
+    total: Int
+    institutions: [Institution]
+}
+
+
 type Submission {
     _id: ID # aka. submissionID
     name: String
@@ -468,9 +474,11 @@ type NodeDetail_Result {
     children: [Related_Node] # array of Related node contains nodeType and counts
 }
 
-type institution {
+type Institution {
     _id: ID,
     name: String
+    status: String, # Active / Inactive
+    submitterCount: Int
 }
 
 type Dashboard {
@@ -696,7 +704,13 @@ type Query {
         manifest: String = "/Users/my_name/my_manifest.tsv"
     ): String
 
-    listInstitutions: [String]
+    listInstitutions(
+        first: Int = 10,
+        offset: Int = 0,
+        orderBy: String = "name",
+        sortDirection: String = "ASC"
+        status: String
+    ): ListInstitutions
 
     getNodeDetail(
         submissionID: String!, # submissionID in dataRecords collection

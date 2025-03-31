@@ -1,18 +1,13 @@
 const {verifySession} = require("../verifier/user-info-verifier");
 const {v4} = require('uuid')
 const {getListDifference} = require("../utility/list-util");
+const {INSTITUTION} = require("../crdc-datahub-database-drivers/constants/organization-constants");
+const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 
 class InstitutionService {
-
+    #ALL_FILTER = "All";
     constructor(institutionCollection) {
         this.institutionCollection = institutionCollection;
-    }
-
-    // Verify the user session then call #listInsitutions()
-    async listInstitutions(params, context) {
-        verifySession(context)
-            .verifyInitialized();
-        return await this.#listInstitutions();
     }
 
     // Returns all institution names as a String array
@@ -25,6 +20,32 @@ class InstitutionService {
             }
         });
         return institutionsArray;
+    }
+
+    // Verify the user session then call #listInsitutions()
+    async listInstitutions(params, context) {
+        verifySession(context)
+            .verifyInitialized();
+
+        const pipeline = [{"$match": this.#listConditions(params)}];
+        const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
+        const noPaginationPipeline = pipeline.concat(paginationPipe.getNoLimitPipeline());
+        const promises = [
+            await this.institutionCollection.aggregate(pipeline.concat(paginationPipe.getPaginationPipeline())),
+            await this.institutionCollection.aggregate(noPaginationPipeline.concat([{ $group: { _id: "$_id" } }, { $count: "count" }]))
+        ];
+
+        const results = await Promise.all(promises);
+        return {
+            institutions: results[0] || [],
+            total: results[1]?.length > 0 ? results[1][0]?.count : 0,
+        }
+    }
+
+    #listConditions(status){
+        const validStatus = [INSTITUTION.STATUSES.INACTIVE, INSTITUTION.STATUSES.ACTIVE];
+        return status && !status?.includes(this.#ALL_FILTER) ?
+            { status: { $in: status || [] } } : { status: { $in: validStatus } };
     }
 
     async addNewInstitutions(institutionNames){
