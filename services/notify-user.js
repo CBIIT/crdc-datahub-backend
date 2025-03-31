@@ -33,14 +33,15 @@ class NotifyUser {
     }
 
     async submitQuestionNotification(toEmails, CCEmails, BCCEmails, messageVariables) {
-        const message = replaceMessageVariables(this.email_constants.SUBMISSION_CONTENT, messageVariables);
+        const message = replaceMessageVariables(this.email_constants.SUBMISSION_SUBMIT_FIRST_CONTENT, messageVariables);
+        const secondMessage = replaceMessageVariables(this.email_constants.SUBMISSION_SUBMIT_SECOND_CONTENT, messageVariables);
         const subject = this.email_constants.SUBMISSION_SUBJECT;
         return await this.send(async () => {
             await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
                 isTierAdded(this.tier) ? `${this.tier} ${subject}` : subject,
                 await createEmailTemplate("notification-template.html", {
-                    message, firstName: this.email_constants.APPLICATION_COMMITTEE_NAME
+                    message, secondMessage, firstName: this.email_constants.APPLICATION_COMMITTEE_NAME
                 }),
                 toEmails,
                 CCEmails,
