@@ -331,7 +331,7 @@ class UploadingMonitor {
         }
     }
 
-    async setBatchStatus(batchID, status, error, files) {
+    async setBatchStatus(batchID, status, error) {
         await this.batchCollection.update({"_id": batchID}, 
             {$set: {"status": status, "errors": [error],"updatedAt": new Date()}});
     }
