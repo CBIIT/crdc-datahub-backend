@@ -10,6 +10,9 @@ const {replaceErrorString} = require("../utility/string-util");
 const {writeObject2JsonFile, readJsonFile2Object} = require("../utility/io-util");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
+const fs = require('fs');
+const archiver = require('archiver');
+
 const LOAD_METADATA = "Load Metadata";
 const OMIT_DCF_PREFIX = 'omit-DCF-prefix';
 
@@ -173,6 +176,81 @@ class BatchService {
         ];
         const batches = await this.batchCollection.aggregate(pipeline);
         return (batches && batches.length > 0)? batches[0].batchID : null;
+    }
+    /**
+     * getMetadataFile
+     * @param {*} params 
+     * @param {*} context 
+     * @returns 
+     */ 
+     
+    async getMetadataFile(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
+        const {
+            batchID: batchID,
+            fileName: fileName
+        } = params;
+        const aBatch = await this.findByID(batchID);
+        if (!aBatch) {
+            throw new Error(ERROR.BATCH_NOT_EXIST);
+        }
+        if (aBatch?.status !== BATCH.STATUSES.UPLOADED) {
+            throw new Error(ERROR.BATCH_NOT_UPLOADED);
+        }
+        if(fileName){
+            const file = aBatch?.files?.find(f=>f.fileName === fileName && f.status === FILE.UPLOAD_STATUSES.UPLOADED);
+            if(!file){
+                throw new Error(ERROR.FILE_NOT_EXIST);
+            }
+            return await createDownloadPreSignedURL(aBatch?.bucketName, aBatch?.prefix, fileName) ;
+        }
+        else{
+            if(!aBatch?.zipFileName)
+            {
+                try{
+                    const tempFolder = `logs/${aBatch._id}`;
+                    // create the temp folder if not existing
+                    if (!fs.existsSync(tempFolder)) {
+                        fs.mkdirSync(tempFolder);
+                    }
+                    await Promise.all(aBatch.files.map(async (file) => {
+                        // download file to temp folder from s3 with bucket, prefix, filename
+                        const filePath = `${tempFolder}/${file.fileName}`;
+                        await this.s3Service.downloadFile(aBatch.bucketName, aBatch.filePrefix, file.fileName, filePath);
+                    }));
+
+                    //zip all downloaded files
+                    const zipFileName = `${aBatch._id}.zip`;
+                    const zipFilePath = `${tempFolder}/${zipFileName}`;
+                    const output = fs.createWriteStream(zipFilePath);
+                    const archive = archiver('zip', { zlib: { level: 9 } });
+                    archive.pipe(output);
+                    // Add all files in the temp folder to the zip archive
+                    archive.directory(tempFolder, false);
+
+                    //upload the zip file to s3 bucket based on batch.bucketName and batch.prefix
+                    await archive.finalize();
+                    const result = await this.s3Service.uploadFile(aBatch.bucketName, aBatch.filePrefix, zipFileName, zipFilePath);
+
+                    //update aBatch with zipFileName
+                    batchCollection.update({"_id": aBatch._id}, {"$set": {"zipFileName": zipFileName}})
+
+                    //return presigned download url
+                    return await this.s3Service.createDownloadPreSignedURL(aBatch.bucketName, aBatch.filePrefix, zipFileName);
+                }
+                catch(e){
+                    console.error(e);
+                    throw new Error(ERROR.FAILED_TO_DOWNLOAD_ZIPPED_METADATA);
+                }
+            }
+            else
+            {
+                return await this.s3Service.createDownloadPreSignedURL(aBatch.bucketName, aBatch.filePrefix, aBatch.zipFileName);;
+            }
+        }
+       
     }
 }
 const listBatchConditions = (userID, collaboratorUserIDs, userRole, aUserOrganization, submissionID, userDataCommonsNames) => {
