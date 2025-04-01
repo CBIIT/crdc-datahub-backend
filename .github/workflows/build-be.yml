@@ -51,7 +51,8 @@ jobs:
         env:
           REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
           #PV_PULLER_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_PVPULLER }}:${{ env.CODE_BRANCH }}.${{ github.run_number }}
-          BE_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_BE }}:${{ env.branch }}.${{ github.run_number }}
+#          BE_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_BE }}:${{ env.branch }}.${{ github.run_number }}
+          BE_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.REGION }}.amazonaws.com/${{ env.ECR_REPO_BE }}:${{ env.branch }}.${{ github.run_number }}
         run: |
           echo "Building: $BE_IMAGE_NAME"
           docker build --no-cache -t $BE_IMAGE_NAME .
