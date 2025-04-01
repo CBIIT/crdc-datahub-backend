@@ -331,7 +331,7 @@ class UploadingMonitor {
         }
     }
 
-    async setUploadingFailed(batchID, status, error) {
+    async setUploadingFailed(batchID, status, error, throwable = false) {
         try {
             const response = await this.batchCollection.update({"_id": batchID}, 
                 {$set: {"status": status, "errors": [error],"updatedAt": new Date()}});
@@ -342,7 +342,9 @@ class UploadingMonitor {
         }
         catch (e) {
             console.error(`Failed to update batch ${batchID} with error: ${e.message}`);
-            throw e;
+            if (throwable) {
+                throw e;
+            }
         }
     }
 } 
