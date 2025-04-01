@@ -3,7 +3,9 @@ const {v4} = require('uuid')
 const {getListDifference} = require("../utility/list-util");
 const {INSTITUTION} = require("../crdc-datahub-database-drivers/constants/organization-constants");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
-
+const {USER_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
+const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
+const ROLES = USER_CONSTANTS.USER.ROLES;
 class InstitutionService {
     #ALL_FILTER = "All";
     constructor(institutionCollection) {
@@ -27,8 +29,35 @@ class InstitutionService {
         verifySession(context)
             .verifyInitialized();
 
-        const pipeline = [{"$match": this.#listConditions(params)}];
+        const userJoin = {
+            "$lookup": {
+                from: USER_COLLECTION,
+                let : {id : "$_id"},
+                pipeline: [{
+                    $match: {
+                        $expr: {
+                            $and: [
+                                { $eq: ["$institution._id", "$$id"] },
+                                { $eq: ["$role", ROLES.SUBMITTER] }
+                            ]
+                        }
+                    }
+                }],
+                as: "submitters"}
+        };
+
         const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
+        const pipeline = [{"$match": this.#listConditions(params?.status)}, userJoin,
+            {
+            $project: {
+                _id: 1,
+                name: 1,
+                status: 1,
+                submitterCount: { $size: "$submitters" }
+            }
+
+        }];
+
         const noPaginationPipeline = pipeline.concat(paginationPipe.getNoLimitPipeline());
         const promises = [
             await this.institutionCollection.aggregate(pipeline.concat(paginationPipe.getPaginationPipeline())),
@@ -38,14 +67,14 @@ class InstitutionService {
         const results = await Promise.all(promises);
         return {
             institutions: results[0] || [],
-            total: results[1]?.length > 0 ? results[1][0]?.count : 0,
+            total: results[1]?.length > 0 ? results[1][0]?.count : 0
         }
     }
 
     #listConditions(status){
         const validStatus = [INSTITUTION.STATUSES.INACTIVE, INSTITUTION.STATUSES.ACTIVE];
-        return status && !status?.includes(this.#ALL_FILTER) ?
-            { status: { $in: status || [] } } : { status: { $in: validStatus } };
+        return status && status !== this.#ALL_FILTER ?
+            { status: { $in: [status] || [] } } : { status: { $in: validStatus } };
     }
 
     async addNewInstitutions(institutionNames){
