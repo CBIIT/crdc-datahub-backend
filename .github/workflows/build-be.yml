@@ -6,9 +6,9 @@ permissions:
 on:
   workflow_dispatch:
     inputs:
-      environment:
-        description: Choose the environment to build
-        type: environment
+#      environment:
+#        description: Choose the environment to build
+#        type: environment
 #      code_branch:
 #        description: Branch to build validation
 #        required: false
