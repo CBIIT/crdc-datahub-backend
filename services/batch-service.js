@@ -281,7 +281,7 @@ class UploadingMonitor {
                 //update batch with status failed if older than 15 min
                 const error = ERROR.UPLOADING_BATCH_CRASHED;
                 try {
-                    await this.setBatchStatus(batchID, BATCH.STATUSES.FAILED, error); 
+                    await this.setUploadingFailed(batchID, BATCH.STATUSES.FAILED, error); 
                 }
                 catch (e) {
                     console.error(`Failed to update batch ${batchID} with error: ${e.message}`);
@@ -298,7 +298,7 @@ class UploadingMonitor {
     #startScheduler() {
         setInterval(async () => {
             await this.#checkUploadingBatches();
-        }, this.interval);
+    }, this.interval);
     }
     /**
      * saveUploadingBatch
@@ -331,9 +331,19 @@ class UploadingMonitor {
         }
     }
 
-    async setBatchStatus(batchID, status, error) {
-        await this.batchCollection.update({"_id": batchID}, 
-            {$set: {"status": status, "errors": [error],"updatedAt": new Date()}});
+    async setUploadingFailed(batchID, status, error) {
+        try {
+            const response = await this.batchCollection.update({"_id": batchID}, 
+                {$set: {"status": status, "errors": [error],"updatedAt": new Date()}});
+            if (!response?.acknowledged) {
+                console.error(ERROR.FAILED_UPDATE_BATCH_STATUS);
+                throw new Error(ERROR.FAILED_UPDATE_BATCH_STATUS);
+            }
+        }
+        catch (e) {
+            console.error(`Failed to update batch ${batchID} with error: ${e.message}`);
+            throw e;
+        }
     }
 } 
 

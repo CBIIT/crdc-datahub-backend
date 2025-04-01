@@ -193,6 +193,7 @@ const ERROR = {
     INVALID_PRIMARY_CONTACT_ROLE: "The user role for a primary contact must be Data Commons Personnel",
     UPLOADING_BATCH_CRASHED: "CLI stopped responding while uploading data files.",
     UPLOADING_BATCH_INTERRUPTED: 'File uploading is interrupted.',
+    FAILED_UPDATE_BATCH_STATUS: "Failed to update the batch status.",
 }
 
 module.exports = ERROR;

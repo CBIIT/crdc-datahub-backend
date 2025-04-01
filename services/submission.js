@@ -284,14 +284,14 @@ class Submission {
                 // check files if any success == false and error contains 'File uploading is interrupted.'
                 if (params?.files?.some((file) => file?.succeeded === false && file?.errors?.includes(ERROR.UPLOADING_BATCH_INTERRUPTED))) {
                     // update the batch status to failed
-                    await this.uploadingMonitor.setBatchStatus(aBatch._id, BATCH.STATUSES.FAILED, ERROR.UPLOADING_BATCH_INTERRUPTED);
+                    await this.uploadingMonitor.setUploadingFailed(aBatch._id, BATCH.STATUSES.FAILED, ERROR.UPLOADING_BATCH_INTERRUPTED);
                     return {
                         _id: aBatch._id,
                         submissionID: aBatch.submissionID,
                         type: aBatch.type,
                         fileCount: aBatch.fileCount,
                         status: BATCH.STATUSES.FAILED,
-                        updatedAt: new Date()
+                        updatedAt: getCurrentTime(),
                     }
                 }
             }
