@@ -8,9 +8,7 @@ const ERROR = require("../constants/error-constants");
  * This class provides services for aWS requests
  */
 class AWSService {
-    constructor(submissionCollection, userService) {
-        this.userService = userService;
-        this.submissions = submissionCollection;
+    constructor() {
         this.s3 = new AWS.S3();
         this.sqs = new AWS.SQS();
         this.sts = new AWS.STS();
@@ -18,18 +16,13 @@ class AWSService {
     }
     /**
      * createTempCredentials
-     * @param {*} submissionID
      * @return {Promise<Object>} {
             accessKeyId: String
             secretAccessKey: String
             sessionToken: String
         }
      */
-    async createTempCredentials(submissionID) {
-        const submission = (await this.submissions.find(submissionID) || []).pop();
-        if(!submission.rootPath)
-            throw new Error(`${ERROR.VERIFY.EMPTY_ROOT_PATH}, ${submissionID}!`);
-
+    async createTempCredentials(bucketName, rootPath) {
         // create temp credential
         // Initialize an STS object
         const sts = new AWS.STS();
@@ -41,7 +34,7 @@ class AWSService {
               {
                 Effect: 'Allow',
                 Action: ['s3:GetObject','s3:PutObject'],
-                Resource: [`arn:aws:s3:::${submission.bucketName}/${submission.rootPath}/*`]
+                Resource: [`arn:aws:s3:::${bucketName}/${rootPath}/*`]
               }
             ]
           };
