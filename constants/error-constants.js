@@ -192,6 +192,7 @@ const ERROR = {
     INVALID_PRIMARY_CONTACT: "No primary contact found with the primary contact ID",
     INVALID_PRIMARY_CONTACT_ROLE: "The user role for a primary contact must be Data Commons Personnel",
     UPLOADING_BATCH_CRASHED: "CLI stopped responding while uploading data files.",
+    UPLOADING_BATCH_INTERRUPTED: 'File uploading is interrupted.',
 }
 
 module.exports = ERROR;

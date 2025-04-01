@@ -281,8 +281,7 @@ class UploadingMonitor {
                 //update batch with status failed if older than 15 min
                 const error = ERROR.UPLOADING_BATCH_CRASHED;
                 try {
-                    await this.batchCollection.update({"_id": batchID}, 
-                        {$set: {"status": BATCH.STATUSES.FAILED, "errors": [error],"updatedAt": now}});
+                    await this.setBatchStatus(batchID, BATCH.STATUSES.FAILED, error); 
                 }
                 catch (e) {
                     console.error(`Failed to update batch ${batchID} with error: ${e.message}`);
@@ -330,6 +329,11 @@ class UploadingMonitor {
         catch (e) {
             console.error(`Failed to save uploading batch pool to ${UPLOADING_BATCH_POOL_FILE} with error: ${e.message}`)
         }
+    }
+
+    async setBatchStatus(batchID, status, error, files) {
+        await this.batchCollection.update({"_id": batchID}, 
+            {$set: {"status": status, "errors": [error],"updatedAt": new Date()}});
     }
 } 
 
