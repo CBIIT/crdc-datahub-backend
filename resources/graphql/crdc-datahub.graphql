@@ -243,6 +243,7 @@ type User {
   studies: [ApprovedStudy]
   permissions: [String]
   notifications: [String]
+  institution: Institution
 }
 
 type UserInfo {
@@ -468,7 +469,7 @@ type NodeDetail_Result {
     children: [Related_Node] # array of Related node contains nodeType and counts
 }
 
-type institution {
+type Institution {
     _id: ID,
     name: String
 }
