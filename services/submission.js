@@ -1395,12 +1395,23 @@ class Submission {
         }
     }
 
-    async verifySubmitter(submissionID, userInfo) {
+    async verifyTempCredential(submissionID, userInfo) {
         const aSubmission = await findByID(this.submissionCollection, submissionID);
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
-        this.#verifySubmissionCreator(userInfo, aSubmission);
+        if(!aSubmission.rootPath)
+            throw new Error(`${ERROR.VERIFY.EMPTY_ROOT_PATH}, ${submissionID}!`);
+
+        const submitterCollaborator = (aSubmission?.collaborators || []).map(u => u.collaboratorID);
+        const isCollaborator = submitterCollaborator.includes(userInfo?._id);
+
+        const createPermission = userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE) &&
+            aSubmission.submitterID === userInfo?._id;
+        if (!createPermission && !isCollaborator) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+        return aSubmission;
     }
     // Only owned submission and create permission.
     #verifySubmissionCreator(userInfo, aSubmission) {
