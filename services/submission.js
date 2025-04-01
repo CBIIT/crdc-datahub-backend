@@ -1749,7 +1749,7 @@ const sendEmails = {
             userService.approvedStudiesCollection.find(aSubmission?.studyID)
         ]);
         const filteredDCPUsers = DCPRoleUsers.filter((u) =>
-            u?.notifications?.includes(EN.DATA_SUBMISSION.WITHDRAW) &&
+            u?.notifications?.includes(EN.DATA_SUBMISSION.RELEASE) &&
             isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
 
         if (filteredDCPUsers.length === 0) {
