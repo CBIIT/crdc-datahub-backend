@@ -53,3 +53,12 @@ Commands:
               $set: { "dataFileSize": { formatted: "0", size: 0 } }
           }
       );
+  - Add the missing manage institution permission to admin user CRDCDH-2488: |
+      db.users.updateMany(
+          {
+            role: "Admin",
+          },
+          {
+            $addToSet: { notifications: "institution:manage" }
+          }
+      );
