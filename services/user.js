@@ -383,7 +383,8 @@ class UserService {
             const promiseArray = [
                 await this.#notifyDeactivatedUser(prevUser, status),
                 await this.#notifyUpdatedUser(prevUser, userAfterUpdate, role),
-                await this.#logAfterUserEdit(prevUser, userAfterUpdate)
+                await this.#logAfterUserEdit(prevUser, userAfterUpdate),
+                await this.#removePrimaryContact(prevUser, userAfterUpdate)
             ];
             await Promise.all(promiseArray);
         } else {
@@ -686,6 +687,41 @@ class UserService {
                 ...(roles?.length > 0 && { "role": { "$in": roles } })
             }
         }]);
+    }
+
+    // user's role changed to anything other than Data Commons Personnel, they should be removed from any study/program's primary contact.
+    async #removePrimaryContact(prevUser, newUser) {
+        const baseRoleCondition = newUser?.role && Object.values(USER.ROLES).includes(newUser?.role);
+        const isRoleChange = baseRoleCondition && prevUser.role === ROLES.DATA_COMMONS_PERSONNEL && prevUser.role !== newUser.role;
+        if (isRoleChange) {
+            // note: Search primaryContactName in this order, since that's how it's stored.
+            const primaryContactName = `${prevUser.firstName} ${prevUser.lastName}`.trim();
+            const [updatedSubmission, updateProgram, updatedStudies] = await Promise.all([
+                this.submissionsCollection.updateMany(
+                    { $and: [{conciergeName: primaryContactName}, {conciergeEmail: prevUser?.email }]},
+                    { conciergeName: "", conciergeEmail: "", updatedAt: getCurrentTime() }
+                ),
+                this.organizationCollection.updateMany(
+                    { $and: [{ conciergeID: prevUser?._id }, { conciergeID: { $ne: null } }]},
+                    { conciergeID: "", conciergeName: "", conciergeEmail: "", updateAt: getCurrentTime() }
+                ),
+                this.approvedStudiesCollection.updateMany(
+                    { $and: [{ primaryContactID: prevUser?._id }, { primaryContactID: { $ne: null } }] },
+                    { primaryContactID: null, updatedAt: getCurrentTime() }
+                )
+            ]);
+            if (!updatedSubmission.acknowledged) {
+                console.error("Failed to remove the primary contact in submissions");
+            }
+
+            if (!updateProgram.acknowledged) {
+                console.error("Failed to remove the primary contact in programs");
+            }
+
+            if (!updatedStudies.acknowledged) {
+                console.error("Failed to remove the primary contact in studies");
+            }
+        }
     }
 }
 
