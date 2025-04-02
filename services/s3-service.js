@@ -1,5 +1,6 @@
 const AWS = require('aws-sdk');
 const fs = require('fs');
+const path = require('path');
 class S3Service {
 
     constructor() {
@@ -41,7 +42,7 @@ class S3Service {
         try {
             const params = {
                 Bucket: bucketName,
-                Key: `${prefix}/${fileName}`,
+                Key: path.join(prefix,fileName),
                 Expires: 3600, // 1 hour
             };
             return new Promise((resolve, reject) => {
@@ -66,22 +67,24 @@ class S3Service {
      * @param {string} filePath - The local path of the file to be uploaded.
      * @returns {Promise<Object>} A promise that resolves to the result of the upload operation if successful.
      */
-    async uploadFile(bucketName, prefix, fileName, filePath) {
+    async uploadZipFile(bucketName, prefix, fileName, filePath) {
         return new Promise((resolve, reject) => {
-            const fileContent = fs.readFileSync(filePath); // Read file content from filePath
+            const fileStream = fs.createReadStream(filePath);
             const params = {
-                Bucket: bucketName,
-                Key: `${prefix}/${fileName}`, // Construct Key using prefix and fileName
-                Body: fileContent,
+              Bucket: bucketName,
+              Key: path.join(prefix,fileName), // Construct Key using prefix and fileName
+              Body: fileStream,
+              ContentType: "application/zip",
             };
+        
             this.s3.upload(params, (err, data) => {
-                if (err) {
-                    reject(err);
-                } else {
-                    resolve(data);
-                }
+              if (err) {
+                reject(err);
+              } else {
+                resolve(data);
+              }
             });
-        });
+          });
     }
 
     /**
@@ -90,21 +93,34 @@ class S3Service {
      * @param {*} prefix 
      * @param {*} fileName 
      * @param {*} filePath 
-     * @returns 
+     * @returns {Promise<Object>} 
      */
     async downloadFile(bucketName, prefix, fileName, filePath){
         return new Promise((resolve, reject) => {
             const params = {
                 Bucket: bucketName,
-                Key: `${prefix}/${fileName}`, // Construct Key using prefix and fileName
+                Key: path.join(prefix, fileName), // Construct Key using prefix and fileName
             };
             const fileStream = fs.createWriteStream(filePath);
             const s3Stream = this.s3.getObject(params).createReadStream();
-            s3Stream.pipe(fileStream)
-                .on('error', reject)
-                .on('end', () => resolve(filePath));
+
+            s3Stream.on('error', (err) => {
+                console.error(`Error reading from S3: ${err.message}`);
+                reject(err);
+            });
+
+            fileStream.on('error', (err) => {
+                console.error(`Error writing to file: ${err.message}`);
+                reject(err);
+            });
+
+            fileStream.on('finish', () => {
+                // console.info(`File downloaded successfully to ${filePath}`);
+                resolve(filePath);
+            });
+
+            s3Stream.pipe(fileStream);
         });
-    
     }
     /**
      * Asynchronously deletes a file from an AWS S3 bucket.

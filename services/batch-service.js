@@ -11,7 +11,8 @@ const {writeObject2JsonFile, readJsonFile2Object} = require("../utility/io-util"
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
 const fs = require('fs');
-const archiver = require('archiver');
+const path = require('path');
+const {zipFilesInDir} = require("../utility/io-util");
 
 const LOAD_METADATA = "Load Metadata";
 const OMIT_DCF_PREFIX = 'omit-DCF-prefix';
@@ -184,65 +185,73 @@ class BatchService {
      * @returns 
      */ 
      
-    async getMetadataFile(params, context) {
-        verifySession(context)
-            .verifyInitialized()
-            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
-        const {
-            batchID: batchID,
-            fileName: fileName
-        } = params;
-        const aBatch = await this.findByID(batchID);
-        if (!aBatch) {
-            throw new Error(ERROR.BATCH_NOT_EXIST);
-        }
-        if (aBatch?.status !== BATCH.STATUSES.UPLOADED) {
-            throw new Error(ERROR.BATCH_NOT_UPLOADED);
-        }
+    async getMetadataFile(aBatch, fileName) {
         if(fileName){
             const file = aBatch?.files?.find(f=>f.fileName === fileName && f.status === FILE.UPLOAD_STATUSES.UPLOADED);
             if(!file){
                 throw new Error(ERROR.FILE_NOT_EXIST);
             }
-            return await createDownloadPreSignedURL(aBatch?.bucketName, aBatch?.prefix, fileName) ;
+            return await this.s3Service.createDownloadPreSignedURL(aBatch?.bucketName, aBatch?.filePrefix, fileName) ;
         }
         else{
             if(!aBatch?.zipFileName)
             {
+                const tempFolder = `logs/${aBatch._id}`;
+                const download_dir = path.join(tempFolder, "metadata_files");
                 try{
-                    const tempFolder = `logs/${aBatch._id}`;
                     // create the temp folder if not existing
                     if (!fs.existsSync(tempFolder)) {
                         fs.mkdirSync(tempFolder);
+                        fs.mkdirSync(path.join(tempFolder, "metadata_files"));
                     }
-                    await Promise.all(aBatch.files.map(async (file) => {
-                        // download file to temp folder from s3 with bucket, prefix, filename
-                        const filePath = `${tempFolder}/${file.fileName}`;
-                        await this.s3Service.downloadFile(aBatch.bucketName, aBatch.filePrefix, file.fileName, filePath);
+                    // download all metadata files to temp folder
+                    const downloadResults = await Promise.allSettled(aBatch.files.map(async (file) => {
+                        try {
+                            // download file to temp folder from s3 with bucket, prefix, filename
+                            const filePath = path.join(download_dir, file.fileName);
+                            await this.s3Service.downloadFile(aBatch.bucketName, aBatch.filePrefix, file.fileName, filePath);
+                        } catch (error) {
+                            console.error(`Failed to download file ${file.fileName}:`, error);
+                            throw new Error(ERROR.NO_METADATA_FILES_DOWNLOADED);
+                        }
                     }));
 
-                    //zip all downloaded files
+                    // Check for any rejected promises
+                    const failedDownloads = downloadResults.filter(result => result.status === 'rejected');
+                    if (failedDownloads.length > 0) {
+                        throw new Error(ERROR.NO_METADATA_FILES_DOWNLOADED);
+                    }
+                    // check if files already exists in the temp folder
+                    const existingFiles = fs.readdirSync(download_dir);
+                    if (existingFiles.length === 0) {
+                        throw new Error(ERROR.NO_METADATA_FILES_DOWNLOADED);
+                    }
                     const zipFileName = `${aBatch._id}.zip`;
-                    const zipFilePath = `${tempFolder}/${zipFileName}`;
-                    const output = fs.createWriteStream(zipFilePath);
-                    const archive = archiver('zip', { zlib: { level: 9 } });
-                    archive.pipe(output);
-                    // Add all files in the temp folder to the zip archive
-                    archive.directory(tempFolder, false);
-
+                    const zipFilePath = path.join(tempFolder, zipFileName);
+                    //zip all downloaded files
+                    await zipFilesInDir(download_dir, zipFilePath);
+                    //check if zip file already exists
+                    if (!fs.existsSync(zipFilePath)) {
+                        throw new Error(ERROR.FAILED_TO_ZIPPED_METADATA_FILES);
+                    }
                     //upload the zip file to s3 bucket based on batch.bucketName and batch.prefix
-                    await archive.finalize();
-                    const result = await this.s3Service.uploadFile(aBatch.bucketName, aBatch.filePrefix, zipFileName, zipFilePath);
+                    await this.s3Service.uploadZipFile(aBatch.bucketName, aBatch.filePrefix, zipFileName, zipFilePath);
 
-                    //update aBatch with zipFileName
-                    batchCollection.update({"_id": aBatch._id}, {"$set": {"zipFileName": zipFileName}})
+                    //update aBatch with zipFileName if uploaded zip file without exception
+                    this.batchCollection.update({"_id": aBatch._id}, {"$set": {"zipFileName": zipFileName, "updatedAt": getCurrentTime()}});
 
                     //return presigned download url
-                    return await this.s3Service.createDownloadPreSignedURL(aBatch.bucketName, aBatch.filePrefix, zipFileName);
+                    return await this.s3Service.createDownloadPreSignedURL(aBatch.bucketName, aBatch.filePrefix, zipFileName);              
                 }
                 catch(e){
                     console.error(e);
                     throw new Error(ERROR.FAILED_TO_DOWNLOAD_ZIPPED_METADATA);
+                }
+                finally{
+                    //delete the temp folder
+                    if (fs.existsSync(tempFolder)) {
+                        fs.rmSync(tempFolder, { recursive: true, force: true });
+                    }
                 }
             }
             else
@@ -367,7 +376,7 @@ class UploadingMonitor {
                 }
                 finally {
                     // remove failed batch from the pool
-                    this.removeUploadingBatch(batchID);
+                    // this.removeUploadingBatch(batchID);
                 } 
             }
         }

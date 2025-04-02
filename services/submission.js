@@ -577,6 +577,7 @@ class Submission {
                 }
             }
         }
+       
     }
 
     async #getInactiveSubmissions(inactiveDays, inactiveFlagField) {
@@ -1627,6 +1628,30 @@ class Submission {
         })();
     }
 
+    /**
+     * API: getMetadataFile
+     * @param {*} params 
+     * @param {*} context 
+     * @returns 
+     */
+    async getMetadataFile(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
+        const {
+            batchID: batchID,
+            fileName: fileName
+        } = params;
+        const aBatch = await this.batchService.findByID(batchID);
+        if (!aBatch) {
+            throw new Error(ERROR.BATCH_NOT_EXIST);
+        }
+        if (aBatch?.status !== BATCH.STATUSES.UPLOADED) {
+            throw new Error(ERROR.BATCH_NOT_UPLOADED);
+        }
+
+        return await this.batchService.getMetadataFile(aBatch, fileName);
+    }    
 }
 
 const updateSubmissionStatus = async (submissionCollection, aSubmission, userInfo, newStatus) => {
