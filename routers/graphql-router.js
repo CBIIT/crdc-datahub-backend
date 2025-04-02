@@ -63,7 +63,7 @@ dbConnector.connect().then(async () => {
     const userService = new UserService(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, approvedStudiesService, config.inactive_user_days, configurationService);
     const s3Service = new S3Service();
     const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
-    const awsService = new AWSService(submissionCollection, userService, config.role_arn, config.presign_expiration);
+    const awsService = new AWSService();
 
     const utilityService = new UtilityService();
     const fetchDataModelInfo = async () => {
@@ -143,8 +143,8 @@ dbConnector.connect().then(async () => {
         listSubmissions:  submissionService.listSubmissions.bind(submissionService),
         getSubmission:  submissionService.getSubmission.bind(submissionService),
         createTempCredentials: async (params, context)=> {
-            await submissionService.verifySubmitter(params?.submissionID, context?.userInfo);
-            return awsService.createTempCredentials(params?.submissionID);
+            const aSubmission = await submissionService.verifyTempCredential(params?.submissionID, context?.userInfo);
+            return awsService.createTempCredentials(aSubmission.bucketName, aSubmission.rootPath);
         },
         submissionAction: submissionService.submissionAction.bind(submissionService),
         validateSubmission: submissionService.validateSubmission.bind(submissionService),
