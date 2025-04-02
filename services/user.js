@@ -18,6 +18,7 @@ const {
     DATA_SUBMISSION,
     EMAIL_NOTIFICATIONS: EN
 } = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+const {COMPLETED} = require("../constants/submission-constants");
 
 const isLoggedInOrThrow = (context) => {
     if (!context?.userInfo?.email || !context?.userInfo?.IDP) throw new Error(SUBMODULE_ERROR.NOT_LOGGED_IN);
@@ -691,22 +692,21 @@ class UserService {
 
     // user's role changed to anything other than Data Commons Personnel, they should be removed from any study/program's primary contact.
     async #removePrimaryContact(prevUser, newUser) {
-        const baseRoleCondition = newUser?.role && Object.values(USER.ROLES).includes(newUser?.role);
-        const isRoleChange = baseRoleCondition && prevUser.role === ROLES.DATA_COMMONS_PERSONNEL && prevUser.role !== newUser.role;
+        const isRoleChange = prevUser.role === ROLES.DATA_COMMONS_PERSONNEL && prevUser.role !== newUser.role;
         if (isRoleChange) {
             // note: Search primaryContactName in this order, since that's how it's stored.
             const primaryContactName = `${prevUser.firstName} ${prevUser.lastName}`.trim();
             const [updatedSubmission, updateProgram, updatedStudies] = await Promise.all([
                 this.submissionsCollection.updateMany(
-                    { $and: [{conciergeName: primaryContactName}, {conciergeEmail: prevUser?.email }]},
+                    { conciergeName: primaryContactName, conciergeEmail: prevUser?.email, status: {$ne: COMPLETED} },
                     { conciergeName: "", conciergeEmail: "", updatedAt: getCurrentTime() }
                 ),
                 this.organizationCollection.updateMany(
-                    { $and: [{ conciergeID: prevUser?._id }, { conciergeID: { $ne: null } }]},
+                    { conciergeID: prevUser?._id },
                     { conciergeID: "", conciergeName: "", conciergeEmail: "", updateAt: getCurrentTime() }
                 ),
                 this.approvedStudiesCollection.updateMany(
-                    { $and: [{ primaryContactID: prevUser?._id }, { primaryContactID: { $ne: null } }] },
+                    { primaryContactID: prevUser?._id },
                     { primaryContactID: null, updatedAt: getCurrentTime() }
                 )
             ]);
