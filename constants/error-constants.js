@@ -1,11 +1,16 @@
 const ERROR = {
     NOT_LOGGED_IN: "A user must be logged in to call this API",
+    DISABLED_USER: "User is inactive, please contact admin to be reactivated.",
     SESSION_NOT_INITIALIZED: "Internal error, a user is logged in but user data has not been initialized in the session",
     DATABASE_OPERATION_FAILED: "Database operation failed, please see logs for more information",
     // Application
     APPLICATION_NOT_FOUND: "The provided application ID was not found in the database. Provided _id: ",
+    FAILED_DELETE_APPLICATION: "An error occurred while delete an application",
     APPLICATION_CONTROLLED_ACCESS_NOT_FOUND: "The application does not store controlled access property.",
+    APPLICATION_INVALID_STATUES: "Requested statues $item$ is not valid",
+    FAILED_RESTORE_APPLICATION: "An error occurred while restoring an application",
     MISSING_PROGRAM_INFO: "The program property is required to approve the submission request.",
+    INVALID_APPLICATION_RESTORE_STATE: "Failed to restore application because the application history data is invalid",
     UPDATE_FAILED: "Update unsuccessful",
     VERIFY: {
         UNDEFINED_APPLICATION: "Application array is undefined",
@@ -39,6 +44,7 @@ const ERROR = {
     FAILED_NEW_BATCH_NO_ROOT_PATH: "The batch creation is aborted because the current submission is missing a rootpath",
     INVALID_BATCH_PERMISSION: "You do not have permission to run a batch operation",
     SUBMISSION_NOT_EXIST: "The submission you are trying to access does not exist",
+    INVALID_STATUS_EDIT_COLLABORATOR: "Submission status is invalid to edit collaborator; $item$",
     BATCH_NOT_EXIST: "The batch you are trying to access does not exist",
     INVALID_UPDATE_BATCH_STATUS: "The batch update is aborted because the current batch status is not suitable for modification",
     FAILED_BATCH_UPDATE: "An error occurred while updating a batch",
@@ -54,7 +60,6 @@ const ERROR = {
     // Submission Permission
     INVALID_SUBMISSION_STATUS: "The batch creation is aborted because the current submission is not in the valid state to be created.",
     // Create Submission
-    CREATE_SUBMISSION_NO_ORGANIZATION_ASSIGNED: "The submitter/organization owner does not have an organization assigned. Thus, the data submission was not created",
     CREATE_SUBMISSION_INSERTION_ERROR: "An error occurred while attempting to insert the created data submission into the database",
     CREATE_SUBMISSION_INVALID_PARAMS: "One or more of the parameters for creating a submission is invalid",
     CREATE_SUBMISSION_INVALID_NAME: "Submission name cannot exceed $item$ characters in length.",
@@ -65,7 +70,6 @@ const ERROR = {
     CREATE_SUBMISSION_INVALID_DATA_COMMONS: "Requested data commons $item$ is not supported",
     CREATE_SUBMISSION_NO_MATCHING_STUDY: "The study provided does not match an approved study within the user's studies",
     MISSING_CREATE_SUBMISSION_DBGAPID: "dbGapID is required for controlled-access studies.",
-    CREATE_SUBMISSION_MISSING_PROGRAM: "Study $item$ is not associated with any programs.",
     // List Submissions
     LIST_SUBMISSION_INVALID_STATUS_FILTER: "The status filter is invalid",
     INVALID_SUBMISSION_PERMISSION: "You do not have the correct permissions to list submissions",
@@ -98,7 +102,8 @@ const ERROR = {
     INVALID_TOKEN_NOT_IN_WHITELIST: "Invalid token: this token is not whitelisted!",
     INVALID_SUBMISSION_EMPTY: 'Invalid submissionID: it can not be empty string!',
     INVALID_SUBMISSION_NOT_FOUND: "Cant find the submission by submissionID",
-    INVALID_NODE_NOT_FOUND: "Cant find the node by nodeID, nodeType and submissionID",
+    INVALID_NODE_NOT_FOUND: "Cant find the released node by nodeID, nodeType and submissionID",
+    INVALID_RELEASED_NODE_NOT_FOUND: "Cant find the node by nodeID, nodeType and data commons",
     INVALID_SUBMITTER: "The user has no permissions to upload data for the submission",
     INVALID_SESSION_OR_TOKEN: "No valid session or valid API token",
     // AWS
@@ -112,6 +117,7 @@ const ERROR = {
     // delete submission error file list
     DELETE_NO_FILE_SUBMISSION: "No extra file found",
     DELETE_NO_DATA_FILE_EXISTS: "No data files found for deletion in the bucket",
+    INVALID_DELETE_SUBMISSION_STATUS : "Data Submissions that have been released cannot be deleted.",
     NO_UPLOADER_CLI_CONFIG_TEMPLATE: "Data file uploader CLI config template is not found.",
     INVALID_DATA_MODEL: "No file node properties in the data model.",
     NO_SUBMISSION_BUCKET: "Unable to create a batch, no submission bucket is stored",
@@ -142,16 +148,17 @@ const ERROR = {
     INVALID_ORCID: "Invalid ORCID format.",
     FAILED_APPROVED_STUDY_INSERTION: "Failed to create the approved study.",
     FAILED_APPROVED_STUDY_UPDATE: "Failed to update the approved study.",
+    FAILED_PRIMARY_CONTACT_UPDATE: "Failed to update the primary contact in the approved study.",
     APPROVED_STUDY_NOT_FOUND: "Approved study not found.",
     EXISTING_SUBMISSION_COLLABORATOR: "The collaborator exists in the submission already.",
     COLLABORATOR_NOT_EXIST: "collaborator does not exist",
     INVALID_COLLABORATOR_ROLE_SUBMITTER: "Invalid collaborator role for the submitter",
-    INVALID_COLLABORATOR_STUDY: "Collaborator could not be added because the collaborator's organization is not related to study in this submission.",
+    INVALID_COLLABORATOR_STUDY: "Collaborator could not be added because the collaborator has no related to study in this submission.",
     FAILED_ADD_SUBMISSION_COLLABORATOR: "Failed to add submission collaborator",
     FAILED_REMOVE_SUBMISSION_COLLABORATOR: "Failed to remove submission collaborator",
     INVALID_SUBMISSION_COLLABORATOR: "Invalid submission collaborator",
     INVALID_SUBMISSION_STUDY: "Invalid submission, missing studyID",
-    INVALID_COLLABORATOR_PERMISSION: "Invalid collaborator permission, must be 'Can View' or 'Can Edit'",
+    INVALID_COLLABORATOR_PERMISSION: "Invalid collaborator permission, must be 'Can Edit'",
     DUPLICATE_STUDY_NAME: "Error saving this study. This study name already exists.",
     // User
     ORGANIZATION_NOT_FOUND: "The provided organization name does not exist in the organization record",
@@ -159,7 +166,7 @@ const ERROR = {
     FAILED_TO_NOTIFY_ACCESS_REQUEST: "Failed to send notification for user role access request; $item$",
     INVALID_APPROVED_STUDIES_ACCESS_REQUEST: "Failed to request an access request because of invalid or missing approved study IDs.",
     DUPLICATE_ORGANIZATION_NAME: "Duplicate organization name found: $item$",
-    NO_ADMIN_USER: "No admin user found",
+    NO_ADMIN_USER: "No admin user found or no PBAC request access notification is enabled.",
     // QC Results
     FAILED_INSERT_QC_RESULT: "An error occurred while attempting to insert the qc-result into the database.",
     CONTROLLED_STUDY_NO_DBGAPID: "dbGaP ID must be provided before data submissions can begin.",
@@ -176,7 +183,9 @@ const ERROR = {
     // User Permissions
     INVALID_PERMISSION_NAME: "Invalid user permission is requested: $item$",
     // User Notifications
-    INVALID_NOTIFICATION_NAME: "Invalid email notification is requested: $item$"
+    INVALID_NOTIFICATION_NAME: "Invalid email notification is requested: $item$",
+    INVALID_PRIMARY_CONTACT: "No primary contact found with the primary contact ID",
+    INVALID_PRIMARY_CONTACT_ROLE: "The user role for a primary contact must be Data Commons Personnel",
 }
 
 module.exports = ERROR;

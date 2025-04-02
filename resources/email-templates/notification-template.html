@@ -14,8 +14,23 @@
   <body>
     <p>Dear {{ firstName }},</p>
     <p>{{ message }}</p>
+    {{#if reviewComments}}
+    <p>
+      <span>[Review Comments]:</span><br>
+      <span>{{ reviewComments }}</span>
+    </p>
+    {{/if}}
     {{#if secondMessage}}
       <p>{{ secondMessage }}</p>
+    {{/if}}
+    {{#if studyName}}
+    <p>
+      <span><strong>Study Name: </strong></span>
+      <span>{{ studyName }}</span>
+    </p>
+    {{/if}}
+    {{#if thirdMessage}}
+    <p>{{ thirdMessage }}</p>
     {{/if}}
     {{#if additionalMsg}}
       {{#each additionalMsg}}

@@ -15,7 +15,8 @@ const {DATABASE_NAME, APPLICATION_COLLECTION, SUBMISSIONS_COLLECTION, USER_COLLE
     CONFIGURATION_COLLECTION,
     CDE_COLLECTION,
     DATA_RECORDS_ARCHIVE_COLLECTION,
-    QC_RESULTS_COLLECTION
+    QC_RESULTS_COLLECTION,
+    RELEASE_DATA_RECORDS_COLLECTION
 } = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoDBCollection} = require("../crdc-datahub-database-drivers/mongodb-collection");
 const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-connector");
@@ -23,7 +24,7 @@ const {EmailService} = require("../services/email");
 const {NotifyUser} = require("../services/notify-user");
 const {ApprovedStudiesService} = require("../services/approved-studies");
 const {BatchService} = require("../services/batch-service");
-const {S3Service} = require("../crdc-datahub-database-drivers/services/s3-service");
+const {S3Service} = require("../services/s3-service");
 const {Organization} = require("../crdc-datahub-database-drivers/services/organization");
 const {DataRecordService} = require("../services/data-record-service");
 const {UtilityService} = require("../services/utility");
@@ -40,7 +41,6 @@ const {QcResultService} = require("../services/qc-result-service");
 const {UserService} = require("../services/user");
 const sanitizeHtml = require("sanitize-html");
 const public_api_list = extractAPINames(schema, PUBLIC)
-const INACTIVE_SUBMISSION_DAYS = "Inactive_Submission_Notify_Days";
 let root;
 let authenticationService, userInitializationService;
 dbConnector.connect().then(async () => {
@@ -49,18 +49,18 @@ dbConnector.connect().then(async () => {
     const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
     const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
     const emailService = new EmailService(config.email_transport, config.emails_enabled);
-    const notificationsService = new NotifyUser(emailService, config.committee_emails);
+    const notificationsService = new NotifyUser(emailService, config.tier);
 
     const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
     const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
     const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection, approvedStudiesCollection);
-    const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection);
+    const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, userCollection, organizationService, submissionCollection);
 
     const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
     const configurationService = new ConfigurationService(configurationCollection)
 
-    const userService = new UserService(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, config.tier, approvedStudiesService, config.inactive_user_days, configurationService);
+    const userService = new UserService(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, approvedStudiesService, config.inactive_user_days, configurationService);
     const s3Service = new S3Service();
     const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
     const awsService = new AWSService(submissionCollection, userService, config.role_arn, config.presign_expiration);
@@ -77,21 +77,24 @@ dbConnector.connect().then(async () => {
     const qcResultCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, QC_RESULTS_COLLECTION);
     const qcResultsService = new QcResultService(qcResultCollection, submissionCollection);
 
+    const releaseCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, RELEASE_DATA_RECORDS_COLLECTION);
     const dataRecordCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_COLLECTION);
     const dataRecordArchiveCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_ARCHIVE_COLLECTION);
-    const dataRecordService = new DataRecordService(dataRecordCollection, dataRecordArchiveCollection, config.file_queue, config.metadata_queue, awsService, s3Service, qcResultsService, config.export_queue);
+    const dataRecordService = new DataRecordService(dataRecordCollection, dataRecordArchiveCollection, releaseCollection, config.file_queue, config.metadata_queue, awsService, s3Service, qcResultsService, config.export_queue);
 
     const validationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, VALIDATION_COLLECTION);
 
     const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days,
         submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk, remindSubmissionDay: config.inactiveSubmissionNotifyDays,
         techSupportEmail: config.techSupportEmail, conditionalSubmissionContact: config.conditionalSubmissionContact, submissionGuideURL: config.submissionGuideUrl,
-        completedSubmissionDays: config.completed_submission_days, inactiveSubmissionDays: config.inactive_submission_days, finalRemindSubmissionDay: config.inactive_submission_days};
+        completedSubmissionDays: config.completed_submission_days, inactiveSubmissionDays: config.inactive_submission_days, finalRemindSubmissionDay: config.inactive_submission_days,
+        inactiveApplicationNotifyDays: config.inactiveApplicationNotifyDays};
 
     const submissionService = new Submission(logCollection, submissionCollection, batchService, userService,
-        organizationService, notificationsService, dataRecordService, config.tier, fetchDataModelInfo, awsService, config.export_queue,
-        s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService, config.uploaderCLIConfigs);
-    const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, config.tier, institutionService);
+        organizationService, notificationsService, dataRecordService, fetchDataModelInfo, awsService, config.export_queue,
+        s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService, config.uploaderCLIConfigs, config.submission_bucket,
+        config.submission_bucket, configurationService);
+    const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService, configurationService);
 
     const dashboardService = new DashboardService(userService, awsService, configurationService, {sessionTimeout: config.dashboardSessionTimeout});
     userInitializationService = new UserInitializationService(userCollection, organizationCollection, approvedStudiesCollection, configurationService);
@@ -112,10 +115,17 @@ dbConnector.connect().then(async () => {
             const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
             return dataInterface.approveApplication({...params, comment}, context);
         },
-        rejectApplication: dataInterface.rejectApplication.bind(dataInterface),
-        inquireApplication: dataInterface.inquireApplication.bind(dataInterface),
+        rejectApplication: (params, context)=> {
+            const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
+            return dataInterface.rejectApplication({...params, comment}, context);
+        },
+        inquireApplication: async (params, context)=> {
+            const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
+            return dataInterface.inquireApplication({...params, comment}, context);
+        },
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
         deleteApplication: dataInterface.deleteApplication.bind(dataInterface),
+        restoreApplication: dataInterface.restoreApplication.bind(dataInterface),
         listApprovedStudies: approvedStudiesService.listApprovedStudiesAPI.bind(approvedStudiesService),
         createApprovedStudy: approvedStudiesService.addApprovedStudyAPI.bind(approvedStudiesService),
         updateApprovedStudy: approvedStudiesService.editApprovedStudyAPI.bind(approvedStudiesService),
@@ -127,7 +137,7 @@ dbConnector.connect().then(async () => {
         listSubmissions:  submissionService.listSubmissions.bind(submissionService),
         getSubmission:  submissionService.getSubmission.bind(submissionService),
         createTempCredentials: async (params, context)=> {
-            await submissionService.verifySubmitter(params?.submissionID, context);
+            await submissionService.verifySubmitter(params?.submissionID, context?.userInfo);
             return awsService.createTempCredentials(params?.submissionID);
         },
         submissionAction: submissionService.submissionAction.bind(submissionService),
@@ -142,6 +152,9 @@ dbConnector.connect().then(async () => {
         getRelatedNodes: submissionService.getRelatedNodes.bind(submissionService),
         retrieveCLIConfig: submissionService.getUploaderCLIConfigs.bind(submissionService),
         listPotentialCollaborators: submissionService.listPotentialCollaborators.bind(submissionService),
+        retrieveFileNodeConfig: submissionService.getDataFileConfigs.bind(submissionService),
+        retrieveReleasedDataByID: submissionService.getReleasedNodeByIDs.bind(submissionService),
+
         listInstitutions: institutionService.listInstitutions.bind(institutionService),
         // AuthZ
         getMyUser : userInitializationService.getMyUser.bind(userInitializationService),
@@ -150,6 +163,7 @@ dbConnector.connect().then(async () => {
         listUsers : userService.listUsers.bind(userService),
         editUser : userService.editUser.bind(userService),
         grantToken : userService.grantToken.bind(userService),
+        listActiveDCPs: userService.listActiveDCPsAPI.bind(userService),
         listActiveCurators: userService.listActiveCuratorsAPI.bind(userService),
         listOrganizations : organizationService.listOrganizationsAPI.bind(organizationService),
         getOrganization : organizationService.getOrganizationAPI.bind(organizationService),

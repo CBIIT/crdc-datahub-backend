@@ -129,8 +129,35 @@ describe('Util Test', () => {
             }
         ];
 
+        const testsCommaSpaceSplitter = [
+            {
+                arr: [
+                    { field1: "value11", field2: "value12", field3: "value13" },
+                    { field1: "value21", field2: "value22", field3: "value23" },
+                ],
+                fieldsToExtract: ["field1", "field2"],
+                result: ["value11, value12", "value21, value22"]
+            },
+            {
+                arr: [],
+                fieldsToExtract: ["field1", "field2"],
+                result: []
+            },
+            {
+                arr: [{ field1: "value11", field2: "value12", field3: "value13" },
+                    { field1: "value21", field2: "value22", field3: "value23" }],
+                fieldsToExtract: [],
+                result: []
+            }
+        ];
+
         for (let test of tests) {
             const result = extractAndJoinFields(test.arr,test.fieldsToExtract);
+            expect(test.result).toStrictEqual(result);
+        }
+
+        for (let test of testsCommaSpaceSplitter) {
+            const result = extractAndJoinFields(test.arr,test.fieldsToExtract, ", ");
             expect(test.result).toStrictEqual(result);
         }
     });

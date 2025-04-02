@@ -1,12 +1,10 @@
 const ERROR = require("../constants/error-constants");
-const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {VALIDATION_STATUS, VALIDATION} = require("../constants/submission-constants");
-const {verifyValidationResultsReadPermissions} = require("../verifier/permissions-verifier");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {replaceErrorString} = require("../utility/string-util");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
-const {v4} = require("uuid");
-const ROLES = USER_CONSTANTS.USER.ROLES;
+const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+const {verifySession} = require("../verifier/user-info-verifier");
 
 function replaceNaN(results, replacement){
     results?.map((result) => {
@@ -40,20 +38,14 @@ class QcResultService{
     }
 
     async submissionQCResultsAPI(params, context){
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
         // Check that the specified submissionID exists
         const submission = await this.submissionCollection.findOne(params._id);
         if(!submission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
-        // Check that the user is authorized to view the QC results
-        if (!verifyValidationResultsReadPermissions(context.userInfo, submission)){
-            // Unauthorized Federal Monitors require a different error message
-            if (context.userInfo?.role === ROLES.FEDERAL_MONITOR){
-                throw new Error(ERROR.INVALID_ROLE_STUDY);
-            }
-            throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS);
-        }
-
         return await this.submissionQCResults(params._id, params.nodeTypes, params.batchIDs, params.severities, params.issueCode, params.first, params.offset, params.orderBy, params.sortDirection);
     }
 
@@ -67,10 +59,22 @@ class QcResultService{
             }
         });
         // Filter by severity
+        let arrayWithElements = {
+            $exists: true,
+            $type: 'array',
+            $ne: []
+        }
         if (severities === VALIDATION_STATUS.ERROR){
             pipeline.push({
                 $match: {
-                    severity: VALIDATION_STATUS.ERROR
+                    errors: arrayWithElements
+                }
+            });
+        }
+        else if (severities === VALIDATION_STATUS.WARNING){
+            pipeline.push({
+                $match: {
+                    warnings: arrayWithElements
                 }
             });
         }
@@ -108,6 +112,11 @@ class QcResultService{
                 }
             })
         }
+        pipeline.push({
+            $set:{
+                batchID: "$latestBatchID"
+            }
+        })
         // Create count pipeline
         let countPipeline = [...pipeline];
         countPipeline.push({
@@ -150,24 +159,12 @@ class QcResultService{
         }
     }
 
-    async insertErrorRecord(submissionID, qcRecords) {
-        const qcResultErrors = qcRecords?.map((record) => {
-            const errorMsg = QCResultError.create(
-                record.error.title,
-                replaceErrorString(record.error.desc, `'${record.fileName}'`),
-                record.error.code,
-                record.error.severity
-            );
-            return QCResult.create(VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.DATA_FILE, record.fileName, null, null, VALIDATION_STATUS.ERROR, getCurrentTime(), getCurrentTime(), [errorMsg], [], record.dataRecordID, record?.origin);
-        });
-
-        await Promise.all(qcResultErrors.map(async (qcResult) => {
-            const res = await this.qcResultCollection.findOneAndUpdate({ submissionID: submissionID, submittedID: qcResult.submittedID, type: VALIDATION.TYPES.DATA_FILE},
-                qcResult, {returnDocument: 'after', upsert: true});
-            if (!res?.value) {
-                console.error(ERROR.FAILED_INSERT_QC_RESULT + ` submissionID: ${submissionID}`);
-            }
-        }));
+    async findBySubmissionErrorCodes(submissionID, errorCode) {
+        const result = await this.qcResultCollection.aggregate([
+            {"$match": { submissionID: submissionID, "errors.code": errorCode}},
+            {"$project": {submittedID: 1, submissionID: 1}}
+        ]);
+        return result || [];
     }
 
     async getQCResultsErrors(submissionID, errorType) {
@@ -179,14 +176,13 @@ class QcResultService{
     }
 
     async aggregatedSubmissionQCResultsAPI(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
         // Check that the specified submissionID exists
         const submission = await this.submissionCollection.findOne(params.submissionID);
         if(!submission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
-        }
-        // Check that the user is authorized to view the QC results
-        if (!verifyValidationResultsReadPermissions(context.userInfo, submission)){
-            throw new Error(ERROR.INVALID_PERMISSION_TO_VIEW_VALIDATION_RESULTS);
         }
         return await this.aggregatedSubmissionQCResults(params.submissionID, params.severity, params.first, params.offset, params.orderBy, params.sortDirection);
     }
@@ -237,7 +233,8 @@ class QcResultService{
             $group:{
                 _id: {
                     title: "$issues.title",
-                    severity: "$issues.severity"
+                    severity: "$issues.severity",
+                    code: "$issues.code"
                 },
                 count: {
                     $sum: 1
@@ -250,6 +247,7 @@ class QcResultService{
                 _id: 0,
                     title: "$_id.title",
                 severity: "$_id.severity",
+                code: "$_id.code",
                 count: "$count"
             }
         });

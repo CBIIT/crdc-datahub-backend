@@ -3,19 +3,20 @@ const {USER} = require("../crdc-datahub-database-drivers/constants/user-constant
 const {ValidationHandler} = require("../utility/validation-handler");
 const ERROR = require("../constants/error-constants");
 const {ERROR: SUBMODULE_ERROR} = require("../crdc-datahub-database-drivers/constants/error-constants");
-const {replaceErrorString} = require("../utility/string-util");
+const {replaceErrorString, extractAndJoinFields} = require("../utility/string-util");
 const config = require("../config");
 const {getCurrentTime, subtractDaysFromNowTimestamp} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {UpdateProfileEvent, ReactivateUserEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const {LOG_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const jwt = require("jsonwebtoken");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
-
+const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
+const ROLES = USER_CONSTANTS.USER.ROLES;
 const {
     SUBMISSION_REQUEST,
     ADMIN,
     DATA_SUBMISSION,
-    EMAIL_NOTIFICATIONS: EN,
+    EMAIL_NOTIFICATIONS: EN, EMAIL_NOTIFICATIONS,
 } = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 
 const isLoggedInOrThrow = (context) => {
@@ -38,7 +39,7 @@ const createToken = (userInfo, token_secret, token_timeout)=> {
 class UserService {
     #allPermissionNamesSet = new Set([...Object.values(SUBMISSION_REQUEST), ...Object.values(DATA_SUBMISSION), ...Object.values(ADMIN)]);
     #allEmailNotificationNamesSet = new Set([...Object.values(EN.SUBMISSION_REQUEST), ...Object.values(EN.DATA_SUBMISSION), ...Object.values(EN.USER_ACCOUNT)]);
-    constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, tier, approvedStudiesService, inactiveUserDays, configurationService) {
+    constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, approvedStudiesService, inactiveUserDays, configurationService) {
         this.userCollection = userCollection;
         this.logCollection = logCollection;
         this.organizationCollection = organizationCollection;
@@ -47,7 +48,6 @@ class UserService {
         this.applicationCollection = applicationCollection;
         this.officialEmail = officialEmail;
         this.appUrl = appUrl;
-        this.tier = tier;
         this.approvedStudiesService = approvedStudiesService;
         this.approvedStudiesCollection = approvedStudiesService.approvedStudiesCollection;
         this.inactiveUserDays = inactiveUserDays;
@@ -59,11 +59,6 @@ class UserService {
             .verifyInitialized()
             .verifyPermission(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REQUEST_ACCESS);
 
-        // USER.ROLES.ORG_OWNER needs to be removed after the role is retired finally
-        if (![USER.ROLES.SUBMITTER, USER.ROLES.USER, USER.ROLES.ORG_OWNER].includes(params.role)) {
-            return new Error(replaceErrorString(ERROR.INVALID_REQUEST_ROLE, params?.role));
-        } 
-
         const approvedStudies = params?.studies?.length > 0 ?
             await this.approvedStudiesService.listApprovedStudies({_id: {$in: params?.studies}})
             : []
@@ -71,24 +66,26 @@ class UserService {
             return new Error(ERROR.INVALID_APPROVED_STUDIES_ACCESS_REQUEST);
         }
 
-        const adminUsers = await this.getAdmin();
-        const adminEmails = adminUsers?.filter((u)=> u.email).map((u)=> u.email);
+        const adminUsers = await this.getUsersByNotifications([EN.USER_ACCOUNT.USER_REQUEST_ACCESS],
+            [ROLES.ADMIN]);
+        const adminEmails = adminUsers
+            ?.filter((u)=> u?.email)
+            .map((u)=> u?.email);
         const userInfo = context?.userInfo;
 
         if (adminEmails.length === 0) {
+            console.error("The request access notification does not have any recipient");
             return ValidationHandler.handle(ERROR.NO_ADMIN_USER);
         }
 
-        const res = await this.notificationsService.requestUserAccessNotification(adminEmails,
-            [], {
+        const res = await this.notificationsService.requestUserAccessNotification(adminEmails, {
                 userName: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
                 accountType: userInfo?.IDP,
                 email: userInfo?.email,
                 role: params?.role,
                 studies: approvedStudies?.map((study)=> study?.studyName),
                 additionalInfo: params?.additionalInfo?.trim()
-            }
-            ,this.tier);
+            });
 
         if (res?.accepted?.length > 0) {
             return ValidationHandler.success()
@@ -228,15 +225,8 @@ class UserService {
         if (!params?.userID) {
             throw new Error(SUBMODULE_ERROR.INVALID_USERID);
         }
-        // The following block of codes need to removed after USER.ROLES.ORG_OWNER is retired.
-        if (context?.userInfo?.role === USER.ROLES.ORG_OWNER && !context?.userInfo?.organization?.orgID) {
-            throw new Error(SUBMODULE_ERROR.NO_ORG_ASSIGNED);
-        }
-        const filters = { _id: params.userID };
-        if (context?.userInfo?.role === USER.ROLES.ORG_OWNER) {
-            filters["organization.orgID"] = context?.userInfo?.organization?.orgID;
-        }
 
+        const filters = { _id: params.userID };
         const result = await this.userCollection.aggregate([{
             "$match": filters
         }, {"$limit": 1}]);
@@ -256,18 +246,9 @@ class UserService {
         verifySession(context)
             .verifyInitialized()
             .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
-        // The following block of codes need to removed after USER.ROLES.ORG_OWNER is retired.
-        if (context?.userInfo?.role === USER.ROLES.ORG_OWNER && !context?.userInfo?.organization?.orgID) {
-            throw new Error(SUBMODULE_ERROR.NO_ORG_ASSIGNED);
-        }
-
-        const filters = {};
-        if (context?.userInfo?.role === USER.ROLES.ORG_OWNER) {
-            filters["organization.orgID"] = context?.userInfo?.organization?.orgID;
-        }
 
         const result = await this.userCollection.aggregate([{
-            "$match": filters
+            "$match": {}
         },]);
 
         for (let user of result) {
@@ -289,10 +270,32 @@ class UserService {
     async listActiveCuratorsAPI(params, context) {
         verifySession(context)
             .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+            .verifyPermission([USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_STUDIES, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_PROGRAMS]);
 
         const curators = await this.getActiveCurators();
         return curators?.map((user) => ({
+            userID: user._id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            createdAt: user.createdAt,
+            updateAt: user.updateAt,
+        })) || [];
+    }
+
+
+    /**
+     * List Active Data-Commons Personnel API Interface.
+     * @api
+     * @param {Object} params Endpoint parameters
+     * @param {{ cookie: Object, userInfo: Object }} context API request context
+     * @returns {Promise<User[]>} An array of Data-Commons Personnel Users
+     */
+    async listActiveDCPsAPI(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission([USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_STUDIES, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_PROGRAMS]);
+        const DCPUsers = await this.getDCPs(params.dataCommons || []);
+        return DCPUsers?.map((user) => ({
             userID: user._id,
             firstName: user.firstName,
             lastName: user.lastName,
@@ -428,13 +431,11 @@ class UserService {
             throw new Error(SUBMODULE_ERROR.USER_NOT_FOUND);
         }
         const updatedUser = {};
-        const isCurator = updatedUser?.role === USER.ROLES.CURATOR || user[0]?.role === USER.ROLES.CURATOR || params?.role === USER.ROLES.CURATOR;
-
         if (params.role && Object.values(USER.ROLES).includes(params.role)) {
             updatedUser.role = params.role;
         }
 
-        if(!params?.studies && ![USER.ROLES.ADMIN, USER.ROLES.USER, USER.ROLES.CURATOR, USER.ROLES.DC_POC, USER.ROLES.DATA_COMMONS_PERSONNEL].includes(params.role)){
+        if(!params?.studies && USER.ROLES.SUBMITTER === params.role) {
             throw new Error(SUBMODULE_ERROR.APPROVED_STUDIES_REQUIRED);
         }
 
@@ -447,11 +448,7 @@ class UserService {
             }
         }
 
-        if (isCurator) {
-            updatedUser.organization = null;
-        }
-
-        updatedUser.dataCommons = DataCommon.get(user[0]?.role, user[0]?.dataCommons, params?.role, params?.dataCommons);
+        updatedUser.dataCommons = DataCommon.get(user[0]?.dataCommons, params?.dataCommons);
         await this.#setUserPermissions(user[0]?.role, params?.role, params?.permissions, params?.notifications, updatedUser);
         return await this.updateUserInfo(user[0], updatedUser, params.userID, params.status, params.role, params?.studies);
     }
@@ -459,12 +456,16 @@ class UserService {
         // add studies to user.
         const validStudies = await this.#findApprovedStudies(approvedStudyIDs);
         if (approvedStudyIDs && approvedStudyIDs.length > 0) {
-            if(validStudies.length !== approvedStudyIDs.length) {
+            if(validStudies.length !== approvedStudyIDs.length && !approvedStudyIDs?.includes("All")) {
                 throw new Error(SUBMODULE_ERROR.INVALID_NOT_APPROVED_STUDIES);
             }
             else {
                 // ** Must store Approved studies ID only **
-                updatedUser.studies = (approvedStudyIDs instanceof Object)?approvedStudyIDs:approvedStudyIDs.map(str => ({ _id: str }));
+                if (approvedStudyIDs?.includes("All")) {
+                    updatedUser.studies = [{_id: "All"}];
+                } else {
+                    updatedUser.studies = approvedStudyIDs.map(str => ({ _id: str }));
+                }
             }
         }
         else
@@ -492,29 +493,20 @@ class UserService {
     async #notifyUpdatedUser(prevUser, newUser, newRole) {
         const baseRoleCondition = newRole && Object.values(USER.ROLES).includes(newRole);
         const isRoleChange = baseRoleCondition && prevUser.role !== newUser.role;
-        const isOrgChange = Boolean(prevUser?.organization?.orgID) && prevUser?.organization?.orgID !== newUser?.organization?.orgID;
         const isDataCommonsChange = newUser?.dataCommons?.length > 0 && JSON.stringify(prevUser?.dataCommons) !== JSON.stringify(newUser?.dataCommons);
         const isStudiesChange = newUser.studies?.length > 0 && JSON.stringify(prevUser.studies) !== JSON.stringify(newUser.studies);
-        if (isRoleChange || isOrgChange || isDataCommonsChange || isStudiesChange) {
-            const isSubmitterOrOrgOwner = [USER.ROLES.SUBMITTER, USER.ROLES.ORG_OWNER].includes(newUser.role);
-            const CCs = isSubmitterOrOrgOwner ? (
-                    await this.getOrgOwnerByOrgID(newUser.organization?.orgID))
-                    ?.map((owner) => owner.email)
-                : [];
-            const orgName = isSubmitterOrOrgOwner ? newUser.organization?.orgName : undefined;
-            const userDataCommons = [USER.ROLES.DC_POC, USER.ROLES.CURATOR].includes(newUser.role) ? newUser.dataCommons : undefined;
+        if (isRoleChange || isDataCommonsChange || isStudiesChange) {
+            const userDataCommons = [USER.ROLES.DATA_COMMONS_PERSONNEL].includes(newUser.role) ? newUser.dataCommons : undefined;
             const studyNames = await this.#findStudiesNames(newUser.studies);
             await this.notificationsService.userRoleChangeNotification(newUser.email,
-                CCs, {
+                {
                     accountType: newUser.IDP,
                     email: newUser.email,
                     role: newUser.role,
-                    org: orgName,
                     dataCommons: userDataCommons,
-                    studies: studyNames
+                    ...([USER.ROLES.SUBMITTER, USER.ROLES.FEDERAL_LEAD].includes(newUser.role) && { studies: studyNames }),
                 },
-                {url: this.appUrl, helpDesk: this.officialEmail}
-                ,this.tier);
+                {url: this.appUrl, helpDesk: `${this.officialEmail}.`});
         }
     }
 
@@ -522,13 +514,10 @@ class UserService {
         const isUserActivated = prevUser?.userStatus !== USER.STATUSES.INACTIVE;
         const isStatusChange = newStatus && newStatus?.toLowerCase() === USER.STATUSES.INACTIVE.toLowerCase();
         if (isUserActivated && isStatusChange) {
-            const adminEmails = await this.getAdminPBACUsers();
-            const CCs = adminEmails.filter((u)=> u.email).map((u)=> u.email);
             if (prevUser?.notifications?.includes(EN.USER_ACCOUNT.USER_INACTIVATED)) {
                 await this.notificationsService.deactivateUserNotification(prevUser.email,
-                    CCs, {firstName: prevUser.firstName},
-                    {officialEmail: this.officialEmail}
-                    ,this.tier);
+                    {firstName: prevUser.firstName},
+                    {officialEmail: `${this.officialEmail}.`});
             }
         }
     }
@@ -564,8 +553,7 @@ class UserService {
         const orgOwnerOrAdminRole = {
             "userStatus": USER.STATUSES.ACTIVE,
             "notifications": {"$in": [EN.USER_ACCOUNT.USER_INACTIVATED_ADMIN]},
-            // TODO org owners to be removed since org owner no longer exists
-            "$or": [{"role": USER.ROLES.ADMIN}, {"role": USER.ROLES.ORG_OWNER}]
+            "$or": [{"role": USER.ROLES.ADMIN}]
         };
         return await this.userCollection.aggregate([{"$match": orgOwnerOrAdminRole}]) || [];
     }
@@ -639,6 +627,21 @@ class UserService {
             "userStatus": USER.STATUSES.ACTIVE,
             "role": USER.ROLES.CURATOR,
             "dataCommons": {$in: Array.isArray(dataCommons) ? dataCommons : [dataCommons]}
+        };
+        return await this.userCollection.aggregate([{"$match": query}]);
+    }
+
+    /**
+     * get Data Commons Personnel
+     * @param {*} dataCommons
+     * @returns {Promise<Array>} user[]
+     */
+    async getDCPs(dataCommons) {
+        const dataCommonsArr = Array.isArray(dataCommons) ? dataCommons : [dataCommons];
+        const query= {
+            "userStatus": USER.STATUSES.ACTIVE,
+            "role": USER.ROLES.DATA_COMMONS_PERSONNEL,
+            ...(dataCommonsArr.includes("All") ? {} : { "dataCommons": {$in: dataCommonsArr} })
         };
         return await this.userCollection.aggregate([{"$match": query}]);
     }
@@ -752,47 +755,31 @@ class UserService {
     }
 
     #validateUserPermission(isUserRoleChange, userRole, permissions, notifications, accessControl) {
-        const disabledPermissions = new Set(accessControl?.permissions?.disabled);
-        const invalidPermissions = permissions?.filter(permission =>
-            (disabledPermissions.has(permission)) || !this.#allPermissionNamesSet.has(permission));
+        const invalidPermissions = permissions?.filter(permission => !this.#allPermissionNamesSet.has(permission));
 
         if (invalidPermissions?.length > 0) {
             throw new Error(replaceErrorString(ERROR.INVALID_PERMISSION_NAME, `${invalidPermissions.join(',')}`));
         }
-
-        const disabledNotifications = new Set(accessControl?.notifications?.disabled);
-        const invalidNotifications = notifications?.filter(notification =>
-            (disabledNotifications.has(notification)) || !this.#allEmailNotificationNamesSet.has(notification));
+        const invalidNotifications = notifications?.filter(notification => !this.#allEmailNotificationNamesSet.has(notification));
 
         if (invalidNotifications?.length > 0) {
             throw new Error(replaceErrorString(ERROR.INVALID_NOTIFICATION_NAME, `${invalidNotifications.join(',')}`));
         }
 
-        const requiredPermissions = [...accessControl?.permissions?.permitted].filter(p => disabledPermissions.has(p));
-        const requiredNotifications = [...accessControl?.notifications?.permitted].filter(p => disabledNotifications.has(p));
         return {
-            filteredPermissions: this.#setFilteredPermissions(isUserRoleChange, userRole, permissions, requiredPermissions, accessControl?.permissions?.permitted),
-            filteredNotifications: this.#setFilteredNotifications(isUserRoleChange, userRole, notifications, requiredNotifications, accessControl?.notifications?.permitted)
+            filteredPermissions: this.#setFilteredPermissions(isUserRoleChange, userRole, permissions, accessControl?.permissions?.permitted),
+            filteredNotifications: this.#setFilteredNotifications(isUserRoleChange, userRole, notifications, accessControl?.notifications?.permitted)
         }
     }
 
-    #setFilteredPermissions(isUserRoleChange, userRole, permissions, requiredPermissions, defaultPermissions) {
-        const editableUserRoles = [USER.ROLES.FEDERAL_LEAD, USER.ROLES.FEDERAL_MONITOR, USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.CURATOR, USER.ROLES.DC_POC, USER.ROLES.ADMIN];
-        const updatedPermissions = permissions !== undefined ? permissions : defaultPermissions;
-        // final notification settings
-        const updatePermissions = isUserRoleChange ? updatedPermissions : permissions;
-        const finalPermissions = [...(updatePermissions || []), ...requiredPermissions];
-        return editableUserRoles.includes(userRole) ? finalPermissions : defaultPermissions;
+    #setFilteredPermissions(isUserRoleChange, userRole, permissions, defaultPermissions) {
+        const updatedPermissions = isUserRoleChange && permissions === undefined ? defaultPermissions : permissions;
+        return [...(updatedPermissions || [])];
     }
 
-    #setFilteredNotifications(isUserRoleChange, userRole, notifications, requiredNotifications, defaultNotifications) {
-        const editableUserRoles = [USER.ROLES.FEDERAL_LEAD, USER.ROLES.FEDERAL_MONITOR, USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.CURATOR, USER.ROLES.DC_POC, USER.ROLES.ADMIN];
-        const updatedNotifications = notifications !== undefined ? notifications : defaultNotifications;
-
-        // final notification settings
-        const updateNotifications = isUserRoleChange ? updatedNotifications : notifications;
-        const finalNotifications = [...(updateNotifications || []), ...requiredNotifications];
-        return editableUserRoles.includes(userRole) ? finalNotifications : defaultNotifications;
+    #setFilteredNotifications(isUserRoleChange, userRole, notifications, defaultNotifications) {
+        const updatedNotifications = isUserRoleChange && notifications === undefined ? defaultNotifications : notifications;
+        return [...(updatedNotifications || [])];
     }
 
     async #setUserPermissions(currRole, newRole, permissions, notifications, updatedUser) {
@@ -816,7 +803,10 @@ class UserService {
     } 
     async getCollaboratorsByStudyID(studyID, submitterID) {
         const query = {
-            "role": USER.ROLES.SUBMITTER, _id: {"$ne": submitterID},
+            _id: {"$ne": submitterID},
+            "role": USER.ROLES.SUBMITTER,
+            "userStatus": USER.STATUSES.ACTIVE,
+            "permissions": {"$in": [USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE]},
             "$or": [{"studies": {"$in": [studyID, "All"]}}, {"studies._id": {"$in": [studyID, "All"]}}]
         }; // user's studies contains studyID
         const users = await this.userCollection.aggregate([{"$match": query}]);
@@ -847,60 +837,26 @@ class UserService {
 
 
 class DataCommon {
-
-    constructor(currentRole, currentDataCommons, newRole, newDataCommons) {
-        this.currentRole = currentRole;
+    constructor(currentDataCommons, newDataCommons) {
         this.currentDataCommons = currentDataCommons;
-        this.newRole = newRole;
         this.newDataCommons = newDataCommons;
     }
 
     /**
      * Get the new data commons based on the user's role & data commons.
      *
-     * @param {string} currentRole - The user's current role.
      * @param {Array} currentDataCommons - The current data commons in the user collection.
-     * @param {string} newRole - The user's new role.
      * @param {Array} newDataCommons - The new data commons to update the user.
      * @returns {Array} - return a data commons array.
      */
-    static get(currentRole, currentDataCommons, newRole, newDataCommons) {
-        const dataCommons = new DataCommon(currentRole, currentDataCommons, newRole, newDataCommons);
-        return dataCommons.#getDataCommons();
+    // TODO check user role is required
+    static get(currentDataCommons, newDataCommons) {
+        const dataCommons = new DataCommon(currentDataCommons, newDataCommons);
+        return dataCommons.#getDataCommons() || [];
     }
 
     #getDataCommons() {
-        this.#validate(this.currentRole, this.currentDataCommons, this.newRole, this.newDataCommons);
-        const isValidRole = this.#isDcPOC(this.currentRole, this.newRole) || this.#isCurator(this.currentRole, this.newRole);
-        if (isValidRole) {
-            return this.newDataCommons === undefined ? this.currentDataCommons : this.newDataCommons;
-        }
-
-        if (!isValidRole && this.currentDataCommons?.length > 0) {
-            return [];
-        }
-        return [];
-    }
-
-    #isDcPOC(currentRole, newRole) {
-        return newRole === USER.ROLES.DC_POC || (!newRole && currentRole === USER.ROLES.DC_POC);
-    }
-
-    #isCurator(currentRole, newRole) {
-        return newRole === USER.ROLES.CURATOR || (!newRole && currentRole === USER.ROLES.CURATOR);
-    }
-
-    #validate(currentRole, currentDataCommons, newRole, newDataCommons) {
-        const isValidRole = this.#isDcPOC(currentRole, newRole) || this.#isCurator(currentRole, newRole);
-        if (isValidRole && newDataCommons?.length === 0) {
-            throw new Error(SUBMODULE_ERROR.USER_DC_REQUIRED);
-        }
-
-        // Check if Data Commons is required and missing for the user's role
-        const isValidDataCommons = newDataCommons?.length > 0 || (currentDataCommons?.length > 0 && newDataCommons === undefined);
-        if (isValidRole && !isValidDataCommons) {
-            throw new Error(SUBMODULE_ERROR.USER_DC_REQUIRED);
-        }
+        return this.newDataCommons === undefined ? this.currentDataCommons : this.newDataCommons;
     }
 }
 

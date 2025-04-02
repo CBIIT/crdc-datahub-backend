@@ -24,7 +24,8 @@ type Application {
     conditional: Boolean,
     pendingConditions: [String],
     programAbbreviation: String,
-    programDescription: String
+    programDescription: String,
+    version: String
 }
 
 type Event {
@@ -46,7 +47,8 @@ input AppInput {
     PI: String
     openAccess: Boolean
     programAbbreviation: String
-    programDescription: String
+    programDescription: String,
+    version: String
 }
 
 type Applicant {
@@ -63,10 +65,15 @@ type Organization {
 type ListApplications {
     total: Int
     applications: [Application]
+    programs: [String],
+    studies: [String]
+    status: [String],
+    submitterNames: [String]
 }
 
 type ListSubmissions {
     total: Int
+    statuses: [String],
     dataCommons: [String],
     submitterNames: [String],
     submissions: [Submission]
@@ -205,7 +212,8 @@ type ApprovedStudy {
     PI: String
     ORCID: String
     createdAt: Date
-    programName: String
+    programs: [UserOrganization] #retrieve dynamically by studyID
+    primaryContact: User
 }
 
 type ApprovedStudyList {
@@ -518,6 +526,7 @@ type Permission {
     _id: String!,  #Permission Internal Name, unique 
     group: String!, #permission group
     name: String!, #permission name
+    order: Int,
     checked: Boolean,
     disabled: Boolean
 }
@@ -526,6 +535,7 @@ type Notification {
     _id: String!,  #Notification Internal Name, unique 
     group: String!, #Notification group
     name: String!, #Notification name
+    order: Int,
     checked: Boolean, 
     disabled: Boolean
 }
@@ -536,13 +546,43 @@ type PBACDefaults {
     notifications: [Notification]
 }
 
+type DataFileConfig {
+    id_field: String! 
+    name_field: String!
+    size_field: String!
+    md5_field: String!
+    omit_DCF_prefix: Boolean
+}
+
+type Released_Node {
+    _id: ID,
+    submissionID: String
+    status: String, # value in  ["Released", "Deleted"]
+    dataCommons: String,
+    studyID: String,
+    nodeType: String,
+    nodeID: String,
+    props: String, #a stringified JSON string contains all properties of the node, including parent mapping properties like program.prorgam_acronym
+    createdAt: Date,
+    updatedAt: Date
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
     getMyLastApplication: Application
 
     "Result depends on user's permission"
-    listApplications(first: Int = -1, offset: Int = 0, orderBy: String = "Submitted Date", sortDirection: String = "DESC"): ListApplications
+    listApplications(
+        programName: String,
+        studyName: String,
+        statuses: [String],
+        submitterName: String,
+        first: Int = -1,
+        offset: Int = 0,
+        orderBy: String = "Submitted Date",
+        sortDirection: String = "DESC"
+    ): ListApplications
     # when first parameter is set to -1, we should return all applications (no pagination)
     # sortDirection in ["ASC", "DESC"]
     # orderBy in ["Submitter Name", "Organization", "Study", "Program", "Status", "Submitted Date"]
@@ -567,7 +607,7 @@ type Query {
         dataCommons: String,
         submitterName: String,
         organization: String,
-        status: String,
+        status: [String],
         first: Int = -1,
         offset: Int = 0,
         # ["updatedAt", "createdAt", "name", "dataCommons", "organization", "studyAbbreviation",
@@ -577,6 +617,7 @@ type Query {
 
     getSubmission(_id: ID!): Submission
     submissionStats(_id: ID!): SubmissionStats
+    listActiveDCPs(dataCommons: [String]!): [UserInfo]
 
     aggregatedSubmissionQCResults(
         submissionID: ID!,
@@ -689,6 +730,10 @@ type Query {
     collaborators: [Collaborator]
 
     retrievePBACDefaults (roles: [String!]!) : [PBACDefaults] #To retrieve all roles' permissions and notifications, use roles: ["All"] as parameter.
+
+    retrieveFileNodeConfig(submissionID: String!) : DataFileConfig
+
+    retrieveReleasedDataByID(submissionID: String!, nodeType: String!, nodeID: String!, status: String = "Released") : [Released_Node]
 }
 type Mutation {
     "User initiated operations"
@@ -702,8 +747,8 @@ type Mutation {
     rejectApplication (_id: ID!, comment: String!): Application
     inquireApplication (_id: ID!, comment: String!): Application
 
-    "Admin only operations"
     deleteApplication (_id: ID!): Application
+    restoreApplication (_id: ID!): Application
 
     "Submitter or Org Owner"
     createSubmission (studyID: String!, dataCommons: String!, name: String!, intention: String!, dataType: String!): Submission
@@ -769,7 +814,8 @@ type Mutation {
         openAccess: Boolean, #optional 
         dbGaPID: String, # required only Controlled
         ORCID: String, #optional in format of 0000-1234-2345-3456
-        PI: String #optional 
+        PI: String #optional
+        primaryContactID: String #primary contact user ID
     ): ApprovedStudy
 
     updateApprovedStudy(
@@ -781,6 +827,7 @@ type Mutation {
         dbGaPID: String, # required only Controlled
         ORCID: String, #optional in format of 0000-1234-2345-3456
         PI: String #optional 
+        primaryContactID: String #primary contact user ID
     ): ApprovedStudy
 
     requestAccess(
