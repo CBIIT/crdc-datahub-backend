@@ -32,13 +32,13 @@ class S3Service {
     }
 
     /**
-     * createDownloadPreSignedURL
+     * createDownloadSignedURL
      * @param {*} bucketName 
      * @param {*} prefix 
      * @param {*} fileName 
      * @returns 
      */
-    async createDownloadPreSignedURL(bucketName, prefix, fileName) {
+    async createDownloadSignedURL(bucketName, prefix, fileName) {
         try {
             const params = {
                 Bucket: bucketName,
