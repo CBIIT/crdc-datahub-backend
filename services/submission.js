@@ -29,6 +29,7 @@ const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo
 const {EMAIL_NOTIFICATIONS: EN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
+const {getDataCommonsDisplayNamesForSubmission, getDataCommonsDisplayNamesForListSubmissions} = require("../utility/data-commons-remapper");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -131,7 +132,7 @@ class Submission {
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
         }
-        return newSubmission;
+        return getDataCommonsDisplayNamesForSubmission(newSubmission);
     }
     async #findApprovedStudies(studies) {
         if (!studies || studies.length === 0) return [];
@@ -185,7 +186,7 @@ class Submission {
             // note: Status name filter is omitted
             await this.submissionCollection.distinct("status", statusCondition)
         ];
-        return await Promise.all(promises).then(function(results) {
+        let listSubmissions = await Promise.all(promises).then(function(results) {
             return {
                 submissions: results[0] || [],
                 total: results[1]?.length > 0 ? results[1][0]?.count : 0,
@@ -199,6 +200,7 @@ class Submission {
                 }
             }
         });
+        return getDataCommonsDisplayNamesForListSubmissions(listSubmissions);
     }
 
     async createBatch(params, context) {
@@ -368,7 +370,8 @@ class Submission {
                     console.error(`Failed to update the program in the submission: ${aSubmission?._id}`);
                 }
             }
-            return {...aSubmission, organization: {_id: aProgram?._id, name: aProgram?.name}}
+            let submission = {...aSubmission, organization: {_id: aProgram?._id, name: aProgram?.name}}
+            return getDataCommonsDisplayNamesForSubmission(submission);
         }
         throw new Error(ERROR.INVALID_ROLE);
     }
@@ -444,7 +447,7 @@ class Submission {
             submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService, this.emailParams),
             this.#archiveCancelSubmission(action, submissionID, submission?.bucketName, submission?.rootPath)
         ].concat(completePromise));
-        return submission;
+        return getDataCommonsDisplayNamesForSubmission(submission);
     }
 
     async #archiveCancelSubmission(action, submissionID, bucketName, rootPath) {
@@ -1059,7 +1062,7 @@ class Submission {
         aSubmission.updatedAt = new Date(); 
         const result = await this.submissionCollection.update(aSubmission);
         if (result?.modifiedCount === 1) {
-            return aSubmission;
+            return getDataCommonsDisplayNamesForSubmission(aSubmission);
         }
         else
             throw new Error(ERROR.FAILED_ADD_SUBMISSION_COLLABORATOR);
