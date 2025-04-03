@@ -468,9 +468,11 @@ type NodeDetail_Result {
     children: [Related_Node] # array of Related node contains nodeType and counts
 }
 
-type institution {
+type Institution {
     _id: ID,
-    name: String
+    name: String,
+    status: String, # Active / Inactive
+    submitterCount: Int
 }
 
 type Dashboard {
@@ -834,4 +836,5 @@ type Mutation {
     ): AsyncProcessResult
 
     updateSubmissionModelVersion(_id: String!, version: String!): Submission
+    createInstitution(name: String!): Institution
 }

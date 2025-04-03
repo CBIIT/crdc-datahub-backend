@@ -162,6 +162,7 @@ dbConnector.connect().then(async () => {
         retrieveReleasedDataByID: submissionService.getReleasedNodeByIDs.bind(submissionService),
         updateSubmissionModelVersion: submissionService.updateSubmissionModelVersion.bind(submissionService),
         listInstitutions: institutionService.listInstitutions.bind(institutionService),
+        createInstitution: institutionService.createInstitution.bind(institutionService),
         // AuthZ
         getMyUser : userInitializationService.getMyUser.bind(userInitializationService),
         getUser : userService.getUser.bind(userService),

@@ -192,6 +192,9 @@ const ERROR = {
     INVALID_PRIMARY_CONTACT: "No primary contact found with the primary contact ID",
     INVALID_PRIMARY_CONTACT_ROLE: "The user role for a primary contact must be Data Commons Personnel",
     UPLOADING_BATCH_CRASHED: "CLI stopped responding while uploading data files.",
+    // Institution
+    DUPLICATE_INSTITUTION_NAME: "This is a duplicate institution name. The $item$ institution already exists.",
+    FAILED_CREATE_INSTITUTION: "Failed to create a new institution",
 }
 
 module.exports = ERROR;
