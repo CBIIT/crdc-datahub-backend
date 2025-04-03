@@ -102,6 +102,7 @@ class ApprovedStudiesService {
         const orgIds = await this.organizationService.findByStudyID(studyID);
         if (orgIds && orgIds.length > 0 ) {
             const filters = {_id: {"$in": orgIds}};
+            // For the primary contact purpose, the sort should be enabled.
             return await this.organizationService.organizationCollection.aggregate([{ "$match": filters }, {"$sort": {_id: -1}}]);
         }
         return null;
