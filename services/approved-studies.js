@@ -102,7 +102,7 @@ class ApprovedStudiesService {
         const orgIds = await this.organizationService.findByStudyID(studyID);
         if (orgIds && orgIds.length > 0 ) {
             const filters = {_id: {"$in": orgIds}};
-            return await this.organizationService.organizationCollection.aggregate([{ "$match": filters }]);
+            return await this.organizationService.organizationCollection.aggregate([{ "$match": filters }, {"$sort": {_id: -1}}]);
         }
         return null;
     }
@@ -316,9 +316,9 @@ class ApprovedStudiesService {
         if (!result?.acknowledged) {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_UPDATE);
         }
-        //update conciergeName and conciergeEmail in submissions no matter if primaryContact is null or not
-        const [conciergeName, conciergeEmail] = (primaryContact)? [`${primaryContact?.firstName || ""} ${primaryContact?.lastName || ''}`, primaryContact?.email || ""] :
-                        ["",""];
+
+        const programs = await this.#findOrganizationByStudyID(studyID);
+        const [conciergeName, conciergeEmail] = this.#getConcierge(programs, primaryContact);
         const updatedSubmissions = await this.submissionCollection.updateMany({
             studyID: updateStudy._id,
             status: {$in: [NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, CANCELED, DELETED, ARCHIVED]},
@@ -329,10 +329,25 @@ class ApprovedStudiesService {
             console.log(ERROR.FAILED_PRIMARY_CONTACT_UPDATE, `StudyID: ${studyID}`);
             throw new Error(ERROR.FAILED_PRIMARY_CONTACT_UPDATE);
         }
-    
-        const programs = await this.#findOrganizationByStudyID(studyID)
+
         return {...updateStudy, programs: programs, primaryContact: primaryContact};  
     }
+
+    #getConcierge(programs, primaryContact) {
+        //update conciergeName and conciergeEmail in submissions no matter if primaryContact is null or not
+        const [conciergeName, conciergeEmail] = (primaryContact)? [`${primaryContact?.firstName || ""} ${primaryContact?.lastName || ''}`, primaryContact?.email || ""] :
+            ["",""];
+
+        // Study doesn't have a primary contact, so look for the primary contact in the program instead
+        if (programs.length > 0 && primaryContact === null) {
+            const [conciergeID, programConciergeName,  programConciergeEmail] = [programs[0]?.conciergeID || "", programs[0]?.conciergeName || "", programs[0]?.conciergeEmail || ""];
+            if (programConciergeName !== "" && programConciergeEmail !== "" && conciergeID !== "") {
+                return [programConciergeName, programConciergeEmail];
+            }
+        }
+        return [conciergeName, conciergeEmail];
+    }
+
     /**
      * internal method to find user by ID since can't use the userService to avoid cross-referencing
      * @param {*} userID 
