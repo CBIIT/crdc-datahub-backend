@@ -709,7 +709,8 @@ type Query {
         offset: Int = 0,
         orderBy: String = "name",
         sortDirection: String = "ASC"
-        status: String
+        status: String,
+        name: String
     ): ListInstitutions
 
     getNodeDetail(

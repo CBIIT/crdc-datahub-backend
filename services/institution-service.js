@@ -47,7 +47,7 @@ class InstitutionService {
         };
 
         const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
-        const pipeline = [{"$match": this.#listConditions(params?.status)}, userJoin,
+        const pipeline = [{"$match": this.#listConditions(params?.name, params?.status)}, userJoin,
             {
             $project: {
                 _id: 1,
@@ -71,10 +71,12 @@ class InstitutionService {
         }
     }
 
-    #listConditions(status){
+    #listConditions(institutionName, status){
         const validStatus = [INSTITUTION.STATUSES.INACTIVE, INSTITUTION.STATUSES.ACTIVE];
-        return status && status !== this.#ALL_FILTER ?
+        const nameCondition = institutionName ? {name: { $regex: institutionName?.trim().replace(/\\/g, "\\\\"), $options: "i" }} : {};
+        const statusCondition = status && status !== this.#ALL_FILTER ?
             { status: { $in: [status] || [] } } : { status: { $in: validStatus } };
+        return {...nameCondition , ...statusCondition}
     }
 
     async addNewInstitutions(institutionNames){
