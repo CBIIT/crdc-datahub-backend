@@ -182,7 +182,7 @@ class BatchService {
      * getMetadataFile
      * @param {*} params 
      * @param {*} context 
-     * @returns 
+     * @returns string
      */ 
     async getMetadataFile(aBatch, fileName) {
         if(fileName){

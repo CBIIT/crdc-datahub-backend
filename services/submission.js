@@ -1632,7 +1632,7 @@ class Submission {
      * API: getMetadataFile
      * @param {*} params 
      * @param {*} context 
-     * @returns 
+     * @returns string
      */
     async getMetadataFile(params, context) {
         verifySession(context)
