@@ -274,7 +274,8 @@ class ApprovedStudiesService {
             dbGaPID,
             ORCID, 
             PI,
-            primaryContactID
+            primaryContactID,
+            useProgramPC
         } = this.#verifyAndFormatStudyParams(params);
         let updateStudy = await this.approvedStudiesCollection.find(studyID);
         if (!updateStudy || updateStudy.length === 0) {
@@ -286,6 +287,7 @@ class ApprovedStudiesService {
             await this.#validateStudyName(name)
         updateStudy.studyName = name;
         updateStudy.controlledAccess = controlledAccess;
+        updateStudy.useProgramPC = useProgramPC;
         if (!!acronym) {
             updateStudy.studyAbbreviation = acronym;
         }
@@ -311,6 +313,11 @@ class ApprovedStudiesService {
                 throw new Error(ERROR.INVALID_PRIMARY_CONTACT_ROLE);
             }
         }
+
+        if (useProgramPC && primaryContactID) {
+            throw new Error(ERROR.INVALID_PRIMARY_CONTACT_ATTEMPT);
+        }
+
         updateStudy.primaryContactID = primaryContactID;
         updateStudy.updatedAt = getCurrentTime();
         const result = await this.approvedStudiesCollection.update(updateStudy);
@@ -319,7 +326,7 @@ class ApprovedStudiesService {
         }
 
         const programs = await this.#findOrganizationByStudyID(studyID);
-        const [conciergeName, conciergeEmail] = this.#getConcierge(programs, primaryContact);
+        const [conciergeName, conciergeEmail] = this.#getConcierge(programs, primaryContact, useProgramPC);
         const updatedSubmissions = await this.submissionCollection.updateMany({
             studyID: updateStudy._id,
             status: {$in: [NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, CANCELED, DELETED, ARCHIVED]},
@@ -334,17 +341,18 @@ class ApprovedStudiesService {
         return {...updateStudy, programs: programs, primaryContact: primaryContact};  
     }
 
-    #getConcierge(programs, primaryContact) {
-        //update conciergeName and conciergeEmail in submissions no matter if primaryContact is null or not
+    #getConcierge(programs, primaryContact, isProgramPrimaryContact) {
+        // primary contact from the study
         const [conciergeName, conciergeEmail] = (primaryContact)? [`${primaryContact?.firstName || ""} ${primaryContact?.lastName || ''}`, primaryContact?.email || ""] :
             ["",""];
-
-        // Study doesn't have a primary contact, so look for the primary contact in the program instead
-        if (programs.length > 0 && primaryContact === null) {
+        // isProgramPrimaryContact determines if the program's primary contact should be used.
+        if (isProgramPrimaryContact && programs?.length > 0) {
             const [conciergeID, programConciergeName,  programConciergeEmail] = [programs[0]?.conciergeID || "", programs[0]?.conciergeName || "", programs[0]?.conciergeEmail || ""];
-            if (programConciergeName !== "" && programConciergeEmail !== "" && conciergeID !== "") {
-                return [programConciergeName, programConciergeEmail];
-            }
+            const isValidProgramConcierge = programConciergeName !== "" && programConciergeEmail !== "" && conciergeID !== "";
+            return [isValidProgramConcierge ? programConciergeName : "", isValidProgramConcierge ? programConciergeEmail : ""];
+        // no primary contact assigned for the program.
+        } else if (isProgramPrimaryContact) {
+            return ["", ""]
         }
         return [conciergeName, conciergeEmail];
     }

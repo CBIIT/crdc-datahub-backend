@@ -191,6 +191,7 @@ const ERROR = {
     INVALID_NOTIFICATION_NAME: "Invalid email notification is requested: $item$",
     INVALID_PRIMARY_CONTACT: "No primary contact found with the primary contact ID",
     INVALID_PRIMARY_CONTACT_ROLE: "The user role for a primary contact must be Data Commons Personnel",
+    INVALID_PRIMARY_CONTACT_ATTEMPT: "Please, do not provide the primaryContactID when the useProgramPC is true.",
     UPLOADING_BATCH_CRASHED: "CLI stopped responding while uploading data files.",
 }
 
