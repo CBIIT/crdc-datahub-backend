@@ -197,6 +197,7 @@ const ERROR = {
     FAILED_TO_DOWNLOAD_ZIPPED_METADATA: "Failed to download zipped metadata files.",
     NO_METADATA_FILES_DOWNLOADED: "Failed to downloaded batch metadata files.",
     FAILED_TO_ZIP_METADATA_FILES: "Failed to zipped metadata files.",
+    FAILED_GET_METADATA_FILE: "Download Failed: There was an issue with the download.",
 }
 
 module.exports = ERROR;

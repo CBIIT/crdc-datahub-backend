@@ -1637,20 +1637,26 @@ class Submission {
     async getMetadataFile(params, context) {
         verifySession(context)
             .verifyInitialized()
-            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
+            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
         const {
             batchID: batchID,
             fileName: fileName
         } = params;
+        // verify batchID and batch status
         const aBatch = await this.batchService.findByID(batchID);
         if (!aBatch) {
             throw new Error(ERROR.BATCH_NOT_EXIST);
         }
-        if (aBatch?.status !== BATCH.STATUSES.UPLOADED) {
+        if (aBatch?.status === BATCH.STATUSES.FAILED) {
             throw new Error(ERROR.BATCH_NOT_UPLOADED);
         }
 
-        return await this.batchService.getMetadataFile(aBatch, fileName);
+        try{
+            return await this.batchService.getMetadataFile(aBatch, fileName);
+        }
+        catch (e) {
+            throw new Error(ERROR.FAILED_GET_METADATA_FILE);
+        }
     }    
 }
 

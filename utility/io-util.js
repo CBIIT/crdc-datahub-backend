@@ -51,12 +51,22 @@ async function zipFilesInDir(dirPath, zipFilePath) {
     archive.directory(dirPath, false);
     await archive.finalize();
 }
+/**
+ * makeDir
+ * @param {*} dirPath 
+ */
+function makeDir(dirPath) {
+    if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+    }
+}
 
 module.exports = {
     readFile2Text,
     write2file, 
     writeObject2JsonFile,
     readJsonFile2Object,
-    zipFilesInDir
+    zipFilesInDir,
+    makeDir
 }
 
