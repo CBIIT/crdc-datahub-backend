@@ -66,7 +66,7 @@ class ApprovedStudiesService {
           .verifyInitialized()
           .verifyPermission(ADMIN.MANAGE_STUDIES)
 
-        return getDataCommonsDisplayNamesForApprovedStudy(this.getApprovedStudy(params));
+        return getDataCommonsDisplayNamesForApprovedStudy(await this.getApprovedStudy(params));
     }
 
 

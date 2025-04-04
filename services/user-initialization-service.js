@@ -15,7 +15,7 @@ class UserInitializationService {
     }
 
     async getMyUser(params, context){
-        return getDataCommonsDisplayNamesForUser(this.initializeUser(context?.userInfo));
+        return getDataCommonsDisplayNamesForUser(await this.initializeUser(context?.userInfo));
     }
 
     async initializeUser(userInfo) {
