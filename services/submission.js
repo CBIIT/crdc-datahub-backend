@@ -29,7 +29,9 @@ const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo
 const {EMAIL_NOTIFICATIONS: EN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
-const {getDataCommonsDisplayNamesForSubmission, getDataCommonsDisplayNamesForListSubmissions} = require("../utility/data-commons-remapper");
+const {getDataCommonsDisplayNamesForSubmission, getDataCommonsDisplayNamesForListSubmissions,
+    getDataCommonsDisplayNamesForUser
+} = require("../utility/data-commons-remapper");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -126,13 +128,13 @@ class Submission {
         if (approvedStudy?.primaryContactID) {
             approvedStudy.primaryContact = await this.userService.getUserByID(approvedStudy.primaryContactID)
         }
-        const newSubmission = DataSubmission.createSubmission(
-            params.name, context.userInfo, params.dataCommons, params.studyID, approvedStudy?.dbGaPID, program, modelVersion, intention, dataType, approvedStudy, this.submissionBucketName);
+        const newSubmission = getDataCommonsDisplayNamesForSubmission(DataSubmission.createSubmission(
+            params.name, context.userInfo, params.dataCommons, params.studyID, approvedStudy?.dbGaPID, program, modelVersion, intention, dataType, approvedStudy, this.submissionBucketName));
         const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
         }
-        return getDataCommonsDisplayNamesForSubmission(newSubmission);
+        return newSubmission;
     }
     async #findApprovedStudies(studies) {
         if (!studies || studies.length === 0) return [];
@@ -423,6 +425,7 @@ class Submission {
             updatedAt: getCurrentTime(),
             reviewComment: submission?.reviewComment || []
         }
+        submission = getDataCommonsDisplayNamesForSubmission(submission);
         const updated = await this.submissionCollection.update(submission);
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
             throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
@@ -447,7 +450,7 @@ class Submission {
             submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService, this.emailParams),
             this.#archiveCancelSubmission(action, submissionID, submission?.bucketName, submission?.rootPath)
         ].concat(completePromise));
-        return getDataCommonsDisplayNamesForSubmission(submission);
+        return submission;
     }
 
     async #archiveCancelSubmission(action, submissionID, bucketName, rootPath) {
@@ -1059,10 +1062,11 @@ class Submission {
         }
         // if passed validation
         aSubmission.collaborators = collaborators;  
-        aSubmission.updatedAt = new Date(); 
-        const result = await this.submissionCollection.update(aSubmission);
+        aSubmission.updatedAt = new Date();
+        let submission = getDataCommonsDisplayNamesForSubmission(aSubmission);
+        const result = await this.submissionCollection.update(submission);
         if (result?.modifiedCount === 1) {
-            return getDataCommonsDisplayNamesForSubmission(aSubmission);
+            return submission;
         }
         else
             throw new Error(ERROR.FAILED_ADD_SUBMISSION_COLLABORATOR);
@@ -1359,7 +1363,10 @@ class Submission {
         }
         this.#verifySubmissionCreator(context?.userInfo, aSubmission);
         // find Collaborators with aSubmission.studyID
-        return await this.userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
+        let collaborators = await this.userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
+        return collaborators.map((user) => {
+           return getDataCommonsDisplayNamesForUser(user);
+        });
     }
 
     /**

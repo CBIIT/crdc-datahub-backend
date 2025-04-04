@@ -18,6 +18,7 @@ const {
     DATA_SUBMISSION,
     EMAIL_NOTIFICATIONS: EN, EMAIL_NOTIFICATIONS,
 } = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+const {getDataCommonsDisplayNamesForUser} = require("../utility/data-commons-remapper");
 
 const isLoggedInOrThrow = (context) => {
     if (!context?.userInfo?.email || !context?.userInfo?.IDP) throw new Error(SUBMODULE_ERROR.NOT_LOGGED_IN);
@@ -233,10 +234,10 @@ class UserService {
         if (result?.length === 1) {
             const user = result[0];
             const studies = await this.#findApprovedStudies(user?.studies);
-            return {
+            return getDataCommonsDisplayNamesForUser({
                 ...user,
                 studies
-            };
+            });
         } else {
             return null;
         }
@@ -251,9 +252,10 @@ class UserService {
             "$match": {}
         },]);
 
-        for (let user of result) {
+        result.map(async (user) => {
             user.studies = await this.#findApprovedStudies(user?.studies);
-        }
+            return getDataCommonsDisplayNamesForUser(user);
+        });
         return result || [];
     }
 
@@ -414,7 +416,7 @@ class UserService {
             updateAt: sessionCurrentTime,
             studies: userStudies
         }
-        return result;
+        return getDataCommonsDisplayNamesForUser(result);
     }
 
     async editUser(params, context) {
@@ -430,7 +432,7 @@ class UserService {
         if (!user || !Array.isArray(user) || user.length < 1 || user[0]?._id !== params.userID) {
             throw new Error(SUBMODULE_ERROR.USER_NOT_FOUND);
         }
-        const updatedUser = {};
+        let updatedUser = {};
         if (params.role && Object.values(USER.ROLES).includes(params.role)) {
             updatedUser.role = params.role;
         }
@@ -450,7 +452,8 @@ class UserService {
 
         updatedUser.dataCommons = DataCommon.get(user[0]?.dataCommons, params?.dataCommons);
         await this.#setUserPermissions(user[0]?.role, params?.role, params?.permissions, params?.notifications, updatedUser);
-        return await this.updateUserInfo(user[0], updatedUser, params.userID, params.status, params.role, params?.studies);
+        updatedUser  = await this.updateUserInfo(user[0], updatedUser, params.userID, params.status, params.role, params?.studies);
+        return getDataCommonsDisplayNamesForUser(updatedUser);
     }
     async updateUserInfo(prevUser, updatedUser, userID, status, role, approvedStudyIDs) {
         // add studies to user.
