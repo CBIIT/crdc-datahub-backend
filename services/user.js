@@ -475,7 +475,7 @@ class UserService {
             updatedUser.studies = [];
 
         const res = await this.userCollection.findOneAndUpdate({ _id: userID }, {...updatedUser, updateAt: getCurrentTime()}, {returnDocument: 'after'});
-        const userAfterUpdate = res.value;
+        const userAfterUpdate = getDataCommonsDisplayNamesForUser(res.value);
         if (userAfterUpdate) {
             const promiseArray = [
                 await this.#notifyDeactivatedUser(prevUser, status),

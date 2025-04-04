@@ -30,7 +30,7 @@ const {EMAIL_NOTIFICATIONS: EN} = require("../crdc-datahub-database-drivers/cons
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
 const {getDataCommonsDisplayNamesForSubmission, getDataCommonsDisplayNamesForListSubmissions,
-    getDataCommonsDisplayNamesForUser
+    getDataCommonsDisplayNamesForUser, getDataCommonsDisplayNamesForReleasedNode
 } = require("../utility/data-commons-remapper");
 const FILE = "file";
 
@@ -1396,8 +1396,9 @@ class Submission {
         // the results is array of nodes, [new, release]
         if(results && results.length === 2)  
         {
-            
-            return results;
+            return results.map((releasedNode) => {
+               return getDataCommonsDisplayNamesForReleasedNode(releasedNode);
+            });
         }
         else
         {
@@ -1640,6 +1641,7 @@ async function submissionActionNotification(userInfo, action, aSubmission, userS
 
 const sendEmails = {
     submitSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
+        aSubmission = getDataCommonsDisplayNamesForSubmission(aSubmission);
         const [aSubmitter, BCCUsers] = await Promise.all([
             userService.getUserByID(aSubmission?.submitterID),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.SUBMIT],
@@ -1667,6 +1669,7 @@ const sendEmails = {
         }
     },
     completeSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService) => {
+        aSubmission = getDataCommonsDisplayNamesForSubmission(aSubmission);
         const [aSubmitter, BCCUsers, aOrganization, approvedStudy] = await Promise.all([
             userService.getUserByID(aSubmission?.submitterID),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.COMPLETE],
@@ -1694,6 +1697,7 @@ const sendEmails = {
         }
     },
     cancelSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
+        aSubmission = getDataCommonsDisplayNamesForSubmission(aSubmission);
         const [aSubmitter, BCCUsers, aOrganization, approvedStudy] = await Promise.all([
             userService.getUserByID(aSubmission?.submitterID),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.CANCEL],
@@ -1724,6 +1728,7 @@ const sendEmails = {
         }
     },
     withdrawSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService) => {
+        aSubmission = getDataCommonsDisplayNamesForSubmission(aSubmission);
         const [DCPRoleUsers, BCCUsers, approvedStudy] = await Promise.all([
             userService.getDCPs(aSubmission?.dataCommons),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.WITHDRAW],
@@ -1752,6 +1757,7 @@ const sendEmails = {
         });
     },
     releaseSubmission: async (emailParams, userInfo, aSubmission, userService, organizationService, notificationsService) => {
+        aSubmission = getDataCommonsDisplayNamesForSubmission(aSubmission);
         const [DCPRoleUsers, BCCUsers, approvedStudy] = await Promise.all([
             userService.getDCPs(aSubmission?.dataCommons),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.RELEASE],
@@ -1783,6 +1789,7 @@ const sendEmails = {
         })
     },
     rejectSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
+        aSubmission = getDataCommonsDisplayNamesForSubmission(aSubmission);
         const [aSubmitter, BCCUsers, aOrganization] = await Promise.all([
             userService.getUserByID(aSubmission?.submitterID),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.REJECT],
@@ -1811,6 +1818,7 @@ const sendEmails = {
         }
     },
     remindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService, expiredDays, pastDays) => {
+        aSubmission = getDataCommonsDisplayNamesForSubmission(aSubmission);
         const [aSubmitter, BCCUsers, approvedStudy] = await Promise.all([
             userService.getUserByID(aSubmission?.submitterID),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.REMIND_EXPIRE],
@@ -1840,6 +1848,7 @@ const sendEmails = {
         }
     },
     finalRemindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService) => {
+        aSubmission = getDataCommonsDisplayNamesForSubmission(aSubmission);
         const [aSubmitter, BCCUsers, approvedStudy] = await Promise.all([
             userService.getUserByID(aSubmission?.submitterID),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.REMIND_EXPIRE],
