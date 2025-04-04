@@ -62,3 +62,27 @@ Commands:
             $addToSet: { notifications: "institution:manage" }
           }
       );
+  - Set useProgramPC to approvedStudies for CRDCDH-2481:  |
+      db.approvedStudies.updateMany(
+          {},
+          [
+              {
+                  $set: {
+                      useProgramPC: {
+                          $cond: {
+                              if: {
+                                  $or: [
+                                      { $eq: ["$primaryContactID", null] },
+                                      { $not: ["$primaryContactID"] }
+                                  ]
+                              },
+                              then: true,
+                              else: false
+                          }
+                      }
+                  }
+              }
+          ]
+      );
+        
+

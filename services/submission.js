@@ -281,6 +281,19 @@ class Submission {
             if (aBatch.type === VALIDATION.TYPES.DATA_FILE) {
                 // remove uploading batch from the uploading batch pool if uploading is completed or failed
                 this.uploadingMonitor.removeUploadingBatch(aBatch._id);
+                // check files if any success == false and error contains 'File uploading is interrupted.'
+                if (params?.files?.some((file) => file?.succeeded === false && file?.errors?.includes(ERROR.UPLOADING_BATCH_INTERRUPTED))) {
+                    // update the batch status to failed
+                    await this.uploadingMonitor.setUploadingFailed(aBatch._id, BATCH.STATUSES.FAILED, ERROR.UPLOADING_BATCH_INTERRUPTED, true);
+                    return {
+                        _id: aBatch._id,
+                        submissionID: aBatch.submissionID,
+                        type: aBatch.type,
+                        fileCount: aBatch.fileCount,
+                        status: BATCH.STATUSES.FAILED,
+                        updatedAt: getCurrentTime(),
+                    }
+                }
             }
         }
         if (![BATCH.STATUSES.UPLOADING].includes(aBatch?.status)) {
@@ -577,6 +590,7 @@ class Submission {
                 }
             }
         }
+       
     }
 
     async #getInactiveSubmissions(inactiveDays, inactiveFlagField) {
@@ -1469,12 +1483,23 @@ class Submission {
         }
     }
 
-    async verifySubmitter(submissionID, userInfo) {
+    async verifyTempCredential(submissionID, userInfo) {
         const aSubmission = await findByID(this.submissionCollection, submissionID);
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
-        this.#verifySubmissionCreator(userInfo, aSubmission);
+        if(!aSubmission.rootPath)
+            throw new Error(`${ERROR.VERIFY.EMPTY_ROOT_PATH}, ${submissionID}!`);
+
+        const submitterCollaborator = (aSubmission?.collaborators || []).map(u => u.collaboratorID);
+        const isCollaborator = submitterCollaborator.includes(userInfo?._id);
+
+        const createPermission = userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE) &&
+            aSubmission.submitterID === userInfo?._id;
+        if (!createPermission && !isCollaborator) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+        return aSubmission;
     }
     // Only owned submission and create permission.
     #verifySubmissionCreator(userInfo, aSubmission) {
@@ -1627,6 +1652,36 @@ class Submission {
         })();
     }
 
+    /**
+     * API: getMetadataFile
+     * @param {*} params 
+     * @param {*} context 
+     * @returns string
+     */
+    async getMetadataFile(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
+        const {
+            batchID: batchID,
+            fileName: fileName
+        } = params;
+        // verify batchID and batch status
+        const aBatch = await this.batchService.findByID(batchID);
+        if (!aBatch) {
+            throw new Error(ERROR.BATCH_NOT_EXIST);
+        }
+        if (aBatch?.status === BATCH.STATUSES.FAILED) {
+            throw new Error(ERROR.BATCH_NOT_UPLOADED);
+        }
+
+        try{
+            return await this.batchService.getMetadataFile(aBatch, fileName);
+        }
+        catch (e) {
+            throw new Error(ERROR.FAILED_GET_METADATA_FILE);
+        }
+    }    
 }
 
 const updateSubmissionStatus = async (submissionCollection, aSubmission, userInfo, newStatus) => {
@@ -1807,7 +1862,7 @@ const sendEmails = {
             userService.approvedStudiesCollection.find(aSubmission?.studyID)
         ]);
         const filteredDCPUsers = DCPRoleUsers.filter((u) =>
-            u?.notifications?.includes(EN.DATA_SUBMISSION.WITHDRAW) &&
+            u?.notifications?.includes(EN.DATA_SUBMISSION.RELEASE) &&
             isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
 
         if (filteredDCPUsers.length === 0) {
@@ -1818,7 +1873,9 @@ const sendEmails = {
             [SUBMISSION_ID, aSubmission?._id],
             [DATA_SUBMISSION_TYPE, aSubmission?.intention],
             [DESTINATION_LOCATION, `${aSubmission?.bucketName} at ${aSubmission?.rootPath}`]];
-        await notificationsService.releaseDataSubmissionNotification(getUserEmails(filteredDCPUsers), getUserEmails(BCCUsers), {
+
+        const filteredBCCUsers = BCCUsers.filter((u) => isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
+        await notificationsService.releaseDataSubmissionNotification(getUserEmails(filteredDCPUsers), getUserEmails(filteredBCCUsers), {
             firstName: `${aSubmission?.dataCommons} team`,
             additionalInfo: additionalInfo}, {
             dataCommonName: aSubmission?.dataCommons}, {
