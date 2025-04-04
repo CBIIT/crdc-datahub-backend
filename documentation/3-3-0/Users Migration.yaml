@@ -53,6 +53,17 @@ Commands:
               $set: { "dataFileSize": { formatted: "0", size: 0 } }
           }
       );
+  - Set all institutions to include status(Active/Inactive), createdAt, updatedAt within the institution document for CRDCDH-2484:  |
+      db.institutions.updateMany(
+        {},
+        {
+          $set: {
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              status: "Active"
+          }
+        }
+      )
   - Add the missing manage institution permission to admin user CRDCDH-2488: |
       db.users.updateMany(
           {
@@ -84,5 +95,3 @@ Commands:
               }
           ]
       );
-        
-
