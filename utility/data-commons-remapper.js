@@ -92,6 +92,16 @@ function getDataCommonsDisplayNamesForUserOrganization(userOrganization){
     return userOrganization;
 }
 
+function getDataCommonsDisplayNamesForReleasedNode(releasedNode){
+    if (!releasedNode){
+        return null;
+    }
+    if (releasedNode.dataCommons){
+        releasedNode.dataCommonsDisplayNames = genericGetDataCommonsDisplayNames(releasedNode.dataCommons, getDataCommonsDisplayName);
+    }
+    return releasedNode;
+}
+
 module.exports = {
     getDataCommonsDisplayName,
     genericGetDataCommonsDisplayNames,
@@ -100,5 +110,6 @@ module.exports = {
     getDataCommonsDisplayNamesForUser,
     getDataCommonsDisplayNamesForApprovedStudy,
     getDataCommonsDisplayNamesForApprovedStudyList,
-    getDataCommonsDisplayNamesForUserOrganization
+    getDataCommonsDisplayNamesForUserOrganization,
+    getDataCommonsDisplayNamesForReleasedNode
 }
