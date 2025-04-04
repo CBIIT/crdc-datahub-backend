@@ -20,7 +20,7 @@ class ConfigurationService {
      */
     async getPBACDefaults(params, context){
         verifySession(context)
-            .verifyInitialized()
+            .verifyInitialized();
 
         return await this.getPBACByRoles(params.roles);
     }
