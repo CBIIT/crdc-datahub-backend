@@ -192,6 +192,12 @@ const ERROR = {
     INVALID_PRIMARY_CONTACT: "No primary contact found with the primary contact ID",
     INVALID_PRIMARY_CONTACT_ROLE: "The user role for a primary contact must be Data Commons Personnel",
     UPLOADING_BATCH_CRASHED: "CLI stopped responding while uploading data files.",
+    FILE_NOT_EXIST: "The File requested does not exist.",
+    BATCH_NOT_UPLOADED: "No metadata files are uploaded.",
+    FAILED_TO_DOWNLOAD_ZIPPED_METADATA: "Failed to download zipped metadata files.",
+    NO_METADATA_FILES_DOWNLOADED: "Failed to downloaded batch metadata files.",
+    FAILED_TO_ZIP_METADATA_FILES: "Failed to zipped metadata files.",
+    FAILED_GET_METADATA_FILE: "Download Failed: There was an issue with the download.",
 }
 
 module.exports = ERROR;

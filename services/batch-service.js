@@ -10,6 +10,10 @@ const {replaceErrorString} = require("../utility/string-util");
 const {writeObject2JsonFile, readJsonFile2Object} = require("../utility/io-util");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
+const fs = require('fs');
+const path = require('path');
+const {makeDir, zipFilesInDir} = require("../utility/io-util");
+
 const LOAD_METADATA = "Load Metadata";
 const OMIT_DCF_PREFIX = 'omit-DCF-prefix';
 
@@ -174,6 +178,65 @@ class BatchService {
         const batches = await this.batchCollection.aggregate(pipeline);
         return (batches && batches.length > 0)? batches[0].batchID : null;
     }
+    /**
+     * getMetadataFile
+     * @param {*} params 
+     * @param {*} context 
+     * @returns string
+     */ 
+    async getMetadataFile(aBatch, fileName) {
+        if(fileName){
+            const file = aBatch?.files?.find(f=>f.fileName === fileName && f.status === FILE.UPLOAD_STATUSES.UPLOADED);
+            if(!file){
+                throw new Error(ERROR.FILE_NOT_EXIST);
+            }
+            return await this.s3Service.createDownloadSignedURL(aBatch?.bucketName, aBatch?.filePrefix, fileName) ;
+        }
+        // if no fileName, return all files in the batch as zip file
+        let zipFileName = aBatch?.zipFileName;
+        if(!zipFileName || zipFileName?.trim()?.length === 0){
+            const tempFolder = `logs/${aBatch._id}`;
+            const download_dir = path.join(tempFolder, "metadata_files");
+            try{
+                // create the temp folder if not existing
+                [tempFolder, download_dir].forEach((dir) => {
+                    makeDir(dir);
+                });
+                // download all metadata files to temp folder
+                const downloadResults = await Promise.allSettled(aBatch.files.map(async (file) => {
+                        // download file to temp folder from s3 with bucket, prefix, filename
+                    const filePath = path.join(download_dir, file.fileName);
+                    await this.s3Service.downloadFile(aBatch.bucketName, aBatch.filePrefix, file.fileName, filePath);
+                }));
+                // Check for any rejected promises
+                const failedDownloads = downloadResults.filter(result => result.status === 'rejected');
+                if (failedDownloads.length > 0) {
+                    throw new Error(ERROR.NO_METADATA_FILES_DOWNLOADED);
+                }
+                //zip all downloaded files
+                zipFileName = `${aBatch._id}.zip`;
+                const zipFilePath = path.join(tempFolder, zipFileName);
+                await zipFilesInDir(download_dir, zipFilePath);
+                //check if zip file already exists
+                if (!fs.existsSync(zipFilePath)) {
+                    throw new Error(ERROR.FAILED_TO_ZIP_METADATA_FILES);
+                }
+                //upload the zip file to s3 bucket based on batch.bucketName and batch.prefix
+                await this.s3Service.uploadZipFile(aBatch.bucketName, aBatch.filePrefix, zipFileName, zipFilePath);
+
+                //update aBatch with zipFileName if uploaded zip file without exception
+                this.batchCollection.update({"_id": aBatch._id}, {"$set": {"zipFileName": zipFileName, "updatedAt": getCurrentTime()}});        
+            }
+            finally{
+                //delete the temp folder
+                if (fs.existsSync(tempFolder)) {
+                    fs.rmSync(tempFolder, { recursive: true, force: true });
+                }
+            }
+        }
+        //return presigned download url
+        return await this.s3Service.createDownloadSignedURL(aBatch.bucketName, aBatch.filePrefix, zipFileName);  
+    }
 }
 const listBatchConditions = (userID, collaboratorUserIDs, userRole, aUserOrganization, submissionID, userDataCommonsNames) => {
     const submissionJoin = [
@@ -289,7 +352,7 @@ class UploadingMonitor {
                 }
                 finally {
                     // remove failed batch from the pool
-                    this.removeUploadingBatch(batchID);
+                    // this.removeUploadingBatch(batchID);
                 } 
             }
         }
