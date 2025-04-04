@@ -250,6 +250,7 @@ type User {
   studies: [ApprovedStudy]
   permissions: [String]
   notifications: [String]
+  institution: Institution
 }
 
 type UserInfo {

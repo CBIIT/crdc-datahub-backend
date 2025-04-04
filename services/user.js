@@ -206,9 +206,11 @@ class UserService {
         if (result?.length === 1) {
             const user = result[0];
             const studies = await this.#findApprovedStudies(user?.studies);
+            const institution = user?.role === ROLES.SUBMITTER && user?.institution?._id ? user.institution : null;
             return {
                 ...user,
-                studies
+                studies,
+                institution
             };
         } else {
             return null;
