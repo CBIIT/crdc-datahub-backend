@@ -57,6 +57,19 @@ class ConfigurationService {
             notifications: UserAccessControl.get(usersPermissions[0]?.notifications)
         };
     }
+
+    async  retrieveCLIUploaderVersion(params, context) {
+        verifySession(context)
+            .verifyInitialized();
+        return await this.getCurrentCLIUploaderVersion();
+    }
+
+    async getCurrentCLIUploaderVersion() {
+        const result = await this.configurationCollection.aggregate([{
+            "$match": { "type": "CLI_UPLOADER_VERSION" }
+        }, {"$limit": 1}]);
+        return (result?.length === 1) ? result[0]?.keys?.current_version : null;
+    }
 }
 
 class UserAccessControl {

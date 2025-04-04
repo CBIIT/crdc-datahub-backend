@@ -180,6 +180,7 @@ dbConnector.connect().then(async () => {
         editSubmissionCollaborators: submissionService.editSubmissionCollaborators.bind(submissionService),
         requestAccess: userService.requestAccess.bind(userService), 
         retrievePBACDefaults: configurationService.getPBACDefaults.bind(configurationService),
+        retrieveCLIUploaderVersion: configurationService.retrieveCLIUploaderVersion.bind(configurationService),
     };
 });
 
