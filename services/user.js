@@ -18,6 +18,7 @@ const {
     DATA_SUBMISSION,
     EMAIL_NOTIFICATIONS: EN
 } = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+const {COMPLETED} = require("../constants/submission-constants");
 
 const isLoggedInOrThrow = (context) => {
     if (!context?.userInfo?.email || !context?.userInfo?.IDP) throw new Error(SUBMODULE_ERROR.NOT_LOGGED_IN);
@@ -384,7 +385,8 @@ class UserService {
             const promiseArray = [
                 await this.#notifyDeactivatedUser(prevUser, status),
                 await this.#notifyUpdatedUser(prevUser, userAfterUpdate, role),
-                await this.#logAfterUserEdit(prevUser, userAfterUpdate)
+                await this.#logAfterUserEdit(prevUser, userAfterUpdate),
+                await this.#removePrimaryContact(prevUser, userAfterUpdate)
             ];
             await Promise.all(promiseArray);
         } else {
@@ -687,6 +689,40 @@ class UserService {
                 ...(roles?.length > 0 && { "role": { "$in": roles } })
             }
         }]);
+    }
+
+    // user's role changed to anything other than Data Commons Personnel, they should be removed from any study/program's primary contact.
+    async #removePrimaryContact(prevUser, newUser) {
+        const isRoleChange = prevUser.role === ROLES.DATA_COMMONS_PERSONNEL && prevUser.role !== newUser.role;
+        if (isRoleChange) {
+            // note: Search primaryContactName in this order, since that's how it's stored.
+            const primaryContactName = `${prevUser.firstName} ${prevUser.lastName}`.trim();
+            const [updatedSubmission, updateProgram, updatedStudies] = await Promise.all([
+                this.submissionsCollection.updateMany(
+                    { conciergeName: primaryContactName, conciergeEmail: prevUser?.email, status: {$ne: COMPLETED} },
+                    { conciergeName: "", conciergeEmail: "", updatedAt: getCurrentTime() }
+                ),
+                this.organizationCollection.updateMany(
+                    { conciergeID: prevUser?._id },
+                    { conciergeID: "", conciergeName: "", conciergeEmail: "", updateAt: getCurrentTime() }
+                ),
+                this.approvedStudiesCollection.updateMany(
+                    { primaryContactID: prevUser?._id },
+                    { primaryContactID: null, updatedAt: getCurrentTime() }
+                )
+            ]);
+            if (!updatedSubmission.acknowledged) {
+                console.error("Failed to remove the primary contact in submissions");
+            }
+
+            if (!updateProgram.acknowledged) {
+                console.error("Failed to remove the primary contact in programs");
+            }
+
+            if (!updatedStudies.acknowledged) {
+                console.error("Failed to remove the primary contact in studies");
+            }
+        }
     }
 }
 
