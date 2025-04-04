@@ -835,6 +835,7 @@ type Mutation {
         role: String!
         studies: [String]!, # Approved Studies IDs
         additionalInfo: String,
+        institutionName: String
     ): AsyncProcessResult
 
     updateSubmissionModelVersion(_id: String!, version: String!): Submission

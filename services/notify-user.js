@@ -14,6 +14,7 @@ const ACCOUNT_TYPE = "Account Type";
 const ACCOUNT_EMAIL = "Account Email";
 const REQUESTED_ROLE = "Requested Role";
 const ADDITIONAL_INFO = "Additional Info";
+const AFFILIATED_INSTITUTION = "Affiliated Institution";
 class NotifyUser {
 
     constructor(emailService, tier) {
@@ -472,8 +473,9 @@ class NotifyUser {
             [ACCOUNT_TYPE, templateParams.accountType?.toUpperCase()],
             [ACCOUNT_EMAIL, templateParams.email],
             ...(templateParams.role) ? [[REQUESTED_ROLE, templateParams.role]] : [],
+            ...(templateParams.institutionName) ? [[AFFILIATED_INSTITUTION, templateParams.institutionName]] : [],
             ...(templateParams.studies) ? [[STUDIES, templateParams.studies]] : [],
-            ...(sanitizedAdditionalInfo) ? [[ADDITIONAL_INFO, sanitizedAdditionalInfo]] : []
+            ...(sanitizedAdditionalInfo) ? [[ADDITIONAL_INFO, sanitizedAdditionalInfo]] : [],
         ];
         return await this.send(async () => {
             return await this.emailService.sendNotification(

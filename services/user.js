@@ -85,8 +85,9 @@ class UserService {
                 email: userInfo?.email,
                 role: params?.role,
                 studies: approvedStudies?.map((study)=> study?.studyName),
-                additionalInfo: params?.additionalInfo?.trim()
-            });
+                additionalInfo: params?.additionalInfo?.trim(),
+                institutionName : params?.institutionName?.trim()
+        });
 
         if (res?.accepted?.length > 0) {
             return ValidationHandler.success()
