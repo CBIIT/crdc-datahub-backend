@@ -193,6 +193,8 @@ const ERROR = {
     INVALID_PRIMARY_CONTACT_ROLE: "The user role for a primary contact must be Data Commons Personnel",
     INVALID_PRIMARY_CONTACT_ATTEMPT: "Please, do not provide the primaryContactID when the useProgramPC is true.",
     UPLOADING_BATCH_CRASHED: "CLI stopped responding while uploading data files.",
+    UPLOADING_BATCH_INTERRUPTED: 'File uploading is interrupted.',
+    FAILED_UPDATE_BATCH_STATUS: "Failed to update the batch status.",
     FILE_NOT_EXIST: "The File requested does not exist.",
     BATCH_NOT_UPLOADED: "No metadata files are uploaded.",
     FAILED_TO_DOWNLOAD_ZIPPED_METADATA: "Failed to download zipped metadata files.",
