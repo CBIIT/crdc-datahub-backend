@@ -64,3 +64,34 @@ Commands:
           }
         }
       )
+  - Add the missing manage institution permission to admin user CRDCDH-2488: |
+      db.users.updateMany(
+          {
+            role: "Admin",
+          },
+          {
+            $addToSet: { notifications: "institution:manage" }
+          }
+      );
+  - Set useProgramPC to approvedStudies for CRDCDH-2481:  |
+      db.approvedStudies.updateMany(
+          {},
+          [
+              {
+                  $set: {
+                      useProgramPC: {
+                          $cond: {
+                              if: {
+                                  $or: [
+                                      { $eq: ["$primaryContactID", null] },
+                                      { $not: ["$primaryContactID"] }
+                                  ]
+                              },
+                              then: true,
+                              else: false
+                          }
+                      }
+                  }
+              }
+          ]
+      );
