@@ -179,8 +179,12 @@ dbConnector.connect().then(async () => {
         getDashboardURL: dashboardService.getDashboardURL.bind(dashboardService),
         retrieveCDEs: cdeService.getCDEs.bind(cdeService),
         editSubmissionCollaborators: submissionService.editSubmissionCollaborators.bind(submissionService),
-        requestAccess: userService.requestAccess.bind(userService), 
+        requestAccess: (params, context)=> {
+            const institutionName = sanitizeHtml(params?.institutionName, {allowedTags: [],allowedAttributes: {}});
+            return userService.requestAccess({...params, institutionName}, context);
+        },
         retrievePBACDefaults: configurationService.getPBACDefaults.bind(configurationService),
+        downloadMetadataFile: submissionService.getMetadataFile.bind(submissionService)
     };
 });
 

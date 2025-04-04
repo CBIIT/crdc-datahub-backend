@@ -111,7 +111,7 @@
             "_id": "user:manage",
             "group": "Admin Permissions",
             "name": "Manage User",
-            "order": 3,
+            "order": 4,
             "checked": false,
             "disabled": false
           },
@@ -132,10 +132,18 @@
             "disabled": false
           },
           {
+            "_id": "institution:manage",
+            "group": "Admin Permissions",
+            "name": "Manage Institutions",
+            "order": 3,
+            "checked": false,
+            "disabled": false
+          },
+          {
             "_id": "dashboard:view",
             "group": "Admin Permissions",
             "name": "View Operation Dashboard",
-            "order": 4,
+            "order": 5,
             "checked": true,
             "disabled": false
           }
@@ -403,7 +411,7 @@
             "_id": "user:manage",
             "group": "Admin Permissions",
             "name": "Manage User",
-            "order": 3,
+            "order": 4,
             "checked": false,
             "disabled": true
           },
@@ -424,10 +432,18 @@
             "disabled": false
           },
           {
+            "_id": "institution:manage",
+            "group": "Admin Permissions",
+            "name": "Manage Institutions",
+            "order": 3,
+            "checked": false,
+            "disabled": false
+          },
+          {
             "_id": "dashboard:view",
             "group": "Admin Permissions",
             "name": "View Operation Dashboard",
-            "order": 4,
+            "order": 5,
             "checked": true,
             "disabled": false
           }
@@ -695,7 +711,7 @@
             "_id": "user:manage",
             "group": "Admin Permissions",
             "name": "Manage User",
-            "order": 3,
+            "order": 4,
             "checked": true,
             "disabled": false
           },
@@ -716,10 +732,18 @@
             "disabled": false
           },
           {
+            "_id": "institution:manage",
+            "group": "Admin Permissions",
+            "name": "Manage Institutions",
+            "order": 3,
+            "checked": true,
+            "disabled": false
+          },
+          {
             "_id": "dashboard:view",
             "group": "Admin Permissions",
             "name": "View Operation Dashboard",
-            "order": 4,
+            "order": 5,
             "checked": true,
             "disabled": false
           }
@@ -987,7 +1011,7 @@
             "_id": "user:manage",
             "group": "Admin Permissions",
             "name": "Manage User",
-            "order": 3,
+            "order": 4,
             "checked": false,
             "disabled": true
           },
@@ -1008,10 +1032,18 @@
             "disabled": true
           },
           {
+            "_id": "institution:manage",
+            "group": "Admin Permissions",
+            "name": "Manage Institutions",
+            "order": 3,
+            "checked": false,
+            "disabled": true
+          },
+          {
             "_id": "dashboard:view",
             "group": "Admin Permissions",
             "name": "View Operation Dashboard",
-            "order": 4,
+            "order": 5,
             "checked": false,
             "disabled": true
           }
@@ -1279,7 +1311,7 @@
             "_id": "user:manage",
             "group": "Admin Permissions",
             "name": "Manage User",
-            "order": 3,
+            "order": 4,
             "checked": false,
             "disabled": true
           },
@@ -1300,10 +1332,18 @@
             "disabled": true
           },
           {
+            "_id": "institution:manage",
+            "group": "Admin Permissions",
+            "name": "Manage Institutions",
+            "order": 3,
+            "checked": false,
+            "disabled": true
+          },
+          {
             "_id": "dashboard:view",
             "group": "Admin Permissions",
             "name": "View Operation Dashboard",
-            "order": 4,
+            "order": 5,
             "checked": false,
             "disabled": true
           }
