@@ -1,6 +1,7 @@
 const {verifySession} = require("../verifier/user-info-verifier");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
-PBAC_CONFIG_TYPE = "PBAC";
+const PBAC_CONFIG_TYPE = "PBAC";
+const CLI_UPLOADER_VERSION = "CLI_UPLOADER_VERSION";
 class ConfigurationService {
     constructor(configurationCollection) {
         this.configurationCollection = configurationCollection;
@@ -66,9 +67,9 @@ class ConfigurationService {
 
     async getCurrentCLIUploaderVersion() {
         const result = await this.configurationCollection.aggregate([{
-            "$match": { "type": "CLI_UPLOADER_VERSION" }
+            "$match": { "type": CLI_UPLOADER_VERSION }
         }, {"$limit": 1}]);
-        return (result?.length === 1) ? result[0]?.keys?.current_version : null;
+        return (result?.length === 1) ? result[0]?.current_version : null;
     }
 }
 
