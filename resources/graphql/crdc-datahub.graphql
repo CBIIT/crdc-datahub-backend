@@ -81,6 +81,12 @@ type ListSubmissions {
     organizations: [Organization]
 }
 
+type ListInstitutions {
+    total: Int
+    institutions: [Institution]
+}
+
+
 type Submission {
     _id: ID # aka. submissionID
     name: String
@@ -221,6 +227,7 @@ type ApprovedStudy {
     createdAt: Date
     programs: [UserOrganization] #retrieve dynamically by studyID
     primaryContact: User
+    useProgramPC: Boolean
 }
 
 type ApprovedStudyList {
@@ -243,6 +250,7 @@ type User {
   studies: [ApprovedStudy]
   permissions: [String]
   notifications: [String]
+  institution: Institution
 }
 
 type UserInfo {
@@ -468,9 +476,11 @@ type NodeDetail_Result {
     children: [Related_Node] # array of Related node contains nodeType and counts
 }
 
-type institution {
+type Institution {
     _id: ID,
     name: String
+    status: String, # Active / Inactive
+    submitterCount: Int
 }
 
 type Dashboard {
@@ -696,7 +706,14 @@ type Query {
         manifest: String = "/Users/my_name/my_manifest.tsv"
     ): String
 
-    listInstitutions: [String]
+    listInstitutions(
+        first: Int = 10,
+        offset: Int = 0,
+        orderBy: String = "name",
+        sortDirection: String = "ASC"
+        status: String,
+        name: String
+    ): ListInstitutions
 
     getNodeDetail(
         submissionID: String!, # submissionID in dataRecords collection
@@ -731,6 +748,8 @@ type Query {
     retrieveFileNodeConfig(submissionID: String!) : DataFileConfig
 
     retrieveReleasedDataByID(submissionID: String!, nodeType: String!, nodeID: String!, status: String = "Released") : [Released_Node]
+
+    downloadMetadataFile(batchID: String!, fileName: String):String # download metadata file from S3 with presigned URL
 
     retrieveCLIUploaderVersion: String
 }
@@ -799,6 +818,7 @@ type Mutation {
       role: String,
       dataCommons: [String], # Applies to Data Commons POC role only. Empty for other roles.
       studies: [String] #approved study IDs optional. It will be saved into user's study list
+      institutionID: String
     ): User
 
     editSubmissionCollaborators (
@@ -826,13 +846,15 @@ type Mutation {
         dbGaPID: String, # required only Controlled
         ORCID: String, #optional in format of 0000-1234-2345-3456
         PI: String #optional 
-        primaryContactID: String #primary contact user ID
+        primaryContactID: String, #primary contact user ID
+        useProgramPC: Boolean!
     ): ApprovedStudy
 
     requestAccess(
         role: String!
         studies: [String]!, # Approved Studies IDs
         additionalInfo: String,
+        institutionName: String
     ): AsyncProcessResult
 
     updateSubmissionModelVersion(_id: String!, version: String!): Submission

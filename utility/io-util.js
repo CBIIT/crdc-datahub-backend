@@ -1,4 +1,5 @@
 const fs = require("fs");
+const archiver = require('archiver');
 
 /**
  * util func: read text file to string
@@ -37,11 +38,35 @@ function readJsonFile2Object(filePath) {
     const json = readFile2Text(filePath);
     return JSON.parse(json);
 }
+/**
+ * zipFilesInDir
+ * @param {*} dirPath 
+ * @param {*} zipFilePath 
+ */
+async function zipFilesInDir(dirPath, zipFilePath) {
+    const output = fs.createWriteStream(zipFilePath);
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    archive.pipe(output);
+    // Add all files in the temp folder to the zip archive
+    archive.directory(dirPath, false);
+    await archive.finalize();
+}
+/**
+ * makeDir
+ * @param {*} dirPath 
+ */
+function makeDir(dirPath) {
+    if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+    }
+}
 
 module.exports = {
     readFile2Text,
     write2file, 
     writeObject2JsonFile,
-    readJsonFile2Object
+    readJsonFile2Object,
+    zipFilesInDir,
+    makeDir
 }
 

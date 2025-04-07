@@ -60,7 +60,9 @@ dbConnector.connect().then(async () => {
     const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
     const configurationService = new ConfigurationService(configurationCollection)
 
-    const userService = new UserService(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, approvedStudiesService, config.inactive_user_days, configurationService);
+    const institutionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, INSTITUTION_COLLECTION);
+    const institutionService = new InstitutionService(institutionCollection);
+    const userService = new UserService(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, approvedStudiesService, config.inactive_user_days, configurationService, institutionService);
     const s3Service = new S3Service();
     const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
     const awsService = new AWSService();
@@ -70,8 +72,7 @@ dbConnector.connect().then(async () => {
         return utilityService.fetchJsonFromUrl(config.model_url)
     };
     const batchService = new BatchService(s3Service, batchCollection, config.sqs_loader_queue, awsService, config.prod_url, fetchDataModelInfo);
-    const institutionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, INSTITUTION_COLLECTION);
-    const institutionService = new InstitutionService(institutionCollection);
+
 
     const qcResultCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, QC_RESULTS_COLLECTION);
     const qcResultsService = new QcResultService(qcResultCollection, submissionCollection);
@@ -178,8 +179,12 @@ dbConnector.connect().then(async () => {
         getDashboardURL: dashboardService.getDashboardURL.bind(dashboardService),
         retrieveCDEs: cdeService.getCDEs.bind(cdeService),
         editSubmissionCollaborators: submissionService.editSubmissionCollaborators.bind(submissionService),
-        requestAccess: userService.requestAccess.bind(userService), 
+        requestAccess: (params, context)=> {
+            const institutionName = sanitizeHtml(params?.institutionName, {allowedTags: [],allowedAttributes: {}});
+            return userService.requestAccess({...params, institutionName}, context);
+        },
         retrievePBACDefaults: configurationService.getPBACDefaults.bind(configurationService),
+        downloadMetadataFile: submissionService.getMetadataFile.bind(submissionService)
         retrieveCLIUploaderVersion: configurationService.retrieveCLIUploaderVersion.bind(configurationService),
     };
 });

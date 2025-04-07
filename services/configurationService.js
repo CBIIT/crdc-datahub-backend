@@ -21,8 +21,7 @@ class ConfigurationService {
      */
     async getPBACDefaults(params, context){
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+            .verifyInitialized();
 
         return await this.getPBACByRoles(params.roles);
     }

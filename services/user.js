@@ -18,6 +18,7 @@ const {
     DATA_SUBMISSION,
     EMAIL_NOTIFICATIONS: EN
 } = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+const {COMPLETED} = require("../constants/submission-constants");
 
 const isLoggedInOrThrow = (context) => {
     if (!context?.userInfo?.email || !context?.userInfo?.IDP) throw new Error(SUBMODULE_ERROR.NOT_LOGGED_IN);
@@ -40,7 +41,7 @@ class UserService {
     #allPermissionNamesSet = new Set([...Object.values(SUBMISSION_REQUEST), ...Object.values(DATA_SUBMISSION), ...Object.values(ADMIN)]);
     #allEmailNotificationNamesSet = new Set([...Object.values(EN.SUBMISSION_REQUEST), ...Object.values(EN.DATA_SUBMISSION), ...Object.values(EN.USER_ACCOUNT)]);
     #NIH = "nih";
-    constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, approvedStudiesService, inactiveUserDays, configurationService) {
+    constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, approvedStudiesService, inactiveUserDays, configurationService, institutionService) {
         this.userCollection = userCollection;
         this.logCollection = logCollection;
         this.organizationCollection = organizationCollection;
@@ -53,6 +54,7 @@ class UserService {
         this.approvedStudiesCollection = approvedStudiesService.approvedStudiesCollection;
         this.inactiveUserDays = inactiveUserDays;
         this.configurationService = configurationService;
+        this.institutionService = institutionService;
     }
 
     async requestAccess(params, context) {
@@ -85,8 +87,9 @@ class UserService {
                 email: userInfo?.email,
                 role: params?.role,
                 studies: approvedStudies?.map((study)=> study?.studyName),
-                additionalInfo: params?.additionalInfo?.trim()
-            });
+                additionalInfo: params?.additionalInfo?.trim(),
+                institutionName : params?.institutionName?.trim()
+        });
 
         if (res?.accepted?.length > 0) {
             return ValidationHandler.success()
@@ -204,9 +207,11 @@ class UserService {
         if (result?.length === 1) {
             const user = result[0];
             const studies = await this.#findApprovedStudies(user?.studies);
+            const institution = user?.role === ROLES.SUBMITTER && user?.institution?._id ? user.institution : null;
             return {
                 ...user,
-                studies
+                studies,
+                institution
             };
         } else {
             return null;
@@ -344,6 +349,11 @@ class UserService {
         if(!params?.studies && USER.ROLES.SUBMITTER === params.role) {
             throw new Error(SUBMODULE_ERROR.APPROVED_STUDIES_REQUIRED);
         }
+        // note: Submitter is newly assigned now or institution info is only being updated.
+        const isSubmitter = USER.ROLES.SUBMITTER === params.role || (!params.role && USER.ROLES.SUBMITTER === user.role);
+        const aInstitution = isSubmitter && params?.institutionID ?
+            await this.institutionService.getInstitutionByID(params?.institutionID) : null;
+        this.#setInstitution(aInstitution, user[0]?.institution, isSubmitter, updatedUser, params?.institutionID);
 
         const isValidUserStatus = Object.values(USER.STATUSES).includes(params.status);
         if (params.status) {
@@ -358,6 +368,19 @@ class UserService {
         await this.#setUserPermissions(user[0]?.role, params?.role, params?.permissions, params?.notifications, updatedUser);
         return await this.updateUserInfo(user[0], updatedUser, params.userID, params.status, params.role, params?.studies);
     }
+
+    #setInstitution(newInstitution, prevInstitution, isSubmitter, updatedUser, institutionID) {
+        if (isSubmitter && !newInstitution) {
+            throw new Error(replaceErrorString(ERROR.INSTITUTION_ID_NOT_EXIST, institutionID));
+        }
+
+        const {_id, name, status} = prevInstitution || {};
+        const {_id: newId, name: newName, status: newStatus} = newInstitution || {};
+        if (_id !== newId ||  name !== newName || status !== newStatus) {
+            updatedUser.institution = newInstitution ? {_id: newId, name: newName, status: newStatus} : null;
+        }
+    }
+
     async updateUserInfo(prevUser, updatedUser, userID, status, role, approvedStudyIDs) {
         // add studies to user.
         const validStudies = await this.#findApprovedStudies(approvedStudyIDs);
@@ -383,7 +406,8 @@ class UserService {
             const promiseArray = [
                 await this.#notifyDeactivatedUser(prevUser, status),
                 await this.#notifyUpdatedUser(prevUser, userAfterUpdate, role),
-                await this.#logAfterUserEdit(prevUser, userAfterUpdate)
+                await this.#logAfterUserEdit(prevUser, userAfterUpdate),
+                await this.#removePrimaryContact(prevUser, userAfterUpdate)
             ];
             await Promise.all(promiseArray);
         } else {
@@ -686,6 +710,40 @@ class UserService {
                 ...(roles?.length > 0 && { "role": { "$in": roles } })
             }
         }]);
+    }
+
+    // user's role changed to anything other than Data Commons Personnel, they should be removed from any study/program's primary contact.
+    async #removePrimaryContact(prevUser, newUser) {
+        const isRoleChange = prevUser.role === ROLES.DATA_COMMONS_PERSONNEL && prevUser.role !== newUser.role;
+        if (isRoleChange) {
+            // note: Search primaryContactName in this order, since that's how it's stored.
+            const primaryContactName = `${prevUser.firstName} ${prevUser.lastName}`.trim();
+            const [updatedSubmission, updateProgram, updatedStudies] = await Promise.all([
+                this.submissionsCollection.updateMany(
+                    { conciergeName: primaryContactName, conciergeEmail: prevUser?.email, status: {$ne: COMPLETED} },
+                    { conciergeName: "", conciergeEmail: "", updatedAt: getCurrentTime() }
+                ),
+                this.organizationCollection.updateMany(
+                    { conciergeID: prevUser?._id },
+                    { conciergeID: "", conciergeName: "", conciergeEmail: "", updateAt: getCurrentTime() }
+                ),
+                this.approvedStudiesCollection.updateMany(
+                    { primaryContactID: prevUser?._id },
+                    { primaryContactID: null, updatedAt: getCurrentTime() }
+                )
+            ]);
+            if (!updatedSubmission.acknowledged) {
+                console.error("Failed to remove the primary contact in submissions");
+            }
+
+            if (!updateProgram.acknowledged) {
+                console.error("Failed to remove the primary contact in programs");
+            }
+
+            if (!updatedStudies.acknowledged) {
+                console.error("Failed to remove the primary contact in studies");
+            }
+        }
     }
 }
 

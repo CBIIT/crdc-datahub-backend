@@ -53,3 +53,45 @@ Commands:
               $set: { "dataFileSize": { formatted: "0", size: 0 } }
           }
       );
+  - Set all institutions to include status(Active/Inactive), createdAt, updatedAt within the institution document for CRDCDH-2484:  |
+      db.institutions.updateMany(
+        {},
+        {
+          $set: {
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              status: "Active"
+          }
+        }
+      )
+  - Add the missing manage institution permission to admin user CRDCDH-2488: |
+      db.users.updateMany(
+          {
+            role: "Admin",
+          },
+          {
+            $addToSet: { permissions: "institution:manage" }
+          }
+      );
+  - Set useProgramPC to approvedStudies for CRDCDH-2481:  |
+      db.approvedStudies.updateMany(
+          {},
+          [
+              {
+                  $set: {
+                      useProgramPC: {
+                          $cond: {
+                              if: {
+                                  $or: [
+                                      { $eq: ["$primaryContactID", null] },
+                                      { $not: ["$primaryContactID"] }
+                                  ]
+                              },
+                              then: true,
+                              else: false
+                          }
+                      }
+                  }
+              }
+          ]
+      );
