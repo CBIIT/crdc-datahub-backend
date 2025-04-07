@@ -303,6 +303,11 @@ class ApprovedStudiesService {
         if (PI !== undefined) {
             updateStudy.PI = PI;
         }
+
+        if (useProgramPC && primaryContactID) {
+            throw new Error(ERROR.INVALID_PRIMARY_CONTACT_ATTEMPT);
+        }
+
         let primaryContact = null;
         if(primaryContactID){
             primaryContact = await this.#findUserByID(primaryContactID);
@@ -314,11 +319,7 @@ class ApprovedStudiesService {
             }
         }
 
-        if (useProgramPC && primaryContactID) {
-            throw new Error(ERROR.INVALID_PRIMARY_CONTACT_ATTEMPT);
-        }
-
-        updateStudy.primaryContactID = primaryContactID;
+        updateStudy.primaryContactID = useProgramPC ? null : primaryContactID;
         updateStudy.updatedAt = getCurrentTime();
         const result = await this.approvedStudiesCollection.update(updateStudy);
         if (!result?.acknowledged) {
