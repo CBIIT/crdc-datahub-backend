@@ -12,6 +12,10 @@ class InstitutionService {
         this.institutionCollection = institutionCollection;
     }
 
+    async getInstitutionByID(id) {
+        return (await this.institutionCollection.find(id))?.pop();
+    }
+
     // Returns all institution names as a String array
     async #listInstitutions() {
         const institutions = await this.institutionCollection.findAll();

@@ -201,6 +201,8 @@ const ERROR = {
     NO_METADATA_FILES_DOWNLOADED: "Failed to downloaded batch metadata files.",
     FAILED_TO_ZIP_METADATA_FILES: "Failed to zipped metadata files.",
     FAILED_GET_METADATA_FILE: "Download Failed: There was an issue with the download.",
+    // Institution
+    INSTITUTION_ID_NOT_EXIST: "The $item$ institution ID does not exist in the system.",
 }
 
 module.exports = ERROR;
