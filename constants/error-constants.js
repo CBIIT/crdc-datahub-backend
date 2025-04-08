@@ -202,7 +202,12 @@ const ERROR = {
     FAILED_TO_ZIP_METADATA_FILES: "Failed to zipped metadata files.",
     FAILED_GET_METADATA_FILE: "Download Failed: There was an issue with the download.",
     // Institution
+    EMPTY_INSTITUTION_NAME: "institution name can not be empty.",
     INSTITUTION_ID_NOT_EXIST: "The $item$ institution ID does not exist in the system.",
+    DUPLICATE_INSTITUTION_NAME: "Error saving this institution. This $item$ already exists.",
+    INVALID_INSTITUTION_STATUS: "Requested status $item$ is not valid.",
+    FAILED_UPDATE_INSTITUTION: "Failed to update the institution",
+    FAILED_UPDATE_USER_INSTITUTION: "Failed to update the institution in the user document",
 }
 
 module.exports = ERROR;
