@@ -184,7 +184,8 @@ dbConnector.connect().then(async () => {
             return userService.requestAccess({...params, institutionName}, context);
         },
         retrievePBACDefaults: configurationService.getPBACDefaults.bind(configurationService),
-        downloadMetadataFile: submissionService.getMetadataFile.bind(submissionService)
+        downloadMetadataFile: submissionService.getMetadataFile.bind(submissionService),
+        retrieveCLIUploaderVersion: configurationService.retrieveCLIUploaderVersion.bind(configurationService),
     };
 });
 
