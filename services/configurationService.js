@@ -58,9 +58,13 @@ class ConfigurationService {
         };
     }
 
-    async  retrieveCLIUploaderVersion(params, context) {
-        verifySession(context)
-            .verifyInitialized();
+    /**
+     * public API: retrieveCLIUploaderVersion
+     * @param {*} params 
+     * @param {*} context 
+     * @returns 
+     */
+    async retrieveCLIUploaderVersion(params, context) {
         return await this.getCurrentCLIUploaderVersion();
     }
 
