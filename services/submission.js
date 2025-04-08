@@ -1002,12 +1002,14 @@ class Submission {
         const latestDataModel = await this.fetchDataModelInfo();
         const fileConfig = this.#getModelFileNodeInfo(aSubmission, latestDataModel);
         const uploadingHeartbeatConfig = await this.configurationService.findByType(UPLOADING_HEARTBEAT_CONFIG_TYPE);
+        const uploaderCurrentVersion = await this.configurationService.getCurrentCLIUploaderVersion();
         return {id_field: fileConfig["id-field"],
             name_field: fileConfig["name-field"],
             size_field: fileConfig["size-field"],
             md5_field: fileConfig["md5-field"],
             omit_DCF_prefix: fileConfig["omit-DCF-prefix"],
-            heartbeat_interval: uploadingHeartbeatConfig?.interval || 300
+            heartbeat_interval: uploadingHeartbeatConfig?.interval || 300,
+            current_uploader_version: uploaderCurrentVersion
         };
     };
 
