@@ -859,4 +859,5 @@ type Mutation {
     ): AsyncProcessResult
 
     updateSubmissionModelVersion(_id: String!, version: String!): Submission
+    createInstitution(name: String!): Institution
 }

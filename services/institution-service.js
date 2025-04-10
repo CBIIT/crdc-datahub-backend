@@ -6,6 +6,10 @@ const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo
 const {USER_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
+const ERROR = require("../constants/error-constants");
+const {ADMIN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+const {replaceErrorString} = require("../utility/string-util");
+
 class InstitutionService {
     #ALL_FILTER = "All";
     constructor(institutionCollection) {
@@ -14,6 +18,24 @@ class InstitutionService {
 
     async getInstitutionByID(id) {
         return (await this.institutionCollection.find(id))?.pop();
+    }
+
+    async createInstitution(params, context) {
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission(ADMIN.MANAGE_INSTITUTIONS);
+        const newName = params?.name?.trim();
+        const institutions = await this.institutionCollection.aggregate([{$match: { name: newName}}, { $limit: 1 }]);
+        if (institutions.length > 0) {
+            throw new Error(replaceErrorString(ERROR.DUPLICATE_INSTITUTION_NAME, newName));
+        }
+
+        const newInstitution = Institution.createInstitution(newName);
+        const res = await this.institutionCollection.insert(newInstitution);
+        if (!res?.acknowledged) {
+            throw new Error(ERROR.FAILED_CREATE_INSTITUTION);
+        }
+        return newInstitution;
     }
 
     // Returns all institution names as a String array
@@ -106,12 +128,23 @@ class InstitutionService {
 function createNewInstitutions(institutionNames){
     let newInstitutions = [];
     institutionNames.forEach(name => {
-        newInstitutions.push({
-            _id: v4(undefined, undefined, undefined),
-            name: name
-        });
+        newInstitutions.push(Institution.createInstitution(name));
     });
     return newInstitutions;
+}
+
+
+class Institution {
+    constructor(name) {
+        this._id = v4(undefined, undefined, undefined)
+        this.name = name;
+        this.status = INSTITUTION.STATUSES.ACTIVE;
+        this.submitterCount = 0;
+    }
+
+    static createInstitution(name) {
+        return new Institution(name);
+    }
 }
 
 module.exports = {
