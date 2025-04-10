@@ -76,6 +76,7 @@ type ListSubmissions {
     total: Int
     statuses: [String],
     dataCommons: [String],
+    dataCommonsDisplayNames: [String],
     submitterNames: [String],
     submissions: [Submission]
     organizations: [Organization]
@@ -94,6 +95,7 @@ type Submission {
     submitterName: String # <first name> <last name>
     organization: Organization
     dataCommons: String
+    dataCommonsDisplayName: String
     modelVersion: String # for future use
     studyAbbreviation: String
     dbGaPID: String # aka. phs number
@@ -245,6 +247,7 @@ type User {
   email: String
   organization: OrgInfo # Organization
   dataCommons: [String] # Applies to Data Commons POC role only. Empty for other roles.
+  dataCommonsDisplayNames: [String]
   createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
   updateAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
   studies: [ApprovedStudy]
@@ -566,6 +569,7 @@ type Released_Node {
     submissionID: String
     status: String, # value in  ["Released", "Deleted"]
     dataCommons: String,
+    dataCommonsDisplayName: String,
     studyID: String,
     nodeType: String,
     nodeID: String,

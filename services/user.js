@@ -18,6 +18,7 @@ const {
     DATA_SUBMISSION,
     EMAIL_NOTIFICATIONS: EN
 } = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+const {getDataCommonsDisplayNamesForUser} = require("../utility/data-commons-remapper");
 const {COMPLETED} = require("../constants/submission-constants");
 
 const isLoggedInOrThrow = (context) => {
@@ -213,11 +214,11 @@ class UserService {
             const user = result[0];
             const studies = await this.#findApprovedStudies(user?.studies);
             const institution = user?.role === ROLES.SUBMITTER && user?.institution?._id ? user.institution : null;
-            return {
+            return getDataCommonsDisplayNamesForUser({
                 ...user,
                 studies,
                 institution
-            };
+            });
         } else {
             return null;
         }
@@ -232,9 +233,10 @@ class UserService {
             "$match": {}
         },]);
 
-        for (let user of result) {
+        result.map(async (user) => {
             user.studies = await this.#findApprovedStudies(user?.studies);
-        }
+            return getDataCommonsDisplayNamesForUser(user);
+        });
         return result || [];
     }
 
@@ -330,7 +332,7 @@ class UserService {
             updateAt: sessionCurrentTime,
             studies: userStudies
         }
-        return result;
+        return getDataCommonsDisplayNamesForUser(result);
     }
 
     async editUser(params, context) {
@@ -346,7 +348,7 @@ class UserService {
         if (!user || !Array.isArray(user) || user.length < 1 || user[0]?._id !== params.userID) {
             throw new Error(SUBMODULE_ERROR.USER_NOT_FOUND);
         }
-        const updatedUser = {};
+        let updatedUser = {};
         if (params.role && Object.values(USER.ROLES).includes(params.role)) {
             updatedUser.role = params.role;
         }
@@ -371,7 +373,8 @@ class UserService {
 
         updatedUser.dataCommons = DataCommon.get(user[0]?.dataCommons, params?.dataCommons);
         await this.#setUserPermissions(user[0]?.role, params?.role, params?.permissions, params?.notifications, updatedUser);
-        return await this.updateUserInfo(user[0], updatedUser, params.userID, params.status, params.role, params?.studies);
+        updatedUser  = await this.updateUserInfo(user[0], updatedUser, params.userID, params.status, params.role, params?.studies);
+        return getDataCommonsDisplayNamesForUser(updatedUser);
     }
 
     #setInstitution(newInstitution, prevInstitution, isSubmitter, updatedUser, institutionID) {
@@ -406,7 +409,7 @@ class UserService {
             updatedUser.studies = [];
 
         const res = await this.userCollection.findOneAndUpdate({ _id: userID }, {...updatedUser, updateAt: getCurrentTime()}, {returnDocument: 'after'});
-        const userAfterUpdate = res.value;
+        const userAfterUpdate = getDataCommonsDisplayNamesForUser(res.value);
         if (userAfterUpdate) {
             const promiseArray = [
                 await this.#notifyDeactivatedUser(prevUser, status),

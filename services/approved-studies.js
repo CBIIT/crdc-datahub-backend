@@ -16,6 +16,9 @@ const {
     DELETED, ARCHIVED
 } = require("../constants/submission-constants");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
+const {getDataCommonsDisplayNamesForApprovedStudy, getDataCommonsDisplayNamesForUser,
+    getDataCommonsDisplayNamesForApprovedStudyList
+} = require("../utility/data-commons-remapper");
 const CONTROLLED_ACCESS_ALL = "All";
 const CONTROLLED_ACCESS_OPEN = "Open";
 const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
@@ -63,7 +66,7 @@ class ApprovedStudiesService {
           .verifyInitialized()
           .verifyPermission(ADMIN.MANAGE_STUDIES)
 
-        return this.getApprovedStudy(params);
+        return getDataCommonsDisplayNamesForApprovedStudy(await this.getApprovedStudy(params));
     }
 
 
@@ -205,8 +208,9 @@ class ApprovedStudiesService {
 
         let dataRecords = await this.approvedStudiesCollection.aggregate(pipelines);
         dataRecords = dataRecords.length > 0 ? dataRecords[0] : {}
-        return {total: dataRecords?.total || 0,
+        let approvedStudyList = {total: dataRecords?.total || 0,
             studies: dataRecords?.results || []}
+        return getDataCommonsDisplayNamesForApprovedStudyList(approvedStudyList);
     }
 
     /**
@@ -252,6 +256,8 @@ class ApprovedStudiesService {
         if (!result?.acknowledged) {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_INSERTION);
         }
+        newStudy = getDataCommonsDisplayNamesForApprovedStudy(newStudy);
+        primaryContact = getDataCommonsDisplayNamesForUser(primaryContact);
         return {...newStudy, primaryContact: primaryContact};
     }
     /**
@@ -339,7 +345,8 @@ class ApprovedStudiesService {
             throw new Error(ERROR.FAILED_PRIMARY_CONTACT_UPDATE);
         }
 
-        return {...updateStudy, programs: programs, primaryContact: primaryContact};  
+        let approvedStudy = {...updateStudy, programs: programs, primaryContact: primaryContact};
+        return getDataCommonsDisplayNamesForApprovedStudy(approvedStudy);
     }
 
     #getConcierge(programs, primaryContact, isProgramPrimaryContact) {
