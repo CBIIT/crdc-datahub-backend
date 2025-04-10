@@ -1674,9 +1674,12 @@ class Submission {
         if (aBatch?.status === BATCH.STATUSES.FAILED) {
             throw new Error(ERROR.BATCH_NOT_UPLOADED);
         }
-
+        const aSubmission = await findByID(this.submissionCollection, aBatch?.submissionID);
+        if (!aSubmission) {
+            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+        }
         try{
-            return await this.batchService.getMetadataFile(aBatch, fileName);
+            return await this.batchService.getMetadataFile(aSubmission, aBatch, fileName);
         }
         catch (e) {
             throw new Error(ERROR.FAILED_GET_METADATA_FILE);

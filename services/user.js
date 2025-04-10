@@ -717,6 +717,16 @@ class UserService {
         }]);
     }
 
+    async updateUserInstitution(institutionID, institutionName, institutionStatus) {
+        const updateUsers = await this.userCollection.updateMany(
+            { "institution._id": institutionID, $or: [{"institution.name": { "$ne": institutionName }}, {"institution.status": { "$ne": institutionStatus }}]},
+            { "institution.name": institutionName, "institution.status": institutionStatus, updateAt: getCurrentTime() }
+        );
+        if (!updateUsers?.acknowledged) {
+            console.error(ERROR.FAILED_UPDATE_USER_INSTITUTION);
+        }
+    }
+
     // user's role changed to anything other than Data Commons Personnel, they should be removed from any study/program's primary contact.
     async #removePrimaryContact(prevUser, newUser) {
         const isRoleChange = prevUser.role === ROLES.DATA_COMMONS_PERSONNEL && prevUser.role !== newUser.role;

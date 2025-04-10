@@ -38,12 +38,13 @@ class S3Service {
      * @param {*} fileName 
      * @returns 
      */
-    async createDownloadSignedURL(bucketName, prefix, fileName) {
+    async createDownloadSignedURL(bucketName, prefix, fileName, outputFileName = fileName) {
         try {
             const params = {
                 Bucket: bucketName,
                 Key: path.join(prefix,fileName),
                 Expires: 3600, // 1 hour
+                ResponseContentDisposition: 'attachment; filename ="' + outputFileName + '"'
             };
             return new Promise((resolve, reject) => {
                 this.s3.getSignedUrl('getObject', params, (error, url) => {
