@@ -62,9 +62,9 @@ class SubmissionActionVerifier {
             const isValidAdminStatus = this.#isValidAdminStatus(isAdminAction, aSubmission, dataFileSize);
             const validStatus = [VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING];
             // if deleted intention, allow it to be submitted without any data files. Ignore any value if meta-data only data file
-            const ignoreFileValidationStatus = aSubmission?.dataType === DATA_TYPE.METADATA_ONLY;
+            const metadataOnlyValidationStatus = aSubmission?.dataType === DATA_TYPE.METADATA_ONLY;
             const isValidatedStatus = aSubmission?.intention === INTENTION.DELETE || (validStatus.includes(aSubmission?.metadataValidationStatus)
-                && (ignoreFileValidationStatus || (dataFileSize > 0 && aSubmission?.fileValidationStatus === VALIDATION_STATUS.PASSED)));
+                && (metadataOnlyValidationStatus || (dataFileSize > 0 && aSubmission?.fileValidationStatus === VALIDATION_STATUS.PASSED)));
 
             if (!isValidAdminStatus) {
                 if (isAdminAction ||(!isAdminAction && !isValidatedStatus)) {
@@ -92,10 +92,9 @@ class SubmissionActionVerifier {
     #isValidAdminStatus(isAdminSubmitAction, aSubmission, dataFileSize) {
         const isMetadataInvalid = aSubmission?.metadataValidationStatus === VALIDATION_STATUS.NEW;
         const isDeleteIntention = aSubmission?.intention === INTENTION.DELETE;
-        const ignoreFileValidationStatus = aSubmission?.dataType === DATA_TYPE.METADATA_ONLY;
+        const metadataOnlyValidationStatus = aSubmission?.dataType === DATA_TYPE.METADATA_ONLY;
         // if deleted intention, allow it to be submitted without any data files, if metadata only, any value is ignored for fileValidationStatus
-        const isDataFileValidated = isDeleteIntention || !isMetadataInvalid && (ignoreFileValidationStatus || dataFileSize > 0);
-        // null fileValidationStatus means this submission doesn't have any files uploaded
+        const isDataFileValidated = isDeleteIntention || !isMetadataInvalid && (metadataOnlyValidationStatus || (dataFileSize > 0 && aSubmission?.fileValidationStatus === VALIDATION_STATUS.PASSED));
         return isAdminSubmitAction && isDataFileValidated;
     }
 }
