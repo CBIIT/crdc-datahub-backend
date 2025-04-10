@@ -203,6 +203,7 @@ const ERROR = {
     FAILED_GET_METADATA_FILE: "Download Failed: There was an issue with the download.",
     // Institution
     INSTITUTION_ID_NOT_EXIST: "The $item$ institution ID does not exist in the system.",
+    MAX_INSTITUTION_NAME_LIMIT: "Institution name cannot exceed 100 characters.",
 }
 
 module.exports = ERROR;

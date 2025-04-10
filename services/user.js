@@ -69,6 +69,11 @@ class UserService {
             return new Error(ERROR.INVALID_APPROVED_STUDIES_ACCESS_REQUEST);
         }
 
+        if (params?.institutionName?.trim()?.length > 100) {
+            return new Error(ERROR.MAX_INSTITUTION_NAME_LIMIT);
+        }
+
+
         const adminUsers = await this.getUsersByNotifications([EN.USER_ACCOUNT.USER_REQUEST_ACCESS],
             [ROLES.ADMIN]);
         const adminEmails = adminUsers
