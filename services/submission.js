@@ -1793,7 +1793,7 @@ const sendEmails = {
                     firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
                 }, {
                     submissionName: `${aSubmission?.name},`,
-                    dataCommonsName: aSubmission?.dataCommons,
+                    dataCommonsName: aSubmission?.dataCommonsDisplayName,
                     contactName: `${aSubmission?.conciergeName || 'NA'}`,
                     contactEmail: `${aSubmission?.conciergeEmail || 'NA'}.`
                 }
@@ -1913,7 +1913,7 @@ const sendEmails = {
         await notificationsService.releaseDataSubmissionNotification(getUserEmails(filteredDCPUsers), getUserEmails(filteredBCCUsers), {
             firstName: `${aSubmission?.dataCommons} team`,
             additionalInfo: additionalInfo}, {
-            dataCommonName: aSubmission?.dataCommons}, {
+            dataCommonName: aSubmission?.dataCommonsDisplayName}, {
             submissionName: aSubmission?.name,
             // only one study
             studyName: approvedStudy?.length > 0 ? (approvedStudy[0]?.studyName || NA) : NA,
