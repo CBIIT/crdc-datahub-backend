@@ -1,4 +1,3 @@
-const {buildSchema} = require('graphql');
 const {createHandler} = require("graphql-http/lib/use/express");
 const configuration = require("../config");
 
@@ -32,7 +31,7 @@ const {InstitutionService} = require("../services/institution-service");
 const {DashboardService} = require("../services/dashboardService");
 const UserInitializationService = require("../services/user-initialization-service");
 const {ConfigurationService} = require("../services/configurationService");
-const schema = buildSchema(require("fs").readFileSync("resources/graphql/crdc-datahub.graphql", "utf8"));
+const typeDefs = require("fs").readFileSync("resources/graphql/crdc-datahub.graphql", "utf8");
 const dbService = new MongoQueries(configuration.mongo_db_connection_string, DATABASE_NAME);
 const dbConnector = new DatabaseConnector(configuration.mongo_db_connection_string);
 const AuthenticationService = require("../services/authentication-service");
@@ -40,6 +39,16 @@ const {apiAuthorization, extractAPINames, PUBLIC} = require("./api-authorization
 const {QcResultService} = require("../services/qc-result-service");
 const {UserService} = require("../services/user");
 const sanitizeHtml = require("sanitize-html");
+const {constraintDirective, constraintDirectiveTypeDefs} = require("graphql-constraint-directive");
+const {makeExecutableSchema} = require("@graphql-tools/schema");
+
+// Create schema with constraint directive
+const schema = constraintDirective()(
+    makeExecutableSchema({
+        typeDefs: [constraintDirectiveTypeDefs, typeDefs],
+    })
+);
+
 const public_api_list = extractAPINames(schema, PUBLIC)
 let root;
 let authenticationService, userInitializationService;
