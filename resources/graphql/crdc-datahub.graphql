@@ -736,6 +736,8 @@ type Query {
 
     getDashboardURL(type: String!): Dashboard
 
+    getInstitution(_id: ID!): Institution
+
     retrieveCDEs  (
         CDEInfo: [CDEInput!]!
     ) : [CDE] @public
@@ -859,5 +861,6 @@ type Mutation {
     ): AsyncProcessResult
 
     updateSubmissionModelVersion(_id: String!, version: String!): Submission
+    updateInstitution(_id: ID!, name: String, status: String): Institution
     createInstitution(name: String!): Institution
 }
