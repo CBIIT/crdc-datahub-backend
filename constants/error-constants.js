@@ -209,6 +209,7 @@ const ERROR = {
     FAILED_UPDATE_USER_INSTITUTION: "Failed to update the institution in the user document",
     DUPLICATE_INSTITUTION_NAME: "This is a duplicate institution name. The $item$ institution already exists.",
     FAILED_CREATE_INSTITUTION: "Failed to create a new institution",
+    MAX_INSTITUTION_NAME_LIMIT: "Institution name cannot exceed 100 characters.",
 }
 
 module.exports = ERROR;

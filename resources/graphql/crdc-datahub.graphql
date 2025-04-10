@@ -1,5 +1,4 @@
 directive @public on FIELD_DEFINITION|QUERY
-directive @constraint(maxLength: Int) on INPUT_FIELD_DEFINITION | ARGUMENT_DEFINITION
 scalar Date
 
 type Application {
@@ -857,7 +856,7 @@ type Mutation {
         role: String!
         studies: [String]!, # Approved Studies IDs
         additionalInfo: String,
-        institutionName: String @constraint(maxLength: 100)
+        institutionName: String
     ): AsyncProcessResult
 
     updateSubmissionModelVersion(_id: String!, version: String!): Submission
