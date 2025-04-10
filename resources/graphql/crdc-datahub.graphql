@@ -750,6 +750,8 @@ type Query {
     retrieveReleasedDataByID(submissionID: String!, nodeType: String!, nodeID: String!, status: String = "Released") : [Released_Node]
 
     downloadMetadataFile(batchID: String!, fileName: String):String # download metadata file from S3 with presigned URL
+
+    retrieveCLIUploaderVersion: String @public
 }
 type Mutation {
     "User initiated operations"
@@ -816,6 +818,7 @@ type Mutation {
       role: String,
       dataCommons: [String], # Applies to Data Commons POC role only. Empty for other roles.
       studies: [String] #approved study IDs optional. It will be saved into user's study list
+      institutionID: String
     ): User
 
     editSubmissionCollaborators (

@@ -16,11 +16,8 @@ class InstitutionService {
         this.institutionCollection = institutionCollection;
     }
 
-    // Verify the user session then call #listInsitutions()
-    async listInstitutions(params, context) {
-        verifySession(context)
-            .verifyInitialized();
-        return await this.#listInstitutions();
+    async getInstitutionByID(id) {
+        return (await this.institutionCollection.find(id))?.pop();
     }
 
     async createInstitution(params, context) {

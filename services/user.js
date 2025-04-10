@@ -41,7 +41,7 @@ class UserService {
     #allPermissionNamesSet = new Set([...Object.values(SUBMISSION_REQUEST), ...Object.values(DATA_SUBMISSION), ...Object.values(ADMIN)]);
     #allEmailNotificationNamesSet = new Set([...Object.values(EN.SUBMISSION_REQUEST), ...Object.values(EN.DATA_SUBMISSION), ...Object.values(EN.USER_ACCOUNT)]);
     #NIH = "nih";
-    constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, approvedStudiesService, inactiveUserDays, configurationService) {
+    constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, approvedStudiesService, inactiveUserDays, configurationService, institutionService) {
         this.userCollection = userCollection;
         this.logCollection = logCollection;
         this.organizationCollection = organizationCollection;
@@ -54,6 +54,7 @@ class UserService {
         this.approvedStudiesCollection = approvedStudiesService.approvedStudiesCollection;
         this.inactiveUserDays = inactiveUserDays;
         this.configurationService = configurationService;
+        this.institutionService = institutionService;
     }
 
     async requestAccess(params, context) {
@@ -348,6 +349,11 @@ class UserService {
         if(!params?.studies && USER.ROLES.SUBMITTER === params.role) {
             throw new Error(SUBMODULE_ERROR.APPROVED_STUDIES_REQUIRED);
         }
+        // note: Submitter is newly assigned now or institution info is only being updated.
+        const isSubmitter = USER.ROLES.SUBMITTER === params.role || (!params.role && USER.ROLES.SUBMITTER === user.role);
+        const aInstitution = isSubmitter && params?.institutionID ?
+            await this.institutionService.getInstitutionByID(params?.institutionID) : null;
+        this.#setInstitution(aInstitution, user[0]?.institution, isSubmitter, updatedUser, params?.institutionID);
 
         const isValidUserStatus = Object.values(USER.STATUSES).includes(params.status);
         if (params.status) {
@@ -362,6 +368,19 @@ class UserService {
         await this.#setUserPermissions(user[0]?.role, params?.role, params?.permissions, params?.notifications, updatedUser);
         return await this.updateUserInfo(user[0], updatedUser, params.userID, params.status, params.role, params?.studies);
     }
+
+    #setInstitution(newInstitution, prevInstitution, isSubmitter, updatedUser, institutionID) {
+        if (isSubmitter && !newInstitution) {
+            throw new Error(replaceErrorString(ERROR.INSTITUTION_ID_NOT_EXIST, institutionID));
+        }
+
+        const {_id, name, status} = prevInstitution || {};
+        const {_id: newId, name: newName, status: newStatus} = newInstitution || {};
+        if (_id !== newId ||  name !== newName || status !== newStatus) {
+            updatedUser.institution = newInstitution ? {_id: newId, name: newName, status: newStatus} : null;
+        }
+    }
+
     async updateUserInfo(prevUser, updatedUser, userID, status, role, approvedStudyIDs) {
         // add studies to user.
         const validStudies = await this.#findApprovedStudies(approvedStudyIDs);

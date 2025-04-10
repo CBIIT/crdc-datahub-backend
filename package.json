@@ -31,7 +31,8 @@
     "uuid": "^9.0.0"
   },
   "devDependencies": {
-    "jest": "^29.5.0"
+    "jest": "^29.5.0",
+    "@babel/core": "^7.26.10"
   },
   "overrides": {
     "semver": "$semver"

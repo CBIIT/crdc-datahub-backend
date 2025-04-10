@@ -70,7 +70,7 @@ Commands:
             role: "Admin",
           },
           {
-            $addToSet: { notifications: "institution:manage" }
+            $addToSet: { permissions: "institution:manage" }
           }
       );
   - Set useProgramPC to approvedStudies for CRDCDH-2481:  |
