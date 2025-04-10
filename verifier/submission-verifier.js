@@ -59,15 +59,15 @@ class SubmissionActionVerifier {
 
     isValidSubmitAction(isAdminAction, aSubmission, comment, dataFileSize) {
         if(this.#actionName === ACTIONS.SUBMIT) {
-            const isInvalidAdminStatus = !this.#isValidAdminStatus(isAdminAction, aSubmission, dataFileSize);
+            const isValidAdminStatus = this.#isValidAdminStatus(isAdminAction, aSubmission, dataFileSize);
             const validStatus = [VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING];
             // if deleted intention, allow it to be submitted without any data files. Ignore any value if meta-data only data file
             const ignoreFileValidationStatus = aSubmission?.dataType === DATA_TYPE.METADATA_ONLY;
             const isValidatedStatus = aSubmission?.intention === INTENTION.DELETE || (validStatus.includes(aSubmission?.metadataValidationStatus)
-                && (ignoreFileValidationStatus || dataFileSize > 0));
+                && (ignoreFileValidationStatus || (dataFileSize > 0 && aSubmission?.fileValidationStatus === VALIDATION_STATUS.PASSED)));
 
-            if (isInvalidAdminStatus) {
-                if (isAdminAction ||(!isAdminAction && (!isValidatedStatus))) {
+            if (!isValidAdminStatus) {
+                if (isAdminAction ||(!isAdminAction && !isValidatedStatus)) {
                     throw new Error(ERROR.VERIFY.INVALID_SUBMIT_ACTION);
                 }
             }

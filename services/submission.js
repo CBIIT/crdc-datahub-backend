@@ -1634,7 +1634,7 @@ class Submission {
             userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW) &&
             isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission)
         );
-        return this.#isCreatePermission || isReviewPermission;
+        return this.#isCreatePermission(userInfo, aSubmission) || isReviewPermission;
     }
 
     #listConditions(userInfo, status, organizationID, submissionName, dbGaPID, dataCommonsParams, submitterName){
