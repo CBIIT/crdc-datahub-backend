@@ -29,6 +29,9 @@ const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo
 const {EMAIL_NOTIFICATIONS: EN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
+const {getDataCommonsDisplayNamesForSubmission, getDataCommonsDisplayNamesForListSubmissions,
+    getDataCommonsDisplayNamesForUser, getDataCommonsDisplayNamesForReleasedNode
+} = require("../utility/data-commons-remapper");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -125,8 +128,8 @@ class Submission {
         if (approvedStudy?.primaryContactID) {
             approvedStudy.primaryContact = await this.userService.getUserByID(approvedStudy.primaryContactID)
         }
-        const newSubmission = DataSubmission.createSubmission(
-            params.name, context.userInfo, params.dataCommons, params.studyID, approvedStudy?.dbGaPID, program, modelVersion, intention, dataType, approvedStudy, this.submissionBucketName);
+        const newSubmission = getDataCommonsDisplayNamesForSubmission(DataSubmission.createSubmission(
+            params.name, context.userInfo, params.dataCommons, params.studyID, approvedStudy?.dbGaPID, program, modelVersion, intention, dataType, approvedStudy, this.submissionBucketName));
         const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
@@ -185,7 +188,7 @@ class Submission {
             // note: Status name filter is omitted
             await this.submissionCollection.distinct("status", statusCondition)
         ];
-        return await Promise.all(promises).then(function(results) {
+        let listSubmissions = await Promise.all(promises).then(function(results) {
             return {
                 submissions: results[0] || [],
                 total: results[1]?.length > 0 ? results[1][0]?.count : 0,
@@ -199,6 +202,7 @@ class Submission {
                 }
             }
         });
+        return getDataCommonsDisplayNamesForListSubmissions(listSubmissions);
     }
 
     async createBatch(params, context) {
@@ -368,7 +372,8 @@ class Submission {
                     console.error(`Failed to update the program in the submission: ${aSubmission?._id}`);
                 }
             }
-            return {...aSubmission, organization: {_id: aProgram?._id, name: aProgram?.name}}
+            let submission = {...aSubmission, organization: {_id: aProgram?._id, name: aProgram?.name}}
+            return getDataCommonsDisplayNamesForSubmission(submission);
         }
         throw new Error(ERROR.INVALID_ROLE);
     }
@@ -420,6 +425,7 @@ class Submission {
             updatedAt: getCurrentTime(),
             reviewComment: submission?.reviewComment || []
         }
+        submission = getDataCommonsDisplayNamesForSubmission(submission);
         const updated = await this.submissionCollection.update(submission);
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
             throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
@@ -1056,10 +1062,11 @@ class Submission {
         }
         // if passed validation
         aSubmission.collaborators = collaborators;  
-        aSubmission.updatedAt = new Date(); 
-        const result = await this.submissionCollection.update(aSubmission);
+        aSubmission.updatedAt = new Date();
+        let submission = getDataCommonsDisplayNamesForSubmission(aSubmission);
+        const result = await this.submissionCollection.update(submission);
         if (result?.modifiedCount === 1) {
-            return aSubmission;
+            return submission;
         }
         else
             throw new Error(ERROR.FAILED_ADD_SUBMISSION_COLLABORATOR);
@@ -1356,7 +1363,10 @@ class Submission {
         }
         this.#verifySubmissionCreator(context?.userInfo, aSubmission);
         // find Collaborators with aSubmission.studyID
-        return await this.userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
+        let collaborators = await this.userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
+        return collaborators.map((user) => {
+           return getDataCommonsDisplayNamesForUser(user);
+        });
     }
 
     /**
@@ -1386,8 +1396,9 @@ class Submission {
         // the results is array of nodes, [new, release]
         if(results && results.length === 2)  
         {
-            
-            return results;
+            return results.map((releasedNode) => {
+               return getDataCommonsDisplayNamesForReleasedNode(releasedNode);
+            });
         }
         else
         {
@@ -1395,12 +1406,23 @@ class Submission {
         }
     }
 
-    async verifySubmitter(submissionID, userInfo) {
+    async verifyTempCredential(submissionID, userInfo) {
         const aSubmission = await findByID(this.submissionCollection, submissionID);
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
-        this.#verifySubmissionCreator(userInfo, aSubmission);
+        if(!aSubmission.rootPath)
+            throw new Error(`${ERROR.VERIFY.EMPTY_ROOT_PATH}, ${submissionID}!`);
+
+        const submitterCollaborator = (aSubmission?.collaborators || []).map(u => u.collaboratorID);
+        const isCollaborator = submitterCollaborator.includes(userInfo?._id);
+
+        const createPermission = userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE) &&
+            aSubmission.submitterID === userInfo?._id;
+        if (!createPermission && !isCollaborator) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+        return aSubmission;
     }
     // Only owned submission and create permission.
     #verifySubmissionCreator(userInfo, aSubmission) {
@@ -1619,6 +1641,7 @@ async function submissionActionNotification(userInfo, action, aSubmission, userS
 
 const sendEmails = {
     submitSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
+        aSubmission = getDataCommonsDisplayNamesForSubmission(aSubmission);
         const [aSubmitter, BCCUsers] = await Promise.all([
             userService.getUserByID(aSubmission?.submitterID),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.SUBMIT],
@@ -1646,6 +1669,7 @@ const sendEmails = {
         }
     },
     completeSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService) => {
+        aSubmission = getDataCommonsDisplayNamesForSubmission(aSubmission);
         const [aSubmitter, BCCUsers, aOrganization, approvedStudy] = await Promise.all([
             userService.getUserByID(aSubmission?.submitterID),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.COMPLETE],
@@ -1673,6 +1697,7 @@ const sendEmails = {
         }
     },
     cancelSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
+        aSubmission = getDataCommonsDisplayNamesForSubmission(aSubmission);
         const [aSubmitter, BCCUsers, aOrganization, approvedStudy] = await Promise.all([
             userService.getUserByID(aSubmission?.submitterID),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.CANCEL],
@@ -1703,6 +1728,7 @@ const sendEmails = {
         }
     },
     withdrawSubmission: async (userInfo, aSubmission, userService, organizationService, notificationsService) => {
+        aSubmission = getDataCommonsDisplayNamesForSubmission(aSubmission);
         const [DCPRoleUsers, BCCUsers, approvedStudy] = await Promise.all([
             userService.getDCPs(aSubmission?.dataCommons),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.WITHDRAW],
@@ -1731,6 +1757,7 @@ const sendEmails = {
         });
     },
     releaseSubmission: async (emailParams, userInfo, aSubmission, userService, organizationService, notificationsService) => {
+        aSubmission = getDataCommonsDisplayNamesForSubmission(aSubmission);
         const [DCPRoleUsers, BCCUsers, approvedStudy] = await Promise.all([
             userService.getDCPs(aSubmission?.dataCommons),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.RELEASE],
@@ -1738,7 +1765,7 @@ const sendEmails = {
             userService.approvedStudiesCollection.find(aSubmission?.studyID)
         ]);
         const filteredDCPUsers = DCPRoleUsers.filter((u) =>
-            u?.notifications?.includes(EN.DATA_SUBMISSION.WITHDRAW) &&
+            u?.notifications?.includes(EN.DATA_SUBMISSION.RELEASE) &&
             isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
 
         if (filteredDCPUsers.length === 0) {
@@ -1749,7 +1776,9 @@ const sendEmails = {
             [SUBMISSION_ID, aSubmission?._id],
             [DATA_SUBMISSION_TYPE, aSubmission?.intention],
             [DESTINATION_LOCATION, `${aSubmission?.bucketName} at ${aSubmission?.rootPath}`]];
-        await notificationsService.releaseDataSubmissionNotification(getUserEmails(filteredDCPUsers), getUserEmails(BCCUsers), {
+
+        const filteredBCCUsers = BCCUsers.filter((u) => isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
+        await notificationsService.releaseDataSubmissionNotification(getUserEmails(filteredDCPUsers), getUserEmails(filteredBCCUsers), {
             firstName: `${aSubmission?.dataCommons} team`,
             additionalInfo: additionalInfo}, {
             dataCommonName: aSubmission?.dataCommons}, {
@@ -1760,6 +1789,7 @@ const sendEmails = {
         })
     },
     rejectSubmission: async (userInfo, aSubmission, userService, organizationService, notificationService) => {
+        aSubmission = getDataCommonsDisplayNamesForSubmission(aSubmission);
         const [aSubmitter, BCCUsers, aOrganization] = await Promise.all([
             userService.getUserByID(aSubmission?.submitterID),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.REJECT],
@@ -1788,6 +1818,7 @@ const sendEmails = {
         }
     },
     remindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService, expiredDays, pastDays) => {
+        aSubmission = getDataCommonsDisplayNamesForSubmission(aSubmission);
         const [aSubmitter, BCCUsers, approvedStudy] = await Promise.all([
             userService.getUserByID(aSubmission?.submitterID),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.REMIND_EXPIRE],
@@ -1817,6 +1848,7 @@ const sendEmails = {
         }
     },
     finalRemindInactiveSubmission: async (emailParams, aSubmission, userService, organizationService, notificationService) => {
+        aSubmission = getDataCommonsDisplayNamesForSubmission(aSubmission);
         const [aSubmitter, BCCUsers, approvedStudy] = await Promise.all([
             userService.getUserByID(aSubmission?.submitterID),
             userService.getUsersByNotifications([EN.DATA_SUBMISSION.REMIND_EXPIRE],
