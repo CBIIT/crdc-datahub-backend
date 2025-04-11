@@ -56,8 +56,8 @@ class SubmissionActionVerifier {
         return this.#fromStatus;
     }
 
-
-    isValidSubmitAction(isAdminAction, aSubmission, comment, dataFileSize) {
+    // To perform the Submit action, the data files in the S3 bucket must be available, and no orphaned files should remain, as unused orphaned files may end up in production.
+    isValidSubmitAction(isAdminAction, aSubmission, comment, dataFileSize, orphanedFiles) {
         if(this.#actionName === ACTIONS.SUBMIT) {
             const isValidAdminStatus = this.#isValidAdminStatus(isAdminAction, aSubmission, dataFileSize);
             const validStatus = [VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING];
@@ -74,6 +74,10 @@ class SubmissionActionVerifier {
 
             if ([INTENTION.UPDATE].includes(aSubmission?.intention) && this.isSubmitActionCommentRequired(aSubmission, isAdminAction, comment)) {
                 throw new Error(ERROR.VERIFY.SUBMIT_ACTION_COMMENT_REQUIRED);
+            }
+
+            if (orphanedFiles?.length > 0) {
+                throw new Error(ERROR.VERIFY.SUBMIT_ACTION_ORPHAN_FILES);
             }
         }
     }

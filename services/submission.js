@@ -478,8 +478,9 @@ class Submission {
         }
         const newStatus = verifier.getNewStatus();
         const isAdminAction = userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.ADMIN_SUBMIT);
-        const dataFileSize = await this.#getS3DirectorySize(submission?.bucketName, `${submission?.rootPath}/${FILE}/`);
-        verifier.isValidSubmitAction(isAdminAction, submission, params?.comment, dataFileSize?.size);
+
+        const [dataFileSize, orphanedFiles] = await this.#getSubmitActionData(submission);
+        verifier.isValidSubmitAction(isAdminAction, submission, params?.comment, dataFileSize?.size, orphanedFiles);
         await this.#isValidReleaseAction(action, submission?._id, submission?.studyID, submission?.crossSubmissionStatus);
         //update submission
         let events = submission.history || [];
@@ -524,6 +525,33 @@ class Submission {
             this.#archiveCancelSubmission(action, submissionID, submission?.bucketName, submission?.rootPath)
         ].concat(completePromise));
         return submission;
+    }
+
+    async #getSubmitActionData(submission) {
+        const validNodeStatus = [VALIDATION_STATUS.NEW, VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING, VALIDATION_STATUS.ERROR];
+        const res = await Promise.all([
+            this.#getS3DirectorySize(submission?.bucketName, `${submission?.rootPath}/${FILE}/`),
+            this.dataRecordService.dataRecordsCollection.aggregate([
+                {"$match": {submissionID: submission?._id, "s3FileInfo.status": {$in: validNodeStatus}}},
+                {"$project": {"s3FileInfo.status": 1,"s3FileInfo.fileName": 1,}}
+            ]),
+            // submission's root path should be matched, otherwise the other file node count return wrong
+            this.s3Service.listFileInDir(submission.bucketName, `${submission.rootPath}/${FILE}/`)
+        ]);
+        const [dataFileSize, fileRecords, s3SubmissionFiles] = res;
+        const uploadedFiles = s3SubmissionFiles
+            ?.filter((f)=> f && f.Key !== `${submission.rootPath}/${FILE}/`)
+            ?.map((f)=> f.Key.replace(`${submission.rootPath}/${FILE}/`, ''));
+
+        const s3FileSet = new Set(uploadedFiles);
+        const fileDataRecordsMap = new Map(fileRecords.map(file => [file?.s3FileInfo?.fileName, file?.s3FileInfo]));
+        const [orphanedFiles, ] = [[]];
+        s3FileSet.forEach(file => {
+            if (!fileDataRecordsMap.has(file)) {
+                orphanedFiles.push(file);
+            }
+        });
+        return [dataFileSize, orphanedFiles];
     }
 
     async #archiveCancelSubmission(action, submissionID, bucketName, rootPath) {
