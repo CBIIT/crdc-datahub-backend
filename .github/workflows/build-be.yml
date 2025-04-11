@@ -30,6 +30,8 @@ jobs:
 #      CODE_BRANCH: "${{ github.event.inputs.code_branch }}"
       AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
     steps:
 
       - name: Checkout Code Repository
@@ -39,20 +41,32 @@ jobs:
           ref: ${{ github.ref_name }}
           submodules: true
 
-      - name: Extract branch name
+      - name: Extract branch name and set tag image
         id: extract_branch
         run: |
           BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
           echo "branch=$BRANCH_NAME" >> "$GITHUB_ENV"
           echo "Current branch is: $BRANCH_NAME"
+          git fetch --tags --force --quiet
+          tag=$(git tag -l $BRANCH_NAME* | tail -1)
+          if  [ ! -z "$tag" ];
+          then
+            # Increment the build number if a tag is found
+            build_num=$(echo "${tag##*.}")
+            build_num=$((build_num+1))
+            echo "IMAGE_TAG=$BRANCH_NAME.$build_num" >> $GITHUB_ENV
+          else
+            # If no tag is found create a new tag name
+            build_num=1
+            echo "IMAGE_TAG=$BRANCH_NAME.$build_num" >> $GITHUB_ENV
+          fi
       
       - name: Build Backend Docker Image
         id: build-image
         env:
           REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
-          #PV_PULLER_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_PVPULLER }}:${{ env.CODE_BRANCH }}.${{ github.run_number }}
-#          BE_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_BE }}:${{ env.branch }}.${{ github.run_number }}
-          BE_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.REGION }}.amazonaws.com/${{ env.ECR_REPO_BE }}:${{ env.branch }}.${{ github.run_number }}
+          #BE_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_BE }}:${{ env.branch }}.${{ github.run_number }}
+          BE_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_BE }}:${{ env.IMAGE_TAG }}
         run: |
           echo "Building: $BE_IMAGE_NAME"
           docker build --no-cache -t $BE_IMAGE_NAME .
@@ -62,14 +76,20 @@ jobs:
         if: github.event.inputs.trivy_test_scan_be == 'true'
         env:
           REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
-          #PV_PULLER_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_PVPULLER }}:${{ env.CODE_BRANCH }}.${{ github.run_number }}
-          BE_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_BE }}:${{ env.branch }}.${{ github.run_number }}
+          BE_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_BE }}:${{ env.IMAGE_TAG }}
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: '${{ env.BE_IMAGE_NAME }}'
           format: 'table'
           exit-code: 1
           severity: 'CRITICAL,HIGH'
+
+      - name: Create git tag for image
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git tag ${{ env.IMAGE_TAG }}
+          git push origin ${{ env.IMAGE_TAG }}
 
       - name: Configure AWS Role to assume using OIDC authentication
         uses: aws-actions/configure-aws-credentials@v4
@@ -87,11 +107,19 @@ jobs:
         if: success()
         env:
           REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.REGION }}.amazonaws.com
-          #PV_PULLER_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_PVPULLER }}:${{ env.CODE_BRANCH }}.${{ github.run_number }}
-          BE_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_BE }}:${{ env.branch }}.${{ github.run_number }}
+          BE_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_BE }}:${{ env.IMAGE_TAG }}
         run: |
           echo "Pushing: $BE_IMAGE_NAME"
           docker push $BE_IMAGE_NAME
+
+      - name: Slack Notification
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        uses: act10ns/slack@87c73aef9f8838eb6feae81589a6b1487a4a9e08     # v1.6.0
+        with:
+          status: ${{ job.status }}
+          steps: ${{ toJson(steps) }}
+        if: always()
 
 #1st try      - name: scan docker image with AWS inspector
 #        id: scan-inspector
