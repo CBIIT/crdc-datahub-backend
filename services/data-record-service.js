@@ -195,12 +195,20 @@ class DataRecordService {
                 submissionID: submissionID
             }
         });
+
         // Filter by Batch IDs
         if (!!batchIDs && batchIDs.length > 0) {
             dataRecordQCResultsPipeline.push({
                 $match: {
-                    batchID: {
-                        $in: batchIDs
+                    $expr: {
+                        $gt: [
+                            {
+                                $size: {
+                                    $setIntersection: ["$batchIDs", batchIDs]
+                                }
+                            },
+                            0
+                        ]
                     }
                 }
             });
