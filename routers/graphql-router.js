@@ -54,6 +54,7 @@ let root;
 let authenticationService, userInitializationService;
 dbConnector.connect().then(async () => {
     const config = await configuration.updateConfig(dbConnector);
+    await dbConnector.connect();
     const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
     const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
     const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
@@ -204,6 +205,8 @@ dbConnector.connect().then(async () => {
         downloadMetadataFile: submissionService.getMetadataFile.bind(submissionService),
         retrieveCLIUploaderVersion: configurationService.retrieveCLIUploaderVersion.bind(configurationService),
     };
+
+    // await dbConnector.disconnect();
 });
 
 

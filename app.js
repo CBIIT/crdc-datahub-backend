@@ -76,54 +76,60 @@ app.use("/api/graphql", graphqlRouter);
 (async () => {
     const dbConnector = new DatabaseConnector(configuration.mongo_db_connection_string);
     const dbService = new MongoQueries(configuration.mongo_db_connection_string, DATABASE_NAME);
-    dbConnector.connect().then( async () => {
+    const connector = dbConnector.connect();
+    connector.then( async () => {
         const config = await configuration.updateConfig(dbConnector);
-        const emailService = new EmailService(config.email_transport, config.emails_enabled);
-        const notificationsService = new NotifyUser(emailService, config.tier);
-        const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
-        const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
-        const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
-        const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days,
-            submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk, remindSubmissionDay: config.inactiveSubmissionNotifyDays,
-            techSupportEmail: config.techSupportEmail, conditionalSubmissionContact: config.conditionalSubmissionContact, submissionGuideURL: config.submissionGuideUrl,
-            completedSubmissionDays: config.completed_submission_days, inactiveSubmissionDays: config.inactive_submission_days, finalRemindSubmissionDay: config.inactive_submission_days,
-            inactiveApplicationNotifyDays: config.inactiveApplicationNotifyDays};
 
-        
-        const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
-        const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
-        const configurationService = new ConfigurationService(configurationCollection)
-        const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
-        const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
-        const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection, approvedStudiesCollection);
-        const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, userCollection, organizationService, submissionCollection);
-
-        const userService = new UserService(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, approvedStudiesService, config.inactive_user_days);
-        const s3Service = new S3Service();
-        const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
-        const awsService = new AWSService(submissionCollection, userService, config.role_arn, config.presign_expiration);
-        const batchService = new BatchService(s3Service, batchCollection, config.sqs_loader_queue, awsService);
-
-        const qcResultCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, QC_RESULTS_COLLECTION);
-        const qcResultsService = new QcResultService(qcResultCollection, submissionCollection);
-
-        const releaseCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, RELEASE_DATA_RECORDS_COLLECTION);
-        const dataRecordCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_COLLECTION);
-        const dataRecordArchiveCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_ARCHIVE_COLLECTION);
-        const dataRecordService = new DataRecordService(dataRecordCollection, dataRecordArchiveCollection, releaseCollection, config.file_queue, config.metadata_queue, awsService, s3Service, qcResultsService, config.export_queue);
-
-        const utilityService = new UtilityService();
-        const fetchDataModelInfo = async () => {
-            return utilityService.fetchJsonFromUrl(config.model_url)
-        };
-        const validationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, VALIDATION_COLLECTION);
-        const submissionService = new Submission(logCollection, submissionCollection, batchService, userService,
-            organizationService, notificationsService, dataRecordService, fetchDataModelInfo, awsService, config.export_queue,
-            s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService, 
-            config.uploaderCLIConfigs, config.submission_bucket, configurationService);
-
-        const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, emailParams);
         cronJob.schedule(config.scheduledJobTime, async () => {
+            await dbConnector.connect();
+            const emailService = new EmailService(config.email_transport, config.emails_enabled);
+            const notificationsService = new NotifyUser(emailService, config.tier);
+            const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
+            const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
+            const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
+            const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days,
+                submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk, remindSubmissionDay: config.inactiveSubmissionNotifyDays,
+                techSupportEmail: config.techSupportEmail, conditionalSubmissionContact: config.conditionalSubmissionContact, submissionGuideURL: config.submissionGuideUrl,
+                completedSubmissionDays: config.completed_submission_days, inactiveSubmissionDays: config.inactive_submission_days, finalRemindSubmissionDay: config.inactive_submission_days,
+                inactiveApplicationNotifyDays: config.inactiveApplicationNotifyDays};
+
+
+            const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
+            const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
+            const configurationService = new ConfigurationService(configurationCollection)
+            const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
+            const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
+            const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection, approvedStudiesCollection);
+            const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, userCollection, organizationService, submissionCollection);
+
+            const userService = new UserService(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, approvedStudiesService, config.inactive_user_days);
+            const s3Service = new S3Service();
+            const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
+            const awsService = new AWSService(submissionCollection, userService, config.role_arn, config.presign_expiration);
+            const batchService = new BatchService(s3Service, batchCollection, config.sqs_loader_queue, awsService);
+
+            const qcResultCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, QC_RESULTS_COLLECTION);
+            const qcResultsService = new QcResultService(qcResultCollection, submissionCollection);
+
+            const releaseCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, RELEASE_DATA_RECORDS_COLLECTION);
+            const dataRecordCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_COLLECTION);
+            const dataRecordArchiveCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_ARCHIVE_COLLECTION);
+            const dataRecordService = new DataRecordService(dataRecordCollection, dataRecordArchiveCollection, releaseCollection, config.file_queue, config.metadata_queue, awsService, s3Service, qcResultsService, config.export_queue);
+
+            const utilityService = new UtilityService();
+            const fetchDataModelInfo = async () => {
+                return utilityService.fetchJsonFromUrl(config.model_url)
+            };
+            const validationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, VALIDATION_COLLECTION);
+            const submissionService = new Submission(logCollection, submissionCollection, batchService, userService,
+                organizationService, notificationsService, dataRecordService, fetchDataModelInfo, awsService, config.export_queue,
+                s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService,
+                config.uploaderCLIConfigs, config.submission_bucket, configurationService);
+
+            const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, emailParams);
+
+
+
             // The delete application job should run before the inactive application reminder. Once the application deleted, the reminder email should not be sent.
             console.log("Running a scheduled background task to delete inactive application at " + getCurrentTime());
             await dataInterface.deleteInactiveApplications();
@@ -140,6 +146,8 @@ app.use("/api/graphql", graphqlRouter);
             await submissionService.archiveCompletedSubmissions();
             console.log("Running a scheduled job to purge deleted data files at " + getCurrentTime());
             await submissionService.purgeDeletedDataFiles();
+
+            await dbConnector.disconnect();
         });
     });
 })();
