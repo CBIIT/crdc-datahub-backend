@@ -34,7 +34,7 @@ class InstitutionService {
 
         const validStatus = [INSTITUTION.STATUSES.INACTIVE, INSTITUTION.STATUSES.ACTIVE];
         if (params?.status && !validStatus.includes(params?.status)) {
-            throw new Error(replaceErrorString(ERROR.INVALID_INSTITUTION_STATUS, params?.name))
+            throw new Error(replaceErrorString(ERROR.INVALID_INSTITUTION_STATUS, params?.status))
         }
 
         const institutions = await this.institutionCollection.aggregate([{$match: { name: newName}}, { $limit: 1 }]);
