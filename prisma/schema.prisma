@@ -130,7 +130,7 @@ type LogsNewProfile {
   dataCommons   String[]
   email         String?
   firstName     String?
-  institution   LogsNewProfileInstitution?
+  institution   Institution?
   lastName      String?
   notifications String[]
   organization  OrgInfo?
@@ -141,12 +141,6 @@ type LogsNewProfile {
   studies       Json?
   tokens        String[]
   userStatus    String?
-}
-
-type LogsNewProfileInstitution {
-  id     String @map("_id")
-  name   String
-  status String
 }
 
 type LogsNewProfileStudies {
@@ -160,7 +154,7 @@ type LogsPrevProfile {
   dataCommons   String[]
   email         String?
   firstName     String?
-  institution   LogsPrevProfileInstitution?
+  institution   Institution?
   lastName      String?
   notifications String[]
   organization  OrgInfo?
@@ -173,14 +167,14 @@ type LogsPrevProfile {
   userStatus    String?
 }
 
-type LogsPrevProfileInstitution {
+type LogsPrevProfileStudies {
+  id String @map("_id")
+}
+
+type Institution {
   id     String @map("_id")
   name   String
   status String
-}
-
-type LogsPrevProfileStudies {
-  id String @map("_id")
 }
 
 type OrganizationStudies {
@@ -223,12 +217,6 @@ type SubmissionsFileErrors {
   validationType String
   /// Could not determine type: the field only had null or empty values in the sample set.
   warnings       Json?
-}
-
-type UsersInstitution {
-  id     String @map("_id")
-  name   String
-  status String
 }
 
 type UsersStudies {
@@ -601,10 +589,10 @@ model users {
   dataCommons   String[]
   email         String
   firstName     String
-  institution   UsersInstitution?
+  institution   Institution?
   lastName      String
   notifications String[]
-  organization  UsersOrganization?
+  organization  OrgInfo?
   permissions   String[]
   role          String
   status        String?
