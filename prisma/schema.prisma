@@ -8,6 +8,17 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+type OrgInfo {
+  id        String    @map("_id")
+  name      String
+  // Optional fields to cover all organization use cases
+  status    String?
+  createdAt DateTime? @db.Date
+  updateAt  DateTime? @db.Date
+  orgID     String?
+  orgName   String?
+}
+
 type ApplicationsApplicant {
   applicantEmail String
   applicantID    String
@@ -21,11 +32,6 @@ type ApplicationsHistory {
   status        String
   userID        String
   userName      String?
-}
-
-type ApplicationsOrganization {
-  id   String? @map("_id")
-  name String?
 }
 
 type BatchFiles {
@@ -85,12 +91,6 @@ type DataRecordsAdditionalErrors {
   title                  String
 }
 
-type DataRecordsArchivedParents {
-  parentIDPropName String
-  parentIDValue    String
-  parentType       String
-}
-
 type DataRecordsArchivedS3FileInfo {
   createdAt DateTime @db.Date
   /// Could not determine type: the field only had null or empty values in the sample set.
@@ -110,25 +110,14 @@ type DataRecordsArchivedSubmissionInfoHistory {
   userID   String
 }
 
-type DataRecordsArchivedSubmissionInfoOrganization {
-  id   String @map("_id")
-  name String
-}
-
 type DataRecordsArchivedWarnings {
   description String
   title       String
 }
 
-type DataRecordsParents {
-  parentIDPropName String
-  parentIDValue    String
-  parentType       String
-}
-
 type DataRecordsS3FileInfo {
   createdAt DateTime?                     @db.Date
-  errors    BaseError[]
+  errors    Error[]
   fileName  String
   md5       String?
   size      String?
@@ -159,7 +148,7 @@ type LogsNewProfile {
   institution   LogsNewProfileInstitution?
   lastName      String?
   notifications String[]
-  organization  LogsNewProfileOrganization?
+  organization  OrgInfo?
   permissions   String[]
   role          String?
   status        String?
@@ -173,16 +162,6 @@ type LogsNewProfileInstitution {
   id     String @map("_id")
   name   String
   status String
-}
-
-type LogsNewProfileOrganization {
-  /// Multiple data types found: String: 32.7%, DateTime (Date): 67.3% out of 49 sampled entries
-  createdAt Json?
-  orgID     String?
-  orgName   String?
-  status    String?
-  /// Multiple data types found: String: 6.5%, DateTime (Date): 93.5% out of 49 sampled entries
-  updateAt  Json?
 }
 
 type LogsNewProfileStudies {
@@ -199,7 +178,7 @@ type LogsPrevProfile {
   institution   LogsPrevProfileInstitution?
   lastName      String?
   notifications String[]
-  organization  LogsPrevProfileOrganization?
+  organization  OrgInfo?
   permissions   String[]
   role          String?
   status        String?
@@ -213,16 +192,6 @@ type LogsPrevProfileInstitution {
   id     String @map("_id")
   name   String
   status String
-}
-
-type LogsPrevProfileOrganization {
-  /// Multiple data types found: String: 31.6%, DateTime (Date): 68.4% out of 38 sampled entries
-  createdAt Json?
-  orgID     String?
-  orgName   String?
-  status    String?
-  /// Multiple data types found: String: 5.6%, DateTime (Date): 94.4% out of 38 sampled entries
-  updateAt  Json?
 }
 
 type LogsPrevProfileStudies {
@@ -244,85 +213,18 @@ type OrganizationStudies {
   updatedAt         DateTime? @db.Date
 }
 
-type ReleaseParents {
-  parentIDPropName String
-  parentIDValue    String
-  parentType       String
-}
-
 type ReleaseSubmissionInfoHistory {
   dateTime DateTime @db.Date
   status   String
   userID   String
 }
 
-type ReleaseSubmissionInfoOrganization {
-  id   String @map("_id")
-  name String
-}
-
-type Submissions0 {
-  /// Could not determine type: the field only had null or empty values in the sample set.
-  batchID        Json?
-  /// Could not determine type: the field only had null or empty values in the sample set.
-  displayID      Json?
-  errors         BaseError[]
-  severity       String
-  submittedID    String
-  type           String
-  uploadedDate   DateTime             @db.Date
-  validatedDate  DateTime             @db.Date
-  validationType String
-  /// Could not determine type: the field only had null or empty values in the sample set.
-  warnings       Json?
-}
-
-type Submissions1 {
-  /// Could not determine type: the field only had null or empty values in the sample set.
-  batchID        Json?
-  /// Could not determine type: the field only had null or empty values in the sample set.
-  displayID      Json?
-  errors         BaseError[]
-  severity       String
-  submittedID    String
-  type           String
-  uploadedDate   DateTime             @db.Date
-  validatedDate  DateTime             @db.Date
-  validationType String
-  /// Could not determine type: the field only had null or empty values in the sample set.
-  warnings       Json?
-}
-
-type Submissions2 {
-  /// Could not determine type: the field only had null or empty values in the sample set.
-  batchID        Json?
-  /// Could not determine type: the field only had null or empty values in the sample set.
-  displayID      Json?
-  errors         BaseError[]
-  severity       String
-  submittedID    String
-  type           String
-  uploadedDate   DateTime             @db.Date
-  validatedDate  DateTime             @db.Date
-  validationType String
-  /// Could not determine type: the field only had null or empty values in the sample set.
-  warnings       Json?
-}
-
 type SubmissionsCollaborators {
-  Organization     SubmissionsCollaboratorsOrganization?
+  Organization     OrgInfo?
   collaboratorID   String
   collaboratorName String?
   /// Multiple data types found: String: 97.4%, Array(String): 2.6% out of 38 sampled entries
   permission       Json
-}
-
-type SubmissionsCollaboratorsOrganization {
-  createdAt DateTime @db.Date
-  orgID     String
-  orgName   String
-  status    String
-  updateAt  DateTime @db.Date
 }
 
 type SubmissionsDataFileSize {
@@ -333,7 +235,7 @@ type SubmissionsDataFileSize {
 type SubmissionsFileErrors {
   batchID        String?
   displayID      Int?
-  errors         BaseError[]
+  errors         Error[]
   severity       String
   submittedID    String
   type           String
@@ -351,27 +253,20 @@ type SubmissionsHistory {
   userID        String
 }
 
-type SubmissionsOrganization {
-  id   String? @map("_id")
-  name String?
-}
-
 type UsersInstitution {
   id     String @map("_id")
   name   String
   status String
 }
 
-type UsersOrganization {
-  createdAt DateTime? @db.Date
-  orgID     String?
-  orgName   String?
-  status    String?
-  updateAt  DateTime? @db.Date
-}
-
 type UsersStudies {
   id String @map("_id")
+}
+
+type Parent {
+  parentIDPropName String
+  parentIDValue    String
+  parentType       String
 }
 
 model CDE {
@@ -396,7 +291,7 @@ model applications {
   history             ApplicationsHistory[]
   inactiveReminder    Boolean?
   openAccess          Boolean?
-  organization        ApplicationsOrganization
+  organization        OrgInfo
   programAbbreviation String?
   programDescription  String?
   programName         String
@@ -502,7 +397,7 @@ model dataRecords {
   nodeID               String
   nodeType             String
   orginalFileName      String
-  parents              DataRecordsParents[]
+  parents              Parent[]
   props                Json
   qcResultID           String?
   rawData              Json
@@ -538,7 +433,7 @@ model dataRecordsArchived {
   nodeID               String
   nodeType             String
   orginalFileName      String
-  parents              DataRecordsArchivedParents[]
+  parents              Parent[]
   props                Json
   qcResultID           String?
   rawData              Json
@@ -636,7 +531,7 @@ model release {
   entityType      String?
   nodeID          String
   nodeType        String
-  parents         ReleaseParents[]
+  parents         Parent[]
   props           Json
   status          String
   studyID         String?
@@ -658,12 +553,6 @@ model sessions {
 
 model submissions {
   id                       String                     @id @map("_id")
-  /// This field was commented out because of an invalid name. Please provide a valid one that matches [a-zA-Z][a-zA-Z0-9_]*
-  // 0 Submissions0? @map("0")
-  /// This field was commented out because of an invalid name. Please provide a valid one that matches [a-zA-Z][a-zA-Z0-9_]*
-  // 1 Submissions1? @map("1")
-  /// This field was commented out because of an invalid name. Please provide a valid one that matches [a-zA-Z][a-zA-Z0-9_]*
-  // 2 Submissions2? @map("2")
   ORCID                    String?
   accessedAt               DateTime                   @db.Date
   archived                 Boolean?
@@ -699,7 +588,7 @@ model submissions {
   modelVersion             String
   name                     String
   nodeCount                Int?
-  organization             SubmissionsOrganization
+  organization             OrgInfo
   /// Could not determine type: the field only had null or empty values in the sample set.
   reviewComment            Json?
   rootPath                 String
