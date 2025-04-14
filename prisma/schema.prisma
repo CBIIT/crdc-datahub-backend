@@ -19,7 +19,7 @@ type OrgInfo {
   orgName   String?
 }
 
-type ApplicationsApplicant {
+type Applicant {
   applicantEmail String
   applicantID    String
   applicantName  String
@@ -38,13 +38,13 @@ type BatchFiles {
   updatedAt  DateTime @db.Date
 }
 
-type ConfigurationDefaults {
-  notifications ConfigurationDefaultsNotifications[]
-  permissions   ConfigurationDefaultsPermissions[]
+type PBACDefaults {
+  notifications Notification[]
+  permissions   Permission[]
   role          String
 }
 
-type ConfigurationDefaultsNotifications {
+type Notification {
   id       String  @map("_id")
   checked  Boolean
   disabled Boolean
@@ -53,7 +53,7 @@ type ConfigurationDefaultsNotifications {
   order    Int
 }
 
-type ConfigurationDefaultsPermissions {
+type Permission {
   id        String   @map("_id")
   checked   Boolean
   disabled  Boolean
@@ -63,44 +63,18 @@ type ConfigurationDefaultsPermissions {
   order     Int
 }
 
-type ConfigurationKeys {
-  datasync_log_arn String?
-  datasync_role    String?
-  dm_bucket        String?
-  sqs              String?
-  tier             String?
-}
-
 type ConfigurationTag {
   Key   String
   Value String
 }
 
-type DataRecordsAdditionalErrors {
+type AdditionalError {
   conflictingSubmissions String[]
   description            String
   title                  String
 }
 
-type DataRecordsArchivedS3FileInfo {
-  createdAt DateTime @db.Date
-  /// Could not determine type: the field only had null or empty values in the sample set.
-  errors    Json?
-  fileName  String
-  md5       String
-  size      String
-  status    String
-  updatedAt DateTime @db.Date
-  /// Could not determine type: the field only had null or empty values in the sample set.
-  warnings  Json?
-}
-
-type DataRecordsArchivedWarnings {
-  description String
-  title       String
-}
-
-type DataRecordsS3FileInfo {
+type S3FileInfo {
   createdAt DateTime?                     @db.Date
   errors    Error[]
   fileName  String
@@ -109,12 +83,7 @@ type DataRecordsS3FileInfo {
   status    String
   updatedAt DateTime?                     @db.Date
   /// Could not determine type: the field only had null or empty values in the sample set.
-  warnings  Json?
-}
-
-type DataRecordsWarnings {
-  description String
-  title       String
+  warnings  Error[]
 }
 
 type LogsEventDetail {
@@ -123,76 +92,13 @@ type LogsEventDetail {
   submissionID String
 }
 
-type LogsNewProfile {
-  IDP           String?
-  /// Multiple data types found: String: 7.5%, DateTime (Date): 92.5% out of 40 sampled entries
-  createdAt     Json?
-  dataCommons   String[]
-  email         String?
-  firstName     String?
-  institution   Institution?
-  lastName      String?
-  notifications String[]
-  organization  OrgInfo?
-  permissions   String[]
-  role          String?
-  status        String?
-  /// Multiple data types found: Array(String): 44.4%, Array(LogsNewProfileStudies): 55.6% out of 51 sampled entries
-  studies       Json?
-  tokens        String[]
-  userStatus    String?
-}
-
-type LogsNewProfileStudies {
-  id String @map("_id")
-}
-
-type LogsPrevProfile {
-  IDP           String?
-  /// Multiple data types found: String: 7.5%, DateTime (Date): 92.5% out of 40 sampled entries
-  createdAt     Json?
-  dataCommons   String[]
-  email         String?
-  firstName     String?
-  institution   Institution?
-  lastName      String?
-  notifications String[]
-  organization  OrgInfo?
-  permissions   String[]
-  role          String?
-  status        String?
-  /// Multiple data types found: Array(String): 55%, Array(LogsPrevProfileStudies): 45% out of 51 sampled entries
-  studies       Json?
-  tokens        String[]
-  userStatus    String?
-}
-
-type LogsPrevProfileStudies {
-  id String @map("_id")
-}
-
 type Institution {
   id     String @map("_id")
   name   String
   status String
 }
 
-type OrganizationStudies {
-  ORCID             String?
-  PI                String?
-  id                String    @map("_id")
-  controlledAccess  Boolean?
-  createdAt         DateTime? @db.Date
-  dbGaPID           String?
-  openAccess        Boolean?
-  originalOrg       String?
-  programName       String?
-  studyAbbreviation String?
-  studyName         String?
-  updatedAt         DateTime? @db.Date
-}
-
-type SubmissionsCollaborators {
+type Collaborator {
   Organization     OrgInfo?
   collaboratorID   String
   collaboratorName String?
@@ -200,26 +106,12 @@ type SubmissionsCollaborators {
   permission       Json
 }
 
-type SubmissionsDataFileSize {
+type DataFileSize {
   formatted String
   size      Int
 }
 
-type SubmissionsFileErrors {
-  batchID        String?
-  displayID      Int?
-  errors         Error[]
-  severity       String
-  submittedID    String
-  type           String
-  uploadedDate   DateTime                      @db.Date
-  validatedDate  DateTime                      @db.Date
-  validationType String
-  /// Could not determine type: the field only had null or empty values in the sample set.
-  warnings       Json?
-}
-
-type UsersStudies {
+type StudyByID {
   id String @map("_id")
 }
 
@@ -253,7 +145,7 @@ model applications {
   id                  String                   @id @map("_id")
   ORCID               String?
   PI                  String?
-  applicant           ApplicationsApplicant
+  applicant           Applicant
   controlledAccess    Boolean?
   createdAt           DateTime                 @db.Date
   history             History[]
@@ -269,7 +161,7 @@ model applications {
   studyAbbreviation   String
   studyName           String
   /// Multiple data types found: String: 4.8%, DateTime (Date): 95.2% out of 21 sampled entries
-  submittedDate       Json?
+  submittedDate       DateTime?
   updatedAt           DateTime                 @db.Date
   version             String
   wholeProgram        Boolean?
@@ -314,7 +206,7 @@ model configuration {
   id                               String                  @id @map("_id")
   COMPLETED_RETENTION_DAYS         Int?
   DASHBOARD_SESSION_TIMEOUT        Int?
-  Defaults                         ConfigurationDefaults[]
+  Defaults                         PBACDefaults[]
   EMAIL_URL                        String?
   INACTIVE_APPLICATION_DAYS        Int?
   INACTIVE_SUBMISSION_DAYS_DELETE  Int?
@@ -340,7 +232,7 @@ model configuration {
   days                             Int?
   interval                         Int?
   key                              String[]
-  keys                             ConfigurationKeys?
+  keys                             Json?
   new                              String?
   prefix                           String?
   tag                              ConfigurationTag?
@@ -353,7 +245,7 @@ model dataRecords {
   id                   String                        @id @map("_id")
   CRDC_ID              String?
   IDPropName           String
-  additionalErrors     DataRecordsAdditionalErrors[]
+  additionalErrors     AdditionalError[]
   batchIDs             String[]
   createdAt            DateTime                      @db.Date
   dataCommons          String
@@ -369,14 +261,14 @@ model dataRecords {
   props                Json
   qcResultID           String?
   rawData              Json
-  s3FileInfo           DataRecordsS3FileInfo?
+  s3FileInfo           S3FileInfo?
   status               String
   studyID              String
   submissionID         String
   updatedAt            DateTime                      @db.Date
   uploadedDate         DateTime                      @db.Date
   validatedAt          DateTime?                     @db.Date
-  warnings             DataRecordsWarnings[]
+  warnings             Error[]
 
   @@index([submissionID, nodeType, nodeID], map: "submissionID_nodeType_nodeID")
   @@index([dataCommons, nodeType, nodeID], map: "dataCommons_nodeType_nodeID")
@@ -389,7 +281,7 @@ model dataRecordsArchived {
   CRDC_ID              String?
   IDPropName           String
   /// Could not determine type: the field only had null or empty values in the sample set.
-  additionalErrors     Json?
+  additionalErrors     AdditionalError[]
   batchIDs             String[]
   createdAt            DateTime                           @db.Date
   dataCommons          String
@@ -405,14 +297,14 @@ model dataRecordsArchived {
   props                Json
   qcResultID           String?
   rawData              Json
-  s3FileInfo           DataRecordsArchivedS3FileInfo?
+  s3FileInfo           S3FileInfo?
   status               String
   studyID              String?
   submissionID         String
   updatedAt            DateTime                           @db.Date
   uploadedDate         DateTime                           @db.Date
   validatedAt          DateTime?                          @db.Date
-  warnings             DataRecordsArchivedWarnings[]
+  warnings             Error[]
 }
 
 model fileMD5 {
@@ -441,9 +333,9 @@ model logs {
   eventDetail   LogsEventDetail?
   eventType     String
   localtime     DateTime         @db.Date
-  newProfile    LogsNewProfile?
+  newProfile    Json?
   newState      String?
-  prevProfile   LogsPrevProfile?
+  prevProfile   Json?
   prevState     String?
   submissionID  String?
   timestamp     Float
@@ -465,10 +357,10 @@ model organization {
   name           String
   rootPath       String?
   status         String
-  studies        OrganizationStudies[]
+  studies        StudyByID[]
   updateAt       DateTime              @db.Date
   /// Multiple data types found: String: 50%, DateTime (Date): 50% out of 4 sampled entries
-  updatedAt      Json?
+  updatedAt      DateTime?
 }
 
 model qcResults {
@@ -525,25 +417,25 @@ model submissions {
   accessedAt               DateTime                   @db.Date
   archived                 Boolean?
   bucketName               String
-  collaborators            SubmissionsCollaborators[]
+  collaborators            Collaborator[]
   collborators             String?
   conciergeEmail           String?
   conciergeName            String?
   controlledAccess         Boolean?
   createdAt                DateTime                   @db.Date
   /// Multiple data types found: String: 92.9%, Boolean: 7.1% out of 375 sampled entries
-  crossSubmissionStatus    Json?
+  crossSubmissionStatus    String?
   dataCommons              String
   dataCommonsDisplayName   String?
-  dataFileSize             SubmissionsDataFileSize
+  dataFileSize             DataFileSize
   dataType                 String
   dbGaPID                  String?
   deletingData             Boolean?
-  fileErrors               SubmissionsFileErrors[]
+  // fileErrors               SubmissionsFileErrors[]
   /// Multiple data types found: String: 98.5%, Boolean: 1.5% out of 375 sampled entries
-  fileValidationStatus     Json?
+  fileValidationStatus     String?
   /// Could not determine type: the field only had null or empty values in the sample set.
-  fileWarnings             Json?
+  // fileWarnings             Json?
   finalInactiveReminder    Boolean?
   history                  History[]
   inactiveReminder         Boolean?
@@ -552,13 +444,13 @@ model submissions {
   inactiveReminder_7       Boolean?
   intention                String
   /// Multiple data types found: String: 99.5%, Boolean: 0.5% out of 375 sampled entries
-  metadataValidationStatus Json?
+  metadataValidationStatus String?
   modelVersion             String
   name                     String
   nodeCount                Int?
   organization             OrgInfo
   /// Could not determine type: the field only had null or empty values in the sample set.
-  reviewComment            Json?
+  reviewComment            String?
   rootPath                 String
   status                   String
   studyAbbreviation        String?
@@ -585,7 +477,7 @@ model users {
   id            String             @id @map("_id")
   IDP           String
   /// Multiple data types found: String: 14.6%, DateTime (Date): 85.4% out of 48 sampled entries
-  createdAt     Json
+  createdAt     DateTime
   dataCommons   String[]
   email         String
   firstName     String
@@ -596,10 +488,10 @@ model users {
   permissions   String[]
   role          String
   status        String?
-  studies       UsersStudies[]
+  studies       StudyByID[]
   tokens        String[]
   /// Multiple data types found: String: 2.1%, DateTime (Date): 97.9% out of 48 sampled entries
-  updateAt      Json
+  updateAt      DateTime
   userStatus    String
 }
 
