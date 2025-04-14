@@ -824,9 +824,6 @@ class Submission {
             for (let node of result.results) {
                 if (!returnVal.IDPropName) returnVal.IDPropName = node.IDPropName;
                 if (node?.parents && node.parents.length > 0) {
-                    // for (let parent of node.parents) {
-                    //     node.props[`${parent.parentType}.${parent.parentIDPropName}`] = parent.parentIDValue;
-                    // }
                     //get unique parent.parentType from node?.parents 
                     const parentTypes = [...new Set(node.parents.map(p => p.parentType))];
                     // loop through parentTypes and get the parent.parentIDPropName, parentIDValue for each parentType
