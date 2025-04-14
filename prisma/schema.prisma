@@ -25,15 +25,6 @@ type ApplicationsApplicant {
   applicantName  String
 }
 
-type ApplicationsHistory {
-  date          String?
-  dateTime      DateTime? @db.Date
-  reviewComment String?
-  status        String
-  userID        String
-  userName      String?
-}
-
 type BatchFiles {
   createdAt  DateTime @db.Date
   errors     String[]
@@ -102,12 +93,6 @@ type DataRecordsArchivedS3FileInfo {
   updatedAt DateTime @db.Date
   /// Could not determine type: the field only had null or empty values in the sample set.
   warnings  Json?
-}
-
-type DataRecordsArchivedSubmissionInfoHistory {
-  dateTime DateTime @db.Date
-  status   String
-  userID   String
 }
 
 type DataRecordsArchivedWarnings {
@@ -213,12 +198,6 @@ type OrganizationStudies {
   updatedAt         DateTime? @db.Date
 }
 
-type ReleaseSubmissionInfoHistory {
-  dateTime DateTime @db.Date
-  status   String
-  userID   String
-}
-
 type SubmissionsCollaborators {
   Organization     OrgInfo?
   collaboratorID   String
@@ -246,13 +225,6 @@ type SubmissionsFileErrors {
   warnings       Json?
 }
 
-type SubmissionsHistory {
-  dateTime      DateTime @db.Date
-  reviewComment String?
-  status        String
-  userID        String
-}
-
 type UsersInstitution {
   id     String @map("_id")
   name   String
@@ -267,6 +239,14 @@ type Parent {
   parentIDPropName String
   parentIDValue    String
   parentType       String
+}
+
+type History {
+  dateTime      DateTime @db.Date
+  reviewComment String?
+  status        String
+  userID        String
+  userName      String?
 }
 
 model CDE {
@@ -288,7 +268,7 @@ model applications {
   applicant           ApplicationsApplicant
   controlledAccess    Boolean?
   createdAt           DateTime                 @db.Date
-  history             ApplicationsHistory[]
+  history             History[]
   inactiveReminder    Boolean?
   openAccess          Boolean?
   organization        OrgInfo
@@ -577,7 +557,7 @@ model submissions {
   /// Could not determine type: the field only had null or empty values in the sample set.
   fileWarnings             Json?
   finalInactiveReminder    Boolean?
-  history                  SubmissionsHistory[]
+  history                  History[]
   inactiveReminder         Boolean?
   inactiveReminder_30      Boolean?
   inactiveReminder_60      Boolean?
