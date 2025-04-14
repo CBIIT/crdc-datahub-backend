@@ -378,7 +378,7 @@ class UserService {
     }
 
     #setInstitution(newInstitution, prevInstitution, isSubmitter, updatedUser, institutionID) {
-        if (isSubmitter && !newInstitution) {
+        if (isSubmitter && !newInstitution && institutionID) {
             throw new Error(replaceErrorString(ERROR.INSTITUTION_ID_NOT_EXIST, institutionID));
         }
 
