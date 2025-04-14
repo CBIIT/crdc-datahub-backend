@@ -85,11 +85,6 @@ type DataRecordsAdditionalErrors {
   title                  String
 }
 
-type DataRecordsArchivedErrors {
-  description String
-  title       String
-}
-
 type DataRecordsArchivedParents {
   parentIDPropName String
   parentIDValue    String
@@ -125,11 +120,6 @@ type DataRecordsArchivedWarnings {
   title       String
 }
 
-type DataRecordsErrors {
-  description String
-  title       String
-}
-
 type DataRecordsParents {
   parentIDPropName String
   parentIDValue    String
@@ -138,7 +128,7 @@ type DataRecordsParents {
 
 type DataRecordsS3FileInfo {
   createdAt DateTime?                     @db.Date
-  errors    DataRecordsS3FileInfoErrors[]
+  errors    BaseError[]
   fileName  String
   md5       String?
   size      String?
@@ -146,11 +136,6 @@ type DataRecordsS3FileInfo {
   updatedAt DateTime?                     @db.Date
   /// Could not determine type: the field only had null or empty values in the sample set.
   warnings  Json?
-}
-
-type DataRecordsS3FileInfoErrors {
-  description String
-  title       String
 }
 
 type DataRecordsWarnings {
@@ -259,24 +244,6 @@ type OrganizationStudies {
   updatedAt         DateTime? @db.Date
 }
 
-type QcResultsErrors {
-  code              String
-  description       String
-  offendingProperty String?
-  offendingValue    String?
-  severity          String?
-  title             String
-}
-
-type QcResultsWarnings {
-  code              String
-  description       String
-  offendingProperty String?
-  offendingValue    String?
-  severity          String?
-  title             String
-}
-
 type ReleaseParents {
   parentIDPropName String
   parentIDValue    String
@@ -299,7 +266,7 @@ type Submissions0 {
   batchID        Json?
   /// Could not determine type: the field only had null or empty values in the sample set.
   displayID      Json?
-  errors         Submissions0Errors[]
+  errors         BaseError[]
   severity       String
   submittedID    String
   type           String
@@ -308,11 +275,6 @@ type Submissions0 {
   validationType String
   /// Could not determine type: the field only had null or empty values in the sample set.
   warnings       Json?
-}
-
-type Submissions0Errors {
-  description String
-  title       String
 }
 
 type Submissions1 {
@@ -320,7 +282,7 @@ type Submissions1 {
   batchID        Json?
   /// Could not determine type: the field only had null or empty values in the sample set.
   displayID      Json?
-  errors         Submissions1Errors[]
+  errors         BaseError[]
   severity       String
   submittedID    String
   type           String
@@ -329,11 +291,6 @@ type Submissions1 {
   validationType String
   /// Could not determine type: the field only had null or empty values in the sample set.
   warnings       Json?
-}
-
-type Submissions1Errors {
-  description String
-  title       String
 }
 
 type Submissions2 {
@@ -341,7 +298,7 @@ type Submissions2 {
   batchID        Json?
   /// Could not determine type: the field only had null or empty values in the sample set.
   displayID      Json?
-  errors         Submissions2Errors[]
+  errors         BaseError[]
   severity       String
   submittedID    String
   type           String
@@ -350,11 +307,6 @@ type Submissions2 {
   validationType String
   /// Could not determine type: the field only had null or empty values in the sample set.
   warnings       Json?
-}
-
-type Submissions2Errors {
-  description String
-  title       String
 }
 
 type SubmissionsCollaborators {
@@ -381,7 +333,7 @@ type SubmissionsDataFileSize {
 type SubmissionsFileErrors {
   batchID        String?
   displayID      Int?
-  errors         SubmissionsFileErrorsErrors[]
+  errors         BaseError[]
   severity       String
   submittedID    String
   type           String
@@ -390,11 +342,6 @@ type SubmissionsFileErrors {
   validationType String
   /// Could not determine type: the field only had null or empty values in the sample set.
   warnings       Json?
-}
-
-type SubmissionsFileErrorsErrors {
-  description String
-  title       String
 }
 
 type SubmissionsHistory {
@@ -548,7 +495,7 @@ model dataRecords {
   createdAt            DateTime                      @db.Date
   dataCommons          String
   entityType           String?
-  errors               DataRecordsErrors[]
+  errors               Error[]
   latestBatchDisplayID Int
   latestBatchID        String
   lineNumber           Int
@@ -584,7 +531,7 @@ model dataRecordsArchived {
   createdAt            DateTime                           @db.Date
   dataCommons          String
   entityType           String?
-  errors               DataRecordsArchivedErrors[]
+  errors               Error[]
   latestBatchDisplayID Int
   latestBatchID        String
   lineNumber           Int
@@ -666,7 +613,7 @@ model qcResults {
   batchIDs       String[]
   dataRecordID   String
   displayID      Int
-  errors         QcResultsErrors[]
+  errors         Error[]
   latestBatchID  String
   origin         String?
   severity       String
@@ -676,7 +623,7 @@ model qcResults {
   uploadedDate   DateTime            @db.Date
   validatedDate  DateTime            @db.Date
   validationType String
-  warnings       QcResultsWarnings[]
+  warnings       Error[]
 
   @@index([submissionID], map: "submissionID_1")
 }
@@ -807,4 +754,14 @@ model validation {
   status       String?
   submissionID String
   type         String[]
+}
+
+type Error {
+  title       String
+  description String
+  // Optional fields from QcResultsErrors that can be used across all error types
+  code              String?
+  offendingProperty String?
+  offendingValue    String?
+  severity          String?
 }
