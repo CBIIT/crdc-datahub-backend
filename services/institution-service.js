@@ -28,6 +28,15 @@ class InstitutionService {
             .verifyInitialized()
             .verifyPermission(ADMIN.MANAGE_INSTITUTIONS);
         const newName = params?.name?.trim();
+        if (newName === '') {
+            throw new Error(ERROR.EMPTY_INSTITUTION_NAME);
+        }
+
+        const validStatus = [INSTITUTION.STATUSES.INACTIVE, INSTITUTION.STATUSES.ACTIVE];
+        if (params?.status && !validStatus.includes(params?.status)) {
+            throw new Error(replaceErrorString(ERROR.INVALID_INSTITUTION_STATUS, params?.status))
+        }
+
         const institutions = await this.institutionCollection.aggregate([{$match: { name: newName}}, { $limit: 1 }]);
         if (institutions.length > 0) {
             throw new Error(replaceErrorString(ERROR.DUPLICATE_INSTITUTION_NAME, newName));

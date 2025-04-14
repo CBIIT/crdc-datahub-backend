@@ -865,5 +865,5 @@ type Mutation {
 
     updateSubmissionModelVersion(_id: String!, version: String!): Submission
     updateInstitution(_id: ID!, name: String, status: String): Institution
-    createInstitution(name: String!): Institution
+    createInstitution(name: String!, status: String!): Institution
 }
