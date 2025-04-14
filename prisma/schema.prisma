@@ -1,0 +1,810 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+type ApplicationsApplicant {
+  applicantEmail String
+  applicantID    String
+  applicantName  String
+}
+
+type ApplicationsHistory {
+  date          String?
+  dateTime      DateTime? @db.Date
+  reviewComment String?
+  status        String
+  userID        String
+  userName      String?
+}
+
+type ApplicationsOrganization {
+  id   String? @map("_id")
+  name String?
+}
+
+type BatchFiles {
+  createdAt  DateTime @db.Date
+  errors     String[]
+  fileID     String?
+  fileName   String
+  filePrefix String
+  nodeType   String?
+  signedURL  String?
+  size       Int?
+  status     String
+  updatedAt  DateTime @db.Date
+}
+
+type ConfigurationDefaults {
+  notifications ConfigurationDefaultsNotifications[]
+  permissions   ConfigurationDefaultsPermissions[]
+  role          String
+}
+
+type ConfigurationDefaultsNotifications {
+  id       String  @map("_id")
+  checked  Boolean
+  disabled Boolean
+  group    String
+  name     String
+  order    Int
+}
+
+type ConfigurationDefaultsPermissions {
+  id        String   @map("_id")
+  checked   Boolean
+  disabled  Boolean
+  group     String
+  inherited String[]
+  name      String
+  order     Int
+}
+
+type ConfigurationKeys {
+  datasync_log_arn String?
+  datasync_role    String?
+  dm_bucket        String?
+  sqs              String?
+  tier             String?
+}
+
+type ConfigurationTag {
+  Key   String
+  Value String
+}
+
+type DataRecordsAdditionalErrors {
+  conflictingSubmissions String[]
+  description            String
+  title                  String
+}
+
+type DataRecordsArchivedErrors {
+  description String
+  title       String
+}
+
+type DataRecordsArchivedParents {
+  parentIDPropName String
+  parentIDValue    String
+  parentType       String
+}
+
+type DataRecordsArchivedS3FileInfo {
+  createdAt DateTime @db.Date
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  errors    Json?
+  fileName  String
+  md5       String
+  size      String
+  status    String
+  updatedAt DateTime @db.Date
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  warnings  Json?
+}
+
+type DataRecordsArchivedSubmissionInfoHistory {
+  dateTime DateTime @db.Date
+  status   String
+  userID   String
+}
+
+type DataRecordsArchivedSubmissionInfoOrganization {
+  id   String @map("_id")
+  name String
+}
+
+type DataRecordsArchivedWarnings {
+  description String
+  title       String
+}
+
+type DataRecordsErrors {
+  description String
+  title       String
+}
+
+type DataRecordsParents {
+  parentIDPropName String
+  parentIDValue    String
+  parentType       String
+}
+
+type DataRecordsS3FileInfo {
+  createdAt DateTime?                     @db.Date
+  errors    DataRecordsS3FileInfoErrors[]
+  fileName  String
+  md5       String?
+  size      String?
+  status    String
+  updatedAt DateTime?                     @db.Date
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  warnings  Json?
+}
+
+type DataRecordsS3FileInfoErrors {
+  description String
+  title       String
+}
+
+type DataRecordsWarnings {
+  description String
+  title       String
+}
+
+type LogsEventDetail {
+  nodeIDs      String[]
+  nodeType     String
+  submissionID String
+}
+
+type LogsNewProfile {
+  IDP           String?
+  /// Multiple data types found: String: 7.5%, DateTime (Date): 92.5% out of 40 sampled entries
+  createdAt     Json?
+  dataCommons   String[]
+  email         String?
+  firstName     String?
+  institution   LogsNewProfileInstitution?
+  lastName      String?
+  notifications String[]
+  organization  LogsNewProfileOrganization?
+  permissions   String[]
+  role          String?
+  status        String?
+  /// Multiple data types found: Array(String): 44.4%, Array(LogsNewProfileStudies): 55.6% out of 51 sampled entries
+  studies       Json?
+  tokens        String[]
+  userStatus    String?
+}
+
+type LogsNewProfileInstitution {
+  id     String @map("_id")
+  name   String
+  status String
+}
+
+type LogsNewProfileOrganization {
+  /// Multiple data types found: String: 32.7%, DateTime (Date): 67.3% out of 49 sampled entries
+  createdAt Json?
+  orgID     String?
+  orgName   String?
+  status    String?
+  /// Multiple data types found: String: 6.5%, DateTime (Date): 93.5% out of 49 sampled entries
+  updateAt  Json?
+}
+
+type LogsNewProfileStudies {
+  id String @map("_id")
+}
+
+type LogsPrevProfile {
+  IDP           String?
+  /// Multiple data types found: String: 7.5%, DateTime (Date): 92.5% out of 40 sampled entries
+  createdAt     Json?
+  dataCommons   String[]
+  email         String?
+  firstName     String?
+  institution   LogsPrevProfileInstitution?
+  lastName      String?
+  notifications String[]
+  organization  LogsPrevProfileOrganization?
+  permissions   String[]
+  role          String?
+  status        String?
+  /// Multiple data types found: Array(String): 55%, Array(LogsPrevProfileStudies): 45% out of 51 sampled entries
+  studies       Json?
+  tokens        String[]
+  userStatus    String?
+}
+
+type LogsPrevProfileInstitution {
+  id     String @map("_id")
+  name   String
+  status String
+}
+
+type LogsPrevProfileOrganization {
+  /// Multiple data types found: String: 31.6%, DateTime (Date): 68.4% out of 38 sampled entries
+  createdAt Json?
+  orgID     String?
+  orgName   String?
+  status    String?
+  /// Multiple data types found: String: 5.6%, DateTime (Date): 94.4% out of 38 sampled entries
+  updateAt  Json?
+}
+
+type LogsPrevProfileStudies {
+  id String @map("_id")
+}
+
+type OrganizationStudies {
+  ORCID             String?
+  PI                String?
+  id                String    @map("_id")
+  controlledAccess  Boolean?
+  createdAt         DateTime? @db.Date
+  dbGaPID           String?
+  openAccess        Boolean?
+  originalOrg       String?
+  programName       String?
+  studyAbbreviation String?
+  studyName         String?
+  updatedAt         DateTime? @db.Date
+}
+
+type QcResultsErrors {
+  code              String
+  description       String
+  offendingProperty String?
+  offendingValue    String?
+  severity          String?
+  title             String
+}
+
+type QcResultsWarnings {
+  code              String
+  description       String
+  offendingProperty String?
+  offendingValue    String?
+  severity          String?
+  title             String
+}
+
+type ReleaseParents {
+  parentIDPropName String
+  parentIDValue    String
+  parentType       String
+}
+
+type ReleaseSubmissionInfoHistory {
+  dateTime DateTime @db.Date
+  status   String
+  userID   String
+}
+
+type ReleaseSubmissionInfoOrganization {
+  id   String @map("_id")
+  name String
+}
+
+type Submissions0 {
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  batchID        Json?
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  displayID      Json?
+  errors         Submissions0Errors[]
+  severity       String
+  submittedID    String
+  type           String
+  uploadedDate   DateTime             @db.Date
+  validatedDate  DateTime             @db.Date
+  validationType String
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  warnings       Json?
+}
+
+type Submissions0Errors {
+  description String
+  title       String
+}
+
+type Submissions1 {
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  batchID        Json?
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  displayID      Json?
+  errors         Submissions1Errors[]
+  severity       String
+  submittedID    String
+  type           String
+  uploadedDate   DateTime             @db.Date
+  validatedDate  DateTime             @db.Date
+  validationType String
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  warnings       Json?
+}
+
+type Submissions1Errors {
+  description String
+  title       String
+}
+
+type Submissions2 {
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  batchID        Json?
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  displayID      Json?
+  errors         Submissions2Errors[]
+  severity       String
+  submittedID    String
+  type           String
+  uploadedDate   DateTime             @db.Date
+  validatedDate  DateTime             @db.Date
+  validationType String
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  warnings       Json?
+}
+
+type Submissions2Errors {
+  description String
+  title       String
+}
+
+type SubmissionsCollaborators {
+  Organization     SubmissionsCollaboratorsOrganization?
+  collaboratorID   String
+  collaboratorName String?
+  /// Multiple data types found: String: 97.4%, Array(String): 2.6% out of 38 sampled entries
+  permission       Json
+}
+
+type SubmissionsCollaboratorsOrganization {
+  createdAt DateTime @db.Date
+  orgID     String
+  orgName   String
+  status    String
+  updateAt  DateTime @db.Date
+}
+
+type SubmissionsDataFileSize {
+  formatted String
+  size      Int
+}
+
+type SubmissionsFileErrors {
+  batchID        String?
+  displayID      Int?
+  errors         SubmissionsFileErrorsErrors[]
+  severity       String
+  submittedID    String
+  type           String
+  uploadedDate   DateTime                      @db.Date
+  validatedDate  DateTime                      @db.Date
+  validationType String
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  warnings       Json?
+}
+
+type SubmissionsFileErrorsErrors {
+  description String
+  title       String
+}
+
+type SubmissionsHistory {
+  dateTime      DateTime @db.Date
+  reviewComment String?
+  status        String
+  userID        String
+}
+
+type SubmissionsOrganization {
+  id   String? @map("_id")
+  name String?
+}
+
+type UsersInstitution {
+  id     String @map("_id")
+  name   String
+  status String
+}
+
+type UsersOrganization {
+  createdAt DateTime? @db.Date
+  orgID     String?
+  orgName   String?
+  status    String?
+  updateAt  DateTime? @db.Date
+}
+
+type UsersStudies {
+  id String @map("_id")
+}
+
+model CDE {
+  id                String   @id @map("_id")
+  CDECode           String
+  CDEFullName       String
+  CDEVersion        String?
+  PermissibleValues String[]
+  createdAt         DateTime @db.Date
+  updatedAt         DateTime @db.Date
+
+  @@index([CDECode, CDEVersion], map: "CDECode_1_CDEVersion_1")
+}
+
+model applications {
+  id                  String                   @id @map("_id")
+  ORCID               String?
+  PI                  String?
+  applicant           ApplicationsApplicant
+  controlledAccess    Boolean?
+  createdAt           DateTime                 @db.Date
+  history             ApplicationsHistory[]
+  inactiveReminder    Boolean?
+  openAccess          Boolean?
+  organization        ApplicationsOrganization
+  programAbbreviation String?
+  programDescription  String?
+  programName         String
+  questionnaireData   String
+  reviewComment       String?
+  status              String
+  studyAbbreviation   String
+  studyName           String
+  /// Multiple data types found: String: 4.8%, DateTime (Date): 95.2% out of 21 sampled entries
+  submittedDate       Json?
+  updatedAt           DateTime                 @db.Date
+  version             String
+  wholeProgram        Boolean?
+}
+
+model approvedStudies {
+  id                String   @id @map("_id")
+  ORCID             String?
+  PI                String?
+  controlledAccess  Boolean
+  createdAt         DateTime @db.Date
+  dbGaPID           String?
+  openAccess        Boolean?
+  originalOrg       String?
+  primaryContactID  String?
+  programName       String?
+  studyAbbreviation String
+  studyName         String
+  updatedAt         DateTime @db.Date
+  useProgramPC      Boolean?
+}
+
+model batch {
+  id            String       @id @map("_id")
+  bucketName    String
+  createdAt     DateTime     @db.Date
+  displayID     Int
+  errors        String[]
+  fileCount     Int
+  filePrefix    String
+  files         BatchFiles[]
+  status        String
+  submissionID  String
+  submitterID   String?
+  submitterName String?
+  type          String
+  updatedAt     DateTime     @db.Date
+  zipFileName   String?
+}
+
+model configuration {
+  id                               String                  @id @map("_id")
+  COMPLETED_RETENTION_DAYS         Int?
+  DASHBOARD_SESSION_TIMEOUT        Int?
+  Defaults                         ConfigurationDefaults[]
+  EMAIL_URL                        String?
+  INACTIVE_APPLICATION_DAYS        Int?
+  INACTIVE_SUBMISSION_DAYS_DELETE  Int?
+  INACTIVE_USER_DAYS               Int?
+  OFFICIAL_EMAIL                   String?
+  PRESIGN_EXPIRATION               Int?
+  PROD_URL                         String?
+  REMIND_APPLICATION_DAYS          Int?
+  REVIEW_COMMITTEE_EMAIL           String[]
+  ROLE_TIMEOUT                     Int?
+  SCHEDULED_JOBS                   String?
+  SUBMISSION_BUCKET                String?
+  SUBMISSION_HELPDESK              String?
+  SUBMISSION_REQUEST_CONTACT_EMAIL String?
+  SUBMISSION_SYSTEM_PORTAL         String?
+  TECH_SUPPORT_EMAIL               String?
+  age                              Int?
+  bucketName                       String?
+  current                          String?
+  current_version                  String?
+  dashboardID                      String?
+  dataCommons                      String?
+  days                             Int?
+  interval                         Int?
+  key                              String[]
+  keys                             ConfigurationKeys?
+  new                              String?
+  prefix                           String?
+  tag                              ConfigurationTag?
+  timeout                          Int?
+  type                             String
+  version                          String?
+}
+
+model dataRecords {
+  id                   String                        @id @map("_id")
+  CRDC_ID              String?
+  IDPropName           String
+  additionalErrors     DataRecordsAdditionalErrors[]
+  batchIDs             String[]
+  createdAt            DateTime                      @db.Date
+  dataCommons          String
+  entityType           String?
+  errors               DataRecordsErrors[]
+  latestBatchDisplayID Int
+  latestBatchID        String
+  lineNumber           Int
+  nodeID               String
+  nodeType             String
+  orginalFileName      String
+  parents              DataRecordsParents[]
+  props                Json
+  qcResultID           String?
+  rawData              Json
+  s3FileInfo           DataRecordsS3FileInfo?
+  status               String
+  studyID              String
+  submissionID         String
+  updatedAt            DateTime                      @db.Date
+  uploadedDate         DateTime                      @db.Date
+  validatedAt          DateTime?                     @db.Date
+  warnings             DataRecordsWarnings[]
+
+  @@index([submissionID, nodeType, nodeID], map: "submissionID_nodeType_nodeID")
+  @@index([dataCommons, nodeType, nodeID], map: "dataCommons_nodeType_nodeID")
+  @@index([submissionID], map: "submissionID_index")
+  @@index([studyID, entityType, nodeID], map: "studyID_entityType_nodeID")
+}
+
+model dataRecordsArchived {
+  id                   String                             @id @map("_id")
+  CRDC_ID              String?
+  IDPropName           String
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  additionalErrors     Json?
+  batchIDs             String[]
+  createdAt            DateTime                           @db.Date
+  dataCommons          String
+  entityType           String?
+  errors               DataRecordsArchivedErrors[]
+  latestBatchDisplayID Int
+  latestBatchID        String
+  lineNumber           Int
+  nodeID               String
+  nodeType             String
+  orginalFileName      String
+  parents              DataRecordsArchivedParents[]
+  props                Json
+  qcResultID           String?
+  rawData              Json
+  s3FileInfo           DataRecordsArchivedS3FileInfo?
+  status               String
+  studyID              String?
+  submissionID         String
+  updatedAt            DateTime                           @db.Date
+  uploadedDate         DateTime                           @db.Date
+  validatedAt          DateTime?                          @db.Date
+  warnings             DataRecordsArchivedWarnings[]
+}
+
+model fileMD5 {
+  id           String   @id @map("_id")
+  LastModified DateTime @db.Date
+  createdAt    DateTime @db.Date
+  fileName     String
+  md5          String
+  submissionID String
+  updatedAt    DateTime @db.Date
+}
+
+model institutions {
+  id             String    @id @map("_id")
+  createdAt      DateTime? @db.Date
+  name           String
+  status         String
+  submitterCount Int?
+  updatedAt      DateTime? @db.Date
+}
+
+model logs {
+  id            String           @id @map("_id")
+  action        String?
+  applicationID String?
+  eventDetail   LogsEventDetail?
+  eventType     String
+  localtime     DateTime         @db.Date
+  newProfile    LogsNewProfile?
+  newState      String?
+  prevProfile   LogsPrevProfile?
+  prevState     String?
+  submissionID  String?
+  timestamp     Float
+  userEmail     String
+  userID        String
+  userIDP       String?
+  userName      String?
+}
+
+model organization {
+  id             String                @id @map("_id")
+  abbreviation   String?
+  bucketName     String?
+  conciergeEmail String?
+  conciergeID    String?
+  conciergeName  String?
+  createdAt      DateTime              @db.Date
+  description    String?
+  name           String
+  rootPath       String?
+  status         String
+  studies        OrganizationStudies[]
+  updateAt       DateTime              @db.Date
+  /// Multiple data types found: String: 50%, DateTime (Date): 50% out of 4 sampled entries
+  updatedAt      Json?
+}
+
+model qcResults {
+  id             String              @id @map("_id")
+  batchIDs       String[]
+  dataRecordID   String
+  displayID      Int
+  errors         QcResultsErrors[]
+  latestBatchID  String
+  origin         String?
+  severity       String
+  submissionID   String
+  submittedID    String
+  type           String
+  uploadedDate   DateTime            @db.Date
+  validatedDate  DateTime            @db.Date
+  validationType String
+  warnings       QcResultsWarnings[]
+
+  @@index([submissionID], map: "submissionID_1")
+}
+
+model release {
+  id              String                 @id @map("_id")
+  CRDC_ID         String?
+  createdAt       DateTime               @db.Date
+  dataCommons     String
+  entityType      String?
+  nodeID          String
+  nodeType        String
+  parents         ReleaseParents[]
+  props           Json
+  status          String
+  studyID         String?
+  submissionID    String
+  updatedAt       DateTime?              @db.Date
+
+  @@index([dataCommons, nodeType, nodeID], map: "dataCommons_nodeType_nodeID")
+  @@index([CRDC_ID], map: "CRDC_ID")
+}
+
+model sessions {
+  id           String   @id @map("_id")
+  expires      DateTime @db.Date
+  lastModified DateTime @db.Date
+  session      String
+
+  @@index([expires], map: "expires_1")
+}
+
+model submissions {
+  id                       String                     @id @map("_id")
+  /// This field was commented out because of an invalid name. Please provide a valid one that matches [a-zA-Z][a-zA-Z0-9_]*
+  // 0 Submissions0? @map("0")
+  /// This field was commented out because of an invalid name. Please provide a valid one that matches [a-zA-Z][a-zA-Z0-9_]*
+  // 1 Submissions1? @map("1")
+  /// This field was commented out because of an invalid name. Please provide a valid one that matches [a-zA-Z][a-zA-Z0-9_]*
+  // 2 Submissions2? @map("2")
+  ORCID                    String?
+  accessedAt               DateTime                   @db.Date
+  archived                 Boolean?
+  bucketName               String
+  collaborators            SubmissionsCollaborators[]
+  collborators             String?
+  conciergeEmail           String?
+  conciergeName            String?
+  controlledAccess         Boolean?
+  createdAt                DateTime                   @db.Date
+  /// Multiple data types found: String: 92.9%, Boolean: 7.1% out of 375 sampled entries
+  crossSubmissionStatus    Json?
+  dataCommons              String
+  dataCommonsDisplayName   String?
+  dataFileSize             SubmissionsDataFileSize
+  dataType                 String
+  dbGaPID                  String?
+  deletingData             Boolean?
+  fileErrors               SubmissionsFileErrors[]
+  /// Multiple data types found: String: 98.5%, Boolean: 1.5% out of 375 sampled entries
+  fileValidationStatus     Json?
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  fileWarnings             Json?
+  finalInactiveReminder    Boolean?
+  history                  SubmissionsHistory[]
+  inactiveReminder         Boolean?
+  inactiveReminder_30      Boolean?
+  inactiveReminder_60      Boolean?
+  inactiveReminder_7       Boolean?
+  intention                String
+  /// Multiple data types found: String: 99.5%, Boolean: 0.5% out of 375 sampled entries
+  metadataValidationStatus Json?
+  modelVersion             String
+  name                     String
+  nodeCount                Int?
+  organization             SubmissionsOrganization
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  reviewComment            Json?
+  rootPath                 String
+  status                   String
+  studyAbbreviation        String?
+  studyID                  String
+  submitterID              String
+  submitterName            String
+  updatedAt                DateTime                   @db.Date
+  validationEnded          DateTime?                  @db.Date
+  validationScope          String?
+  validationStarted        DateTime?                  @db.Date
+  validationType           String[]
+}
+
+model synonyms {
+  /// Multiple data types found: String: 47.5%, String (ObjectId): 52.5% out of 1000 sampled entries
+  id              Json   @id @map("_id")
+  equivalent_term String
+  synonym_term    String
+
+  @@index([synonym_term], map: "synonym_term_1")
+}
+
+model users {
+  id            String             @id @map("_id")
+  IDP           String
+  /// Multiple data types found: String: 14.6%, DateTime (Date): 85.4% out of 48 sampled entries
+  createdAt     Json
+  dataCommons   String[]
+  email         String
+  firstName     String
+  institution   UsersInstitution?
+  lastName      String
+  notifications String[]
+  organization  UsersOrganization?
+  permissions   String[]
+  role          String
+  status        String?
+  studies       UsersStudies[]
+  tokens        String[]
+  /// Multiple data types found: String: 2.1%, DateTime (Date): 97.9% out of 48 sampled entries
+  updateAt      Json
+  userStatus    String
+}
+
+model validation {
+  id           String    @id @map("_id")
+  ended        DateTime? @db.Date
+  scope        String?
+  started      DateTime  @db.Date
+  status       String?
+  submissionID String
+  type         String[]
+}
