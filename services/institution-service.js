@@ -37,12 +37,12 @@ class InstitutionService {
             throw new Error(replaceErrorString(ERROR.INVALID_INSTITUTION_STATUS, params?.status))
         }
 
-        const institutions = await this.institutionCollection.aggregate([{$match: { name: newName}}, { $limit: 1 }]);
+        const institutions = await this.#findOneByCaseInsensitiveName(newName);
         if (institutions.length > 0) {
-            throw new Error(replaceErrorString(ERROR.DUPLICATE_INSTITUTION_NAME, newName));
+            throw new Error(ERROR.DUPLICATE_INSTITUTION_NAME, newName);
         }
 
-        const newInstitution = Institution.createInstitution(newName);
+        const newInstitution = Institution.createInstitution(newName, params?.status);
         const res = await this.institutionCollection.insert(newInstitution);
         if (!res?.acknowledged) {
             throw new Error(ERROR.FAILED_CREATE_INSTITUTION);
@@ -133,10 +133,10 @@ class InstitutionService {
         }
 
         if (trimmedName) {
-            const existingInstitutions = await this.#findOneByName(trimmedName);
+            const existingInstitutions = await this.#findOneByCaseInsensitiveName(trimmedName);
             const isDuplicate = existingInstitutions.some(inst => inst?._id !== institutionID);
             if (isDuplicate) {
-                throw new Error(replaceErrorString(ERROR.DUPLICATE_INSTITUTION_NAME, trimmedName));
+                throw new Error(ERROR.DUPLICATE_INSTITUTION_NAME, trimmedName);
             }
         }
 
@@ -147,8 +147,17 @@ class InstitutionService {
     }
 
     // find one institution by a name
-    async #findOneByName(name) {
-        return await this.institutionCollection.aggregate([{ "$match": {name: name}}, {"$limit": 1}]);
+    async #findOneByCaseInsensitiveName(name) {
+        return await this.institutionCollection.aggregate([{
+            $match: {
+                $expr: {
+                    $eq: [
+                        { $toLower: "$name" },
+                        name?.toLowerCase()
+                    ]
+                }
+            }
+        }, { $limit: 1 }]);
     }
 
     // Verify the user session then call #listInsitutions()
@@ -236,15 +245,15 @@ function createNewInstitutions(institutionNames){
 
 
 class Institution {
-    constructor(name) {
+    constructor(name, status) {
         this._id = v4(undefined, undefined, undefined)
         this.name = name;
-        this.status = INSTITUTION.STATUSES.ACTIVE;
+        this.status = status;
         this.submitterCount = 0;
     }
 
-    static createInstitution(name) {
-        return new Institution(name);
+    static createInstitution(name, status) {
+        return new Institution(name, status);
     }
 }
 
