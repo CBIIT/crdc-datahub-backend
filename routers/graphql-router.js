@@ -41,6 +41,7 @@ const {UserService} = require("../services/user");
 const sanitizeHtml = require("sanitize-html");
 const {constraintDirective, constraintDirectiveTypeDefs} = require("graphql-constraint-directive");
 const {makeExecutableSchema} = require("@graphql-tools/schema");
+const ERROR = require("../constants/error-constants");
 
 // Create schema with constraint directive
 const schema = constraintDirective()(
@@ -136,10 +137,17 @@ dbConnector.connect().then(async () => {
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
         deleteApplication: (params, context)=> {
             const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
+            if (comment?.trim().length > 500) {
+                throw new Error(ERROR.COMMENT_LIMIT);
+            }
+
             return dataInterface.deleteApplication({...params, comment}, context);
         },
         restoreApplication: (params, context)=> {
             const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
+            if (comment?.trim().length > 500) {
+                throw new Error(ERROR.COMMENT_LIMIT);
+            }
             return dataInterface.restoreApplication({...params, comment}, context);
         },
         listApprovedStudies: approvedStudiesService.listApprovedStudiesAPI.bind(approvedStudiesService),
