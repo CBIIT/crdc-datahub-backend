@@ -21,6 +21,7 @@ class Application {
     #ALL_FILTER="All";
     #FINAL_INACTIVE_REMINDER = "finalInactiveReminder";
     #INACTIVE_REMINDER = "inactiveReminder";
+    #CRDC_TEAM = "the CRDC team";
     constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService, configurationService) {
         this.logCollection = logCollection;
         this.applicationCollection = applicationCollection;
@@ -736,11 +737,12 @@ class Application {
                 console.error("Cancel submission request email notification does not have any recipient", `Application ID: ${application?._id}`);
                 return;
             }
+            const canceledByName = [ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL].includes(userCanceledBy?.role) ? this.#CRDC_TEAM: `${userCanceledBy.firstName} ${userCanceledBy.lastName || ""}`;
             await this.notificationService.cancelApplicationNotification(applicantInfo?.email, CCEmails, BCCUserEmails, {
                 firstName: `${applicantInfo.firstName} ${applicantInfo.lastName || ""}`
             },{
                 studyName: `${application?.studyName?.trim() || "NA"},`,
-                canceledNameBy: `${userCanceledBy.firstName} ${userCanceledBy.lastName || ""}`,
+                canceledNameBy: canceledByName,
                 contactEmail: `${this.emailParams.conditionalSubmissionContact}.`
             });
         }
