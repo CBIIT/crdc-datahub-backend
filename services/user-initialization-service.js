@@ -3,6 +3,7 @@ const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-
 const orgToUserOrg = require("../crdc-datahub-database-drivers/utility/org-to-userOrg-converter");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {v4} = require("uuid");
+const {getDataCommonsDisplayNamesForUser} = require("../utility/data-commons-remapper");
 
 class UserInitializationService {
 
@@ -14,7 +15,7 @@ class UserInitializationService {
     }
 
     async getMyUser(params, context){
-        return this.initializeUser(context?.userInfo);
+        return getDataCommonsDisplayNamesForUser(await this.initializeUser(context?.userInfo));
     }
 
     async initializeUser(userInfo) {

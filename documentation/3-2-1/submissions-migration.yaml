@@ -1,0 +1,4 @@
+Commands:
+  - Add dataCommonsDisplayName to existing submissions: |
+      db.submissions.updateMany({}, [{$set: {dataCommonsDisplayName: "$dataCommons"}}]);
+      db.submissions.updateMany({dataCommons: "CDS"}, [{$set: {dataCommonsDisplayName: "GC"}}]);
