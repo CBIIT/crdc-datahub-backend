@@ -7,6 +7,7 @@ const NOTIFICATION_USER_HTML_TEMPLATE = "notification-template-user.html";
 const ROLE = "Role";
 const DATA_COMMONS = "Data Commons";
 const STUDIES = "Studies";
+const INSTITUTION = "Institution";
 const CRDC_PORTAL_USER = "CRDC Submission Portal User";
 const CRDC_SUBMISSION_PORTAL ="CRDC Submission Portal";
 const USER_NAME = "User Name"
@@ -210,6 +211,7 @@ class NotifyUser {
             ...(templateParams.role) ? [[ROLE, templateParams.role]] : [],
             ...(templateParams.dataCommons) ? [[DATA_COMMONS, templateParams.dataCommons]] : [],
             ...(templateParams?.studies?.length > 0) ? [[STUDIES, templateParams.studies]] : [],
+            ...(templateParams?.institution) ? [[INSTITUTION, templateParams.institution]] : [],
         ];
         return await this.send(async () => {
             await this.emailService.sendNotification(
