@@ -823,10 +823,14 @@ class Submission {
             
             for (let node of result.results) {
                 if (!returnVal.IDPropName) returnVal.IDPropName = node.IDPropName;
-                if (node.parents && node.parents.length > 0) {
-                    for (let parent of node.parents) {
-                        node.props[`${parent.parentType}.${parent.parentIDPropName}`] = parent.parentIDValue;
-                    }
+                if (node?.parents && node.parents.length > 0) {
+                    //get unique parent.parentType from node?.parents 
+                    const parentTypes = [...new Set(node.parents.map(p => p.parentType))];
+                    // loop through parentTypes and get the parent.parentIDPropName, parentIDValue for each parentType
+                    parentTypes.forEach((parentType) => {
+                        const same_type_parents = node.parents.filter(p => p.parentType === parentType);
+                        node.props[`${same_type_parents[0].parentType}.${same_type_parents[0].parentIDPropName}`] = same_type_parents.map((p) => p.parentIDValue).join(' | ')
+                    });
                 }
                 if (node.props && Object.keys(node.props).length > 0){
                     Object.keys(node.props).forEach(propsSet.add, propsSet);
