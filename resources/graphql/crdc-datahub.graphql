@@ -841,6 +841,7 @@ type Mutation {
         ORCID: String, #optional in format of 0000-1234-2345-3456
         PI: String #optional
         primaryContactID: String #primary contact user ID
+        useProgramPC: Boolean!
     ): ApprovedStudy
 
     updateApprovedStudy(
