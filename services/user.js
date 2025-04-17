@@ -508,7 +508,7 @@ class UserService {
     async disableInactiveUsers(inactiveUsers) {
         if (!inactiveUsers || inactiveUsers?.length === 0) return [];
         const query = {"$or": inactiveUsers};
-        const updated = await this.userCollection.updateMany(query, {userStatus: USER.STATUSES.INACTIVE});
+        const updated = await this.userCollection.updateMany(query, {userStatus: USER.STATUSES.INACTIVE, updateAt: getCurrentTime()});
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             return await this.userCollection.aggregate([{"$match": query}]) || [];
         }
