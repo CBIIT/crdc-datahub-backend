@@ -11,6 +11,7 @@ const ERROR = {
     FAILED_RESTORE_APPLICATION: "An error occurred while restoring an application",
     MISSING_PROGRAM_INFO: "The program property is required to approve the submission request.",
     INVALID_APPLICATION_RESTORE_STATE: "Failed to restore application because the application history data is invalid",
+    COMMENT_LIMIT: "comment cannot exceed 500 characters.",
     UPDATE_FAILED: "Update unsuccessful",
     VERIFY: {
         UNDEFINED_APPLICATION: "Application array is undefined",
