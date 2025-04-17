@@ -42,6 +42,10 @@ class InstitutionService {
             throw new Error(ERROR.DUPLICATE_INSTITUTION_NAME, newName);
         }
 
+        if (newName?.trim()?.length > 100) {
+            throw new Error(ERROR.MAX_INSTITUTION_NAME_LIMIT);
+        }
+
         const newInstitution = Institution.createInstitution(newName, params?.status);
         const res = await this.institutionCollection.insert(newInstitution);
         if (!res?.acknowledged) {
@@ -249,6 +253,7 @@ class Institution {
         this._id = v4(undefined, undefined, undefined)
         this.name = name;
         this.status = status;
+        this.createdAt = this.updatedAt = getCurrentTime();
         this.submitterCount = 0;
     }
 

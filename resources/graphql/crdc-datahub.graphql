@@ -484,6 +484,8 @@ type Institution {
     name: String
     status: String, # Active / Inactive
     submitterCount: Int
+    updatedAt: Date
+    createdAt: Date
 }
 
 type Dashboard {
