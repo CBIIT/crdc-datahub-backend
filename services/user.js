@@ -507,7 +507,7 @@ class UserService {
     // search by user's email and idp
     async disableInactiveUsers(inactiveUsers) {
         if (!inactiveUsers || inactiveUsers?.length === 0) return [];
-        const query = {"$or": inactiveUsers};
+        const query = {"$or": inactiveUsers, IDP: {$ne: this.#NIH}};
         const updated = await this.userCollection.updateMany(query, {userStatus: USER.STATUSES.INACTIVE, updateAt: getCurrentTime()});
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             return await this.userCollection.aggregate([{"$match": query}]) || [];
