@@ -280,7 +280,7 @@ class NotifyUser {
     }
 
     async remindNoPrimaryContact(toEmails, CCEmails, templateParams) {
-        const subject = this.email_constants.REMIND_PRIMARY_CONTACT_SUBJECT;
+        const subject = replaceMessageVariables(this.email_constants.REMIND_PRIMARY_CONTACT_SUBJECT, templateParams);
         return await this.send(async () => {
             return await this.emailService.sendNotification(
                 this.email_constants.NOTIFICATION_SENDER,
