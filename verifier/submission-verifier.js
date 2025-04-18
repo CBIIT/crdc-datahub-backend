@@ -56,24 +56,28 @@ class SubmissionActionVerifier {
         return this.#fromStatus;
     }
 
-
-    isValidSubmitAction(isAdminAction, aSubmission, comment, dataFileSize) {
+    // To perform the Submit action, the data files in the S3 bucket must be available, and no orphaned files should remain, as unused orphaned files may end up in production.
+    isValidSubmitAction(isAdminAction, aSubmission, comment, dataFileSize, orphanedFiles) {
         if(this.#actionName === ACTIONS.SUBMIT) {
-            const isInvalidAdminStatus = !this.#isValidAdminStatus(isAdminAction, aSubmission, dataFileSize);
+            const isValidAdminStatus = this.#isValidAdminStatus(isAdminAction, aSubmission, dataFileSize);
             const validStatus = [VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING];
             // if deleted intention, allow it to be submitted without any data files. Ignore any value if meta-data only data file
-            const ignoreFileValidationStatus = aSubmission?.dataType === DATA_TYPE.METADATA_ONLY;
+            const metadataOnlyValidationStatus = aSubmission?.dataType === DATA_TYPE.METADATA_ONLY;
             const isValidatedStatus = aSubmission?.intention === INTENTION.DELETE || (validStatus.includes(aSubmission?.metadataValidationStatus)
-                && (ignoreFileValidationStatus || dataFileSize > 0));
+                && (metadataOnlyValidationStatus || (dataFileSize > 0 && aSubmission?.fileValidationStatus === VALIDATION_STATUS.PASSED)));
 
-            if (isInvalidAdminStatus) {
-                if (isAdminAction ||(!isAdminAction && (!isValidatedStatus))) {
+            if (!isValidAdminStatus) {
+                if (isAdminAction ||(!isAdminAction && !isValidatedStatus)) {
                     throw new Error(ERROR.VERIFY.INVALID_SUBMIT_ACTION);
                 }
             }
 
             if ([INTENTION.UPDATE].includes(aSubmission?.intention) && this.isSubmitActionCommentRequired(aSubmission, isAdminAction, comment)) {
                 throw new Error(ERROR.VERIFY.SUBMIT_ACTION_COMMENT_REQUIRED);
+            }
+
+            if (orphanedFiles?.length > 0) {
+                throw new Error(ERROR.VERIFY.SUBMIT_ACTION_ORPHAN_FILES);
             }
         }
     }
@@ -92,10 +96,9 @@ class SubmissionActionVerifier {
     #isValidAdminStatus(isAdminSubmitAction, aSubmission, dataFileSize) {
         const isMetadataInvalid = aSubmission?.metadataValidationStatus === VALIDATION_STATUS.NEW;
         const isDeleteIntention = aSubmission?.intention === INTENTION.DELETE;
-        const ignoreFileValidationStatus = aSubmission?.dataType === DATA_TYPE.METADATA_ONLY;
+        const metadataOnlyValidationStatus = aSubmission?.dataType === DATA_TYPE.METADATA_ONLY;
         // if deleted intention, allow it to be submitted without any data files, if metadata only, any value is ignored for fileValidationStatus
-        const isDataFileValidated = isDeleteIntention || !isMetadataInvalid && (ignoreFileValidationStatus || dataFileSize > 0);
-        // null fileValidationStatus means this submission doesn't have any files uploaded
+        const isDataFileValidated = isDeleteIntention || !isMetadataInvalid && (metadataOnlyValidationStatus || (dataFileSize > 0 && aSubmission?.fileValidationStatus === VALIDATION_STATUS.PASSED));
         return isAdminSubmitAction && isDataFileValidated;
     }
 }
