@@ -61,7 +61,7 @@ FINAL_INACTIVE_SUBMISSION_SUBJECT: "FINAL NOTICE: Your Data Submission Will Be D
 FINAL_INACTIVE_SUBMISSION_CONTENT: "This is a final reminder regarding your data submission, $title, for the $studyName study. It has not been accessed for $days days. If you intend to complete this submission, please log in to $url and resume your work."
 FINAL_INACTIVE_SUBMISSION_ADDITIONAL_CONTENT: ["If no action is taken within the next 24 hours, your data submission will be permanently deleted.", "Thank you for your prompt attention to this matter."]
 DELETE_SUBMISSION_SUBJECT: "Your CRDC Data Submission Has Been Deleted"
-REMIND_PRIMARY_CONTACT_SUBJECT: "A new CRDC Data Submission has been created with no Primary Contact assigned"
+REMIND_PRIMARY_CONTACT_SUBJECT: "New Data Submission Created for $dataCommonName"
 SUBMISSION_FIRST_CONTENT: "We would like to inform you that your data submission, $submissionName for the study $studyName has been deleted from our system due to $inactiveDays days of inactivity."
 SUBMISSION_SECOND_CONTENT: "If you believe this action was taken in error, please contact $contactName at $contactEmail"
 USER_ROLE_CHANGE_SUBJECT: "Your User Account Has Been Updated"

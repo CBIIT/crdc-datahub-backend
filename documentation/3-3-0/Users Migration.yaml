@@ -95,3 +95,18 @@ Commands:
               }
           ]
       );
+  - new data submission email Notification to DCP for CRDCDH-2619:  |
+      db.users.updateMany(
+        {
+          role: {$in: ["Admin", "Data Commons Personnel"]},
+        },
+        {
+          $addToSet: { notifications: "data_submission:created" }
+        }
+      );
+        
+      db.users.updateMany(
+        { notifications: "data_submission:missing_primary_contact" },
+        { $pull: { notifications: "data_submission:missing_primary_contact" } }
+      );
+
