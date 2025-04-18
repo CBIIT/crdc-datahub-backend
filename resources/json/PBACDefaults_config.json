@@ -1,7 +1,7 @@
 {
     "_id": "06e527d4-0040-48cd-a4a1-bd8d850ab828",
     "type": "PBAC",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "Defaults": [
       {
         "role": "Federal Lead",
@@ -12,7 +12,8 @@
             "name": "View",
             "order": 1,
             "checked": true,
-            "disabled": false
+            "disabled": false,
+            "scopes": ["all"]
           },
           {
             "_id": "submission_request:create",
@@ -21,7 +22,8 @@
             "inherited": ["submission_request:view"],
             "order": 2,
             "checked": false,
-            "disabled": false
+            "disabled": false,
+            "scopes": ["all"]
           },
           {
             "_id": "submission_request:review",
@@ -30,7 +32,8 @@
             "inherited": ["submission_request:view"],
             "order": 4,
             "checked": false,
-            "disabled": false
+            "disabled": false,
+            "scopes": ["all"]
           },
           {
             "_id": "submission_request:submit",
@@ -38,7 +41,8 @@
             "name": "Submit",
             "order": 3,
             "checked": false,
-            "disabled": false
+            "disabled": false,
+            "scopes": ["all"]
           },
           {
             "_id": "submission_request:cancel",
@@ -46,7 +50,8 @@
             "name": "Cancel/Restore",
             "order": 5,
             "checked": true,
-            "disabled": false
+            "disabled": false,
+            "scopes": ["all"]
           },
           {
             "_id": "access:request",
@@ -54,7 +59,8 @@
             "name": "Request Access",
             "order": 1,
             "checked": false,
-            "disabled": true
+            "disabled": true,
+            "scopes": ["none"]
           },
           {
             "_id": "data_submission:view",
@@ -62,7 +68,8 @@
             "name": "View",
             "order": 1,
             "checked": true,
-            "disabled": false
+            "disabled": false,
+            "scopes": ["study"]
           },
           {
             "_id": "data_submission:create",
@@ -71,7 +78,8 @@
             "name": "Create",
             "order": 2,
             "checked": false,
-            "disabled": false
+            "disabled": false,
+            "scopes": ["study"]
           },
           {
             "_id": "data_submission:cancel",
@@ -79,7 +87,8 @@
             "name": "Cancel",
             "order": 3,
             "checked": false,
-            "disabled": false
+            "disabled": false,
+            "scopes": ["study"]
           },
           {
             "_id": "data_submission:review",
@@ -88,7 +97,8 @@
             "inherited": ["data_submission:view"],
             "order": 4,
             "checked": false,
-            "disabled": false
+            "disabled": false,
+            "scopes": ["study"]
           },
           {
             "_id": "data_submission:admin_submit",
@@ -96,7 +106,8 @@
             "name": "Admin Submit",
             "order": 5,
             "checked": false,
-            "disabled": true
+            "disabled": true,
+            "scopes": ["study"]
           },
           {
             "_id": "data_submission:confirm",
@@ -104,16 +115,17 @@
             "name": "Confirm",
             "order": 6,
             "checked": false,
-            "disabled": false
+            "disabled": false,
+            "scopes": ["study"]
           },
-          
           {
             "_id": "user:manage",
             "group": "Admin Permissions",
             "name": "Manage User",
             "order": 4,
             "checked": false,
-            "disabled": false
+            "disabled": false,
+            "scopes": ["role"]
           },
           {
             "_id": "program:manage",
@@ -121,7 +133,8 @@
             "name": "Manage Program",
             "order": 1,
             "checked": false,
-            "disabled": false
+            "disabled": false,
+            "scopes": ["all"]
           },
           {
             "_id": "study:manage",
@@ -129,7 +142,8 @@
             "name": "Manage Study",
             "order": 2,
             "checked": false,
-            "disabled": false
+            "disabled": false,
+            "scopes": ["all"]
           },
           {
             "_id": "institution:manage",
@@ -137,7 +151,8 @@
             "name": "Manage Institutions",
             "order": 3,
             "checked": false,
-            "disabled": false
+            "disabled": false,
+            "scopes": ["all"]
           },
           {
             "_id": "dashboard:view",
@@ -145,7 +160,8 @@
             "name": "View Operation Dashboard",
             "order": 5,
             "checked": true,
-            "disabled": false
+            "disabled": false,
+            "scopes": ["study"]
           }
         ],
         "notifications": [

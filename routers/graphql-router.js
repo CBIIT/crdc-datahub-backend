@@ -42,6 +42,7 @@ const sanitizeHtml = require("sanitize-html");
 const {constraintDirective, constraintDirectiveTypeDefs} = require("graphql-constraint-directive");
 const {makeExecutableSchema} = require("@graphql-tools/schema");
 const ERROR = require("../constants/error-constants");
+const {AuthorizationService} = require("../services/authorization-service");
 
 // Create schema with constraint directive
 const schema = constraintDirective()(
@@ -69,6 +70,7 @@ dbConnector.connect().then(async () => {
 
     const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
     const configurationService = new ConfigurationService(configurationCollection)
+    const authorizationService = new AuthorizationService(configurationService);
 
     const institutionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, INSTITUTION_COLLECTION, userCollection);
     const institutionService = new InstitutionService(institutionCollection, userCollection);
