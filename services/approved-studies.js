@@ -19,12 +19,14 @@ const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-
 const {getDataCommonsDisplayNamesForApprovedStudy, getDataCommonsDisplayNamesForUser,
     getDataCommonsDisplayNamesForApprovedStudyList
 } = require("../utility/data-commons-remapper");
+const {ORGANIZATION_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
+const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const CONTROLLED_ACCESS_ALL = "All";
 const CONTROLLED_ACCESS_OPEN = "Open";
 const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
 const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN, CONTROLLED_ACCESS_CONTROLLED];
 class ApprovedStudiesService {
-
+    #ALL = "All";
     constructor(approvedStudiesCollection, userCollection, organizationService, submissionCollection) {
         this.approvedStudiesCollection = approvedStudiesCollection;
         this.userCollection = userCollection;
@@ -140,10 +142,18 @@ class ApprovedStudiesService {
             first,
             offset,
             orderBy,
-            sortDirection
+            sortDirection,
+            programID
         } = params;
 
-        let pipelines = [];
+        let pipelines = [
+            // Join with the program
+            {"$lookup": {
+                from: ORGANIZATION_COLLECTION,
+                localField: "_id",
+                foreignField: "studies._id",
+                as: "programs"}}
+        ];
         // set matches
         let matches = {};
         if (study)
@@ -168,34 +178,26 @@ class ApprovedStudiesService {
         if (dbGaPID) {
             matches.dbGaPID = {$regex: dbGaPID, $options: 'i'};
         }
+
+        if (programID && programID !== this.#ALL) {
+            matches["programs._id"] = programID;
+        }
+
         pipelines.push({$match: matches});
-        // set sort
-        let page_pipeline = [];
-        let sortFields = {
-            [orderBy]: getSortDirection(sortDirection),
-        };
-        if (orderBy !== "studyName"){
-            sortFields["studyName"] = 1
-        }
-        page_pipeline.push({
-            $sort: sortFields
-        });
-        // if -1, returns all data of given node & ignore offset
-        if (first !== -1) {
-            page_pipeline.push({
-                $skip: offset
-            });
-            page_pipeline.push({
-                $limit: first
-            });
-        }
+        const pagination = new MongoPagination(first, offset, orderBy, sortDirection);
+        const paginationPipe = pagination.getPaginationPipeline()
+        // Added the custom sort
+        const isNotStudyName = orderBy !== "studyName";
+        const customPaginationPipeline = paginationPipe?.map(pagination =>
+            Object.keys(pagination)?.includes("$sort") && isNotStudyName ? {...pagination, $sort: {...pagination.$sort, studyName: 1}} : pagination
+        );
 
         pipelines.push({
             $facet: {
                 total: [{
                     $count: "total"
                 }],
-                results: page_pipeline
+                results: customPaginationPipeline
             }
         });
         pipelines.push({
