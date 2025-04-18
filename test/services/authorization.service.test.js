@@ -39,43 +39,44 @@ describe('authorization service test', () => {
         };
     });
 
-    test("/test read scope from permission", () => {
+    test("/test read scope from permission", async () => {
         let permission = "data_submission:submitted"
-        expect(authorizationService.getPermissionScope(user, permission)).toStrictEqual(["all"])
+        expect(await authorizationService.getPermissionScope(user, permission)).toStrictEqual(["all"])
 
     });
 
-    test("/test get default scope", () => {
+    test("/test get default scope", async () => {
         user.permissions = [
             "data_submission:cancelled:none",
             "data_submission:submitted"
         ];
         let permission = "data_submission:submitted"
-        expect(authorizationService.getPermissionScope(user, permission)).toStrictEqual(["default"])
+        expect(await authorizationService.getPermissionScope(user, permission)).toStrictEqual(["default"])
     });
 
-    test("/test invalid permission", () => {
+    test("/test invalid permission", async () => {
         let permission = "fake:permission"
-        expect(authorizationService.getPermissionScope(user, permission)).toStrictEqual([])
+        expect(await authorizationService.getPermissionScope(user, permission)).toStrictEqual([])
     });
 
-    test("/test valid permission but no scopes", () => {
+    test("/test valid permission but no scopes", async () => {
         let permission = "fake:permission"
         user.permissions = [
             "data_submission:cancelled:none",
             "data_submission:submitted:none",
             "fake:permission"
         ];
-        expect(authorizationService.getPermissionScope(user, permission)).toStrictEqual([])
+        expect(await authorizationService.getPermissionScope(user, permission)).toStrictEqual([])
     });
 
-    test("/invalid permission input", () => {
+    test("/invalid permission input", async () => {
         let permission = null;
-        expect(authorizationService.getPermissionScope(user, permission)).toStrictEqual([]);
+        expect(await authorizationService.getPermissionScope(user, permission)).toStrictEqual([]);
         permission = 10;
-        expect(authorizationService.getPermissionScope(user, permission)).toStrictEqual([]);
+        expect(await authorizationService.getPermissionScope(user, permission)).toStrictEqual([]);
         permission = undefined;
-        expect(authorizationService.getPermissionScope(user, permission)).toStrictEqual([]);
+        expect(await authorizationService.getPermissionScope(user, permission)).toStrictEqual([]);
     })
+
 });
 
