@@ -609,6 +609,7 @@ type Query {
         offset: Int = 0, #number of records to be skipped before returning data
         orderBy: String = "studyName", #property name to be used for sorting 
         sortDirection: String = "ASC" #["DESC", "ASC"]
+        programID: ID
     ): ApprovedStudyList
     
     getApprovedStudy(_id: ID!): ApprovedStudy
