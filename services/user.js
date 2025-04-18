@@ -19,7 +19,7 @@ const {
     EMAIL_NOTIFICATIONS: EN
 } = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {getDataCommonsDisplayNamesForUser} = require("../utility/data-commons-remapper");
-const {COMPLETED} = require("../constants/submission-constants");
+const {COMPLETED, CANCELED, DELETED} = require("../constants/submission-constants");
 
 const isLoggedInOrThrow = (context) => {
     if (!context?.userInfo?.email || !context?.userInfo?.IDP) throw new Error(SUBMODULE_ERROR.NOT_LOGGED_IN);
@@ -738,7 +738,7 @@ class UserService {
             const primaryContactName = `${prevUser.firstName} ${prevUser.lastName}`.trim();
             const [updatedSubmission, updateProgram, updatedStudies] = await Promise.all([
                 this.submissionsCollection.updateMany(
-                    { conciergeName: primaryContactName, conciergeEmail: prevUser?.email, status: {$ne: COMPLETED} },
+                    { conciergeName: primaryContactName, conciergeEmail: prevUser?.email, status: {$nin: [COMPLETED, CANCELED, DELETED]} },
                     { conciergeName: "", conciergeEmail: "", updatedAt: getCurrentTime() }
                 ),
                 this.organizationCollection.updateMany(
