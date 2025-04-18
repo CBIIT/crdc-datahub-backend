@@ -13,14 +13,14 @@ class AuthorizationService {
      * Example: "entity:action"
      * @returns {*|string[]|*[]} - an array containing the scopes for the permission or an empty array, all scopes will be lowercase
      */
-    getPermissionScope(user, permission){
+    async getPermissionScope(user, permission){
         const userPermissions = user?.permissions;
         if (!userPermissions || !permission){
             return [];
         }
         // Loop through the user's permissions until one matching the input permission is found
         for (const userPermission of userPermissions){
-            let permissionAndScope = parsePermissionString(userPermission);
+            const permissionAndScope = parsePermissionString(userPermission);
             let scopes = permissionAndScope?.scopes;
             if (permissionAndScope?.permission === permission) {
                 if (!!scopes && scopes.length > 0){
@@ -33,7 +33,7 @@ class AuthorizationService {
                 */
                 scopes = [];
                 const userRole  = user?.role;
-                let pbacDefaults = this.configurationService.getPBACByRoles([userRole]);
+                const pbacDefaults = await this.configurationService.getPBACByRoles([userRole]);
                 if (pbacDefaults && pbacDefaults.length > 0){
                     let rolePermissions = pbacDefaults[0]?.permissions;
                     if (rolePermissions?.length > 0){
