@@ -232,6 +232,11 @@ type ApprovedStudy {
     useProgramPC: Boolean
 }
 
+type ProgramList {
+    total: Int
+    programs: [UserOrganization]
+}
+
 type ApprovedStudyList {
     total: Int
     studies: [ApprovedStudy]
@@ -690,8 +695,7 @@ type Query {
     listActiveCurators: [UserInfo]
     getUser(userID: ID!): User
 
-    "Admin only operations"
-    listOrganizations: [UserOrganization]
+    listPrograms: ProgramList
     getOrganization(orgID: ID!): UserOrganization
 
     getSubmissionNodes(

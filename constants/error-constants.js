@@ -9,7 +9,9 @@ const ERROR = {
     APPLICATION_CONTROLLED_ACCESS_NOT_FOUND: "The application does not store controlled access property.",
     APPLICATION_INVALID_STATUES: "Requested statues $item$ is not valid",
     FAILED_RESTORE_APPLICATION: "An error occurred while restoring an application",
+    // Program
     MISSING_PROGRAM_INFO: "The program property is required to approve the submission request.",
+    INVALID_PROGRAM_STATUS: "Requested organization status $item$ is not valid.",
     INVALID_APPLICATION_RESTORE_STATE: "Failed to restore application because the application history data is invalid",
     COMMENT_LIMIT: "comment cannot exceed 500 characters.",
     UPDATE_FAILED: "Update unsuccessful",
