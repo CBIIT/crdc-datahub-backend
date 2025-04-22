@@ -108,7 +108,7 @@
           },
           
           {
-            "_id": "user:manage:role",
+            "_id": "user:manage:role:Federal Lead",
             "group": "Admin Permissions",
             "name": "Manage User",
             "order": 4,
