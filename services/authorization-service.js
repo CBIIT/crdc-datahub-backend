@@ -1,4 +1,5 @@
 const ERROR = require('../constants/error-constants');
+const SCOPES = require('../constants/permission-scope-constants');
 
 class AuthorizationService {
 
@@ -8,59 +9,94 @@ class AuthorizationService {
 
     /**
      * Function to get a user's scopes and scope values for a given permission
-     * @param user {{role: string, permissions: string[]}} - the current user
+     * @param user {{role: string, permissions: string[], studies: {_id: string[]}, dataCommons: string[]}} - the
+     * current user
      * @param permission {string} - the name of the permission without scopes, please use a permissions constant
      * for this input
      * Example: "entity:action"
-     * @returns {{scopes: string[], scopeValues: string[]}} an object containing the user's scopes and scope values for
-     * the input permission. If the user does not have the permission or has no scopes for the permission, then the
-     * default response is {scopes: ["none"], scopeValues: []}
+     * @returns {{scope: string, scopeValues: string[]}[]} an array of objects containing a scope and the corresponding
+     * scope values
      */
     async getPermissionScope(user, permission){
-        let output = {
-            scopes: ['none'],
+        const defaultOutput = [{
+            scope: SCOPES.NONE,
             scopeValues: []
-        }
+        }];
         const userPermissions = user?.permissions;
         if (!userPermissions || !permission){
-            return output;
+            return defaultOutput;
         }
         // Loop through the user's permissions until one matching the input permission is found
         for (const userPermission of userPermissions){
             const permissionAndScope = parsePermissionString(userPermission);
-            let scopes = permissionAndScope?.scopes;
-
             if (permissionAndScope?.permission === permission) {
-                if (!!scopes && scopes.length > 0){
-                    output.scopes = scopes;
-                    output.scopeValues = permissionAndScope?.scopeValues || []
-                    return output;
-                }
-                /*
-                The below block of code is for backwards compatibility. I expect this will eventually be removed.
-                If a permission is found but no scopes are specified then this will retrieve and use the default
-                scopes from the PBAC configuration in MongoDB.
-                */
-
-                const userRole  = user?.role;
-                const pbacDefaults = await this.configurationService.getPBACByRoles([userRole]);
-                if (pbacDefaults && pbacDefaults.length > 0){
-                    let rolePermissions = pbacDefaults[0]?.permissions;
-                    if (rolePermissions?.length > 0){
-                        rolePermissions = rolePermissions.filter((x) => x._id === permission);
-                        if (rolePermissions?.length > 0){
-                            output.scopes = rolePermissions[0].scopes || [];
-                            output.scopeValues = rolePermissions[0].scopeValues || [];
+                let scopes = permissionAndScope?.scopes || [];
+                let scopeValues = permissionAndScope?.scopeValues || [];
+                if (scopes.length === 0){
+                    /*
+                    The below block of code is for backwards compatibility. I expect this will eventually be removed.
+                    If a permission is found but no scopes are specified then this will retrieve and use the default
+                    scopes from the PBAC configuration in MongoDB.
+                    */
+                    scopes = [SCOPES.NONE]
+                    const userRole = user?.role;
+                    const pbacDefaults = await this.configurationService.getPBACByRoles([userRole]);
+                    if (pbacDefaults && pbacDefaults.length > 0) {
+                        let rolePermissions = pbacDefaults[0]?.permissions;
+                        if (rolePermissions?.length > 0) {
+                            rolePermissions = rolePermissions.filter((x) => x._id === permission);
+                            if (rolePermissions?.length > 0) {
+                                scopes = rolePermissions[0].scopes || [SCOPES.NONE];
+                                scopeValues = rolePermissions[0].scopeValues || [];
+                            }
                         }
                     }
+                    /*
+                    End of the backwards compatability block
+                    */
                 }
-                return output;
-                /*
-                End of the backwards compatability block
-                */
+                return this.formatScopesOutput(user, scopes, scopeValues);
             }
         }
-        return output;
+        return defaultOutput;
+    }
+
+    /**
+     * Takes a user, scopes array, and scope values array as input then formats them as an array of objects containing
+     * a scope and the corresponding scope values. Study and DC scope values are pulled from the user object
+     * @param user {{role: string, permissions: string[], studies: {_id: string[]}, dataCommons: string[]}} - the
+     * current user
+     * @param scopes {string[]}- an array of scopes
+     * @param scopeValues {string[]}- an array of scope values
+     * @returns {{scope: string, scopeValues: string[]}[]} an array of objects containing a scope and the corresponding
+     * scope values
+     */
+    formatScopesOutput(user, scopes, scopeValues){
+        let formattedOutput = [];
+        if (scopes.includes(SCOPES.STUDY)){
+            let userStudies = user?.studies || []
+            userStudies = userStudies.map((study) => study?._id)
+            formattedOutput.push({
+                scope: SCOPES.STUDY,
+                scopeValues: userStudies
+            });
+        }
+        if (scopes.includes(SCOPES.DC)){
+            let userDataCommons = user?.dataCommons || []
+            formattedOutput.push({
+                scope: SCOPES.DC,
+                scopeValues: userDataCommons
+            });
+        }
+        for (const scope of scopes){
+            if (![SCOPES.STUDY, SCOPES.DC].includes(scope)){
+                formattedOutput.push({
+                    scope: scope,
+                    scopeValues: scopeValues
+                });
+            }
+        }
+        return formattedOutput;
     }
 }
 
@@ -86,7 +122,6 @@ function parsePermissionString(permissionString){
     // Scopes are case insensitive and will be converted to lowercase
     if (permissionStringElements.length > 2){
         scopes = permissionStringElements[2].split('+');
-        scopes = scopes.map((scope) => {return scope.toLocaleLowerCase()})
     }
     // Scope values are case sensitive and will not be modified
     if (permissionStringElements.length > 3){

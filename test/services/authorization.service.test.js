@@ -2,6 +2,7 @@ const {ConfigurationService} =  require("../../services/configurationService");
 const {AuthorizationService} =  require("../../services/authorization-service");
 const {USER} =  require("../../crdc-datahub-database-drivers/constants/user-constants");
 const PERMISSIONS = require("../../crdc-datahub-database-drivers/constants/user-permission-constants");
+const SCOPES = require("../../constants/permission-scope-constants");
 
 describe('authorization service test', () => {
 
@@ -10,10 +11,10 @@ describe('authorization service test', () => {
     let pbacDefaults;
     let userInput;
     let permissionInput;
-    const noneOutput = {
-        scopes: ["none"],
+    const defaultOutput = [{
+        scope: SCOPES.NONE,
         scopeValues: []
-    };
+    }];
 
     beforeAll(() => {
         configurationService = new ConfigurationService();
@@ -26,10 +27,10 @@ describe('authorization service test', () => {
     test("/Test invalid inputs", async () => {
         permissionInput = PERMISSIONS.DATA_SUBMISSION.VIEW;
         // Empty user input
-        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual(noneOutput);
+        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual(defaultOutput);
         userInput = null;
         // Null user input
-        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual(noneOutput);
+        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual(defaultOutput);
         userInput = {
             role: USER.ROLES.SUBMITTER,
             permissions: [
@@ -37,9 +38,9 @@ describe('authorization service test', () => {
             ]
         };
         // Null permission input
-        expect(await authorizationService.getPermissionScope(userInput, null)).toStrictEqual(noneOutput);
+        expect(await authorizationService.getPermissionScope(userInput, null)).toStrictEqual(defaultOutput);
         // Invalid permission input
-        expect(await authorizationService.getPermissionScope(userInput, "invalid")).toStrictEqual(noneOutput);
+        expect(await authorizationService.getPermissionScope(userInput, "invalid")).toStrictEqual(defaultOutput);
     });
 
     test("/test reading the scope", async () => {
@@ -47,61 +48,42 @@ describe('authorization service test', () => {
         userInput = {
             role: USER.ROLES.SUBMITTER,
             permissions: [
-                PERMISSIONS.DATA_SUBMISSION.VIEW + ":all",
-            ]
+                PERMISSIONS.DATA_SUBMISSION.VIEW + `:${SCOPES.ALL}`,
+            ],
+            studies: [
+                {_id: "study1"},
+                {_id: "study2"},
+                {_id: "study3"}
+            ],
+            dataCommons: ["dataCommons1", "dataCommons2"]
         };
         permissionInput = PERMISSIONS.DATA_SUBMISSION.VIEW;
         // user has permission with scope
-        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual({scopes: ["all"], scopeValues: []});
+        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual([{scope: SCOPES.ALL, scopeValues: []}]);
         userInput.permissions = [PERMISSIONS.DATA_SUBMISSION.VIEW];
         // user has permission without scope
-        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual(noneOutput);
-        userInput.permissions = [PERMISSIONS.DATA_SUBMISSION.CREATE, PERMISSIONS.DATA_SUBMISSION.VIEW+ ":role", PERMISSIONS.DATA_SUBMISSION.CONFIRM];
+        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual(defaultOutput);
+        userInput.permissions = [PERMISSIONS.DATA_SUBMISSION.CREATE, PERMISSIONS.DATA_SUBMISSION.VIEW+`:${SCOPES.ROLE}`, PERMISSIONS.DATA_SUBMISSION.CONFIRM];
         // user has permission in list
-        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual({scopes: ["role"], scopeValues: []});
-        userInput.permissions = [PERMISSIONS.DATA_SUBMISSION.VIEW+ ":ROLE"];
-        // user has permission with case insensitive scope
-        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual({scopes: ["role"], scopeValues: []});
-        userInput.permissions = [PERMISSIONS.DATA_SUBMISSION.VIEW+ ":rOlE"];
-        // user has permission with case insensitive scope
-        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual({scopes: ["role"], scopeValues: []});
-        userInput.permissions = [PERMISSIONS.DATA_SUBMISSION.VIEW+ ":role+study+dc"];
-        // user has permission with multiple scopes
-        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual({scopes: ["role", "study", "dc"], scopeValues: []});
-    });
-
-    test("/test reading the scope values", async () => {
-        configurationService.getPBACByRoles = jest.fn().mockReturnValue([]);
-        userInput = {
-            role: USER.ROLES.SUBMITTER,
-            permissions: [
-                PERMISSIONS.DATA_SUBMISSION.VIEW + ":study:study1+study2+study3",
-            ]
-        };
-        permissionInput = PERMISSIONS.DATA_SUBMISSION.VIEW;
-        // user has permission with scope and scope values
-        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual({
-            scopes: ["study"],
-            scopeValues: ["study1", "study2", "study3"]
-        });
-        userInput.permissions = [PERMISSIONS.DATA_SUBMISSION.VIEW + ":study:study1+study2+study3:extrainformation"]
-        // user has permission with scope, scope values, and extra information
-        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual({
-            scopes: ["study"],
-            scopeValues: ["study1", "study2", "study3"]
-        });
-        userInput.permissions = [PERMISSIONS.DATA_SUBMISSION.VIEW + ":study+DC:dcA+studyB+studyC:extrainformation"]
+        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual([{scope: SCOPES.ROLE, scopeValues: []}]);
+        userInput.permissions = [PERMISSIONS.DATA_SUBMISSION.VIEW+ `:${SCOPES.ROLE}+${SCOPES.STUDY}+${SCOPES.DC}:${USER.ROLES.FEDERAL_LEAD}+${USER.ROLES.USER}:extrainfo`];
         // user has permission with multiple scopes, multiple scope values, and extra information
-        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual({
-            scopes: ["study", "dc"],
-            scopeValues: ["dcA", "studyB", "studyC"]
-        });
+        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual([
+            {scope: SCOPES.STUDY, scopeValues: ["study1", "study2", "study3"]},
+            {scope: SCOPES.DC, scopeValues: ["dataCommons1", "dataCommons2"]},
+            {scope: SCOPES.ROLE, scopeValues: [USER.ROLES.FEDERAL_LEAD, USER.ROLES.USER]}
+        ]);
     });
 
-    test("/test reading default scopes", async () => {
+    test("/test reading default scopes and values", async () => {
         userInput = {
             role: USER.ROLES.SUBMITTER,
-            permissions: [PERMISSIONS.DATA_SUBMISSION.VIEW]
+            permissions: [PERMISSIONS.DATA_SUBMISSION.VIEW, PERMISSIONS.DATA_SUBMISSION.CONFIRM],
+            studies: [
+                {_id: "study1"},
+                {_id: "study2"},
+                {_id: "study3"}
+            ],
         };
         permissionInput = PERMISSIONS.DATA_SUBMISSION.VIEW;
         pbacDefaults = [
@@ -110,26 +92,31 @@ describe('authorization service test', () => {
                 "permissions": [
                     {
                         "_id": PERMISSIONS.DATA_SUBMISSION.CANCEL,
-                        "scopes": ["none"]
+                        "scopes": ["all"]
                     },
                     {
                         "_id": PERMISSIONS.DATA_SUBMISSION.VIEW,
-                        "scopes": ["all"]
+                        "scopes": ["role", "study"],
+                        "scopeValues": ["Submitter"]
                     }
                 ]
             }
         ];
         configurationService.getPBACByRoles = jest.fn().mockReturnValue(pbacDefaults);
         // test user has permission but no scopes, scopes are read from defaults
-        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual({scopes: ["all"], scopeValues: []});
-        userInput = {
-            role: USER.ROLES.SUBMITTER
-        };
+        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual([
+            {scope: SCOPES.STUDY, scopeValues: ["study1", "study2", "study3"]},
+            {scope: SCOPES.ROLE, scopeValues: [USER.ROLES.SUBMITTER]}
+        ]);
+        permissionInput = PERMISSIONS.DATA_SUBMISSION.CONFIRM;
+        // test user has permission without values but there are no defaults
+        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual(defaultOutput)
+        userInput.permissions = null;
         // test user has no permissions, scopes are not read from defaults
-        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual(noneOutput);
+        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual(defaultOutput);
         userInput.permissions = [PERMISSIONS.DATA_SUBMISSION.CANCEL];
         // test user does not have the specified permission, scopes are not read from defaults
-        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual(noneOutput);
+        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual(defaultOutput);
     });
 });
 

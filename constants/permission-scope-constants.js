@@ -3,6 +3,6 @@ module.exports = Object.freeze({
     NONE: "none",
     OWN: "own",
     STUDY: "study",
-    DC: "dc",
+    DC: "DC",
     ROLE: "role"
 });
