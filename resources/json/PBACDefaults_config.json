@@ -198,10 +198,18 @@
             "disabled": false
           },
           {
+            "_id": "data_submission:created",
+            "group": "Data Submission Emails",
+            "name": "Submission: When created",
+            "order": 1,
+            "checked": false,
+            "disabled": false
+          },
+          {
             "_id": "data_submission:submitted",
             "group": "Data Submission Emails",
             "name": "When submitted",
-            "order": 1,
+            "order": 2,
             "checked": false,
             "disabled": false
           },
@@ -209,7 +217,7 @@
             "_id": "data_submission:cancelled",
             "group": "Data Submission Emails",
             "name": "When cancelled",
-            "order": 2,
+            "order": 3,
             "checked": false,
             "disabled": false
           },
@@ -217,15 +225,7 @@
             "_id": "data_submission:withdrawn",
             "group": "Data Submission Emails",
             "name": "When withdrawn",
-            "order": 3,
-            "checked": false,
-            "disabled": false
-          },
-          {
-            "_id": "data_submission:released",
-            "group": "Data Submission Emails",
-            "name": "When released",
-            "order": 5,
+            "order": 4,
             "checked": false,
             "disabled": false
           },
@@ -233,7 +233,15 @@
             "_id": "data_submission:rejected",
             "group": "Data Submission Emails",
             "name": "When rejected",
-            "order": 4,
+            "order": 5,
+            "checked": false,
+            "disabled": false
+          },
+          {
+            "_id": "data_submission:released",
+            "group": "Data Submission Emails",
+            "name": "When released",
+            "order": 6,
             "checked": false,
             "disabled": false
           },
@@ -241,7 +249,7 @@
             "_id": "data_submission:completed",
             "group": "Data Submission Emails",
             "name": "When completed",
-            "order": 6,
+            "order": 7,
             "checked": false,
             "disabled": false
           },
@@ -249,7 +257,7 @@
             "_id": "data_submission:expiring",
             "group": "Data Submission Emails",
             "name": "When expiring",
-            "order": 7,
+            "order": 8,
             "checked": false,
             "disabled": false
           },
@@ -257,14 +265,6 @@
             "_id": "data_submission:deleted",
             "group": "Data Submission Emails",
             "name": "When deleted",
-            "order": 8,
-            "checked": false,
-            "disabled": false
-          },
-          {
-            "_id": "data_submission:missing_primary_contact",
-            "group": "Data Submission Emails",
-            "name": "Missing Primary Contact",
             "order": 9,
             "checked": false,
             "disabled": false
@@ -498,10 +498,18 @@
             "disabled": false
           },
           {
+            "_id": "data_submission:created",
+            "group": "Data Submission Emails",
+            "name": "Submission: When created",
+            "order": 1,
+            "checked": true,
+            "disabled": false
+          },
+          {
             "_id": "data_submission:submitted",
             "group": "Data Submission Emails",
             "name": "When submitted",
-            "order": 1,
+            "order": 2,
             "checked": true,
             "disabled": false
           },
@@ -509,7 +517,7 @@
             "_id": "data_submission:cancelled",
             "group": "Data Submission Emails",
             "name": "When cancelled",
-            "order": 2,
+            "order": 3,
             "checked": true,
             "disabled": false
           },
@@ -517,15 +525,7 @@
             "_id": "data_submission:withdrawn",
             "group": "Data Submission Emails",
             "name": "When withdrawn",
-            "order": 3,
-            "checked": true,
-            "disabled": false
-          },
-          {
-            "_id": "data_submission:released",
-            "group": "Data Submission Emails",
-            "name": "When released",
-            "order": 5,
+            "order": 4,
             "checked": true,
             "disabled": false
           },
@@ -533,7 +533,15 @@
             "_id": "data_submission:rejected",
             "group": "Data Submission Emails",
             "name": "When rejected",
-            "order": 4,
+            "order": 5,
+            "checked": true,
+            "disabled": false
+          },
+          {
+            "_id": "data_submission:released",
+            "group": "Data Submission Emails",
+            "name": "When released",
+            "order": 6,
             "checked": true,
             "disabled": false
           },
@@ -541,7 +549,7 @@
             "_id": "data_submission:completed",
             "group": "Data Submission Emails",
             "name": "When completed",
-            "order": 6,
+            "order": 7,
             "checked": true,
             "disabled": false
           },
@@ -549,7 +557,7 @@
             "_id": "data_submission:expiring",
             "group": "Data Submission Emails",
             "name": "When expiring",
-            "order": 7,
+            "order": 8,
             "checked": true,
             "disabled": false
           },
@@ -557,16 +565,8 @@
             "_id": "data_submission:deleted",
             "group": "Data Submission Emails",
             "name": "When deleted",
-            "order": 8,
-            "checked": true,
-            "disabled": false
-          },
-          {
-            "_id": "data_submission:missing_primary_contact",
-            "group": "Data Submission Emails",
-            "name": "Missing Primary Contact",
             "order": 9,
-            "checked": false,
+            "checked": true,
             "disabled": false
           },
           {
@@ -798,10 +798,18 @@
             "disabled": false
           },
           {
+            "_id": "data_submission:created",
+            "group": "Data Submission Emails",
+            "name": "Submission: When created",
+            "order": 1,
+            "checked": true,
+            "disabled": false
+          },
+          {
             "_id": "data_submission:submitted",
             "group": "Data Submission Emails",
             "name": "When submitted",
-            "order": 1,
+            "order": 2,
             "checked": false,
             "disabled": false
           },
@@ -809,7 +817,7 @@
             "_id": "data_submission:cancelled",
             "group": "Data Submission Emails",
             "name": "When cancelled",
-            "order": 2,
+            "order": 3,
             "checked": true,
             "disabled": false
           },
@@ -817,23 +825,23 @@
             "_id": "data_submission:withdrawn",
             "group": "Data Submission Emails",
             "name": "When withdrawn",
-            "order": 3,
+            "order": 4,
             "checked": false,
-            "disabled": false
-          },
-          {
-            "_id": "data_submission:released",
-            "group": "Data Submission Emails",
-            "name": "When released",
-            "order": 5,
-            "checked": true,
             "disabled": false
           },
           {
             "_id": "data_submission:rejected",
             "group": "Data Submission Emails",
             "name": "When rejected",
-            "order": 4,
+            "order": 5,
+            "checked": true,
+            "disabled": false
+          },
+          {
+            "_id": "data_submission:released",
+            "group": "Data Submission Emails",
+            "name": "When released",
+            "order": 6,
             "checked": true,
             "disabled": false
           },
@@ -841,7 +849,7 @@
             "_id": "data_submission:completed",
             "group": "Data Submission Emails",
             "name": "When completed",
-            "order": 6,
+            "order": 7,
             "checked": true,
             "disabled": false
           },
@@ -849,7 +857,7 @@
             "_id": "data_submission:expiring",
             "group": "Data Submission Emails",
             "name": "When expiring",
-            "order": 7,
+            "order": 8,
             "checked": true,
             "disabled": false
           },
@@ -857,17 +865,9 @@
             "_id": "data_submission:deleted",
             "group": "Data Submission Emails",
             "name": "When deleted",
-            "order": 8,
-            "checked": true,
-            "disabled": false
-          },
-          {
-            "_id": "data_submission:missing_primary_contact",
-            "group": "Data Submission Emails",
-            "name": "Missing Primary Contact",
             "order": 9,
             "checked": true,
-            "disabled": true
+            "disabled": false
           },
           {
             "_id": "access:requested",
@@ -1098,10 +1098,18 @@
             "disabled": true
           },
           {
+            "_id": "data_submission:created",
+            "group": "Data Submission Emails",
+            "name": "Submission: When created",
+            "order": 1,
+            "checked": false,
+            "disabled": true
+          },
+          {
             "_id": "data_submission:submitted",
             "group": "Data Submission Emails",
             "name": "When submitted",
-            "order": 1,
+            "order": 2,
             "checked": true,
             "disabled": true
           },
@@ -1109,7 +1117,7 @@
             "_id": "data_submission:cancelled",
             "group": "Data Submission Emails",
             "name": "When cancelled",
-            "order": 2,
+            "order": 3,
             "checked": true,
             "disabled": true
           },
@@ -1117,15 +1125,7 @@
             "_id": "data_submission:withdrawn",
             "group": "Data Submission Emails",
             "name": "When withdrawn",
-            "order": 3,
-            "checked": true,
-            "disabled": true
-          },
-          {
-            "_id": "data_submission:released",
-            "group": "Data Submission Emails",
-            "name": "When released",
-            "order": 5,
+            "order": 4,
             "checked": true,
             "disabled": true
           },
@@ -1133,7 +1133,15 @@
             "_id": "data_submission:rejected",
             "group": "Data Submission Emails",
             "name": "When rejected",
-            "order": 4,
+            "order": 5,
+            "checked": true,
+            "disabled": true
+          },
+          {
+            "_id": "data_submission:released",
+            "group": "Data Submission Emails",
+            "name": "When released",
+            "order": 6,
             "checked": true,
             "disabled": true
           },
@@ -1141,7 +1149,7 @@
             "_id": "data_submission:completed",
             "group": "Data Submission Emails",
             "name": "When completed",
-            "order": 6,
+            "order": 7,
             "checked": true,
             "disabled": true
           },
@@ -1149,7 +1157,7 @@
             "_id": "data_submission:expiring",
             "group": "Data Submission Emails",
             "name": "When expiring",
-            "order": 7,
+            "order": 8,
             "checked": true,
             "disabled": true
           },
@@ -1157,16 +1165,8 @@
             "_id": "data_submission:deleted",
             "group": "Data Submission Emails",
             "name": "When deleted",
-            "order": 8,
-            "checked": true,
-            "disabled": true
-          },
-          {
-            "_id": "data_submission:missing_primary_contact",
-            "group": "Data Submission Emails",
-            "name": "Missing Primary Contact",
             "order": 9,
-            "checked": false,
+            "checked": true,
             "disabled": true
           },
           {
@@ -1398,10 +1398,18 @@
             "disabled": true
           },
           {
+            "_id": "data_submission:created",
+            "group": "Data Submission Emails",
+            "name": "Submission: When created",
+            "order": 1,
+            "checked": false,
+            "disabled": true
+          },
+          {
             "_id": "data_submission:submitted",
             "group": "Data Submission Emails",
             "name": "When submitted",
-            "order": 1,
+            "order": 2,
             "checked": false,
             "disabled": true
           },
@@ -1409,7 +1417,7 @@
             "_id": "data_submission:cancelled",
             "group": "Data Submission Emails",
             "name": "When cancelled",
-            "order": 2,
+            "order": 3,
             "checked": false,
             "disabled": true
           },
@@ -1417,15 +1425,7 @@
             "_id": "data_submission:withdrawn",
             "group": "Data Submission Emails",
             "name": "When withdrawn",
-            "order": 3,
-            "checked": false,
-            "disabled": true
-          },
-          {
-            "_id": "data_submission:released",
-            "group": "Data Submission Emails",
-            "name": "When released",
-            "order": 5,
+            "order": 4,
             "checked": false,
             "disabled": true
           },
@@ -1433,7 +1433,15 @@
             "_id": "data_submission:rejected",
             "group": "Data Submission Emails",
             "name": "When rejected",
-            "order": 4,
+            "order": 5,
+            "checked": false,
+            "disabled": true
+          },
+          {
+            "_id": "data_submission:released",
+            "group": "Data Submission Emails",
+            "name": "When released",
+            "order": 6,
             "checked": false,
             "disabled": true
           },
@@ -1441,7 +1449,7 @@
             "_id": "data_submission:completed",
             "group": "Data Submission Emails",
             "name": "When completed",
-            "order": 6,
+            "order": 7,
             "checked": false,
             "disabled": true
           },
@@ -1449,7 +1457,7 @@
             "_id": "data_submission:expiring",
             "group": "Data Submission Emails",
             "name": "When expiring",
-            "order": 7,
+            "order": 8,
             "checked": false,
             "disabled": true
           },
@@ -1457,14 +1465,6 @@
             "_id": "data_submission:deleted",
             "group": "Data Submission Emails",
             "name": "When deleted",
-            "order": 8,
-            "checked": false,
-            "disabled": true
-          },
-          {
-            "_id": "data_submission:missing_primary_contact",
-            "group": "Data Submission Emails",
-            "name": "Missing Primary Contact",
             "order": 9,
             "checked": false,
             "disabled": true
