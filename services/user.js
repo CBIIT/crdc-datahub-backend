@@ -42,6 +42,7 @@ class UserService {
     #allPermissionNamesSet = new Set([...Object.values(SUBMISSION_REQUEST), ...Object.values(DATA_SUBMISSION), ...Object.values(ADMIN)]);
     #allEmailNotificationNamesSet = new Set([...Object.values(EN.SUBMISSION_REQUEST), ...Object.values(EN.DATA_SUBMISSION), ...Object.values(EN.USER_ACCOUNT)]);
     #NIH = "nih";
+    #NOT_APPLICABLE = "NA";
     constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, approvedStudiesService, inactiveUserDays, configurationService, institutionService) {
         this.userCollection = userCollection;
         this.logCollection = logCollection;
@@ -434,7 +435,10 @@ class UserService {
             const isRoleChange = baseRoleCondition && prevUser.role !== newUser.role;
             const isDataCommonsChange = newUser?.dataCommons?.length > 0 && JSON.stringify(prevUser?.dataCommons) !== JSON.stringify(newUser?.dataCommons);
             const isStudiesChange = newUser.studies?.length > 0 && JSON.stringify(prevUser.studies) !== JSON.stringify(newUser.studies);
-            if (isRoleChange || isDataCommonsChange || isStudiesChange) {
+            // Submitter Only Receive the institution change
+            const isInstitutionChange = USER.ROLES.SUBMITTER === newUser.role
+                && newUser?.institution?.name && JSON.stringify(prevUser?.institution?.name) !== JSON.stringify(newUser?.institution?.name)
+            if (isRoleChange || isDataCommonsChange || isStudiesChange || isInstitutionChange) {
                 const userDataCommons = [USER.ROLES.DATA_COMMONS_PERSONNEL].includes(newUser.role) ? newUser.dataCommons : undefined;
                 const studyNames = await this.#findStudiesNames(newUser.studies);
                 await this.notificationsService.userRoleChangeNotification(newUser.email,
@@ -444,6 +448,7 @@ class UserService {
                         role: newUser.role,
                         dataCommons: userDataCommons,
                         ...([USER.ROLES.SUBMITTER, USER.ROLES.FEDERAL_LEAD].includes(newUser.role) && { studies: studyNames }),
+                        ...((USER.ROLES.SUBMITTER === newUser.role) && { institution: newUser?.institution?.name || this.#NOT_APPLICABLE }),
                     },
                     {url: this.appUrl, helpDesk: `${this.officialEmail}.`});
             }
