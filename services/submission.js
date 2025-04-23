@@ -418,7 +418,7 @@ class Submission {
             }
             const programs = await this.organizationService.organizationCollection.aggregate([{ "$match": { "studies._id": aSubmission.studyID } }, { "$limit": 1 }]);
             const aProgram = programs?.length > 0 ? programs?.pop() : {};
-            // The primary contact in the listing submission API only applies if the getSubmission is triggered.
+            // The data concierge in the listing submission API only applies if the getSubmission is triggered.
             if (aProgram?._id !== aSubmission?.organization?._id || aProgram?.name !== aSubmission?.organization?.name) {
                 const updatedSubmission = await this.submissionCollection.updateOne({"_id": aSubmission?._id}, {organization: {_id: aProgram?._id, name: aProgram?.name}, updatedAt: getCurrentTime()});
                 if (!updatedSubmission.acknowledged) {

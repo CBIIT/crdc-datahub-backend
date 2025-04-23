@@ -730,7 +730,7 @@ class UserService {
         }
     }
 
-    // user's role changed to anything other than Data Commons Personnel, they should be removed from any study/program's primary contact.
+    // user's role changed to anything other than Data Commons Personnel, they should be removed from any study/program's data concierge.
     async #removePrimaryContact(prevUser, newUser) {
         const isRoleChange = prevUser.role === ROLES.DATA_COMMONS_PERSONNEL && prevUser.role !== newUser.role;
         if (isRoleChange) {
@@ -751,15 +751,15 @@ class UserService {
                 )
             ]);
             if (!updatedSubmission.acknowledged) {
-                console.error("Failed to remove the primary contact in submissions");
+                console.error("Failed to remove the data concierge in submissions");
             }
 
             if (!updateProgram.acknowledged) {
-                console.error("Failed to remove the primary contact in programs");
+                console.error("Failed to remove the data concierge in programs");
             }
 
             if (!updatedStudies.acknowledged) {
-                console.error("Failed to remove the primary contact in studies");
+                console.error("Failed to remove the data concierge in studies");
             }
         }
     }
