@@ -1,0 +1,122 @@
+const {ConfigurationService} =  require("../../services/configurationService");
+const {AuthorizationService} =  require("../../services/authorization-service");
+const {USER} =  require("../../crdc-datahub-database-drivers/constants/user-constants");
+const PERMISSIONS = require("../../crdc-datahub-database-drivers/constants/user-permission-constants");
+const SCOPES = require("../../constants/permission-scope-constants");
+
+describe('authorization service test', () => {
+
+    let configurationService;
+    let authorizationService;
+    let pbacDefaults;
+    let userInput;
+    let permissionInput;
+    const defaultOutput = [{
+        scope: SCOPES.NONE,
+        scopeValues: []
+    }];
+
+    beforeAll(() => {
+        configurationService = new ConfigurationService();
+        authorizationService = new AuthorizationService(configurationService);
+        pbacDefaults = []
+        userInput = {};
+        permissionInput = null;
+    });
+
+    test("/Test invalid inputs", async () => {
+        permissionInput = PERMISSIONS.DATA_SUBMISSION.VIEW;
+        // Empty user input
+        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual(defaultOutput);
+        userInput = null;
+        // Null user input
+        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual(defaultOutput);
+        userInput = {
+            role: USER.ROLES.SUBMITTER,
+            permissions: [
+                PERMISSIONS.DATA_SUBMISSION.VIEW + ":all",
+            ]
+        };
+        // Null permission input
+        expect(await authorizationService.getPermissionScope(userInput, null)).toStrictEqual(defaultOutput);
+        // Invalid permission input
+        expect(await authorizationService.getPermissionScope(userInput, "invalid")).toStrictEqual(defaultOutput);
+    });
+
+    test("/test reading the scope", async () => {
+        configurationService.getPBACByRoles = jest.fn().mockReturnValue([]);
+        userInput = {
+            role: USER.ROLES.SUBMITTER,
+            permissions: [
+                PERMISSIONS.DATA_SUBMISSION.VIEW + `:${SCOPES.ALL}`,
+            ],
+            studies: [
+                {_id: "study1"},
+                {_id: "study2"},
+                {_id: "study3"}
+            ],
+            dataCommons: ["dataCommons1", "dataCommons2"]
+        };
+        permissionInput = PERMISSIONS.DATA_SUBMISSION.VIEW;
+        // user has permission with scope
+        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual([{scope: SCOPES.ALL, scopeValues: []}]);
+        userInput.permissions = [PERMISSIONS.DATA_SUBMISSION.VIEW];
+        // user has permission without scope
+        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual(defaultOutput);
+        userInput.permissions = [PERMISSIONS.DATA_SUBMISSION.CREATE, PERMISSIONS.DATA_SUBMISSION.VIEW+`:${SCOPES.ROLE}`, PERMISSIONS.DATA_SUBMISSION.CONFIRM];
+        // user has permission in list
+        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual([{scope: SCOPES.ROLE, scopeValues: []}]);
+        userInput.permissions = [PERMISSIONS.DATA_SUBMISSION.VIEW+ `:${SCOPES.ROLE}+${SCOPES.STUDY}+${SCOPES.DC}:${USER.ROLES.FEDERAL_LEAD}+${USER.ROLES.USER}:extrainfo`];
+        // user has permission with multiple scopes, multiple scope values, and extra information
+        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual([
+            {scope: SCOPES.STUDY, scopeValues: ["study1", "study2", "study3"]},
+            {scope: SCOPES.DC, scopeValues: ["dataCommons1", "dataCommons2"]},
+            {scope: SCOPES.ROLE, scopeValues: [USER.ROLES.FEDERAL_LEAD, USER.ROLES.USER]}
+        ]);
+    });
+
+    test("/test reading default scopes and values", async () => {
+        userInput = {
+            role: USER.ROLES.SUBMITTER,
+            permissions: [PERMISSIONS.DATA_SUBMISSION.VIEW, PERMISSIONS.DATA_SUBMISSION.CONFIRM],
+            studies: [
+                {_id: "study1"},
+                {_id: "study2"},
+                {_id: "study3"}
+            ],
+        };
+        permissionInput = PERMISSIONS.DATA_SUBMISSION.VIEW;
+        pbacDefaults = [
+            {
+                "role": USER.ROLES.SUBMITTER,
+                "permissions": [
+                    {
+                        "_id": PERMISSIONS.DATA_SUBMISSION.CANCEL,
+                        "scopes": ["all"]
+                    },
+                    {
+                        "_id": PERMISSIONS.DATA_SUBMISSION.VIEW,
+                        "scopes": ["role", "study"],
+                        "scopeValues": ["Submitter"]
+                    }
+                ]
+            }
+        ];
+        configurationService.getPBACByRoles = jest.fn().mockReturnValue(pbacDefaults);
+        // test user has permission but no scopes, scopes are read from defaults
+        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual([
+            {scope: SCOPES.STUDY, scopeValues: ["study1", "study2", "study3"]},
+            {scope: SCOPES.ROLE, scopeValues: [USER.ROLES.SUBMITTER]}
+        ]);
+        permissionInput = PERMISSIONS.DATA_SUBMISSION.CONFIRM;
+        // test user has permission without values but there are no defaults
+        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual(defaultOutput)
+        userInput.permissions = null;
+        // test user has no permissions, scopes are not read from defaults
+        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual(defaultOutput);
+        userInput.permissions = [PERMISSIONS.DATA_SUBMISSION.CANCEL];
+        // test user does not have the specified permission, scopes are not read from defaults
+        expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual(defaultOutput);
+    });
+});
+
