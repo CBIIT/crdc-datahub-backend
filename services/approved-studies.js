@@ -105,7 +105,7 @@ class ApprovedStudiesService {
         const orgIds = await this.organizationService.findByStudyID(studyID);
         if (orgIds && orgIds.length > 0 ) {
             const filters = {_id: {"$in": orgIds}};
-            // For the primary contact purpose, the sort should be enabled.
+            // For the data concierge purpose, the sort should be enabled.
             return await this.organizationService.organizationCollection.aggregate([{ "$match": filters }, {"$sort": {_id: -1}}]);
         }
         return null;
@@ -339,7 +339,7 @@ class ApprovedStudiesService {
             studyID: updateStudy._id,
             status: {$in: [NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, CANCELED, DELETED, ARCHIVED]},
             $or: [{conciergeName: { "$ne": conciergeName?.trim() }}, {conciergeEmail: { "$ne": conciergeEmail }}]}, {
-            // To update the primary contacts
+            // To update the data concierge
             conciergeName: conciergeName?.trim(), conciergeEmail, updatedAt: getCurrentTime()});
         if (!updatedSubmissions?.acknowledged) {
             console.log(ERROR.FAILED_PRIMARY_CONTACT_UPDATE, `StudyID: ${studyID}`);
@@ -351,15 +351,15 @@ class ApprovedStudiesService {
     }
 
     #getConcierge(programs, primaryContact, isProgramPrimaryContact) {
-        // primary contact from the study
+        // data concierge from the study
         const [conciergeName, conciergeEmail] = (primaryContact)? [`${primaryContact?.firstName || ""} ${primaryContact?.lastName || ''}`, primaryContact?.email || ""] :
             ["",""];
-        // isProgramPrimaryContact determines if the program's primary contact should be used.
+        // isProgramPrimaryContact determines if the program's data concierge should be used.
         if (isProgramPrimaryContact && programs?.length > 0) {
             const [conciergeID, programConciergeName,  programConciergeEmail] = [programs[0]?.conciergeID || "", programs[0]?.conciergeName || "", programs[0]?.conciergeEmail || ""];
             const isValidProgramConcierge = programConciergeName !== "" && programConciergeEmail !== "" && conciergeID !== "";
             return [isValidProgramConcierge ? programConciergeName : "", isValidProgramConcierge ? programConciergeEmail : ""];
-        // no primary contact assigned for the program.
+        // no data concierge assigned for the program.
         } else if (isProgramPrimaryContact) {
             return ["", ""]
         }
