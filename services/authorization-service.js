@@ -1,8 +1,20 @@
 const ERROR = require('../constants/error-constants');
 const SCOPES = require('../constants/permission-scope-constants');
+const {replaceErrorString} = require("../utility/string-util");
+const {
+    SUBMISSION_REQUEST,
+    DATA_SUBMISSION,
+    ADMIN,
+    EN
+} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 
 class AuthorizationService {
-
+    #allPermissionNamesSet = new Set([...Object.values(SUBMISSION_REQUEST), ...Object.values(DATA_SUBMISSION), ...Object.values(ADMIN)]);
+    #allEmailNotificationNamesSet = new Set([...Object.values(EN.SUBMISSION_REQUEST), ...Object.values(EN.DATA_SUBMISSION), ...Object.values(EN.USER_ACCOUNT)]);
+    #DEFAULT_OUTPUT = {
+        scope: SCOPES.NONE,
+        scopeValues: []
+    };
     constructor(configurationService) {
         this.configurationService = configurationService;
     }
@@ -97,6 +109,35 @@ class AuthorizationService {
             }
         }
         return formattedOutput;
+    }
+
+    // TODO
+    filterValidPermissions(user, permissions) {
+        return permissions.filter(p => {
+            const [permission, inputScope, inputScopeValues] = parsePermissionString(p);
+            const outputScopes = this.getPermissionScope(user, p);
+
+            const hasDefaultScope = outputScopes?.some(scope => scope?.scope === this.#DEFAULT_OUTPUT.scope);
+            const hasNoInputScope = inputScope?.length === 0 && inputScopeValues?.length === 0;
+            const hasValidInputScope = inputScope?.length > 0 && inputScopeValues?.length > 0;
+
+            const isValidScope = (hasDefaultScope && hasNoInputScope) || (!hasDefaultScope && hasValidInputScope);
+            return this.#allPermissionNamesSet.has(permission) && isValidScope;
+        });
+    }
+
+    filterValidNotifications(notifications) {
+        return notifications.filter(p => {
+            const [permission, inputScope, inputScopeValues] = parsePermissionString(p);
+            const outputScopes = this.getPermissionScope(user, p);
+
+            const hasDefaultScope = outputScopes?.some(scope => scope?.scope === this.#DEFAULT_OUTPUT.scope);
+            const hasNoInputScope = inputScope?.length === 0 && inputScopeValues?.length === 0;
+            const hasValidInputScope = inputScope?.length > 0 && inputScopeValues?.length > 0;
+
+            const isValidScope = (hasDefaultScope && hasNoInputScope) || (!hasDefaultScope && hasValidInputScope);
+            return this.#allEmailNotificationNamesSet.has(permission) && isValidScope;
+        });
     }
 }
 

@@ -118,5 +118,40 @@ describe('authorization service test', () => {
         // test user does not have the specified permission, scopes are not read from defaults
         expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual(defaultOutput);
     });
+
+    test("/Test getValidPermissions - edge and valid cases", async () => {
+        const permissionInput = [
+            "data_submission:view:all",                         // valid with scope
+            "data_submission:edit::",                          // valid with default scope
+            "invalid_permission:view:all",                     // invalid permission name
+            "data_submission:view:",                           // valid permission name but missing scope values
+            "data_submission:view:partial,subset",             // valid with input values
+            "data_submission:view",                            // shorthand, test if your parser handles it
+        ];
+
+        const userInput = {
+            role: USER.ROLES.SUBMITTER,
+            permissions: permissionInput
+        };
+
+        // Mock expected behavior: only the valid permission strings with correct scope logic should be kept
+        const expected = [
+            "data_submission:view:all",                        // valid full scope
+            "data_submission:edit::",                          // valid default scope with no input
+            "data_submission:view:partial,subset"              // valid scoped with values
+        ];
+
+        const result = await authorizationService.getValidPermissions(userInput, permissionInput);
+        expect(result).toStrictEqual(expected);
+    });
+
+    test("/Test getValidPermissions - null and empty inputs", async () => {
+        const defaultOutput = []; // assuming invalid inputs return empty array
+
+        expect(await authorizationService.getValidPermissions(null, null)).toStrictEqual(defaultOutput);
+        expect(await authorizationService.getValidPermissions({}, [])).toStrictEqual(defaultOutput);
+        expect(await authorizationService.getValidPermissions({ role: USER.ROLES.SUBMITTER }, null)).toStrictEqual(defaultOutput);
+    });
+
 });
 

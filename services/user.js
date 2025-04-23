@@ -42,7 +42,7 @@ class UserService {
     #allPermissionNamesSet = new Set([...Object.values(SUBMISSION_REQUEST), ...Object.values(DATA_SUBMISSION), ...Object.values(ADMIN)]);
     #allEmailNotificationNamesSet = new Set([...Object.values(EN.SUBMISSION_REQUEST), ...Object.values(EN.DATA_SUBMISSION), ...Object.values(EN.USER_ACCOUNT)]);
     #NIH = "nih";
-    constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, approvedStudiesService, inactiveUserDays, configurationService, institutionService) {
+    constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, approvedStudiesService, inactiveUserDays, configurationService, institutionService, authorizationService) {
         this.userCollection = userCollection;
         this.logCollection = logCollection;
         this.organizationCollection = organizationCollection;
@@ -56,6 +56,7 @@ class UserService {
         this.inactiveUserDays = inactiveUserDays;
         this.configurationService = configurationService;
         this.institutionService = institutionService;
+        this.authorizationService = authorizationService;
     }
 
     async requestAccess(params, context) {
@@ -640,8 +641,12 @@ class UserService {
         return await this.userCollection.aggregate(pipeline);
     }
 
-    #validateUserPermission(isUserRoleChange, userRole, permissions, notifications, accessControl) {
+    // TODO async should be deleted
+    async #validateUserPermission(isUserRoleChange, userRole, permissions, notifications, accessControl) {
         const invalidPermissions = permissions?.filter(permission => !this.#allPermissionNamesSet.has(permission));
+
+
+        await this.authorizationService.getPermissionScope({role: userRole}, )
 
         if (invalidPermissions?.length > 0) {
             throw new Error(replaceErrorString(ERROR.INVALID_PERMISSION_NAME, `${invalidPermissions.join(',')}`));
