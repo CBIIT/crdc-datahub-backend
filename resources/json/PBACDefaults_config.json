@@ -7,161 +7,144 @@
         "role": "Federal Lead",
         "permissions": [
           {
-            "_id": "submission_request:view",
+            "_id": "submission_request:view:all",
             "group": "Submission Request Permissions",
             "name": "View",
             "order": 1,
             "checked": true,
             "disabled": false,
-            "scopes": ["all"]
           },
           {
-            "_id": "submission_request:create",
+            "_id": "submission_request:create:all",
             "group": "Submission Request Permissions",
             "name": "Create",
             "inherited": ["submission_request:view"],
             "order": 2,
             "checked": false,
-            "disabled": false,
-            "scopes": ["all"]
+            "disabled": false
           },
           {
-            "_id": "submission_request:review",
+            "_id": "submission_request:review:all",
             "group": "Submission Request Permissions",
             "name": "Review",
             "inherited": ["submission_request:view"],
             "order": 4,
             "checked": false,
             "disabled": false,
-            "scopes": ["all"]
           },
           {
-            "_id": "submission_request:submit",
+            "_id": "submission_request:submit:all",
             "group": "Submission Request Permissions",
             "name": "Submit",
             "order": 3,
             "checked": false,
-            "disabled": false,
-            "scopes": ["all"]
+            "disabled": false
           },
           {
-            "_id": "submission_request:cancel",
+            "_id": "submission_request:cancel:all",
             "group": "Submission Request Permissions",
             "name": "Cancel/Restore",
             "order": 5,
             "checked": true,
-            "disabled": false,
-            "scopes": ["all"]
+            "disabled": false
           },
           {
-            "_id": "access:request",
+            "_id": "access:request:none",
             "group": "Miscellaneous",
             "name": "Request Access",
             "order": 1,
             "checked": false,
-            "disabled": true,
-            "scopes": ["none"]
+            "disabled": true
           },
           {
-            "_id": "data_submission:view",
+            "_id": "data_submission:view:study",
             "group": "Data Submission Permissions",
             "name": "View",
             "order": 1,
             "checked": true,
-            "disabled": false,
-            "scopes": ["study"]
+            "disabled": false
           },
           {
-            "_id": "data_submission:create",
+            "_id": "data_submission:create:study",
             "group": "Data Submission Permissions",
             "inherited": ["data_submission:view"],
             "name": "Create",
             "order": 2,
             "checked": false,
-            "disabled": false,
-            "scopes": ["study"]
+            "disabled": false
           },
           {
-            "_id": "data_submission:cancel",
+            "_id": "data_submission:cancel:study",
             "group": "Data Submission Permissions",
             "name": "Cancel",
             "order": 3,
             "checked": false,
-            "disabled": false,
-            "scopes": ["study"]
+            "disabled": false
           },
           {
-            "_id": "data_submission:review",
+            "_id": "data_submission:review:study",
             "group": "Data Submission Permissions",
             "name": "Review",
             "inherited": ["data_submission:view"],
             "order": 4,
             "checked": false,
-            "disabled": false,
-            "scopes": ["study"]
+            "disabled": false
           },
           {
-            "_id": "data_submission:admin_submit",
+            "_id": "data_submission:admin_submit:study",
             "group": "Data Submission Permissions",
             "name": "Admin Submit",
             "order": 5,
             "checked": false,
-            "disabled": true,
-            "scopes": ["study"]
+            "disabled": true
           },
           {
-            "_id": "data_submission:confirm",
+            "_id": "data_submission:confirm:study",
             "group": "Data Submission Permissions",
             "name": "Confirm",
             "order": 6,
             "checked": false,
-            "disabled": false,
-            "scopes": ["study"]
+            "disabled": false
           },
           {
-            "_id": "user:manage",
+            "_id": "user:manage:role",
             "group": "Admin Permissions",
             "name": "Manage User",
             "order": 4,
             "checked": false,
-            "disabled": false,
-            "scopes": ["role"]
+            "disabled": false
           },
           {
-            "_id": "program:manage",
+            "_id": "program:manage:all",
             "group": "Admin Permissions",
             "name": "Manage Program",
             "order": 1,
             "checked": false,
-            "disabled": false,
-            "scopes": ["all"]
+            "disabled": false
           },
           {
-            "_id": "study:manage",
+            "_id": "study:manage:all",
             "group": "Admin Permissions",
             "name": "Manage Study",
             "order": 2,
             "checked": false,
-            "disabled": false,
-            "scopes": ["all"]
+            "disabled": false
           },
           {
-            "_id": "institution:manage",
+            "_id": "institution:manage:all",
             "group": "Admin Permissions",
             "name": "Manage Institutions",
             "order": 3,
             "checked": false,
-            "disabled": false,
-            "scopes": ["all"]
+            "disabled": false
           },
           {
-            "_id": "dashboard:view",
+            "_id": "dashboard:view:study",
             "group": "Admin Permissions",
             "name": "View Operation Dashboard",
             "order": 5,
             "checked": true,
-            "disabled": false,
-            "scopes": ["study"]
+            "disabled": false
           }
         ],
         "notifications": [

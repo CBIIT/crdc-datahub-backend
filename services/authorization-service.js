@@ -41,13 +41,20 @@ class AuthorizationService {
                     scopes = [SCOPES.NONE]
                     const userRole = user?.role;
                     const pbacDefaults = await this.configurationService.getPBACByRoles([userRole]);
+                    // if role has defaults
                     if (pbacDefaults && pbacDefaults.length > 0) {
-                        let rolePermissions = pbacDefaults[0]?.permissions;
-                        if (rolePermissions?.length > 0) {
-                            rolePermissions = rolePermissions.filter((x) => x._id === permission);
-                            if (rolePermissions?.length > 0) {
-                                scopes = rolePermissions[0].scopes || [SCOPES.NONE];
-                                scopeValues = rolePermissions[0].scopeValues || [];
+                        let defaultRolePermissions = pbacDefaults[0]?.permissions;
+                        // if defaults contain permissions
+                        if (defaultRolePermissions?.length > 0) {
+                            // loop through permissions defaults for the role
+                            for (const permissionsObject of defaultRolePermissions){
+                                let permissionParts = parsePermissionString(permissionsObject._id);
+                                // if the permissionParts object matches the input permission
+                                if (permissionParts.permission === permission){
+                                    scopes = permissionParts.scopes || [SCOPES.OWN];
+                                    scopeValues = permissionParts.scopeValues || [];
+                                    break;
+                                }
                             }
                         }
                     }
