@@ -232,6 +232,11 @@ type ApprovedStudy {
     useProgramPC: Boolean
 }
 
+type ProgramList {
+    total: Int
+    programs: [UserOrganization]
+}
+
 type ApprovedStudyList {
     total: Int
     studies: [ApprovedStudy]
@@ -691,8 +696,13 @@ type Query {
     listActiveCurators: [UserInfo]
     getUser(userID: ID!): User
 
-    "Admin only operations"
-    listOrganizations: [UserOrganization]
+    listPrograms(
+        status: String!, # ["All", "Active", "Inactive"]
+        first: Int = -1
+        offset: Int = 0
+        orderBy: String = "updateAt"
+        sortDirection: String = "ASC"
+    ): ProgramList
     getOrganization(orgID: ID!): UserOrganization
 
     getSubmissionNodes(
