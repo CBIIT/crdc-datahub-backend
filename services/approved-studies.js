@@ -5,6 +5,7 @@ const { verifySession } = require('../verifier/user-info-verifier');
 const {ApprovedStudies} = require("../crdc-datahub-database-drivers/domain/approved-studies");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {ADMIN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+const {NA_PROGRAM} = require("../crdc-datahub-database-drivers/constants/organization-constants");
 const {
     NEW,
     IN_PROGRESS,
@@ -252,10 +253,16 @@ class ApprovedStudiesService {
         if (!acronym){
             acronym = name;
         }
-        let newStudy = {_id: v4(), useProgramPC: useProgramPC, studyName: name, studyAbbreviation: acronym, controlledAccess: controlledAccess, openAccess: openAccess, dbGaPID: dbGaPID, ORCID: ORCID, PI: PI, primaryContactID: primaryContactID, createdAt: current_date, updatedAt: current_date};
+        let newStudy = {_id: v4(), useProgramPC: useProgramPC, studyName: name, studyAbbreviation: acronym, controlledAccess: controlledAccess, 
+            openAccess: openAccess, dbGaPID: dbGaPID, ORCID: ORCID, PI: PI, primaryContactID: primaryContactID, createdAt: current_date, updatedAt: current_date};
         const result = await this.approvedStudiesCollection.insert(newStudy);
         if (!result?.acknowledged) {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_INSERTION);
+        }
+        // add new study to organization with name of "NA"
+        const org = await this.organizationService.getOrganizationByName(NA_PROGRAM);
+        if (org && org?._id) {
+            await this.organizationService.storeApprovedStudies(org._id, newStudy._id);
         }
         newStudy = getDataCommonsDisplayNamesForApprovedStudy(newStudy);
         primaryContact = getDataCommonsDisplayNamesForUser(primaryContact);
