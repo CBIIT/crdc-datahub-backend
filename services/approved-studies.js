@@ -25,6 +25,7 @@ const CONTROLLED_ACCESS_ALL = "All";
 const CONTROLLED_ACCESS_OPEN = "Open";
 const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
 const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN, CONTROLLED_ACCESS_CONTROLLED];
+const NA_PROGRAM = "NA";
 class ApprovedStudiesService {
     #ALL = "All";
     constructor(approvedStudiesCollection, userCollection, organizationService, submissionCollection) {
@@ -258,6 +259,11 @@ class ApprovedStudiesService {
         const result = await this.approvedStudiesCollection.insert(newStudy);
         if (!result?.acknowledged) {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_INSERTION);
+        }
+        // add new study to organization with name of "NA"
+        const org = await this.organizationService.getOrganizationByName(NA_PROGRAM);
+        if (org && org?._id) {
+            await this.organizationService.storeApprovedStudies(org._id, newStudy._id);
         }
         newStudy = getDataCommonsDisplayNamesForApprovedStudy(newStudy);
         primaryContact = getDataCommonsDisplayNamesForUser(primaryContact);
