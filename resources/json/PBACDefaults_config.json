@@ -200,7 +200,7 @@
           {
             "_id": "data_submission:created",
             "group": "Data Submission Emails",
-            "name": "Submission: When created",
+            "name": "When created",
             "order": 1,
             "checked": false,
             "disabled": false
@@ -500,7 +500,7 @@
           {
             "_id": "data_submission:created",
             "group": "Data Submission Emails",
-            "name": "Submission: When created",
+            "name": "When created",
             "order": 1,
             "checked": true,
             "disabled": false
@@ -800,7 +800,7 @@
           {
             "_id": "data_submission:created",
             "group": "Data Submission Emails",
-            "name": "Submission: When created",
+            "name": "When created",
             "order": 1,
             "checked": true,
             "disabled": false
@@ -1100,7 +1100,7 @@
           {
             "_id": "data_submission:created",
             "group": "Data Submission Emails",
-            "name": "Submission: When created",
+            "name": "When created",
             "order": 1,
             "checked": false,
             "disabled": true
@@ -1400,7 +1400,7 @@
           {
             "_id": "data_submission:created",
             "group": "Data Submission Emails",
-            "name": "Submission: When created",
+            "name": "When created",
             "order": 1,
             "checked": false,
             "disabled": true
