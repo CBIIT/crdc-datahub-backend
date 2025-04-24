@@ -27,6 +27,7 @@ const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
 const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN, CONTROLLED_ACCESS_CONTROLLED];
 class ApprovedStudiesService {
     #ALL = "All";
+    #NO_PROGRAM = "NA";
     constructor(approvedStudiesCollection, userCollection, organizationService, submissionCollection) {
         this.approvedStudiesCollection = approvedStudiesCollection;
         this.userCollection = userCollection;
@@ -179,7 +180,11 @@ class ApprovedStudiesService {
             matches.dbGaPID = {$regex: dbGaPID, $options: 'i'};
         }
 
-        if (programID && programID !== this.#ALL) {
+        if (programID?.toUpperCase() === this.#NO_PROGRAM) {
+            matches.programs = {$eq: []};
+        }
+
+        if (programID && programID !== this.#ALL && programID !== this.#NO_PROGRAM) {
             matches["programs._id"] = programID;
         }
 
