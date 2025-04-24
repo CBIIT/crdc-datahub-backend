@@ -1302,7 +1302,7 @@ class Submission {
             const studyCombinedName = approvedStudy?.studyAbbreviation?.trim().length > 0 ? `${approvedStudy?.studyAbbreviation} - ${approvedStudy?.studyName || NA}` : approvedStudy?.studyName;
             const studyFullName = approvedStudy?.studyName === approvedStudy?.studyAbbreviation ? approvedStudy?.studyName : studyCombinedName;
             await this.notificationService.remindNoPrimaryContact(getUserEmails(dcpUsers), getUserEmails(CCUsers), {
-                dataCommonName: aSubmission?.dataCommons,
+                dataCommonName: aSubmission?.dataCommonsDisplayName,
                 submissionName: `${aSubmission?.name},`,
                 studyFullName: studyFullName || NA,
                 programName: aProgram?.name || NA,
