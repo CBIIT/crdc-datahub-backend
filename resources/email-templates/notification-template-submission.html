@@ -12,19 +12,21 @@
   </style>
 </head>
 <body>
-  <p>Dear CRDC Submission Portal Admins,</p>
+  <p>Dear {{ dataCommonName }} Team,</p>
   <p>
-    A new data submission has been created, and no Primary Contact has been assigned yet. Please review the details below and take the necessary action:
+    A new data submission has been created for your Data Commons. Please review the details below and work with the submitter to ensure a smooth data submission process. If needed, provide timely guidance or support to the submitter.
   </p>
   <p>
-    <br>&nbsp;&nbsp;&nbsp;<span>■ Submission Name: {{ submissionName }}</span>
-    <br>&nbsp;&nbsp;&nbsp;<span>■ Program Name: {{ programName }}</span>
-    <br>&nbsp;&nbsp;&nbsp;<span>■ Study Name: {{ studyName }}</span>
-    <br>&nbsp;&nbsp;&nbsp;<span>■ Submission Creation Date/Time: {{ createDate }}</span>
+    <b>Submission Details</b>
   </p>
-  <p>Please ensure that a Primary Contact is assigned promptly to facilitate proper data submission process and communication.</p>
-  <p>Thank you for your attention to this matter.</p>
-  <p>Sincerely,</p>
+  <p>
+    <br>&nbsp;&nbsp;&nbsp;<span>■ <b>Submission Name</b>: {{ submissionName }}</span>
+    <br>&nbsp;&nbsp;&nbsp;<span>■ <b>Study</b>: {{ studyFullName }}</span>
+    <br>&nbsp;&nbsp;&nbsp;<span>■ <b>Data Commons</b>: {{ dataCommonName }}</span>
+    <br>&nbsp;&nbsp;&nbsp;<span>■ <b>Data Concierge</b>: {{ primaryContactName }}</span>
+  </p>
+  <p>If <b>a Data Concierge</b> has not yet been assigned to this study, please reach out to the <b>CRDC Submission Portal Admin team</b> to ensure the appropriate individual is designated. Having a properly assigned contact helps streamline communication and ensures the submitter receives timely support.</p>
+  <p>Thank you,</p>
   <p>CRDC Submission Portal</p>
 </body>
 </html>
