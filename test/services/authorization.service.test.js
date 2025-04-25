@@ -91,13 +91,10 @@ describe('authorization service test', () => {
                 "role": USER.ROLES.SUBMITTER,
                 "permissions": [
                     {
-                        "_id": PERMISSIONS.DATA_SUBMISSION.CANCEL,
-                        "scopes": ["all"]
+                        "_id": `${PERMISSIONS.DATA_SUBMISSION.CANCEL}:${SCOPES.ALL}`
                     },
                     {
-                        "_id": PERMISSIONS.DATA_SUBMISSION.VIEW,
-                        "scopes": ["role", "study"],
-                        "scopeValues": ["Submitter"]
+                        "_id": `${PERMISSIONS.DATA_SUBMISSION.VIEW}:${SCOPES.ROLE}+${SCOPES.STUDY}:${USER.ROLES.SUBMITTER}`
                     }
                 ]
             }
