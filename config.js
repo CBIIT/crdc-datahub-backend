@@ -36,7 +36,7 @@ const INACTIVE_SUBMISSION_NOTIFY_DAYS = "INACTIVE_SUBMISSION_NOTIFY_DAYS";
 const INACTIVE_APPLICATION_NOTIFY_DAYS = "INACTIVE_APPLICATION_NOTIFY_DAYS";
 const LIST_OF_S3_BUCKETS = "LIST_OF_S3_BUCKETS";
 const SUBMISSION_BUCKET = "SUBMISSION_BUCKET";
-const AWS_SQS_QUEUE = "AWS_SQS_QUEUE";
+const METADATA_BUCKET = "Metadata Bucket";
 const EMAIL_SMTP = "EMAIL_SMTP";
 const SCHEDULED_JOBS = "SCHEDULED_JOBS";
 const LIST_OF_EMAIL_ADDRESS = "LIST_OF_EMAIL_ADDRESS";
@@ -112,6 +112,11 @@ let config = {
         const hiddenModelsConf = await configurationService.findByType(HIDDEN_MODELS);
         const listS3Buckets = await configurationService.findByType(LIST_OF_S3_BUCKETS);
         const submissionBucketConf = listS3Buckets?.[SUBMISSION_BUCKET];
+        const metadataBuckets = await configurationService.findManyByType(METADATA_BUCKET);
+        const dataCommonsBucketMap = new Map(
+            metadataBuckets?.filter(item => item?.dataCommons && item.bucketName)
+                ?.map(item => [item.dataCommons, item.bucketName])
+        );
         return {
             ...config,
             inactive_user_days : inactiveUserDaysConf || (process.env.INACTIVE_USER_DAYS || 60),
@@ -129,6 +134,7 @@ let config = {
             submission_system_portal: submissionSystemPortalConf || "https://datacommons.cancer.gov/",
             prod_url: prodUrlConf || (process.env.PROD_URL || "https://hub.datacommons.cancer.gov/"),
             submission_bucket: submissionBucketConf,
+            dataCommonsBucketMap: dataCommonsBucketMap,
             role_timeout: roleTimeoutConf || (parseInt(process.env.ROLE_TIMEOUT) || 12*3600),
             presign_expiration: preSignExpirationConf || (parseInt(process.env.PRESIGN_EXPIRATION) || 3600),
             tier: getTier(tierConf?.keys?.tier),
