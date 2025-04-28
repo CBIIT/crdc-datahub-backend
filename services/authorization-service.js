@@ -5,7 +5,7 @@ const {
     SUBMISSION_REQUEST,
     DATA_SUBMISSION,
     ADMIN,
-    EN
+    EMAIL_NOTIFICATIONS: EN
 } = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 
 class AuthorizationService {
@@ -118,33 +118,40 @@ class AuthorizationService {
         return formattedOutput;
     }
 
-    // TODO
-    filterValidPermissions(user, permissions) {
-        return permissions.filter(p => {
-            const [permission, inputScope, inputScopeValues] = parsePermissionString(p);
-            const outputScopes = this.getPermissionScope(user, p);
-
+    async filterValidPermissions(user, permissions) {
+        const filtered = [];
+        for (const p of (permissions || [])) {
+            const { permission, scopes: inputScope, scopeValues: inputScopeValues } = parsePermissionString(p);
+            const outputScopes = await this.getPermissionScope(user, p);
             const hasDefaultScope = outputScopes?.some(scope => scope?.scope === this.#DEFAULT_OUTPUT.scope);
             const hasNoInputScope = inputScope?.length === 0 && inputScopeValues?.length === 0;
-            const hasValidInputScope = inputScope?.length > 0 && inputScopeValues?.length > 0;
-
+            const hasValidInputScope = inputScope?.length > 0 || inputScopeValues?.length > 0;
             const isValidScope = (hasDefaultScope && hasNoInputScope) || (!hasDefaultScope && hasValidInputScope);
-            return this.#allPermissionNamesSet.has(permission) && isValidScope;
-        });
+            const hasAllScope = inputScope?.some(scope => scope === SCOPES.ALL) || outputScopes?.some(scope => scope?.scope === SCOPES.ALL);
+            const emptyScope = inputScope?.includes("") || inputScopeValues?.includes("");
+            if (this.#allPermissionNamesSet.has(permission) && (isValidScope || hasAllScope) && !emptyScope) {
+                filtered.push(p);
+            }
+        }
+        return filtered;
     }
 
-    filterValidNotifications(notifications) {
-        return notifications.filter(p => {
-            const [permission, inputScope, inputScopeValues] = parsePermissionString(p);
-            const outputScopes = this.getPermissionScope(user, p);
-
+    async filterValidNotifications(user, notifications) {
+        const filtered = [];
+        for (const p of permissions) {
+            const { permission, scopes: inputScope, scopeValues: inputScopeValues } = parsePermissionString(p);
+            const outputScopes = await this.getPermissionScope(user, p);
             const hasDefaultScope = outputScopes?.some(scope => scope?.scope === this.#DEFAULT_OUTPUT.scope);
             const hasNoInputScope = inputScope?.length === 0 && inputScopeValues?.length === 0;
             const hasValidInputScope = inputScope?.length > 0 && inputScopeValues?.length > 0;
-
             const isValidScope = (hasDefaultScope && hasNoInputScope) || (!hasDefaultScope && hasValidInputScope);
-            return this.#allEmailNotificationNamesSet.has(permission) && isValidScope;
-        });
+            const hasAllScope = inputScope?.some(scope => scope?.scope === SCOPES.ALL);
+            const emptyScope = inputScope?.includes("") || inputScopeValues?.includes("");
+            if (this.#allEmailNotificationNamesSet.has(permission) && (isValidScope || hasAllScope) && !emptyScope) {
+                filtered.push(p);
+            }
+        }
+        return filtered;
     }
 }
 
