@@ -19,12 +19,14 @@ const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-
 const {getDataCommonsDisplayNamesForApprovedStudy, getDataCommonsDisplayNamesForUser,
     getDataCommonsDisplayNamesForApprovedStudyList
 } = require("../utility/data-commons-remapper");
+const {ORGANIZATION_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
+const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const CONTROLLED_ACCESS_ALL = "All";
 const CONTROLLED_ACCESS_OPEN = "Open";
 const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
 const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN, CONTROLLED_ACCESS_CONTROLLED];
 class ApprovedStudiesService {
-
+    #ALL = "All";
     constructor(approvedStudiesCollection, userCollection, organizationService, submissionCollection) {
         this.approvedStudiesCollection = approvedStudiesCollection;
         this.userCollection = userCollection;
@@ -105,7 +107,7 @@ class ApprovedStudiesService {
         const orgIds = await this.organizationService.findByStudyID(studyID);
         if (orgIds && orgIds.length > 0 ) {
             const filters = {_id: {"$in": orgIds}};
-            // For the primary contact purpose, the sort should be enabled.
+            // For the data concierge purpose, the sort should be enabled.
             return await this.organizationService.organizationCollection.aggregate([{ "$match": filters }, {"$sort": {_id: -1}}]);
         }
         return null;
@@ -140,10 +142,18 @@ class ApprovedStudiesService {
             first,
             offset,
             orderBy,
-            sortDirection
+            sortDirection,
+            programID
         } = params;
 
-        let pipelines = [];
+        let pipelines = [
+            // Join with the program
+            {"$lookup": {
+                from: ORGANIZATION_COLLECTION,
+                localField: "_id",
+                foreignField: "studies._id",
+                as: "programs"}}
+        ];
         // set matches
         let matches = {};
         if (study)
@@ -168,34 +178,26 @@ class ApprovedStudiesService {
         if (dbGaPID) {
             matches.dbGaPID = {$regex: dbGaPID, $options: 'i'};
         }
+
+        if (programID && programID !== this.#ALL) {
+            matches["programs._id"] = programID;
+        }
+
         pipelines.push({$match: matches});
-        // set sort
-        let page_pipeline = [];
-        let sortFields = {
-            [orderBy]: getSortDirection(sortDirection),
-        };
-        if (orderBy !== "studyName"){
-            sortFields["studyName"] = 1
-        }
-        page_pipeline.push({
-            $sort: sortFields
-        });
-        // if -1, returns all data of given node & ignore offset
-        if (first !== -1) {
-            page_pipeline.push({
-                $skip: offset
-            });
-            page_pipeline.push({
-                $limit: first
-            });
-        }
+        const pagination = new MongoPagination(first, offset, orderBy, sortDirection);
+        const paginationPipe = pagination.getPaginationPipeline()
+        // Added the custom sort
+        const isNotStudyName = orderBy !== "studyName";
+        const customPaginationPipeline = paginationPipe?.map(pagination =>
+            Object.keys(pagination)?.includes("$sort") && isNotStudyName ? {...pagination, $sort: {...pagination.$sort, studyName: 1}} : pagination
+        );
 
         pipelines.push({
             $facet: {
                 total: [{
                     $count: "total"
                 }],
-                results: page_pipeline
+                results: customPaginationPipeline
             }
         });
         pipelines.push({
@@ -339,7 +341,7 @@ class ApprovedStudiesService {
             studyID: updateStudy._id,
             status: {$in: [NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, CANCELED, DELETED, ARCHIVED]},
             $or: [{conciergeName: { "$ne": conciergeName?.trim() }}, {conciergeEmail: { "$ne": conciergeEmail }}]}, {
-            // To update the primary contacts
+            // To update the data concierge
             conciergeName: conciergeName?.trim(), conciergeEmail, updatedAt: getCurrentTime()});
         if (!updatedSubmissions?.acknowledged) {
             console.log(ERROR.FAILED_PRIMARY_CONTACT_UPDATE, `StudyID: ${studyID}`);
@@ -351,15 +353,15 @@ class ApprovedStudiesService {
     }
 
     #getConcierge(programs, primaryContact, isProgramPrimaryContact) {
-        // primary contact from the study
+        // data concierge from the study
         const [conciergeName, conciergeEmail] = (primaryContact)? [`${primaryContact?.firstName || ""} ${primaryContact?.lastName || ''}`, primaryContact?.email || ""] :
             ["",""];
-        // isProgramPrimaryContact determines if the program's primary contact should be used.
+        // isProgramPrimaryContact determines if the program's data concierge should be used.
         if (isProgramPrimaryContact && programs?.length > 0) {
             const [conciergeID, programConciergeName,  programConciergeEmail] = [programs[0]?.conciergeID || "", programs[0]?.conciergeName || "", programs[0]?.conciergeEmail || ""];
             const isValidProgramConcierge = programConciergeName !== "" && programConciergeEmail !== "" && conciergeID !== "";
             return [isValidProgramConcierge ? programConciergeName : "", isValidProgramConcierge ? programConciergeEmail : ""];
-        // no primary contact assigned for the program.
+        // no data concierge assigned for the program.
         } else if (isProgramPrimaryContact) {
             return ["", ""]
         }
