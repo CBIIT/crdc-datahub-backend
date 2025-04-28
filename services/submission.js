@@ -51,6 +51,7 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
+    #NOT_ASSIGNED = "Not yet assigned";
     constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService,
                 dataRecordService, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList,
                 hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs, 
@@ -134,10 +135,7 @@ class Submission {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
         }
 
-        if (!(newSubmission?.conciergeName?.trim()) || !(newSubmission?.conciergeEmail?.trim())) {
-            await this.#sendNoPrimaryContactEmail(newSubmission, approvedStudy, program);
-        }
-
+        await this.#remindPrimaryContactEmail(newSubmission, approvedStudy, program);
         return newSubmission;
     }
     async #findApprovedStudies(studies) {
@@ -420,7 +418,7 @@ class Submission {
             }
             const programs = await this.organizationService.organizationCollection.aggregate([{ "$match": { "studies._id": aSubmission.studyID } }, { "$limit": 1 }]);
             const aProgram = programs?.length > 0 ? programs?.pop() : {};
-            // The primary contact in the listing submission API only applies if the getSubmission is triggered.
+            // The data concierge in the listing submission API only applies if the getSubmission is triggered.
             if (aProgram?._id !== aSubmission?.organization?._id || aProgram?.name !== aSubmission?.organization?.name) {
                 const updatedSubmission = await this.submissionCollection.updateOne({"_id": aSubmission?._id}, {organization: {_id: aProgram?._id, name: aProgram?.name}, updatedAt: getCurrentTime()});
                 if (!updatedSubmission.acknowledged) {
@@ -1282,26 +1280,33 @@ class Submission {
         }
     }
 
-    async #sendNoPrimaryContactEmail(aSubmission, approvedStudy, aProgram) {
-        const [adminUsers, CCUsers] = await Promise.all([
+    async #remindPrimaryContactEmail(aSubmission, approvedStudy, aProgram) {
+        const [dcpUsers, CCUsers] = await Promise.all([
             this.userService.userCollection.aggregate([{"$match": {
                     "userStatus": USER.STATUSES.ACTIVE,
-                    "notifications": {"$in": [EN.DATA_SUBMISSION.MISSING_CONTACT]},
-                    "role": USER.ROLES.ADMIN
+                    "notifications": {"$in": [EN.DATA_SUBMISSION.CREATE]},
+                    "role": USER.ROLES.DATA_COMMONS_PERSONNEL,
+                    "dataCommons": {"$in": [aSubmission?.dataCommons]}
+
                 }}]) || [],
             this.userService.userCollection.aggregate([{"$match": {
                     "userStatus": USER.STATUSES.ACTIVE,
-                    "notifications": {"$in": [EN.DATA_SUBMISSION.MISSING_CONTACT]},
-                    "$or": [{"role": USER.ROLES.DATA_COMMONS_PERSONNEL}, {"role": USER.ROLES.FEDERAL_LEAD}]
+                    "notifications": {"$in": [EN.DATA_SUBMISSION.CREATE]},
+                    "$or": [{"role": USER.ROLES.ADMIN}, {"role": USER.ROLES.FEDERAL_LEAD}]
                 }}]) || []
         ]);
 
-        if (adminUsers?.length > 0) {
-            await this.notificationService.remindNoPrimaryContact(getUserEmails(adminUsers), getUserEmails(CCUsers), {
+
+        if (dcpUsers?.length > 0) {
+            const primaryContactName = aSubmission?.conciergeName?.trim();
+            const studyCombinedName = approvedStudy?.studyAbbreviation?.trim().length > 0 ? `${approvedStudy?.studyAbbreviation} - ${approvedStudy?.studyName || NA}` : approvedStudy?.studyName;
+            const studyFullName = approvedStudy?.studyName === approvedStudy?.studyAbbreviation ? approvedStudy?.studyName : studyCombinedName;
+            await this.notificationService.remindNoPrimaryContact(getUserEmails(dcpUsers), getUserEmails(CCUsers), {
+                dataCommonName: aSubmission?.dataCommonsDisplayName,
                 submissionName: `${aSubmission?.name},`,
-                studyName: approvedStudy?.studyName || NA,
+                studyFullName: studyFullName || NA,
                 programName: aProgram?.name || NA,
-                createDate: formatDate(aSubmission?.createdAt || getCurrentTime())
+                primaryContactName: primaryContactName?.length > 0 ? primaryContactName : this.#NOT_ASSIGNED
             });
         }
     }

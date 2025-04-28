@@ -232,6 +232,11 @@ type ApprovedStudy {
     useProgramPC: Boolean
 }
 
+type ProgramList {
+    total: Int
+    programs: [UserOrganization]
+}
+
 type ApprovedStudyList {
     total: Int
     studies: [ApprovedStudy]
@@ -278,8 +283,8 @@ type UserOrganization {
   _id: ID # MongoDB native ID or UUID
   name: String
   status: String # [Active, Inactive], default to Active
-  conciergeID: ID # The user's IDs are stored for the Data Commons Personnel, aka. primary contact
-  conciergeName: String # The user's name (first + last) is stored for the Data Commons Personnel, aka. primary contact
+  conciergeID: ID # The user's IDs are stored for the Data Commons Personnel
+  conciergeName: String # The user's name (first + last) is stored for the Data Commons Personnel
   conciergeEmail: String
   studies: [ApprovedStudy] # Study names and abbreviations
   abbreviation: String
@@ -609,6 +614,7 @@ type Query {
         offset: Int = 0, #number of records to be skipped before returning data
         orderBy: String = "studyName", #property name to be used for sorting 
         sortDirection: String = "ASC" #["DESC", "ASC"]
+        programID: ID
     ): ApprovedStudyList
     
     getApprovedStudy(_id: ID!): ApprovedStudy
@@ -690,8 +696,13 @@ type Query {
     listActiveCurators: [UserInfo]
     getUser(userID: ID!): User
 
-    "Admin only operations"
-    listOrganizations: [UserOrganization]
+    listPrograms(
+        status: String!, # ["All", "Active", "Inactive"]
+        first: Int = -1
+        offset: Int = 0
+        orderBy: String = "updateAt"
+        sortDirection: String = "ASC"
+    ): ProgramList
     getOrganization(orgID: ID!): UserOrganization
 
     getSubmissionNodes(
@@ -842,7 +853,7 @@ type Mutation {
         dbGaPID: String, # required only Controlled
         ORCID: String, #optional in format of 0000-1234-2345-3456
         PI: String #optional
-        primaryContactID: String #primary contact user ID
+        primaryContactID: String #data concierge user ID
         useProgramPC: Boolean!
     ): ApprovedStudy
 
@@ -855,7 +866,7 @@ type Mutation {
         dbGaPID: String, # required only Controlled
         ORCID: String, #optional in format of 0000-1234-2345-3456
         PI: String #optional 
-        primaryContactID: String, #primary contact user ID
+        primaryContactID: String, #data concierge user ID
         useProgramPC: Boolean!
     ): ApprovedStudy
 
