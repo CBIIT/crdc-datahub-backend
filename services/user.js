@@ -374,7 +374,7 @@ class UserService {
         }
 
         updatedUser.dataCommons = DataCommon.get(user[0]?.dataCommons, params?.dataCommons);
-        await this.#setUserPermissions(user[0]?.role, params?.role, params?.permissions, params?.notifications, updatedUser);
+        await this.#setUserPermissions(user[0]?.role, params?.role, params?.permissions, params?.notifications, updatedUser, user);
         updatedUser  = await this.updateUserInfo(user[0], updatedUser, params.userID, params.status, params.role, params?.studies);
         return getDataCommonsDisplayNamesForUser(updatedUser);
     }
@@ -646,25 +646,21 @@ class UserService {
         return await this.userCollection.aggregate(pipeline);
     }
 
-    async #validateUserPermission(isUserRoleChange, userRole, permissions, notifications, accessControl) {
-        // const invalidPermissions = permissions?.filter(permission => !this.#allPermissionNamesSet.has(permission));
-        const filteredValidPermissions = await this.authorizationService.filterValidPermissions(permissions);
+    #validateUserPermission(isUserRoleChange, userRole, inputPermissions, filteredValidPermissions, inputNotifications, accessControl) {
         const filteredValidPermissionsSet = new Set(filteredValidPermissions);
-        const invalidPermissions = permissions?.filter(p => !filteredValidPermissionsSet?.has(p));
+        const invalidPermissions = inputPermissions?.filter(p => !filteredValidPermissionsSet?.has(p));
         if (invalidPermissions?.length > 0) {
             throw new Error(replaceErrorString(ERROR.INVALID_PERMISSION_NAME, `${invalidPermissions.join(',')}`));
         }
+        const invalidNotifications = inputNotifications?.filter(notification => !this.#allEmailNotificationNamesSet.has(notification));
 
-        const filteredValidNotifications = await this.authorizationService.filterValidNotifications({role: userRole}, )
-        const filteredValidNotificationsSet = new Set(filteredValidNotifications);
-        const invalidNotifications = notifications?.filter(n => !filteredValidNotificationsSet?.has(n));
         if (invalidNotifications?.length > 0) {
             throw new Error(replaceErrorString(ERROR.INVALID_NOTIFICATION_NAME, `${invalidNotifications.join(',')}`));
         }
 
         return {
-            filteredPermissions: this.#setFilteredPermissions(isUserRoleChange, userRole, permissions, accessControl?.permissions?.permitted, accessControl?.permissions?.getInherited),
-            filteredNotifications: this.#setFilteredNotifications(isUserRoleChange, userRole, notifications, accessControl?.notifications?.permitted)
+            filteredPermissions: this.#setFilteredPermissions(isUserRoleChange, userRole, inputPermissions, accessControl?.permissions?.permitted, accessControl?.permissions?.getInherited),
+            filteredNotifications: this.#setFilteredNotifications(isUserRoleChange, userRole, inputNotifications, accessControl?.notifications?.permitted)
         }
     }
     // note for inheritedCallback; Some permissions are automatically enforced if they are inherited from the PBAC settings.
@@ -678,12 +674,16 @@ class UserService {
         return [...(updatedNotifications || [])];
     }
 
-    async #setUserPermissions(currRole, newRole, permissions, notifications, updatedUser) {
+    async #setUserPermissions(currRole, newRole, permissions, notifications, updatedUser, currUser) {
         const isUserRoleChange = (newRole && (currRole !== newRole));
         const userRole = isUserRoleChange ? newRole : currRole;
-        const accessControl = await this.configurationService.getAccessControl(userRole);
+        const [accessControl, filteredValidPermissions] = await Promise.all([
+            this.configurationService.getAccessControl(userRole),
+            this.authorizationService.filterValidPermissions(currUser, permissions)
+        ]);
         const {filteredPermissions, filteredNotifications} =
-            this.#validateUserPermission(isUserRoleChange, userRole, permissions, notifications, accessControl);
+            this.#validateUserPermission(isUserRoleChange, userRole, permissions, filteredValidPermissions,
+                notifications, accessControl);
 
         if (isUserRoleChange || (!isUserRoleChange && permissions !== undefined)) {
             if (!isIdenticalArrays(currRole?.permissions, filteredPermissions) && filteredPermissions) {

@@ -122,6 +122,7 @@ class AuthorizationService {
         return formattedOutput;
     }
 
+    // TODO user's role can be changed.
     async filterValidPermissions(user, permissions) {
         const filtered = [];
         for (const p of (permissions || [])) {
@@ -137,27 +138,6 @@ class AuthorizationService {
             const hasAllScope = inputScope?.some(scope => scope === SCOPES.ALL) || outputScopes?.some(scope => scope?.scope === SCOPES.ALL);
             const emptyScope = inputScope?.includes("") || inputScopeValues?.includes("");
             if (this.#allPermissionNamesSet.has(permission) && (isValidScope || hasAllScope) && !emptyScope) {
-                filtered.push(p);
-            }
-        }
-        return filtered;
-    }
-
-    async filterValidNotifications(user, notifications) {
-        const filtered = [];
-        for (const n of (notifications || [])) {
-            if (!n) {
-                continue;
-            }
-            const { notification, scopes: inputScope, scopeValues: inputScopeValues } = parsePermissionString(p);
-            const outputScopes = await this.#getScopePermission(user, {scope: inputScope, scopeValues: inputScopeValues}, permission);
-            const hasDefaultScope = outputScopes?.some(scope => scope?.scope === this.#DEFAULT_OUTPUT.scope);
-            const hasNoInputScope = inputScope?.length === 0 && inputScopeValues?.length === 0;
-            const hasValidInputScope = inputScope?.length > 0 || inputScopeValues?.length > 0;
-            const isValidScope = (hasDefaultScope && hasNoInputScope) || (!hasDefaultScope && hasValidInputScope);
-            const hasAllScope = inputScope?.some(scope => scope === SCOPES.ALL) || outputScopes?.some(scope => scope?.scope === SCOPES.ALL);
-            const emptyScope = inputScope?.includes("") || inputScopeValues?.includes("");
-            if (this.#allEmailNotificationNamesSet.has(notification) && (isValidScope || hasAllScope) && !emptyScope) {
                 filtered.push(p);
             }
         }
