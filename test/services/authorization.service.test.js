@@ -116,30 +116,39 @@ describe('authorization service test', () => {
         expect(await authorizationService.getPermissionScope(userInput, permissionInput)).toStrictEqual(defaultOutput);
     });
 
-    test("/Test getValidPermissions - edge and valid cases", async () => {
-        configurationService.getPBACByRoles = jest.fn().mockReturnValue(pbacDefaults);
-        const permissionInput = [
-            "data_submission:view:all",                         // valid with scope
-            "data_submission:edit::",                          // valid with default scope
-            "invalid_permission:view:all",                     // invalid permission name
-            "data_submission:view:",                           // valid permission name but missing scope values
-            "data_submission:view:partial,subset",             // valid with input values
-            "data_submission:view"                            // shorthand, test if your parser handles it
-        ];
 
-        const userInput = {
-            role: USER.ROLES.SUBMITTER,
-            permissions: permissionInput
+    test("/Federal Lead permission", async () => {
+        userInput = {
+            role: USER.ROLES.FEDERAL_LEAD,
+            permissions: [`${PERMISSIONS.ADMIN.MANAGE_USER}`],
+            scopes: [SCOPES.DC],
+            studies: [
+                {_id: "study1"},
+                {_id: "study2"},
+                {_id: "study3"}
+            ],
+            dataCommons: ["dataCommons1", "dataCommons2"]
+            // scopeValues: ["test"]
+
         };
-
-        // Mock expected behavior: only the valid permission strings with correct scope logic should be kept
+        const FEPBACDefaults = [
+            {
+                "role": USER.ROLES.FEDERAL_LEAD,
+                "permissions": [
+                    {
+                        "_id": `${PERMISSIONS.ADMIN.MANAGE_USER}:${SCOPES.DC}:${USER.ROLES.FEDERAL_LEAD}`
+                    }
+                ]
+            }
+        ];
+        configurationService.getPBACByRoles = jest.fn().mockReturnValue(FEPBACDefaults);
+        permissionInput = `${PERMISSIONS.ADMIN.MANAGE_USER}`;
         const expected = [
-            "data_submission:view:all",
-            "data_submission:view"
+            {scope: SCOPES.DC, scopeValues: ["dataCommons1", "dataCommons2"]}
         ];
 
-        const result = await authorizationService.filterValidPermissions(userInput, permissionInput);
-        expect(result).toStrictEqual(expected);
+        const res = await authorizationService.getPermissionScope(userInput, permissionInput);
+        expect(res).toStrictEqual(expected)
     });
 
     test("/Test getValidPermissions - null and empty inputs", async () => {
@@ -149,6 +158,112 @@ describe('authorization service test', () => {
         expect(await authorizationService.filterValidPermissions({}, [])).toStrictEqual(defaultOutput);
         expect(await authorizationService.filterValidPermissions({ role: USER.ROLES.SUBMITTER }, null)).toStrictEqual(defaultOutput);
     });
+
+
+    // this should be deleted in the future
+    test("/Test getValidPermissions - with scopes(studies)", async () => {
+        configurationService.getPBACByRoles = jest.fn().mockReturnValue([]);
+        userInput = {
+            studies: [
+                {_id: "study1"},
+                {_id: "study2"},
+                {_id: "study3"}
+            ],
+        };
+
+        const permissionInput = [
+            `${PERMISSIONS.DATA_SUBMISSION.CREATE}:${SCOPES.ALL}`
+        ];
+
+        const expected = [
+            `${PERMISSIONS.DATA_SUBMISSION.CREATE}:${SCOPES.ALL}`
+        ];
+
+        const result = await authorizationService.filterValidPermissions(userInput, permissionInput);
+        expect(result).toStrictEqual(expected);
+    });
+
+
+
+    test("/Test getValidPermissions - without scopes(studies)", async () => {
+        pbacDefaults = [
+            {
+                "role": USER.ROLES.SUBMITTER,
+                "permissions": [
+                ]
+            }
+        ];
+        configurationService.getPBACByRoles = jest.fn().mockReturnValue(pbacDefaults);
+        userInput = {
+            studies: [
+                {_id: "study1"},
+                {_id: "study2"},
+                {_id: "study3"}
+            ],
+        };
+
+        const permissionInput = [
+            `${PERMISSIONS.DATA_SUBMISSION.CANCEL}`,
+            `${PERMISSIONS.DATA_SUBMISSION.VIEW}`,
+            `${PERMISSIONS.DATA_SUBMISSION.CREATE}XXXX:${SCOPES.ALL}`,
+            null,
+            undefined
+        ];
+
+        const expected = [
+            `${PERMISSIONS.DATA_SUBMISSION.CANCEL}`,
+            `${PERMISSIONS.DATA_SUBMISSION.VIEW}`,
+        ];
+
+        const result = await authorizationService.filterValidPermissions(userInput, permissionInput);
+        expect(result).toStrictEqual(expected);
+    });
+
+
+    test("/Test getValidPermissions - without/with scopes", async () => {
+        pbacDefaults = [
+            {
+                role: USER.ROLES.SUBMITTER,
+                permissions: [
+                    {
+                        "_id": `${PERMISSIONS.ADMIN.MANAGE_USER}:${SCOPES.DC}:${USER.ROLES.FEDERAL_LEAD}`
+                    }
+                ],
+
+            }
+        ];
+        configurationService.getPBACByRoles = jest.fn().mockReturnValue(pbacDefaults);
+        userInput = {
+            role: USER.ROLES.SUBMITTER,
+            studies: [
+                {_id: "study1"},
+                {_id: "study2"},
+                {_id: "study3"}
+            ],
+            scopes: [SCOPES.DC],
+        };
+
+        const permissionInput = [
+            `${PERMISSIONS.DATA_SUBMISSION.CANCEL}`,
+            `${PERMISSIONS.DATA_SUBMISSION.VIEW}`,
+            `${PERMISSIONS.DATA_SUBMISSION.CREATE}XXXX:${SCOPES.ALL}`,
+            `${PERMISSIONS.ADMIN.MANAGE_USER}:${SCOPES.DC}:${USER.ROLES.FEDERAL_LEAD}`,
+            `${PERMISSIONS.ADMIN.MANAGE_PROGRAMS}`,
+            null,
+            undefined
+        ];
+
+        const expected = [
+            `${PERMISSIONS.DATA_SUBMISSION.CANCEL}`,
+            `${PERMISSIONS.DATA_SUBMISSION.VIEW}`,
+            `${PERMISSIONS.ADMIN.MANAGE_USER}:${SCOPES.DC}:${USER.ROLES.FEDERAL_LEAD}`,
+            `${PERMISSIONS.ADMIN.MANAGE_PROGRAMS}`
+        ];
+
+        const result = await authorizationService.filterValidPermissions(userInput, permissionInput);
+        expect(result).toStrictEqual(expected);
+    });
+
 
 });
 

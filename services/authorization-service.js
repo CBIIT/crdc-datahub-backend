@@ -42,42 +42,46 @@ class AuthorizationService {
         for (const userPermission of userPermissions){
             const permissionAndScope = parsePermissionString(userPermission);
             if (permissionAndScope?.permission === permission) {
-                let scopes = permissionAndScope?.scopes || [];
-                let scopeValues = permissionAndScope?.scopeValues || [];
-                if (scopes.length === 0){
-                    /*
-                    The below block of code is for backwards compatibility. I expect this will eventually be removed.
-                    If a permission is found but no scopes are specified then this will retrieve and use the default
-                    scopes from the PBAC configuration in MongoDB.
-                    */
-                    scopes = [SCOPES.NONE]
-                    const userRole = user?.role;
-                    const pbacDefaults = await this.configurationService.getPBACByRoles([userRole]);
-                    // if role has defaults
-                    if (pbacDefaults && pbacDefaults.length > 0) {
-                        let defaultRolePermissions = pbacDefaults[0]?.permissions;
-                        // if defaults contain permissions
-                        if (defaultRolePermissions?.length > 0) {
-                            // loop through permissions defaults for the role
-                            for (const permissionsObject of defaultRolePermissions){
-                                let permissionParts = parsePermissionString(permissionsObject._id);
-                                // if the permissionParts object matches the input permission
-                                if (permissionParts.permission === permission){
-                                    scopes = permissionParts.scopes || [SCOPES.OWN];
-                                    scopeValues = permissionParts.scopeValues || [];
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    /*
-                    End of the backwards compatability block
-                    */
-                }
-                return this.formatScopesOutput(user, scopes, scopeValues);
+                return await this.#getScopePermission(user, permissionAndScope, permission);
             }
         }
         return defaultOutput;
+    }
+
+    async #getScopePermission(user, permissionAndScope, permission) {
+        let scopes = permissionAndScope?.scopes || [];
+        let scopeValues = permissionAndScope?.scopeValues || [];
+        if (scopes.length === 0){
+            /*
+            The below block of code is for backwards compatibility. I expect this will eventually be removed.
+            If a permission is found but no scopes are specified then this will retrieve and use the default
+            scopes from the PBAC configuration in MongoDB.
+            */
+            scopes = [SCOPES.NONE]
+            const userRole = user?.role;
+            const pbacDefaults = await this.configurationService.getPBACByRoles([userRole]);
+            // if role has defaults
+            if (pbacDefaults && pbacDefaults.length > 0) {
+                let defaultRolePermissions = pbacDefaults[0]?.permissions;
+                // if defaults contain permissions
+                if (defaultRolePermissions?.length > 0) {
+                    // loop through permissions defaults for the role
+                    for (const permissionsObject of defaultRolePermissions){
+                        let permissionParts = parsePermissionString(permissionsObject._id);
+                        // if the permissionParts object matches the input permission
+                        if (permissionParts.permission === permission){
+                            scopes = permissionParts.scopes || [SCOPES.OWN];
+                            scopeValues = permissionParts.scopeValues || [];
+                            break;
+                        }
+                    }
+                }
+            }
+            /*
+            End of the backwards compatability block
+            */
+        }
+        return this.formatScopesOutput(user, scopes, scopeValues);
     }
 
     /**
@@ -121,8 +125,11 @@ class AuthorizationService {
     async filterValidPermissions(user, permissions) {
         const filtered = [];
         for (const p of (permissions || [])) {
+            if (!p) {
+                continue;
+            }
             const { permission, scopes: inputScope, scopeValues: inputScopeValues } = parsePermissionString(p);
-            const outputScopes = await this.getPermissionScope(user, p);
+            const outputScopes = await this.#getScopePermission(user, {scope: inputScope, scopeValues: inputScopeValues}, permission);
             const hasDefaultScope = outputScopes?.some(scope => scope?.scope === this.#DEFAULT_OUTPUT.scope);
             const hasNoInputScope = inputScope?.length === 0 && inputScopeValues?.length === 0;
             const hasValidInputScope = inputScope?.length > 0 || inputScopeValues?.length > 0;
@@ -138,16 +145,19 @@ class AuthorizationService {
 
     async filterValidNotifications(user, notifications) {
         const filtered = [];
-        for (const p of permissions) {
-            const { permission, scopes: inputScope, scopeValues: inputScopeValues } = parsePermissionString(p);
-            const outputScopes = await this.getPermissionScope(user, p);
+        for (const n of (notifications || [])) {
+            if (!n) {
+                continue;
+            }
+            const { notification, scopes: inputScope, scopeValues: inputScopeValues } = parsePermissionString(p);
+            const outputScopes = await this.#getScopePermission(user, {scope: inputScope, scopeValues: inputScopeValues}, permission);
             const hasDefaultScope = outputScopes?.some(scope => scope?.scope === this.#DEFAULT_OUTPUT.scope);
             const hasNoInputScope = inputScope?.length === 0 && inputScopeValues?.length === 0;
-            const hasValidInputScope = inputScope?.length > 0 && inputScopeValues?.length > 0;
+            const hasValidInputScope = inputScope?.length > 0 || inputScopeValues?.length > 0;
             const isValidScope = (hasDefaultScope && hasNoInputScope) || (!hasDefaultScope && hasValidInputScope);
-            const hasAllScope = inputScope?.some(scope => scope?.scope === SCOPES.ALL);
+            const hasAllScope = inputScope?.some(scope => scope === SCOPES.ALL) || outputScopes?.some(scope => scope?.scope === SCOPES.ALL);
             const emptyScope = inputScope?.includes("") || inputScopeValues?.includes("");
-            if (this.#allEmailNotificationNamesSet.has(permission) && (isValidScope || hasAllScope) && !emptyScope) {
+            if (this.#allEmailNotificationNamesSet.has(notification) && (isValidScope || hasAllScope) && !emptyScope) {
                 filtered.push(p);
             }
         }

@@ -647,16 +647,17 @@ class UserService {
     }
 
     async #validateUserPermission(isUserRoleChange, userRole, permissions, notifications, accessControl) {
-        const invalidPermissions = permissions?.filter(permission => !this.#allPermissionNamesSet.has(permission));
-
-
-        await this.authorizationService.getPermissionScope({role: userRole}, )
-
+        // const invalidPermissions = permissions?.filter(permission => !this.#allPermissionNamesSet.has(permission));
+        const filteredValidPermissions = await this.authorizationService.filterValidPermissions(permissions);
+        const filteredValidPermissionsSet = new Set(filteredValidPermissions);
+        const invalidPermissions = permissions?.filter(p => !filteredValidPermissionsSet?.has(p));
         if (invalidPermissions?.length > 0) {
             throw new Error(replaceErrorString(ERROR.INVALID_PERMISSION_NAME, `${invalidPermissions.join(',')}`));
         }
-        const invalidNotifications = notifications?.filter(notification => !this.#allEmailNotificationNamesSet.has(notification));
 
+        const filteredValidNotifications = await this.authorizationService.filterValidNotifications({role: userRole}, )
+        const filteredValidNotificationsSet = new Set(filteredValidNotifications);
+        const invalidNotifications = notifications?.filter(n => !filteredValidNotificationsSet?.has(n));
         if (invalidNotifications?.length > 0) {
             throw new Error(replaceErrorString(ERROR.INVALID_NOTIFICATION_NAME, `${invalidNotifications.join(',')}`));
         }
