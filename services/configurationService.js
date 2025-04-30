@@ -1,5 +1,4 @@
 const {verifySession} = require("../verifier/user-info-verifier");
-const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const PBAC_CONFIG_TYPE = "PBAC";
 const CLI_UPLOADER_VERSION = "CLI_UPLOADER_VERSION";
 class ConfigurationService {
@@ -9,9 +8,19 @@ class ConfigurationService {
 
     async findByType(type) {
         const result = await this.configurationCollection.aggregate([{
-            "$match": { type }
+            "$match": {
+                type
+            }
         }, {"$limit": 1}]);
         return (result?.length === 1) ? result[0] : null;
+    }
+
+    async findManyByType(type) {
+        return await this.configurationCollection.aggregate([{
+            "$match": {
+                type
+            }
+        }]) || [];
     }
 
     /**

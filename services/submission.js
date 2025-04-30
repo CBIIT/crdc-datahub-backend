@@ -55,7 +55,7 @@ class Submission {
     constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService,
                 dataRecordService, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList,
                 hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs, 
-                submissionBucketName, configurationService, uploadingMonitor) {
+                submissionBucketName, configurationService, uploadingMonitor, dataCommonsBucketMap) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -77,6 +77,7 @@ class Submission {
         this.submissionBucketName = submissionBucketName;
         this.configurationService = configurationService;
         this.uploadingMonitor = uploadingMonitor;
+        this.dataCommonsBucketMap = dataCommonsBucketMap;
     }
 
     async createSubmission(params, context) {
@@ -519,7 +520,7 @@ class Submission {
         const logEvent = SubmissionActionEvent.create(userInfo._id, userInfo.email, userInfo.IDP, submission._id, action, verifier.getPrevStatus(), newStatus);
         await Promise.all([
             this.logCollection.insert(logEvent),
-            submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService, this.emailParams),
+            submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService, this.emailParams, this.dataCommonsBucketMap),
             this.#archiveCancelSubmission(action, submissionID, submission?.bucketName, submission?.rootPath)
         ].concat(completePromise));
         return submission;
@@ -1751,14 +1752,15 @@ String.prototype.format = function(placeholders) {
  * @param {*} organizationService
  * @param {*} notificationService
  * @param {*} emailParams
+ * @param {*} dataCommonsBucketMap
  */
-async function submissionActionNotification(userInfo, action, aSubmission, userService, organizationService, notificationService, emailParams) {
+async function submissionActionNotification(userInfo, action, aSubmission, userService, organizationService, notificationService, emailParams, dataCommonsBucketMap) {
     switch(action) {
         case ACTIONS.SUBMIT:
             await sendEmails.submitSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
             break;
         case ACTIONS.RELEASE:
-            await sendEmails.releaseSubmission(emailParams, userInfo, aSubmission, userService, organizationService, notificationService);
+            await sendEmails.releaseSubmission(emailParams, userInfo, aSubmission, userService, dataCommonsBucketMap, notificationService);
             break;
         case ACTIONS.WITHDRAW:
             await sendEmails.withdrawSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
@@ -1898,7 +1900,7 @@ const sendEmails = {
             withdrawnByEmail: `${userInfo?.email}`
         });
     },
-    releaseSubmission: async (emailParams, userInfo, aSubmission, userService, organizationService, notificationsService) => {
+    releaseSubmission: async (emailParams, userInfo, aSubmission, userService, dataCommonsBucketMap, notificationsService) => {
         aSubmission = getDataCommonsDisplayNamesForSubmission(aSubmission);
         const [DCPRoleUsers, BCCUsers, approvedStudy] = await Promise.all([
             userService.getDCPs(aSubmission?.dataCommons),
@@ -1914,14 +1916,18 @@ const sendEmails = {
             console.error(ERROR.NO_SUBMISSION_RECEIVER, "Release", `id=${aSubmission?._id}`);
             return;
         }
+
+        const dataCommonBucket = dataCommonsBucketMap?.has(aSubmission?.dataCommons) ?
+            dataCommonsBucketMap.get(aSubmission?.dataCommons) : "NA";
+
         const additionalInfo = [
             [SUBMISSION_ID, aSubmission?._id],
             [DATA_SUBMISSION_TYPE, aSubmission?.intention],
-            [DESTINATION_LOCATION, `${aSubmission?.bucketName} at ${aSubmission?.rootPath}`]];
+            [DESTINATION_LOCATION, `${dataCommonBucket} at ${aSubmission?.rootPath}`]];
 
         const filteredBCCUsers = BCCUsers.filter((u) => isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
         await notificationsService.releaseDataSubmissionNotification(getUserEmails(filteredDCPUsers), getUserEmails(filteredBCCUsers), {
-            firstName: `${aSubmission?.dataCommons} team`,
+            firstName: `${aSubmission?.dataCommonsDisplayName} team`,
             additionalInfo: additionalInfo}, {
             dataCommonName: aSubmission?.dataCommonsDisplayName}, {
             submissionName: aSubmission?.name,
