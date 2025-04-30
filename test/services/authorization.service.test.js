@@ -227,7 +227,7 @@ describe('authorization service test', () => {
                 role: USER.ROLES.SUBMITTER,
                 permissions: [
                     {
-                        "_id": `${PERMISSIONS.ADMIN.MANAGE_USER}:${SCOPES.DC}:${USER.ROLES.FEDERAL_LEAD}`
+                        "_id": `${PERMISSIONS.ADMIN.MANAGE_USER}:${SCOPES.ROLE}:${USER.ROLES.FEDERAL_LEAD}`
                     }
                 ],
 
@@ -241,7 +241,7 @@ describe('authorization service test', () => {
                 {_id: "study2"},
                 {_id: "study3"}
             ],
-            scopes: [SCOPES.DC],
+            scopes: [SCOPES.ROLE],
         };
 
         const permissionInput = [

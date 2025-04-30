@@ -2,7 +2,6 @@ const {verifySession} = require("../verifier/user-info-verifier");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
 const ERROR = require("../constants/error-constants");
-const SCOPES = require('../constants/permission-scope-constants');
 const {ERROR: SUBMODULE_ERROR} = require("../crdc-datahub-database-drivers/constants/error-constants");
 const {replaceErrorString} = require("../utility/string-util");
 const config = require("../config");
@@ -20,6 +19,7 @@ const {
     EMAIL_NOTIFICATIONS: EN
 } = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {getDataCommonsDisplayNamesForUser} = require("../utility/data-commons-remapper");
+const {UserScope} = require("../domain/user-scope");
 const {COMPLETED, CANCELED, DELETED} = require("../constants/submission-constants");
 
 const isLoggedInOrThrow = (context) => {
@@ -239,6 +239,11 @@ class UserService {
             .verifyInitialized();
         await this.#isPermitted(context?.userInfo, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
         const isFederalLeadOnly = await this.#isFederalLeadPermission(context?.userInfo);
+
+        if (context?.userInfo?.role === ROLES.FEDERAL_LEAD && !isFederalLeadOnly) {
+            return [];
+        }
+
         const result = await this.userCollection.aggregate([{
             "$match": {
                 ...(isFederalLeadOnly ? { role: ROLES.FEDERAL_LEAD } : {})
@@ -446,13 +451,15 @@ class UserService {
 
     async #isFederalLeadPermission(userInfo) {
         const validScopes = await this.authorizationService.getPermissionScope(userInfo, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
-        return validScopes?.some(scope => scope?.scope === SCOPES.ROLE && scope?.scopeValues?.includes(ROLES.FEDERAL_LEAD));
+        return UserScope.create(validScopes)
+            .isPermittedRole(ROLES.FEDERAL_LEAD);
     }
 
     async #isPermitted(userInfo, permission) {
         const validScopes = await this.authorizationService.getPermissionScope(userInfo, permission);
         // If the permission scope has none only, it is NOT allowed.
-        const isNotPermitted = validScopes?.some(scope => scope?.scope === SCOPES.NONE && scope?.scopeValues?.length === 0);
+        const isNotPermitted = UserScope.create(validScopes)
+            .isNoneScope();
         if (isNotPermitted) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }

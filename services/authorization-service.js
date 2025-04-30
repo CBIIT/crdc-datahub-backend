@@ -116,7 +116,12 @@ class AuthorizationService {
         }
         return formattedOutput;
     }
-
+    /**
+     * Takes a user info, string permissions, return only valid permissions.
+     * @param user {{role: string, permissions: string[], studies: {_id: string[]}, dataCommons: string[]}}
+     * @param permissions {string[]}- an array of permissions
+     * @returns {string[]} an array of valid permissions
+     */
     async filterValidPermissions(user, permissions) {
         const filtered = [];
         for (const p of (permissions || [])) {
