@@ -373,7 +373,7 @@ class UserService {
         }
 
         updatedUser.dataCommons = DataCommon.get(user[0]?.dataCommons, params?.dataCommons);
-        await this.#setUserPermissions(user[0]?.role, params?.role, params?.permissions, params?.notifications, updatedUser);
+        await this.#setUserPermissions(user[0], params?.role, params?.permissions, params?.notifications, updatedUser);
         updatedUser  = await this.updateUserInfo(user[0], updatedUser, params.userID, params.status, params.role, params?.studies);
         return getDataCommonsDisplayNamesForUser(updatedUser);
     }
@@ -673,21 +673,21 @@ class UserService {
         return [...(updatedNotifications || [])];
     }
 
-    async #setUserPermissions(currRole, newRole, permissions, notifications, updatedUser) {
-        const isUserRoleChange = (newRole && (currRole !== newRole));
-        const userRole = isUserRoleChange ? newRole : currRole;
+    async #setUserPermissions(currUser, newRole, permissions, notifications, updatedUser) {
+        const isUserRoleChange = (newRole && (currUser?.role !== newRole));
+        const userRole = isUserRoleChange ? newRole : currUser?.role;
         const accessControl = await this.configurationService.getAccessControl(userRole);
         const {filteredPermissions, filteredNotifications} =
             this.#validateUserPermission(isUserRoleChange, userRole, permissions, notifications, accessControl);
 
         if (isUserRoleChange || (!isUserRoleChange && permissions !== undefined)) {
-            if (!isIdenticalArrays(currRole?.permissions, filteredPermissions) && filteredPermissions) {
+            if (!isIdenticalArrays(currUser?.permissions, filteredPermissions) && filteredPermissions) {
                 updatedUser.permissions = new Set(filteredPermissions || []).toArray();
             }
         }
 
         if (isUserRoleChange || (!isUserRoleChange && notifications !== undefined)) {
-            if (!isIdenticalArrays(currRole?.notifications, filteredNotifications) && filteredNotifications) {
+            if (!isIdenticalArrays(currUser?.notifications, filteredNotifications) && filteredNotifications) {
                 updatedUser.notifications = new Set(filteredNotifications).toArray();
             }
         }
