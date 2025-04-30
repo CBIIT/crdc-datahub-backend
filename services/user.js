@@ -2,6 +2,7 @@ const {verifySession} = require("../verifier/user-info-verifier");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
 const ERROR = require("../constants/error-constants");
+const SCOPES = require('../constants/permission-scope-constants');
 const {ERROR: SUBMODULE_ERROR} = require("../crdc-datahub-database-drivers/constants/error-constants");
 const {replaceErrorString} = require("../utility/string-util");
 const config = require("../config");
@@ -201,14 +202,22 @@ class UserService {
 
     async getUser(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
-        
+            .verifyInitialized();
+        await this.#isPermitted(context?.userInfo, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+
         if (!params?.userID) {
             throw new Error(SUBMODULE_ERROR.INVALID_USERID);
         }
+        const isFederalLeadOnly = await this.#isFederalLeadPermission(context?.userInfo);
+        if (context?.userInfo?.role === ROLES.FEDERAL_LEAD && !isFederalLeadOnly) {
+            throw new Error(ERROR.INVALID_FEDERAL_LEAD_REQUEST);
+        }
 
-        const filters = { _id: params.userID };
+        const filters = {
+            _id: params.userID,
+            ...(isFederalLeadOnly ? { role: ROLES.FEDERAL_LEAD } : {})
+        };
+
         const result = await this.userCollection.aggregate([{
             "$match": filters
         }, {"$limit": 1}]);
@@ -228,13 +237,14 @@ class UserService {
 
     async listUsers(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
-
+            .verifyInitialized();
+        await this.#isPermitted(context?.userInfo, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+        const isFederalLeadOnly = await this.#isFederalLeadPermission(context?.userInfo);
         const result = await this.userCollection.aggregate([{
-            "$match": {}
-        },]);
-
+            "$match": {
+                ...(isFederalLeadOnly ? { role: ROLES.FEDERAL_LEAD } : {})
+            }
+        }]);
         result.map(async (user) => {
             user.studies = await this.#findApprovedStudies(user?.studies);
             return getDataCommonsDisplayNamesForUser(user);
@@ -339,9 +349,8 @@ class UserService {
 
     async editUser(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
-
+            .verifyInitialized();
+        await this.#isPermitted(context?.userInfo, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
         if (!params.userID) {
             throw new Error(SUBMODULE_ERROR.INVALID_USERID);
         }
@@ -350,6 +359,12 @@ class UserService {
         if (!user || !Array.isArray(user) || user.length < 1 || user[0]?._id !== params.userID) {
             throw new Error(SUBMODULE_ERROR.USER_NOT_FOUND);
         }
+
+        const isFederalLeadOnly = await this.#isFederalLeadPermission(context?.userInfo);
+        if (context?.userInfo?.role === ROLES.FEDERAL_LEAD && (user[0]?.role !== ROLES.FEDERAL_LEAD || !isFederalLeadOnly)) {
+            throw new Error(ERROR.INVALID_FEDERAL_LEAD_REQUEST);
+        }
+
         let updatedUser = {};
         if (params.role && Object.values(USER.ROLES).includes(params.role)) {
             updatedUser.role = params.role;
@@ -428,6 +443,20 @@ class UserService {
             userAfterUpdate.studies = validStudies; // return approved studies dynamically with all properties of studies
         }
         return { ...prevUser, ...userAfterUpdate};
+    }
+
+    async #isFederalLeadPermission(userInfo) {
+        const validScopes = await this.authorizationService.getPermissionScope(userInfo, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+        return validScopes?.some(scope => scope?.scope === SCOPES.ROLE && scope?.scopeValues?.includes(ROLES.FEDERAL_LEAD));
+    }
+
+    async #isPermitted(userInfo, permission) {
+        const validScopes = await this.authorizationService.getPermissionScope(userInfo, permission);
+        // If the permission scope has none only, it is NOT allowed.
+        const isNotPermitted = validScopes?.some(scope => scope?.scope === SCOPES.NONE && scope?.scopeValues?.length === 0);
+        if (isNotPermitted) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
     }
 
     async #notifyUpdatedUser(prevUser, newUser, newRole) {

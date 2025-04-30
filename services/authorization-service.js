@@ -1,6 +1,5 @@
 const ERROR = require('../constants/error-constants');
 const SCOPES = require('../constants/permission-scope-constants');
-const {replaceErrorString} = require("../utility/string-util");
 const {
     SUBMISSION_REQUEST,
     DATA_SUBMISSION,
@@ -122,7 +121,6 @@ class AuthorizationService {
         return formattedOutput;
     }
 
-    // TODO user's role can be changed.
     async filterValidPermissions(user, permissions) {
         const filtered = [];
         for (const p of (permissions || [])) {
