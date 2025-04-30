@@ -37,7 +37,7 @@
             "group": "Submission Request Permissions",
             "name": "Submit",
             "order": 3,
-            "checked": false,
+            "checked": true,
             "disabled": false
           },
           {
@@ -45,7 +45,7 @@
             "group": "Submission Request Permissions",
             "name": "Cancel/Restore",
             "order": 5,
-            "checked": true,
+            "checked": false,
             "disabled": false
           },
           {
@@ -162,7 +162,7 @@
             "group": "Submission Request Emails",
             "name": "When available for review",
             "order": 2,
-            "checked": true,
+            "checked": false,
             "disabled": false
           },
           {
@@ -170,7 +170,7 @@
             "group": "Submission Request Emails",
             "name": "When review decision made",
             "order": 3,
-            "checked": true,
+            "checked": false,
             "disabled": false
           },
           {
@@ -178,7 +178,7 @@
             "group": "Submission Request Emails",
             "name": "When canceled/restored",
             "order": 4,
-            "checked": true,
+            "checked": false,
             "disabled": false
           },
           {
@@ -186,7 +186,7 @@
             "group": "Submission Request Emails",
             "name": "When deleted",
             "order": 6,
-            "checked": true,
+            "checked": false,
             "disabled": false
           },
           {
@@ -194,7 +194,7 @@
             "group": "Submission Request Emails",
             "name": "When expiring",
             "order": 5,
-            "checked": true,
+            "checked": false,
             "disabled": false
           },
           {
