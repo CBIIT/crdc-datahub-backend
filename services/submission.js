@@ -1303,7 +1303,7 @@ class Submission {
             const studyFullName = approvedStudy?.studyName === approvedStudy?.studyAbbreviation ? approvedStudy?.studyName : studyCombinedName;
             await this.notificationService.remindNoPrimaryContact(getUserEmails(dcpUsers), getUserEmails(CCUsers), {
                 dataCommonName: aSubmission?.dataCommonsDisplayName,
-                submissionName: `${aSubmission?.name},`,
+                submissionName: `${aSubmission?.name}`,
                 studyFullName: studyFullName || NA,
                 programName: aProgram?.name || NA,
                 primaryContactName: primaryContactName?.length > 0 ? primaryContactName : this.#NOT_ASSIGNED
