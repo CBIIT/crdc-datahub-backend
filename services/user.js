@@ -374,7 +374,7 @@ class UserService {
         }
 
         updatedUser.dataCommons = DataCommon.get(user[0]?.dataCommons, params?.dataCommons);
-        await this.#setUserPermissions(user[0]?.role, params?.role, params?.permissions, params?.notifications, updatedUser, user);
+        await this.#setUserPermissions(user[0], params?.role, params?.permissions, params?.notifications, updatedUser, user);
         updatedUser  = await this.updateUserInfo(user[0], updatedUser, params.userID, params.status, params.role, params?.studies);
         return getDataCommonsDisplayNamesForUser(updatedUser);
     }
@@ -674,25 +674,25 @@ class UserService {
         return [...(updatedNotifications || [])];
     }
 
-    async #setUserPermissions(currRole, newRole, permissions, notifications, updatedUser, currUser) {
-        const isUserRoleChange = (newRole && (currRole !== newRole));
-        const userRole = isUserRoleChange ? newRole : currRole;
+    async #setUserPermissions(currUser, newRole, permissions, notifications, updatedUser) {
+        const isUserRoleChange = (newRole && (currUser?.role !== newRole));
+        const userRole = isUserRoleChange ? newRole : currUser?.role;
         const [accessControl, filteredValidPermissions] = await Promise.all([
             this.configurationService.getAccessControl(userRole),
-            this.authorizationService.filterValidPermissions(currUser, permissions)
+            this.authorizationService.filterValidPermissions({role: userRole, ...currUser }, permissions)
         ]);
         const {filteredPermissions, filteredNotifications} =
             this.#validateUserPermission(isUserRoleChange, userRole, permissions, filteredValidPermissions,
                 notifications, accessControl);
 
         if (isUserRoleChange || (!isUserRoleChange && permissions !== undefined)) {
-            if (!isIdenticalArrays(currRole?.permissions, filteredPermissions) && filteredPermissions) {
+            if (!isIdenticalArrays(currUser?.permissions, filteredPermissions) && filteredPermissions) {
                 updatedUser.permissions = new Set(filteredPermissions || []).toArray();
             }
         }
 
         if (isUserRoleChange || (!isUserRoleChange && notifications !== undefined)) {
-            if (!isIdenticalArrays(currRole?.notifications, filteredNotifications) && filteredNotifications) {
+            if (!isIdenticalArrays(currUser?.notifications, filteredNotifications) && filteredNotifications) {
                 updatedUser.notifications = new Set(filteredNotifications).toArray();
             }
         }

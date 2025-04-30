@@ -203,6 +203,7 @@ describe('authorization service test', () => {
         };
 
         const permissionInput = [
+            `${PERMISSIONS.ADMIN.MANAGE_USER}`,
             `${PERMISSIONS.DATA_SUBMISSION.CANCEL}`,
             `${PERMISSIONS.DATA_SUBMISSION.VIEW}`,
             `${PERMISSIONS.DATA_SUBMISSION.CREATE}XXXX:${SCOPES.ALL}`,

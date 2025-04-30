@@ -12,7 +12,7 @@
             "name": "View",
             "order": 1,
             "checked": true,
-            "disabled": false,
+            "disabled": false
           },
           {
             "_id": "submission_request:create:all",
@@ -30,7 +30,7 @@
             "inherited": ["submission_request:view"],
             "order": 4,
             "checked": false,
-            "disabled": false,
+            "disabled": false
           },
           {
             "_id": "submission_request:submit:all",
