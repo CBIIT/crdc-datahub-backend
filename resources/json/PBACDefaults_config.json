@@ -109,7 +109,7 @@
           {
             "_id": "user:manage:role:Federal Lead",
             "group": "Admin Permissions",
-            "name": "Manage User",
+            "name": "Manage Users",
             "order": 4,
             "checked": false,
             "disabled": false
@@ -117,7 +117,7 @@
           {
             "_id": "program:manage:all",
             "group": "Admin Permissions",
-            "name": "Manage Program",
+            "name": "Manage Programs",
             "order": 1,
             "checked": false,
             "disabled": false
@@ -125,7 +125,7 @@
           {
             "_id": "study:manage:all",
             "group": "Admin Permissions",
-            "name": "Manage Study",
+            "name": "Manage Studies",
             "order": 2,
             "checked": false,
             "disabled": false
@@ -409,7 +409,7 @@
           {
             "_id": "user:manage:role",
             "group": "Admin Permissions",
-            "name": "Manage User",
+            "name": "Manage Users",
             "order": 4,
             "checked": false,
             "disabled": true
@@ -417,7 +417,7 @@
           {
             "_id": "program:manage:all",
             "group": "Admin Permissions",
-            "name": "Manage Program",
+            "name": "Manage Programs",
             "order": 1,
             "checked": false,
             "disabled": false
@@ -425,7 +425,7 @@
           {
             "_id": "study:manage:all",
             "group": "Admin Permissions",
-            "name": "Manage Study",
+            "name": "Manage Studies",
             "order": 2,
             "checked": false,
             "disabled": false
@@ -709,7 +709,7 @@
           {
             "_id": "user:manage:all",
             "group": "Admin Permissions",
-            "name": "Manage User",
+            "name": "Manage Users",
             "order": 4,
             "checked": true,
             "disabled": false
@@ -717,7 +717,7 @@
           {
             "_id": "program:manage:all",
             "group": "Admin Permissions",
-            "name": "Manage Program",
+            "name": "Manage Programs",
             "order": 1,
             "checked": true,
             "disabled": false
@@ -725,7 +725,7 @@
           {
             "_id": "study:manage:all",
             "group": "Admin Permissions",
-            "name": "Manage Study",
+            "name": "Manage Studies",
             "order": 2,
             "checked": true,
             "disabled": false
@@ -1009,7 +1009,7 @@
           {
             "_id": "user:manage:none",
             "group": "Admin Permissions",
-            "name": "Manage User",
+            "name": "Manage Users",
             "order": 4,
             "checked": false,
             "disabled": true
@@ -1017,7 +1017,7 @@
           {
             "_id": "program:manage:none",
             "group": "Admin Permissions",
-            "name": "Manage Program",
+            "name": "Manage Programs",
             "order": 1,
             "checked": false,
             "disabled": true
@@ -1025,7 +1025,7 @@
           {
             "_id": "study:manage:none",
             "group": "Admin Permissions",
-            "name": "Manage Study",
+            "name": "Manage Studies",
             "order": 2,
             "checked": false,
             "disabled": true
@@ -1309,7 +1309,7 @@
           {
             "_id": "user:manage:none",
             "group": "Admin Permissions",
-            "name": "Manage User",
+            "name": "Manage Users",
             "order": 4,
             "checked": false,
             "disabled": true
@@ -1317,7 +1317,7 @@
           {
             "_id": "program:manage:none",
             "group": "Admin Permissions",
-            "name": "Manage Program",
+            "name": "Manage Programs",
             "order": 1,
             "checked": false,
             "disabled": true
@@ -1325,7 +1325,7 @@
           {
             "_id": "study:manage:none",
             "group": "Admin Permissions",
-            "name": "Manage Study",
+            "name": "Manage Studies",
             "order": 2,
             "checked": false,
             "disabled": true
