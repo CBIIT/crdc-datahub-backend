@@ -40,7 +40,6 @@ const createToken = (userInfo, token_secret, token_timeout)=> {
 
 
 class UserService {
-    #allPermissionNamesSet = new Set([...Object.values(SUBMISSION_REQUEST), ...Object.values(DATA_SUBMISSION), ...Object.values(ADMIN)]);
     #allEmailNotificationNamesSet = new Set([...Object.values(EN.SUBMISSION_REQUEST), ...Object.values(EN.DATA_SUBMISSION), ...Object.values(EN.USER_ACCOUNT)]);
     #NIH = "nih";
     #NOT_APPLICABLE = "NA";
