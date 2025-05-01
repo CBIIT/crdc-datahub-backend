@@ -28,7 +28,7 @@ class AuthorizationService {
      * scope values
      */
     async getPermissionScope(user, permission){
-        const defaultOutput = this.#DEFAULT_OUTPUT;
+        const defaultOutput = [this.#DEFAULT_OUTPUT];
         const userPermissions = user?.permissions;
         if (!userPermissions || !permission){
             return defaultOutput;

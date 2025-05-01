@@ -212,6 +212,7 @@ describe('authorization service test', () => {
         ];
 
         const expected = [
+            `${PERMISSIONS.ADMIN.MANAGE_USER}`,
             `${PERMISSIONS.DATA_SUBMISSION.CANCEL}`,
             `${PERMISSIONS.DATA_SUBMISSION.VIEW}`,
         ];
