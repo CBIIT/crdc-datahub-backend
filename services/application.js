@@ -22,7 +22,7 @@ class Application {
     #FINAL_INACTIVE_REMINDER = "finalInactiveReminder";
     #INACTIVE_REMINDER = "inactiveReminder";
     #CRDC_TEAM = "the CRDC team";
-    constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService, configurationService) {
+    constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService, configurationService, authorizationService) {
         this.logCollection = logCollection;
         this.applicationCollection = applicationCollection;
         this.approvedStudiesService = approvedStudiesService;
@@ -33,12 +33,26 @@ class Application {
         this.organizationService = organizationService;
         this.institutionService = institutionService;
         this.configurationService = configurationService;
+        this.authorizationService = authorizationService;
     }
+
+    async #isPermittedScope(userInfo, aPermission, targetStudy, targetRole, targetDatacommon) {
+        const validScopes = await this.authorizationService.getPermissionScope(userInfo, aPermission);
+        const userScope = UserScope.create(userInfo, validScopes);
+        return userScope.isAllScope() || userScope.isOwnScope() ||
+            userScope.isPermittedStudy(targetStudy) || userScope.isPermittedRole(targetRole) || userScope.isPermittedDataCommons(targetDatacommon) ||
+            // Invalid scopes
+            !(userScope.isNoneScope() || validScopes.length === 0);
+    }
+
 
     async getApplication(params, context) {
         verifySession(context)
             .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
+        if (!await this.#isPermittedScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW)) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
         let application = await this.getApplicationById(params._id);
         // add logics to check if conditional approval
         if (application.status === APPROVED){
@@ -81,7 +95,7 @@ class Application {
     }
 
     async reviewApplication(params, context) {
-        verifyReviewerPermission(context);
+        await this.verifyReviewerPermission(context);
         const application = await this.getApplication(params, context);
         verifyApplication(application)
             .notEmpty()
@@ -144,7 +158,10 @@ class Application {
     async saveApplication(params, context) {
         verifySession(context)
             .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CREATE);
+        if (await this.#isPermittedScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CREATE)) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
         let inputApplication = params.application;
         const id = inputApplication?._id;
         if (!id) {
@@ -164,8 +181,12 @@ class Application {
 
     async getMyLastApplication(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
+            .verifyInitialized();
+
+        if (await this.#isPermittedScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW)) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
         const userID = context.userInfo._id;
         const matchApplicantIDToUser = {"$match": {"applicant.applicantID": userID, status: APPROVED}};
         const sortCreatedAtDescending = {"$sort": {createdAt: -1}};
@@ -182,7 +203,7 @@ class Application {
         return application;
     }
 
-    #listApplicationConditions(userID, userRole, programName, studyName, statues, submitterName) {
+    #listApplicationConditions(userID, userScope, programName, studyName, statues, submitterName) {
         const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, CANCELED, REJECTED, DELETED];
         const statusCondition = statues && !statues?.includes(this.#ALL_FILTER) ?
             { status: { $in: statues || [] } } : { status: { $in: validApplicationStatus } };
@@ -197,29 +218,21 @@ class Application {
 
         const baseConditions = {...statusCondition, ...programNameCondition, ...studyNameCondition, ...submitterNameCondition};
         return (() => {
-            switch (userRole) {
-                case ROLES.ADMIN:
-                case ROLES.FEDERAL_LEAD:
-                case ROLES.DATA_COMMONS_PERSONNEL:
+            switch (true) {
+                case userScope.isAllScope():
                     return baseConditions;
                 // Submitter/User
-                default:
+                case userScope.isOwnScope():
                     return {...baseConditions, "applicant.applicantID": userID};
+                default:
+                    throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
             }
         })();
     }
 
     async listApplications(params, context) {
-        let userInfoVerifier = verifySession(context)
+        verifySession(context)
             .verifyInitialized()
-        try{
-            userInfoVerifier.verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
-        }
-        catch(permissionError){
-            console.warn(permissionError);
-            console.warn("Failed permission verification for listApplications, returning empty list");
-            return {applications: [], total: 0};
-        }
 
         const userInfo = context?.userInfo;
         const validStatuesSet = new Set([NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED, CANCELED, DELETED, this.#ALL_FILTER]);
@@ -229,17 +242,24 @@ class Application {
             throw new Error(replaceErrorString(ERROR.APPLICATION_INVALID_STATUES, `'${invalidStatues.join(",")}'`));
         }
 
+        const validScopes = await this.authorizationService.getPermissionScope(userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
+        const userScope = UserScope.create(userInfo, validScopes);
+        if (userScope.isNoneScope() || validScopes?.length === 0) {
+            console.warn("Failed permission verification for listApplications, returning empty list");
+            return {applications: [], total: 0};
+        }
+
         const filterConditions = [
             // default filter for listing submissions
-            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, params.studyName, params.statuses, params?.submitterName),
+            this.#listApplicationConditions(userInfo?._id, userScope, params.programName, params.studyName, params.statuses, params?.submitterName),
             // note: Aggregation of Program name should not be filtered by its name
-            this.#listApplicationConditions(userInfo?._id, userInfo?.role, this.#ALL_FILTER, params.studyName, params.statuses, params?.submitterName),
+            this.#listApplicationConditions(userInfo?._id, userScope, this.#ALL_FILTER, params.studyName, params.statuses, params?.submitterName),
             // note: Aggregation of Study name should not be filtered by its name
-            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, this.#ALL_FILTER, params.statuses, params?.submitterName),
+            this.#listApplicationConditions(userInfo?._id, userScope, params.programName, this.#ALL_FILTER, params.statuses, params?.submitterName),
             // note: Aggregation of Statues name should not be filtered by its name
-            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, params.studyName, this.#ALL_FILTER, params?.submitterName),
+            this.#listApplicationConditions(userInfo?._id, userScope, params.programName, params.studyName, this.#ALL_FILTER, params?.submitterName),
             // note: Aggregation of Submitter name should not be filtered by its name
-            this.#listApplicationConditions(userInfo?._id, userInfo?.role, params.programName, params.studyName, params.statuses, this.#ALL_FILTER),
+            this.#listApplicationConditions(userInfo?._id, userScope, params.programName, params.studyName, params.statuses, this.#ALL_FILTER),
         ];
         const [listConditions, programCondition, studyNameCondition, statuesCondition, submitterNameCondition] = filterConditions;
         let pipeline = [{"$match": listConditions}];
@@ -280,8 +300,11 @@ class Application {
 
     async submitApplication(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.SUBMIT);
+            .verifyInitialized();
+        if (await this.#isPermittedScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.SUBMIT)) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
         const application = await this.getApplicationById(params._id);
         const validStatus = [IN_PROGRESS, INQUIRED]; //updated based on new requirement.
         verifyApplication(application)
@@ -318,8 +341,11 @@ class Application {
 
     async reopenApplication(document, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CREATE);
+            .verifyInitialized();
+        if (await this.#isPermittedScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CREATE)) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
         const application = await this.getApplicationById(document._id);
         application.version = await this.#getApplicationVersionByStatus(application.status, application?.version);
         if (application && application.status) {
@@ -344,8 +370,10 @@ class Application {
 
     async deleteApplication(document, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
+            .verifyInitialized();
+        if (await this.#isPermittedScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL)) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
         const aApplication = await this.getApplicationById(document._id);
         const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, INQUIRED];
         if (!validApplicationStatus.includes(aApplication.status)) {
@@ -353,7 +381,9 @@ class Application {
         }
         aApplication.version = await this.#getApplicationVersionByStatus(aApplication.status, aApplication?.version);
         const userInfo = context?.userInfo;
-        const isEnabledPBAC = userInfo?.permissions?.includes(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
+        const validScopes = await this.authorizationService.getPermissionScope(userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
+        const userScope = UserScope.create(context?.userInfo, validScopes);
+        const isEnabledPBAC = userScope.isAllScope();
         const isPowerRole = [ROLES.FEDERAL_LEAD, ROLES.ADMIN, ROLES.DATA_COMMONS_PERSONNEL].includes(userInfo?.role);
         const powerUserCond = [NEW, IN_PROGRESS, INQUIRED, SUBMITTED, IN_REVIEW].includes(aApplication?.status) && isEnabledPBAC;
 
@@ -417,7 +447,7 @@ class Application {
     }
 
     async approveApplication(document, context) {
-        verifyReviewerPermission(context);
+        await this.verifyReviewerPermission(context);
         const application = await this.getApplicationById(document._id);
         // In Reviewed -> Approved
         verifyApplication(application)
@@ -475,7 +505,7 @@ class Application {
     }
 
     async rejectApplication(document, context) {
-        verifyReviewerPermission(context);
+        await this.verifyReviewerPermission(context);
         const application = await this.getApplicationById(document._id);
         // In Reviewed or Submitted -> Inquired
         verifyApplication(application)
@@ -503,7 +533,7 @@ class Application {
     }
 
     async inquireApplication(document, context) {
-        verifyReviewerPermission(context);
+        await this.verifyReviewerPermission(context);
         const application = await this.getApplicationById(document._id);
         // In Reviewed or Submitted -> Inquired
         verifyApplication(application)
@@ -850,12 +880,13 @@ class Application {
         );
     }
 
-}
-
-function verifyReviewerPermission(context){
-    verifySession(context)
-        .verifyInitialized()
-        .verifyPermission(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.REVIEW);
+    async verifyReviewerPermission(context) {
+        verifySession(context)
+            .verifyInitialized();
+        if (!await this.#isPermittedScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.REVIEW)) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+    }
 }
 
 async function updateApplication(applicationCollection, application, prevStatus, userID) {

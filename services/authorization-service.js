@@ -24,7 +24,7 @@ class AuthorizationService {
      * @param permission {string} - the name of the permission without scopes, please use a permissions constant
      * for this input
      * Example: "entity:action"
-     * @returns {{scope: string, scopeValues: string[]}[]} an array of objects containing a scope and the corresponding
+     * @returns Promise {{scope: string, scopeValues: string[]}[]} an array of objects containing a scope and the corresponding
      * scope values
      */
     async getPermissionScope(user, permission){
