@@ -1,4 +1,4 @@
-// Function to restore user notifications by adding new notification to users
+// Function to restore user notifications by removing with filter
 function removeUserNotification(notification, filter) {
     let matchedCount = 0;
     let updatedCount = 0;
@@ -84,8 +84,3 @@ removeUserPermissions("submission_request:cancel", {role: "Federal Lead"});
 // restore default permissions for federal leader,
 // submission_request:submit
 restoreUserPermissions("submission_request:submit", {role: "Federal Lead"});
-
-
-
-
-
