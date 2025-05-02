@@ -211,7 +211,6 @@ dbConnector.connect().then(async () => {
         retrievePBACDefaults: configurationService.getPBACDefaults.bind(configurationService),
         downloadMetadataFile: submissionService.getMetadataFile.bind(submissionService),
         retrieveCLIUploaderVersion: configurationService.retrieveCLIUploaderVersion.bind(configurationService),
-        userIsPrimaryContact: userService.isUserPrimaryContact.bind(userService)
     };
 });
 
