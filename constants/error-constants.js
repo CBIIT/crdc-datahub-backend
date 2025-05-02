@@ -11,6 +11,7 @@ const ERROR = {
     FAILED_RESTORE_APPLICATION: "An error occurred while restoring an application",
     MISSING_PROGRAM_INFO: "The program property is required to approve the submission request.",
     INVALID_APPLICATION_RESTORE_STATE: "Failed to restore application because the application history data is invalid",
+    COMMENT_LIMIT: "comment cannot exceed 500 characters.",
     UPDATE_FAILED: "Update unsuccessful",
     VERIFY: {
         UNDEFINED_APPLICATION: "Application array is undefined",
@@ -153,7 +154,7 @@ const ERROR = {
     INVALID_ORCID: "Invalid ORCID format.",
     FAILED_APPROVED_STUDY_INSERTION: "Failed to create the approved study.",
     FAILED_APPROVED_STUDY_UPDATE: "Failed to update the approved study.",
-    FAILED_PRIMARY_CONTACT_UPDATE: "Failed to update the primary contact in the approved study.",
+    FAILED_PRIMARY_CONTACT_UPDATE: "Failed to update the data concierge in the approved study.",
     APPROVED_STUDY_NOT_FOUND: "Approved study not found.",
     EXISTING_SUBMISSION_COLLABORATOR: "The collaborator exists in the submission already.",
     COLLABORATOR_NOT_EXIST: "collaborator does not exist",
@@ -189,9 +190,9 @@ const ERROR = {
     INVALID_PERMISSION_NAME: "Invalid user permission is requested: $item$",
     // User Notifications
     INVALID_NOTIFICATION_NAME: "Invalid email notification is requested: $item$",
-    INVALID_PRIMARY_CONTACT: "No primary contact found with the primary contact ID",
-    INVALID_PRIMARY_CONTACT_ROLE: "The user role for a primary contact must be Data Commons Personnel",
-    INVALID_PRIMARY_CONTACT_ATTEMPT: "Please, do not provide the primaryContactID when the useProgramPC is true.",
+    INVALID_PRIMARY_CONTACT: "No data concierge found with the data concierge ID",
+    INVALID_PRIMARY_CONTACT_ROLE: "The user role for a data concierge must be Data Commons Personnel",
+    INVALID_PRIMARY_CONTACT_ATTEMPT: "Please, do not provide the data concierge ID when the useProgramPC is true.",
     UPLOADING_BATCH_CRASHED: "CLI stopped responding while uploading data files.",
     UPLOADING_BATCH_INTERRUPTED: 'File uploading is interrupted.',
     FAILED_UPDATE_BATCH_STATUS: "Failed to update the batch status.",
@@ -207,7 +208,7 @@ const ERROR = {
     INVALID_INSTITUTION_STATUS: "Requested status $item$ is not valid.",
     FAILED_UPDATE_INSTITUTION: "Failed to update the institution",
     FAILED_UPDATE_USER_INSTITUTION: "Failed to update the institution in the user document",
-    DUPLICATE_INSTITUTION_NAME: "This is a duplicate institution name. The $item$ institution already exists.",
+    DUPLICATE_INSTITUTION_NAME: "This institution name already exists. Please enter a different name.",
     FAILED_CREATE_INSTITUTION: "Failed to create a new institution",
     MAX_INSTITUTION_NAME_LIMIT: "Institution name cannot exceed 100 characters.",
 }

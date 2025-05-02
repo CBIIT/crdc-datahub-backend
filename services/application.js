@@ -21,6 +21,7 @@ class Application {
     #ALL_FILTER="All";
     #FINAL_INACTIVE_REMINDER = "finalInactiveReminder";
     #INACTIVE_REMINDER = "inactiveReminder";
+    #CRDC_TEAM = "the CRDC team";
     constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService, configurationService) {
         this.logCollection = logCollection;
         this.applicationCollection = applicationCollection;
@@ -442,7 +443,7 @@ class Application {
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             promises.unshift(this.getApplicationById(document._id));
             if(questionnaire) {
-                const approvedStudies = await saveApprovedStudies(this.approvedStudiesService, this.organizationService, application, questionnaire);
+                const approvedStudies = await this.#saveApprovedStudies(application, questionnaire);
                 // added approved studies into user collection
                 const { _id, ...updateUser } = context?.userInfo || {};
                 const currStudyIDs = context?.userInfo?.studies?.map((study)=> study?._id) || [];
@@ -736,11 +737,12 @@ class Application {
                 console.error("Cancel submission request email notification does not have any recipient", `Application ID: ${application?._id}`);
                 return;
             }
+            const canceledByName = [ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL].includes(userCanceledBy?.role) ? this.#CRDC_TEAM: `${userCanceledBy.firstName} ${userCanceledBy.lastName || ""}`;
             await this.notificationService.cancelApplicationNotification(applicantInfo?.email, CCEmails, BCCUserEmails, {
                 firstName: `${applicantInfo.firstName} ${applicantInfo.lastName || ""}`
             },{
                 studyName: `${application?.studyName?.trim() || "NA"},`,
-                canceledNameBy: `${userCanceledBy.firstName} ${userCanceledBy.lastName || ""}`,
+                canceledNameBy: canceledByName,
                 contactEmail: `${this.emailParams.conditionalSubmissionContact}.`
             });
         }
@@ -834,6 +836,20 @@ class Application {
             return acc;
         }, {[`${this.#FINAL_INACTIVE_REMINDER}`]: status});
     }
+
+    async #saveApprovedStudies(aApplication, questionnaire) {
+        // use study name when study abbreviation is not available
+        const studyAbbreviation = !!aApplication?.studyAbbreviation?.trim() ? aApplication?.studyAbbreviation : questionnaire?.study?.name;
+        const controlledAccess = aApplication?.controlledAccess;
+        if (isUndefined(controlledAccess)) {
+            console.error(ERROR.APPLICATION_CONTROLLED_ACCESS_NOT_FOUND, ` id=${aApplication?._id}`);
+        }
+        return await this.approvedStudiesService.storeApprovedStudies(
+            aApplication?.studyName, studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name, controlledAccess, aApplication?.ORCID,
+            aApplication?.PI, aApplication?.openAccess, aApplication.programName
+        );
+    }
+
 }
 
 function verifyReviewerPermission(context){
@@ -980,21 +996,6 @@ const sendEmails = {
     }
 }
 
-const saveApprovedStudies = async (approvedStudiesService, organizationService, aApplication, questionnaire) => {
-    // use study name when study abbreviation is not available
-    const studyAbbreviation = !!aApplication?.studyAbbreviation?.trim() ? aApplication?.studyAbbreviation : questionnaire?.study?.name;
-    const controlledAccess = aApplication?.controlledAccess;
-    if (isUndefined(controlledAccess)) {
-        console.error(ERROR.APPLICATION_CONTROLLED_ACCESS_NOT_FOUND, ` id=${aApplication?._id}`);
-    }
-    const savedApprovedStudy = await approvedStudiesService.storeApprovedStudies(
-        aApplication?.studyName, studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name, controlledAccess, aApplication?.ORCID,
-        aApplication?.PI, aApplication?.openAccess, aApplication.programName
-    );
-
-    await organizationService.storeApprovedStudies(aApplication?.organization?._id, savedApprovedStudy?._id);
-    return savedApprovedStudy;
-}
 
 const getUserEmails = (users) => {
     return users

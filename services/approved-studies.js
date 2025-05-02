@@ -19,12 +19,15 @@ const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-
 const {getDataCommonsDisplayNamesForApprovedStudy, getDataCommonsDisplayNamesForUser,
     getDataCommonsDisplayNamesForApprovedStudyList
 } = require("../utility/data-commons-remapper");
+const {ORGANIZATION_COLLECTION, USER_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
+const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const CONTROLLED_ACCESS_ALL = "All";
 const CONTROLLED_ACCESS_OPEN = "Open";
 const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
 const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN, CONTROLLED_ACCESS_CONTROLLED];
+const NA_PROGRAM = "NA";
 class ApprovedStudiesService {
-
+    #ALL = "All";
     constructor(approvedStudiesCollection, userCollection, organizationService, submissionCollection) {
         this.approvedStudiesCollection = approvedStudiesCollection;
         this.userCollection = userCollection;
@@ -105,7 +108,7 @@ class ApprovedStudiesService {
         const orgIds = await this.organizationService.findByStudyID(studyID);
         if (orgIds && orgIds.length > 0 ) {
             const filters = {_id: {"$in": orgIds}};
-            // For the primary contact purpose, the sort should be enabled.
+            // For the data concierge purpose, the sort should be enabled.
             return await this.organizationService.organizationCollection.aggregate([{ "$match": filters }, {"$sort": {_id: -1}}]);
         }
         return null;
@@ -140,10 +143,37 @@ class ApprovedStudiesService {
             first,
             offset,
             orderBy,
-            sortDirection
+            sortDirection,
+            programID
         } = params;
 
-        let pipelines = [];
+        let pipelines = [
+            // Join with the program
+            {"$lookup": {
+                from: ORGANIZATION_COLLECTION,
+                localField: "_id",
+                foreignField: "studies._id",
+                as: "programs"}},
+            {"$lookup": {
+                from: USER_COLLECTION,
+                localField: "primaryContactID",
+                foreignField: "_id",
+                as: "primaryContact"}},
+            {"$replaceRoot": {
+                newRoot: {
+                    $mergeObjects: [
+                        "$$ROOT",
+                        {
+                            primaryContact: {
+                                _id: { $arrayElemAt: ["$primaryContact._id", 0] },
+                                firstName: { $arrayElemAt: ["$primaryContact.firstName", 0] },
+                                lastName: { $arrayElemAt: ["$primaryContact.lastName", 0] }
+                            }
+                        }
+                    ]
+                }
+            }}
+        ];
         // set matches
         let matches = {};
         if (study)
@@ -168,34 +198,26 @@ class ApprovedStudiesService {
         if (dbGaPID) {
             matches.dbGaPID = {$regex: dbGaPID, $options: 'i'};
         }
+
+        if (programID && programID !== this.#ALL) {
+            matches["programs._id"] = programID;
+        }
+
         pipelines.push({$match: matches});
-        // set sort
-        let page_pipeline = [];
-        let sortFields = {
-            [orderBy]: getSortDirection(sortDirection),
-        };
-        if (orderBy !== "studyName"){
-            sortFields["studyName"] = 1
-        }
-        page_pipeline.push({
-            $sort: sortFields
-        });
-        // if -1, returns all data of given node & ignore offset
-        if (first !== -1) {
-            page_pipeline.push({
-                $skip: offset
-            });
-            page_pipeline.push({
-                $limit: first
-            });
-        }
+        const pagination = new MongoPagination(first, offset, orderBy, sortDirection);
+        const paginationPipe = pagination.getPaginationPipeline()
+        // Added the custom sort
+        const isNotStudyName = orderBy !== "studyName";
+        const customPaginationPipeline = paginationPipe?.map(pagination =>
+            Object.keys(pagination)?.includes("$sort") && isNotStudyName ? {...pagination, $sort: {...pagination.$sort, studyName: 1}} : pagination
+        );
 
         pipelines.push({
             $facet: {
                 total: [{
                     $count: "total"
                 }],
-                results: page_pipeline
+                results: customPaginationPipeline
             }
         });
         pipelines.push({
@@ -232,7 +254,8 @@ class ApprovedStudiesService {
             dbGaPID,
             ORCID, 
             PI,
-            primaryContactID
+            primaryContactID,
+            useProgramPC
         } = this.#verifyAndFormatStudyParams(params);
         // check if name is unique
         await this.#validateStudyName(name)
@@ -251,10 +274,15 @@ class ApprovedStudiesService {
         if (!acronym){
             acronym = name;
         }
-        let newStudy = {_id: v4(), studyName: name, studyAbbreviation: acronym, controlledAccess: controlledAccess, openAccess: openAccess, dbGaPID: dbGaPID, ORCID: ORCID, PI: PI, primaryContactID: primaryContactID, createdAt: current_date, updatedAt: current_date};
+        let newStudy = {_id: v4(), useProgramPC: useProgramPC, studyName: name, studyAbbreviation: acronym, controlledAccess: controlledAccess, openAccess: openAccess, dbGaPID: dbGaPID, ORCID: ORCID, PI: PI, primaryContactID: primaryContactID, createdAt: current_date, updatedAt: current_date};
         const result = await this.approvedStudiesCollection.insert(newStudy);
         if (!result?.acknowledged) {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_INSERTION);
+        }
+        // add new study to organization with name of "NA"
+        const org = await this.organizationService.getOrganizationByName(NA_PROGRAM);
+        if (org && org?._id) {
+            await this.organizationService.storeApprovedStudies(org._id, newStudy._id);
         }
         newStudy = getDataCommonsDisplayNamesForApprovedStudy(newStudy);
         primaryContact = getDataCommonsDisplayNamesForUser(primaryContact);
@@ -338,7 +366,7 @@ class ApprovedStudiesService {
             studyID: updateStudy._id,
             status: {$in: [NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, CANCELED, DELETED, ARCHIVED]},
             $or: [{conciergeName: { "$ne": conciergeName?.trim() }}, {conciergeEmail: { "$ne": conciergeEmail }}]}, {
-            // To update the primary contacts
+            // To update the data concierge
             conciergeName: conciergeName?.trim(), conciergeEmail, updatedAt: getCurrentTime()});
         if (!updatedSubmissions?.acknowledged) {
             console.log(ERROR.FAILED_PRIMARY_CONTACT_UPDATE, `StudyID: ${studyID}`);
@@ -350,15 +378,15 @@ class ApprovedStudiesService {
     }
 
     #getConcierge(programs, primaryContact, isProgramPrimaryContact) {
-        // primary contact from the study
+        // data concierge from the study
         const [conciergeName, conciergeEmail] = (primaryContact)? [`${primaryContact?.firstName || ""} ${primaryContact?.lastName || ''}`, primaryContact?.email || ""] :
             ["",""];
-        // isProgramPrimaryContact determines if the program's primary contact should be used.
+        // isProgramPrimaryContact determines if the program's data concierge should be used.
         if (isProgramPrimaryContact && programs?.length > 0) {
             const [conciergeID, programConciergeName,  programConciergeEmail] = [programs[0]?.conciergeID || "", programs[0]?.conciergeName || "", programs[0]?.conciergeEmail || ""];
             const isValidProgramConcierge = programConciergeName !== "" && programConciergeEmail !== "" && conciergeID !== "";
             return [isValidProgramConcierge ? programConciergeName : "", isValidProgramConcierge ? programConciergeEmail : ""];
-        // no primary contact assigned for the program.
+        // no data concierge assigned for the program.
         } else if (isProgramPrimaryContact) {
             return ["", ""]
         }

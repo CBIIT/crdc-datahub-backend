@@ -84,7 +84,7 @@ class SubmissionActionVerifier {
     }
 
     isValidPermissions(action, userID, userPermissions = [], collaboratorUserIDs = []) {
-        const collaboratorCondition = [ACTIONS.SUBMIT, ACTIONS.WITHDRAW, ACTIONS.COMPLETE].includes(action) && collaboratorUserIDs.includes(userID);
+        const collaboratorCondition = [ACTIONS.SUBMIT, ACTIONS.WITHDRAW, ACTIONS.CANCEL].includes(action) && collaboratorUserIDs.includes(userID);
         return userPermissions?.some(item => this.#permissions.includes(item)) || collaboratorCondition;
     }
 

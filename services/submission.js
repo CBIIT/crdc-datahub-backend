@@ -51,10 +51,11 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
+    #NOT_ASSIGNED = "Not yet assigned";
     constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService,
                 dataRecordService, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList,
                 hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs, 
-                submissionBucketName, configurationService, uploadingMonitor) {
+                submissionBucketName, configurationService, uploadingMonitor, dataCommonsBucketMap) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -76,6 +77,7 @@ class Submission {
         this.submissionBucketName = submissionBucketName;
         this.configurationService = configurationService;
         this.uploadingMonitor = uploadingMonitor;
+        this.dataCommonsBucketMap = dataCommonsBucketMap;
     }
 
     async createSubmission(params, context) {
@@ -134,10 +136,7 @@ class Submission {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
         }
 
-        if (!(newSubmission?.conciergeName?.trim()) || !(newSubmission?.conciergeEmail?.trim())) {
-            await this.#sendNoPrimaryContactEmail(newSubmission, approvedStudy, program);
-        }
-
+        await this.#remindPrimaryContactEmail(newSubmission, approvedStudy, program);
         return newSubmission;
     }
     async #findApprovedStudies(studies) {
@@ -420,7 +419,7 @@ class Submission {
             }
             const programs = await this.organizationService.organizationCollection.aggregate([{ "$match": { "studies._id": aSubmission.studyID } }, { "$limit": 1 }]);
             const aProgram = programs?.length > 0 ? programs?.pop() : {};
-            // The primary contact in the listing submission API only applies if the getSubmission is triggered.
+            // The data concierge in the listing submission API only applies if the getSubmission is triggered.
             if (aProgram?._id !== aSubmission?.organization?._id || aProgram?.name !== aSubmission?.organization?.name) {
                 const updatedSubmission = await this.submissionCollection.updateOne({"_id": aSubmission?._id}, {organization: {_id: aProgram?._id, name: aProgram?.name}, updatedAt: getCurrentTime()});
                 if (!updatedSubmission.acknowledged) {
@@ -472,8 +471,9 @@ class Submission {
         const verifier = verifySubmissionAction(action, submission.status, comment);
         const collaboratorUserIDs = Collaborators.createCollaborators(submission?.collaborators).getEditableCollaboratorIDs();
         // User has valid permissions or collaborator, valid user scope
+        const isCollaborator = collaboratorUserIDs.includes(userInfo._id);
         if (!(verifier.isValidPermissions(action, userInfo?._id, userInfo?.permissions, collaboratorUserIDs)
-            && isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, submission))) {
+            && (isCollaborator || isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, submission)))) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         const newStatus = verifier.getNewStatus();
@@ -520,7 +520,7 @@ class Submission {
         const logEvent = SubmissionActionEvent.create(userInfo._id, userInfo.email, userInfo.IDP, submission._id, action, verifier.getPrevStatus(), newStatus);
         await Promise.all([
             this.logCollection.insert(logEvent),
-            submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService, this.emailParams),
+            submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService, this.emailParams, this.dataCommonsBucketMap),
             this.#archiveCancelSubmission(action, submissionID, submission?.bucketName, submission?.rootPath)
         ].concat(completePromise));
         return submission;
@@ -823,10 +823,14 @@ class Submission {
             
             for (let node of result.results) {
                 if (!returnVal.IDPropName) returnVal.IDPropName = node.IDPropName;
-                if (node.parents && node.parents.length > 0) {
-                    for (let parent of node.parents) {
-                        node.props[`${parent.parentType}.${parent.parentIDPropName}`] = parent.parentIDValue;
-                    }
+                if (node?.parents && node.parents.length > 0) {
+                    //get unique parent.parentType from node?.parents 
+                    const parentTypes = [...new Set(node.parents.map(p => p.parentType))];
+                    // loop through parentTypes and get the parent.parentIDPropName, parentIDValue for each parentType
+                    parentTypes.forEach((parentType) => {
+                        const same_type_parents = node.parents.filter(p => p.parentType === parentType);
+                        node.props[`${same_type_parents[0].parentType}.${same_type_parents[0].parentIDPropName}`] = same_type_parents.map((p) => p.parentIDValue).join(' | ')
+                    });
                 }
                 if (node.props && Object.keys(node.props).length > 0){
                     Object.keys(node.props).forEach(propsSet.add, propsSet);
@@ -1278,26 +1282,33 @@ class Submission {
         }
     }
 
-    async #sendNoPrimaryContactEmail(aSubmission, approvedStudy, aProgram) {
-        const [adminUsers, CCUsers] = await Promise.all([
+    async #remindPrimaryContactEmail(aSubmission, approvedStudy, aProgram) {
+        const [dcpUsers, CCUsers] = await Promise.all([
             this.userService.userCollection.aggregate([{"$match": {
                     "userStatus": USER.STATUSES.ACTIVE,
-                    "notifications": {"$in": [EN.DATA_SUBMISSION.MISSING_CONTACT]},
-                    "role": USER.ROLES.ADMIN
+                    "notifications": {"$in": [EN.DATA_SUBMISSION.CREATE]},
+                    "role": USER.ROLES.DATA_COMMONS_PERSONNEL,
+                    "dataCommons": {"$in": [aSubmission?.dataCommons]}
+
                 }}]) || [],
             this.userService.userCollection.aggregate([{"$match": {
                     "userStatus": USER.STATUSES.ACTIVE,
-                    "notifications": {"$in": [EN.DATA_SUBMISSION.MISSING_CONTACT]},
-                    "$or": [{"role": USER.ROLES.DATA_COMMONS_PERSONNEL}, {"role": USER.ROLES.FEDERAL_LEAD}]
+                    "notifications": {"$in": [EN.DATA_SUBMISSION.CREATE]},
+                    "$or": [{"role": USER.ROLES.ADMIN}, {"role": USER.ROLES.FEDERAL_LEAD}]
                 }}]) || []
         ]);
 
-        if (adminUsers?.length > 0) {
-            await this.notificationService.remindNoPrimaryContact(getUserEmails(adminUsers), getUserEmails(CCUsers), {
-                submissionName: `${aSubmission?.name},`,
-                studyName: approvedStudy?.studyName || NA,
+
+        if (dcpUsers?.length > 0) {
+            const primaryContactName = aSubmission?.conciergeName?.trim();
+            const studyCombinedName = approvedStudy?.studyAbbreviation?.trim().length > 0 ? `${approvedStudy?.studyAbbreviation} - ${approvedStudy?.studyName || NA}` : approvedStudy?.studyName;
+            const studyFullName = approvedStudy?.studyName === approvedStudy?.studyAbbreviation ? approvedStudy?.studyName : studyCombinedName;
+            await this.notificationService.remindNoPrimaryContact(getUserEmails(dcpUsers), getUserEmails(CCUsers), {
+                dataCommonName: aSubmission?.dataCommonsDisplayName,
+                submissionName: `${aSubmission?.name}`,
+                studyFullName: studyFullName || NA,
                 programName: aProgram?.name || NA,
-                createDate: formatDate(aSubmission?.createdAt || getCurrentTime())
+                primaryContactName: primaryContactName?.length > 0 ? primaryContactName : this.#NOT_ASSIGNED
             });
         }
     }
@@ -1741,14 +1752,15 @@ String.prototype.format = function(placeholders) {
  * @param {*} organizationService
  * @param {*} notificationService
  * @param {*} emailParams
+ * @param {*} dataCommonsBucketMap
  */
-async function submissionActionNotification(userInfo, action, aSubmission, userService, organizationService, notificationService, emailParams) {
+async function submissionActionNotification(userInfo, action, aSubmission, userService, organizationService, notificationService, emailParams, dataCommonsBucketMap) {
     switch(action) {
         case ACTIONS.SUBMIT:
             await sendEmails.submitSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
             break;
         case ACTIONS.RELEASE:
-            await sendEmails.releaseSubmission(emailParams, userInfo, aSubmission, userService, organizationService, notificationService);
+            await sendEmails.releaseSubmission(emailParams, userInfo, aSubmission, userService, dataCommonsBucketMap, notificationService);
             break;
         case ACTIONS.WITHDRAW:
             await sendEmails.withdrawSubmission(userInfo, aSubmission, userService, organizationService, notificationService);
@@ -1793,7 +1805,7 @@ const sendEmails = {
                     firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`
                 }, {
                     submissionName: `${aSubmission?.name},`,
-                    dataCommonsName: aSubmission?.dataCommons,
+                    dataCommonsName: aSubmission?.dataCommonsDisplayName,
                     contactName: `${aSubmission?.conciergeName || 'NA'}`,
                     contactEmail: `${aSubmission?.conciergeEmail || 'NA'}.`
                 }
@@ -1888,7 +1900,7 @@ const sendEmails = {
             withdrawnByEmail: `${userInfo?.email}`
         });
     },
-    releaseSubmission: async (emailParams, userInfo, aSubmission, userService, organizationService, notificationsService) => {
+    releaseSubmission: async (emailParams, userInfo, aSubmission, userService, dataCommonsBucketMap, notificationsService) => {
         aSubmission = getDataCommonsDisplayNamesForSubmission(aSubmission);
         const [DCPRoleUsers, BCCUsers, approvedStudy] = await Promise.all([
             userService.getDCPs(aSubmission?.dataCommons),
@@ -1904,16 +1916,20 @@ const sendEmails = {
             console.error(ERROR.NO_SUBMISSION_RECEIVER, "Release", `id=${aSubmission?._id}`);
             return;
         }
+
+        const dataCommonBucket = dataCommonsBucketMap?.has(aSubmission?.dataCommons) ?
+            dataCommonsBucketMap.get(aSubmission?.dataCommons) : "NA";
+
         const additionalInfo = [
             [SUBMISSION_ID, aSubmission?._id],
             [DATA_SUBMISSION_TYPE, aSubmission?.intention],
-            [DESTINATION_LOCATION, `${aSubmission?.bucketName} at ${aSubmission?.rootPath}`]];
+            [DESTINATION_LOCATION, `${dataCommonBucket} at ${aSubmission?.rootPath}`]];
 
         const filteredBCCUsers = BCCUsers.filter((u) => isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
         await notificationsService.releaseDataSubmissionNotification(getUserEmails(filteredDCPUsers), getUserEmails(filteredBCCUsers), {
-            firstName: `${aSubmission?.dataCommons} team`,
+            firstName: `${aSubmission?.dataCommonsDisplayName} team`,
             additionalInfo: additionalInfo}, {
-            dataCommonName: aSubmission?.dataCommons}, {
+            dataCommonName: aSubmission?.dataCommonsDisplayName}, {
             submissionName: aSubmission?.name,
             // only one study
             studyName: approvedStudy?.length > 0 ? (approvedStudy[0]?.studyName || NA) : NA,

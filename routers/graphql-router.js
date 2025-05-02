@@ -41,6 +41,7 @@ const {UserService} = require("../services/user");
 const sanitizeHtml = require("sanitize-html");
 const {constraintDirective, constraintDirectiveTypeDefs} = require("graphql-constraint-directive");
 const {makeExecutableSchema} = require("@graphql-tools/schema");
+const ERROR = require("../constants/error-constants");
 
 // Create schema with constraint directive
 const schema = constraintDirective()(
@@ -103,7 +104,7 @@ dbConnector.connect().then(async () => {
     const submissionService = new Submission(logCollection, submissionCollection, batchService, userService,
         organizationService, notificationsService, dataRecordService, fetchDataModelInfo, awsService, config.export_queue,
         s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService, config.uploaderCLIConfigs,
-        config.submission_bucket, configurationService, uploadingMonitor);
+        config.submission_bucket, configurationService, uploadingMonitor, config.dataCommonsBucketMap);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService, configurationService);
 
     const dashboardService = new DashboardService(userService, awsService, configurationService, {sessionTimeout: config.dashboardSessionTimeout});
@@ -136,10 +137,17 @@ dbConnector.connect().then(async () => {
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
         deleteApplication: (params, context)=> {
             const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
+            if (comment?.trim().length > 500) {
+                throw new Error(ERROR.COMMENT_LIMIT);
+            }
+
             return dataInterface.deleteApplication({...params, comment}, context);
         },
         restoreApplication: (params, context)=> {
             const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
+            if (comment?.trim().length > 500) {
+                throw new Error(ERROR.COMMENT_LIMIT);
+            }
             return dataInterface.restoreApplication({...params, comment}, context);
         },
         listApprovedStudies: approvedStudiesService.listApprovedStudiesAPI.bind(approvedStudiesService),
@@ -188,7 +196,7 @@ dbConnector.connect().then(async () => {
         editUser : userService.editUser.bind(userService),
         grantToken : userService.grantToken.bind(userService),
         listActiveDCPs: userService.listActiveDCPsAPI.bind(userService),
-        listOrganizations : organizationService.listOrganizationsAPI.bind(organizationService),
+        listPrograms : organizationService.listPrograms.bind(organizationService),
         getOrganization : organizationService.getOrganizationAPI.bind(organizationService),
         editOrganization : organizationService.editOrganizationAPI.bind(organizationService),
         createOrganization : organizationService.createOrganizationAPI.bind(organizationService),

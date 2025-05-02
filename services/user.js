@@ -19,7 +19,7 @@ const {
     EMAIL_NOTIFICATIONS: EN
 } = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {getDataCommonsDisplayNamesForUser} = require("../utility/data-commons-remapper");
-const {COMPLETED} = require("../constants/submission-constants");
+const {COMPLETED, CANCELED, DELETED} = require("../constants/submission-constants");
 
 const isLoggedInOrThrow = (context) => {
     if (!context?.userInfo?.email || !context?.userInfo?.IDP) throw new Error(SUBMODULE_ERROR.NOT_LOGGED_IN);
@@ -42,6 +42,7 @@ class UserService {
     #allPermissionNamesSet = new Set([...Object.values(SUBMISSION_REQUEST), ...Object.values(DATA_SUBMISSION), ...Object.values(ADMIN)]);
     #allEmailNotificationNamesSet = new Set([...Object.values(EN.SUBMISSION_REQUEST), ...Object.values(EN.DATA_SUBMISSION), ...Object.values(EN.USER_ACCOUNT)]);
     #NIH = "nih";
+    #NOT_APPLICABLE = "NA";
     constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, approvedStudiesService, inactiveUserDays, configurationService, institutionService) {
         this.userCollection = userCollection;
         this.logCollection = logCollection;
@@ -372,7 +373,7 @@ class UserService {
         }
 
         updatedUser.dataCommons = DataCommon.get(user[0]?.dataCommons, params?.dataCommons);
-        await this.#setUserPermissions(user[0]?.role, params?.role, params?.permissions, params?.notifications, updatedUser);
+        await this.#setUserPermissions(user[0], params?.role, params?.permissions, params?.notifications, updatedUser);
         updatedUser  = await this.updateUserInfo(user[0], updatedUser, params.userID, params.status, params.role, params?.studies);
         return getDataCommonsDisplayNamesForUser(updatedUser);
     }
@@ -434,7 +435,10 @@ class UserService {
             const isRoleChange = baseRoleCondition && prevUser.role !== newUser.role;
             const isDataCommonsChange = newUser?.dataCommons?.length > 0 && JSON.stringify(prevUser?.dataCommons) !== JSON.stringify(newUser?.dataCommons);
             const isStudiesChange = newUser.studies?.length > 0 && JSON.stringify(prevUser.studies) !== JSON.stringify(newUser.studies);
-            if (isRoleChange || isDataCommonsChange || isStudiesChange) {
+            // Submitter Only Receive the institution change
+            const isInstitutionChange = USER.ROLES.SUBMITTER === newUser.role
+                && newUser?.institution?.name && JSON.stringify(prevUser?.institution?.name) !== JSON.stringify(newUser?.institution?.name)
+            if (isRoleChange || isDataCommonsChange || isStudiesChange || isInstitutionChange) {
                 const userDataCommons = [USER.ROLES.DATA_COMMONS_PERSONNEL].includes(newUser.role) ? newUser.dataCommons : undefined;
                 const studyNames = await this.#findStudiesNames(newUser.studies);
                 await this.notificationsService.userRoleChangeNotification(newUser.email,
@@ -444,6 +448,7 @@ class UserService {
                         role: newUser.role,
                         dataCommons: userDataCommons,
                         ...([USER.ROLES.SUBMITTER, USER.ROLES.FEDERAL_LEAD].includes(newUser.role) && { studies: studyNames }),
+                        ...((USER.ROLES.SUBMITTER === newUser.role) && { institution: newUser?.institution?.name || this.#NOT_APPLICABLE }),
                     },
                     {url: this.appUrl, helpDesk: `${this.officialEmail}.`});
             }
@@ -507,8 +512,8 @@ class UserService {
     // search by user's email and idp
     async disableInactiveUsers(inactiveUsers) {
         if (!inactiveUsers || inactiveUsers?.length === 0) return [];
-        const query = {"$or": inactiveUsers};
-        const updated = await this.userCollection.updateMany(query, {userStatus: USER.STATUSES.INACTIVE});
+        const query = {"$or": inactiveUsers, IDP: {$ne: this.#NIH}};
+        const updated = await this.userCollection.updateMany(query, {userStatus: USER.STATUSES.INACTIVE, updateAt: getCurrentTime()});
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             return await this.userCollection.aggregate([{"$match": query}]) || [];
         }
@@ -668,21 +673,21 @@ class UserService {
         return [...(updatedNotifications || [])];
     }
 
-    async #setUserPermissions(currRole, newRole, permissions, notifications, updatedUser) {
-        const isUserRoleChange = (newRole && (currRole !== newRole));
-        const userRole = isUserRoleChange ? newRole : currRole;
+    async #setUserPermissions(currUser, newRole, permissions, notifications, updatedUser) {
+        const isUserRoleChange = (newRole && (currUser?.role !== newRole));
+        const userRole = isUserRoleChange ? newRole : currUser?.role;
         const accessControl = await this.configurationService.getAccessControl(userRole);
         const {filteredPermissions, filteredNotifications} =
             this.#validateUserPermission(isUserRoleChange, userRole, permissions, notifications, accessControl);
 
         if (isUserRoleChange || (!isUserRoleChange && permissions !== undefined)) {
-            if (!isIdenticalArrays(currRole?.permissions, filteredPermissions) && filteredPermissions) {
+            if (!isIdenticalArrays(currUser?.permissions, filteredPermissions) && filteredPermissions) {
                 updatedUser.permissions = new Set(filteredPermissions || []).toArray();
             }
         }
 
         if (isUserRoleChange || (!isUserRoleChange && notifications !== undefined)) {
-            if (!isIdenticalArrays(currRole?.notifications, filteredNotifications) && filteredNotifications) {
+            if (!isIdenticalArrays(currUser?.notifications, filteredNotifications) && filteredNotifications) {
                 updatedUser.notifications = new Set(filteredNotifications).toArray();
             }
         }
@@ -730,7 +735,7 @@ class UserService {
         }
     }
 
-    // user's role changed to anything other than Data Commons Personnel, they should be removed from any study/program's primary contact.
+    // user's role changed to anything other than Data Commons Personnel, they should be removed from any study/program's data concierge.
     async #removePrimaryContact(prevUser, newUser) {
         const isRoleChange = prevUser.role === ROLES.DATA_COMMONS_PERSONNEL && prevUser.role !== newUser.role;
         if (isRoleChange) {
@@ -738,7 +743,7 @@ class UserService {
             const primaryContactName = `${prevUser.firstName} ${prevUser.lastName}`.trim();
             const [updatedSubmission, updateProgram, updatedStudies] = await Promise.all([
                 this.submissionsCollection.updateMany(
-                    { conciergeName: primaryContactName, conciergeEmail: prevUser?.email, status: {$ne: COMPLETED} },
+                    { conciergeName: primaryContactName, conciergeEmail: prevUser?.email, status: {$nin: [COMPLETED, CANCELED, DELETED]} },
                     { conciergeName: "", conciergeEmail: "", updatedAt: getCurrentTime() }
                 ),
                 this.organizationCollection.updateMany(
@@ -751,15 +756,15 @@ class UserService {
                 )
             ]);
             if (!updatedSubmission.acknowledged) {
-                console.error("Failed to remove the primary contact in submissions");
+                console.error("Failed to remove the data concierge in submissions");
             }
 
             if (!updateProgram.acknowledged) {
-                console.error("Failed to remove the primary contact in programs");
+                console.error("Failed to remove the data concierge in programs");
             }
 
             if (!updatedStudies.acknowledged) {
-                console.error("Failed to remove the primary contact in studies");
+                console.error("Failed to remove the data concierge in studies");
             }
         }
     }
