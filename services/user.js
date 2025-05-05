@@ -785,8 +785,8 @@ class UserService {
         }
         // return true if the user is primary contact of any study or program (aka. organization). Otherwise it should be false.
         const [primaryContactInProgram, primaryContactInStudy] = await Promise.all([
-            this.organizationCollection.aggregate([{ "$match": {"conciergeID": user._id }}]),
-            this.approvedStudiesCollection.aggregate([{"$match": {"primaryContactID": user._id }}])
+            this.organizationCollection.aggregate([{ "$match": {"conciergeID": user._id }}, {"$limit": 1}]),
+            this.approvedStudiesCollection.aggregate([{"$match": {"primaryContactID": user._id }}, {"$limit": 1}])
         ]);
         return (primaryContactInStudy.length > 0 || primaryContactInProgram.length > 0)
     }
