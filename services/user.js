@@ -207,7 +207,7 @@ class UserService {
         if (!params?.userID) {
             throw new Error(SUBMODULE_ERROR.INVALID_USERID);
         }
-        const isFederalLeadOnly = await this.#isFederalLeadPermission(context?.userInfo);
+        const isFederalLeadOnly = await this.#isManageUserScope(context?.userInfo);
         if (context?.userInfo?.role === ROLES.FEDERAL_LEAD && !isFederalLeadOnly) {
             throw new Error(ERROR.INVALID_FEDERAL_LEAD_REQUEST);
         }
@@ -238,7 +238,7 @@ class UserService {
         verifySession(context)
             .verifyInitialized();
         await this.#isPermitted(context?.userInfo, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
-        const isFederalLeadOnly = await this.#isFederalLeadPermission(context?.userInfo);
+        const isFederalLeadOnly = await this.#isManageUserScope(context?.userInfo);
 
         if (context?.userInfo?.role === ROLES.FEDERAL_LEAD && !isFederalLeadOnly) {
             return [];
@@ -364,7 +364,7 @@ class UserService {
             throw new Error(SUBMODULE_ERROR.USER_NOT_FOUND);
         }
 
-        const isFederalLeadOnly = await this.#isFederalLeadPermission(context?.userInfo);
+        const isFederalLeadOnly = await this.#isManageUserScope(context?.userInfo);
         if (context?.userInfo?.role === ROLES.FEDERAL_LEAD && (user[0]?.role !== ROLES.FEDERAL_LEAD || !isFederalLeadOnly)) {
             throw new Error(ERROR.INVALID_FEDERAL_LEAD_REQUEST);
         }
@@ -449,7 +449,7 @@ class UserService {
         return { ...prevUser, ...userAfterUpdate};
     }
 
-    async #isFederalLeadPermission(userInfo) {
+    async #isManageUserScope(userInfo) {
         const validScopes = await this.authorizationService.getPermissionScope(userInfo, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
         return UserScope.create(validScopes)
             .isPermittedRole(ROLES.FEDERAL_LEAD);
