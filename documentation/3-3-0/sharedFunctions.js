@@ -100,6 +100,11 @@ function restoreUserPermissions(permission, filter) {
             print("----------------------");
             print("\n");
 }
+
+/**
+ * generateUUIDv4(
+ * @returns uuid
+ */
 function generateUUIDv4() {
             const hexDigits = "0123456789abcdef";
             let uuid = "";
