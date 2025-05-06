@@ -298,7 +298,7 @@ class Submission {
         }
         const collaborativeUsers =  await this.userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
         params.collaboratorUserIDs = collaborativeUsers.map(u => u._id);
-        return this.batchService.listBatches(params, context);
+        return this.batchService.listBatches(params, context, aSubmission);
     }
 
   async getSubmission(params, context){
