@@ -296,9 +296,8 @@ class Submission {
         if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
             throw new Error(ERROR.INVALID_ROLE);
         }
-        const collaborativeUsers =  await this.userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
-        params.collaboratorUserIDs = collaborativeUsers.map(u => u._id);
-        return this.batchService.listBatches(params, context, aSubmission);
+
+        return this.batchService.listBatches(params);
     }
 
   async getSubmission(params, context){
@@ -1917,6 +1916,14 @@ const getUserEmails = (users) => {
 const findByID = async (submissionCollection, id) => {
     const aSubmission = await submissionCollection.find(id);
     return (aSubmission?.length > 0) ? aSubmission[0] : null;
+}
+
+const isValidBatchRole = (userInfo, aSubmission, collaboratorUserIDs) => {
+    const listAllSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD];
+    const isAll = aSubmission && listAllSubmissionRoles.includes(userInfo?.role) || collaboratorUserIDs?.length > 0;
+    const isOwn = (userInfo?.role === USER.ROLES.SUBMITTER || userInfo?.role === USER.ROLES.USER) && aSubmission?.submitterID === userInfo?._id;
+    const isDCRole = userInfo?.role === USER.ROLES.DATA_COMMONS_PERSONNEL && userInfo?.dataCommons?.includes(aSubmission?.dataCommons);
+    return isAll || isOwn || isDCRole;
 }
 
 

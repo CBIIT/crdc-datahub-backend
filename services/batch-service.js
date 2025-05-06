@@ -120,11 +120,7 @@ class BatchService {
         return await this.findByID(aBatch._id);
     }
 
-    async listBatches(params, context, aSubmission) {
-        const isValidRole = isValidBatchRole(context.userInfo, aSubmission, params?.collaboratorUserIDs);
-        if (!isValidRole) {
-            return {batches: [], total: 0};
-        }
+    async listBatches(params) {
         const pipeline = [{"$match": {submissionID: params.submissionID}}];
         const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
         const combinedPipeline = pipeline.concat([
@@ -177,14 +173,6 @@ class BatchService {
         const batches = await this.batchCollection.aggregate(pipeline);
         return (batches && batches.length > 0)? batches[0].batchID : null;
     }
-}
-
-const isValidBatchRole = (userInfo, aSubmission, collaboratorUserIDs) => {
-    const listAllSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD];
-    const isAll = aSubmission && listAllSubmissionRoles.includes(userInfo?.role) || collaboratorUserIDs?.length > 0;
-    const isOwn = (userInfo?.role === USER.ROLES.SUBMITTER || userInfo?.role === USER.ROLES.USER) && aSubmission?.submitterID === userInfo?._id;
-    const isDCRole = userInfo?.role === USER.ROLES.DATA_COMMONS_PERSONNEL && userInfo?.dataCommons?.includes(aSubmission?.dataCommons);
-    return isAll || isOwn || isDCRole;
 }
 
 const asyncUpdateBatch = async (awsService, batchCollection, aBatch, sqsLoaderQueue, isAllUploaded, isAllSkipped) => {
