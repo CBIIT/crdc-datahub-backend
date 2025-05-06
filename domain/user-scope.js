@@ -15,16 +15,26 @@ class UserScope {
         return new UserScope(validScopes);
     }
 
-    isPermittedRole(targetRoleValue) {
-        return this.scopes?.some(scope => scope?.scope === SCOPES.ROLE && scope?.scopeValues?.includes(targetRoleValue));
+    getRoleScope() {
+        return this.scopes?.find(scope =>
+            scope?.scope === SCOPES.ROLE
+        );
     }
 
-    isPermittedStudy(targetStudyValue) {
-        return this.scopes?.some(scope => scope?.scope === SCOPES.STUDY && scope?.scopeValues?.includes(targetStudyValue));
+    getStudyScope() {
+        return this.scopes?.find(scope =>
+            scope?.scope === SCOPES.STUDY
+        );
     }
 
-    isPermittedDataCommons(targetDataCommon) {
-        return this.scopes?.some(scope => scope?.scope === SCOPES.DC && scope?.scopeValues?.includes(targetDataCommon));
+    getDataCommonsScope() {
+        return this.scopes?.find(scope =>
+            scope?.scope === SCOPES.DC
+        );
+    }
+
+    isRoleScope() {
+        return this.scopes?.some(scope => scope?.scope === SCOPES.ROLE);
     }
 
     isOwnScope() {
