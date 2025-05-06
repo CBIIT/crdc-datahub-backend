@@ -768,6 +768,28 @@ class UserService {
             }
         }
     }
+     /**
+     * API: isUserPrimaryContact
+     * @param {*} param 
+     * @param {*} context 
+     * @returns bool
+     */
+     async isUserPrimaryContact(param, context){
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+        const {userID} = param;
+        const user = await this.getUserByID(userID);
+        if (!user) {
+            throw new Error(ERROR.USER_NOT_EXIST);
+        }
+        // return true if the user is primary contact of any study or program (aka. organization). Otherwise it should be false.
+        const [primaryContactInProgram, primaryContactInStudy] = await Promise.all([
+            this.organizationCollection.aggregate([{ "$match": {"conciergeID": user._id }}, {"$limit": 1}]),
+            this.approvedStudiesCollection.aggregate([{"$match": {"primaryContactID": user._id }}, {"$limit": 1}])
+        ]);
+        return (primaryContactInStudy.length > 0 || primaryContactInProgram.length > 0)
+    }
 }
 
 
