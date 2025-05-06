@@ -211,7 +211,7 @@ const ERROR = {
     DUPLICATE_INSTITUTION_NAME: "This institution name already exists. Please enter a different name.",
     FAILED_CREATE_INSTITUTION: "Failed to create a new institution",
     MAX_INSTITUTION_NAME_LIMIT: "Institution name cannot exceed 100 characters.",
-    USER_NOT_EXIST: "Invalid user ID: no active user found.",
+    USER_NOT_EXIST: "Invalid user ID: no user found.",
 }
 
 module.exports = ERROR;

@@ -780,7 +780,7 @@ class UserService {
             .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
         const {userID} = param;
         const user = await this.getUserByID(userID);
-        if (!user || user.status !== "Active") {
+        if (!user) {
             throw new Error(ERROR.USER_NOT_EXIST);
         }
         // return true if the user is primary contact of any study or program (aka. organization). Otherwise it should be false.
