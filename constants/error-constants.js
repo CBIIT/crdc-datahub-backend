@@ -173,6 +173,7 @@ const ERROR = {
     INVALID_APPROVED_STUDIES_ACCESS_REQUEST: "Failed to request an access request because of invalid or missing approved study IDs.",
     DUPLICATE_ORGANIZATION_NAME: "Duplicate organization name found: $item$",
     NO_ADMIN_USER: "No admin user found or no PBAC request access notification is enabled.",
+    INVALID_ROLE_SCOPE_REQUEST: "You only have limited access with the given role scope.",
     // QC Results
     FAILED_INSERT_QC_RESULT: "An error occurred while attempting to insert the qc-result into the database.",
     CONTROLLED_STUDY_NO_DBGAPID: "dbGaP ID must be provided before data submissions can begin.",
@@ -212,7 +213,9 @@ const ERROR = {
     FAILED_CREATE_INSTITUTION: "Failed to create a new institution",
     MAX_INSTITUTION_NAME_LIMIT: "Institution name cannot exceed 100 characters.",
     // Get Permission Scopes
-    INVALID_PERMISSION_STRING: "Failed to parse the permission string, the provided permission is either null or not a string."
+    INVALID_PERMISSION_STRING: "Failed to parse the permission string, the provided permission is either null or not a string.",
+    // User Scope
+    INVALID_USER_SCOPE: "Invalid user scope permission is requested",
 }
 
 module.exports = ERROR;
