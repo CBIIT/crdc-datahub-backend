@@ -331,9 +331,8 @@ class Submission {
         if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
             throw new Error(ERROR.INVALID_ROLE);
         }
-        const collaborativeUsers =  await this.userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
-        params.collaboratorUserIDs = collaborativeUsers.map(u => u._id);
-        return this.batchService.listBatches(params, context);
+
+        return this.batchService.listBatches(params);
     }
 
   async getSubmission(params, context){
@@ -2064,7 +2063,6 @@ const findByID = async (submissionCollection, id) => {
     const aSubmission = await submissionCollection.find(id);
     return (aSubmission?.length > 0) ? aSubmission[0] : null;
 }
-
 
 const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
     // verify submission owner
