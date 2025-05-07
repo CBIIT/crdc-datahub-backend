@@ -129,7 +129,7 @@ class AuthorizationService {
                 continue;
             }
             const { permission, scopes: inputScope, scopeValues: inputScopeValues } = parsePermissionString(p);
-            const outputScopes = await this.#getScopePermission(user, {scope: inputScope, scopeValues: inputScopeValues}, permission);
+            const outputScopes = await this.#getScopePermission(user, {scopes: inputScope, scopeValues: inputScopeValues}, permission);
             const hasDefaultScope = outputScopes?.some(scope => scope?.scope === this.#DEFAULT_OUTPUT.scope);
             const hasNoInputScope = inputScope?.length === 0 && inputScopeValues?.length === 0;
             const hasValidInputScope = inputScope?.length > 0 || inputScopeValues?.length > 0;
