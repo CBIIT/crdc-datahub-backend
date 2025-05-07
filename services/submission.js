@@ -1918,15 +1918,6 @@ const findByID = async (submissionCollection, id) => {
     return (aSubmission?.length > 0) ? aSubmission[0] : null;
 }
 
-const isValidBatchRole = (userInfo, aSubmission, collaboratorUserIDs) => {
-    const listAllSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD];
-    const isAll = aSubmission && listAllSubmissionRoles.includes(userInfo?.role) || collaboratorUserIDs?.length > 0;
-    const isOwn = (userInfo?.role === USER.ROLES.SUBMITTER || userInfo?.role === USER.ROLES.USER) && aSubmission?.submitterID === userInfo?._id;
-    const isDCRole = userInfo?.role === USER.ROLES.DATA_COMMONS_PERSONNEL && userInfo?.dataCommons?.includes(aSubmission?.dataCommons);
-    return isAll || isOwn || isDCRole;
-}
-
-
 const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
     // verify submission owner
     if (!aSubmission) {
