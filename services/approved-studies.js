@@ -19,7 +19,7 @@ const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-
 const {getDataCommonsDisplayNamesForApprovedStudy, getDataCommonsDisplayNamesForUser,
     getDataCommonsDisplayNamesForApprovedStudyList
 } = require("../utility/data-commons-remapper");
-const {ORGANIZATION_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
+const {ORGANIZATION_COLLECTION, USER_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const CONTROLLED_ACCESS_ALL = "All";
 const CONTROLLED_ACCESS_OPEN = "Open";
@@ -153,7 +153,26 @@ class ApprovedStudiesService {
                 from: ORGANIZATION_COLLECTION,
                 localField: "_id",
                 foreignField: "studies._id",
-                as: "programs"}}
+                as: "programs"}},
+            {"$lookup": {
+                from: USER_COLLECTION,
+                localField: "primaryContactID",
+                foreignField: "_id",
+                as: "primaryContact"}},
+            {"$replaceRoot": {
+                newRoot: {
+                    $mergeObjects: [
+                        "$$ROOT",
+                        {
+                            primaryContact: {
+                                _id: { $arrayElemAt: ["$primaryContact._id", 0] },
+                                firstName: { $arrayElemAt: ["$primaryContact.firstName", 0] },
+                                lastName: { $arrayElemAt: ["$primaryContact.lastName", 0] }
+                            }
+                        }
+                    ]
+                }
+            }}
         ];
         // set matches
         let matches = {};

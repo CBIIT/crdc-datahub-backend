@@ -216,6 +216,7 @@ const ERROR = {
     INVALID_PERMISSION_STRING: "Failed to parse the permission string, the provided permission is either null or not a string.",
     // User Scope
     INVALID_USER_SCOPE: "Invalid user scope permission is requested",
+    USER_NOT_EXIST: "Invalid user ID: no user found.",
 }
 
 module.exports = ERROR;
