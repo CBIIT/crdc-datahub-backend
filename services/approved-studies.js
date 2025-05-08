@@ -165,9 +165,49 @@ class ApprovedStudiesService {
                         "$$ROOT",
                         {
                             primaryContact: {
-                                _id: { $arrayElemAt: ["$primaryContact._id", 0] },
-                                firstName: { $arrayElemAt: ["$primaryContact.firstName", 0] },
-                                lastName: { $arrayElemAt: ["$primaryContact.lastName", 0] }
+                                _id: {
+                                    $cond: [
+                                        "$useProgramPC",
+                                        { $arrayElemAt: ["$programs.conciergeID", 0] },
+                                        { $arrayElemAt: ["$primaryContact._id", 0] }
+                                    ]
+                                },
+                                firstName: {
+                                    $cond: [
+                                        "$useProgramPC",
+                                        {
+                                            $ifNull: [
+                                                { $arrayElemAt: [
+                                                        { $split: [
+                                                                { $arrayElemAt: ["$programs.conciergeName", 0] },
+                                                                " "
+                                                            ] },
+                                                        0 // first element → firstName
+                                                    ] },
+                                                ""
+                                            ]
+                                        },
+                                        { $arrayElemAt: ["$primaryContact._id", 0] }
+                                    ]
+                                },
+                                lastName: {
+                                    $cond: [
+                                        "$useProgramPC",
+                                        {
+                                            $ifNull: [
+                                                { $arrayElemAt: [
+                                                        { $split: [
+                                                                { $arrayElemAt: ["$programs.conciergeName", 0] },
+                                                                " "
+                                                            ] },
+                                                        1 // second element → lastName
+                                                ] },
+                                                ""
+                                            ]
+                                        },
+                                        { $arrayElemAt: ["$primaryContact.lastName", 0] }
+                                    ]
+                                }
                             }
                         }
                     ]

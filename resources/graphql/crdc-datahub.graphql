@@ -277,6 +277,7 @@ type OrgInfo {
   status: String
   createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
   updateAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+  readOnly: Boolean
 }
 
 type UserOrganization {
@@ -291,6 +292,7 @@ type UserOrganization {
   description: String
   createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
   updateAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+  readOnly: Boolean
 }
 
 type Tokens {
