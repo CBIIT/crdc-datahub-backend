@@ -62,8 +62,12 @@ class UserService {
 
     async requestAccess(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REQUEST_ACCESS);
+            .verifyInitialized();
+
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REQUEST_ACCESS);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
 
         const approvedStudies = params?.studies?.length > 0 ?
             await this.approvedStudiesService.listApprovedStudies({_id: {$in: params?.studies}})
@@ -206,7 +210,7 @@ class UserService {
             throw new Error(SUBMODULE_ERROR.INVALID_USERID);
         }
 
-        const userScope = await this.#getManageUserScope(context?.userInfo);
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -243,7 +247,7 @@ class UserService {
     async listUsers(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const userScope = await this.#getManageUserScope(context?.userInfo);
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
         if (userScope.isNoneScope()) {
             return [];
         }
@@ -275,6 +279,14 @@ class UserService {
         verifySession(context)
             .verifyInitialized()
             .verifyPermission([USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_STUDIES, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_PROGRAMS]);
+
+        // TODO
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REQUEST_ACCESS);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
+
         const DCPUsers = await this.getDCPs(params.dataCommons || []);
         return DCPUsers?.map((user) => ({
             userID: user._id,
@@ -362,7 +374,7 @@ class UserService {
     async editUser(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const userScope = await this.#getManageUserScope(context?.userInfo);
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -464,8 +476,8 @@ class UserService {
         return { ...prevUser, ...userAfterUpdate};
     }
 
-    async #getManageUserScope(userInfo) {
-        const validScopes = await this.authorizationService.getPermissionScope(userInfo, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+    async #getUserScope(userInfo, permission) {
+        const validScopes = await this.authorizationService.getPermissionScope(userInfo, permission);
         const userScope = UserScope.create(validScopes);
         // valid scopes; none, all, role/role:RoleScope
         const isValidUserScope = userScope.isNoneScope() || userScope.isAllScope() || userScope.isRoleScope();
