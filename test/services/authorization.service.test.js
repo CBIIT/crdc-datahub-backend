@@ -267,7 +267,7 @@ describe('authorization service test', () => {
     });
 
 
-    test("/Test submission request", async () => {
+    test("/Test submission request - invalid view permission", async () => {
         pbacDefaults = [
             {
                 role: USER.ROLES.SUBMITTER,
@@ -301,7 +301,7 @@ describe('authorization service test', () => {
     });
 
 
-    test("/Test submission request", async () => {
+    test("/Test submission request - SR view permission", async () => {
         pbacDefaults = [
             {
                 role: USER.ROLES.SUBMITTER,
