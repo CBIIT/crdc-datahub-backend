@@ -15,6 +15,7 @@ const {isUndefined, replaceErrorString} = require("../utility/string-util");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const {EMAIL_NOTIFICATIONS} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+const {UserScope} = require("../domain/user-scope");
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 class Application {
     #DELETE_REVIEW_COMMENT="This Submission Request has been deleted by the system due to inactivity.";
@@ -36,20 +37,11 @@ class Application {
         this.authorizationService = authorizationService;
     }
 
-    async #isPermittedScope(userInfo, aPermission, targetStudy, targetRole, targetDatacommon) {
-        const validScopes = await this.authorizationService.getPermissionScope(userInfo, aPermission);
-        const userScope = UserScope.create(userInfo, validScopes);
-        return userScope.isAllScope() || userScope.isOwnScope() ||
-            userScope.isPermittedStudy(targetStudy) || userScope.isPermittedRole(targetRole) || userScope.isPermittedDataCommons(targetDatacommon) ||
-            // Invalid scopes
-            !(userScope.isNoneScope() || validScopes.length === 0);
-    }
-
-
     async getApplication(params, context) {
         verifySession(context)
             .verifyInitialized()
-        if (!await this.#isPermittedScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW)) {
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
+        if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
@@ -158,10 +150,10 @@ class Application {
     async saveApplication(params, context) {
         verifySession(context)
             .verifyInitialized()
-        if (await this.#isPermittedScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CREATE)) {
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CREATE);
+        if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
-
         let inputApplication = params.application;
         const id = inputApplication?._id;
         if (!id) {
@@ -182,8 +174,8 @@ class Application {
     async getMyLastApplication(params, context) {
         verifySession(context)
             .verifyInitialized();
-
-        if (await this.#isPermittedScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW)) {
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
+        if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
@@ -243,8 +235,8 @@ class Application {
         }
 
         const validScopes = await this.authorizationService.getPermissionScope(userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
-        const userScope = UserScope.create(userInfo, validScopes);
-        if (userScope.isNoneScope() || validScopes?.length === 0) {
+        const userScope = UserScope.create(validScopes);
+        if (userScope.isNoneScope() || validScopes?.length === 0 || !(userScope.isAllScope() || userScope.isOwnScope())) {
             console.warn("Failed permission verification for listApplications, returning empty list");
             return {applications: [], total: 0};
         }
@@ -301,7 +293,8 @@ class Application {
     async submitApplication(params, context) {
         verifySession(context)
             .verifyInitialized();
-        if (await this.#isPermittedScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.SUBMIT)) {
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.SUBMIT);
+        if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
@@ -342,7 +335,8 @@ class Application {
     async reopenApplication(document, context) {
         verifySession(context)
             .verifyInitialized();
-        if (await this.#isPermittedScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CREATE)) {
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CREATE);
+        if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
@@ -368,10 +362,23 @@ class Application {
         return application;
     }
 
+    async #getUserScope(userInfo, permission) {
+        const validScopes = await this.authorizationService.getPermissionScope(userInfo, permission);
+        const userScope = UserScope.create(validScopes);
+        // valid scopes; none, all, own
+        const isValidUserScope = userScope.isNoneScope() || userScope.isAllScope() || userScope.isOwnScope();
+        if (!isValidUserScope) {
+            throw new Error(replaceErrorString(ERROR.INVALID_USER_SCOPE));
+        }
+        return userScope;
+    }
+
     async deleteApplication(document, context) {
         verifySession(context)
             .verifyInitialized();
-        if (await this.#isPermittedScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL)) {
+        const userInfo = context?.userInfo;
+        const userScope = await this.#getUserScope(userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
+        if (userScope.isNoneScope() && !(userScope.isOwnScope() || userScope.isAllScope())) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         const aApplication = await this.getApplicationById(document._id);
@@ -380,17 +387,9 @@ class Application {
             throw new Error(ERROR.VERIFY.INVALID_STATE_APPLICATION);
         }
         aApplication.version = await this.#getApplicationVersionByStatus(aApplication.status, aApplication?.version);
-        const userInfo = context?.userInfo;
-        const validScopes = await this.authorizationService.getPermissionScope(userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
-        const userScope = UserScope.create(context?.userInfo, validScopes);
-        const isEnabledPBAC = userScope.isAllScope();
-        const isPowerRole = [ROLES.FEDERAL_LEAD, ROLES.ADMIN, ROLES.DATA_COMMONS_PERSONNEL].includes(userInfo?.role);
-        const powerUserCond = [NEW, IN_PROGRESS, INQUIRED, SUBMITTED, IN_REVIEW].includes(aApplication?.status) && isEnabledPBAC;
-
-        const isNonPowerRole = [ROLES.USER, ROLES.SUBMITTER].includes(userInfo?.role);
+        const powerUserCond = [NEW, IN_PROGRESS, INQUIRED, SUBMITTED, IN_REVIEW].includes(aApplication?.status);
         const isValidCond = [NEW, IN_PROGRESS, INQUIRED].includes(aApplication?.status) && userInfo?._id === aApplication?.applicant?.applicantID;
-
-        if ((isPowerRole && !powerUserCond) || (isNonPowerRole && !isValidCond)) {
+        if ((userScope.isAllScope() && !powerUserCond) || (userScope.isOwnScope() && !isValidCond)) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
@@ -419,14 +418,14 @@ class Application {
             throw new Error(ERROR.INVALID_APPLICATION_RESTORE_STATE);
         }
         const userInfo = context?.userInfo;
-        const isEnabledPBAC = userInfo?.permissions?.includes(USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
-        const isPowerRole = [ROLES.FEDERAL_LEAD, ROLES.ADMIN, ROLES.DATA_COMMONS_PERSONNEL].includes(userInfo?.role);
-
-        const isNonPowerRole = [ROLES.USER, ROLES.SUBMITTER].includes(userInfo?.role);
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.REVIEW);
+        if (userScope.isNoneScope() || !(userScope.isOwnScope() || userScope.isAllScope())) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
         // User owned application
         const isApplicationOwned = userInfo?._id === aApplication?.applicant?.applicantID;
 
-        if ((isPowerRole && !isEnabledPBAC) || (isNonPowerRole && !isApplicationOwned)) {
+        if ((userScope.isOwnScope() && !isApplicationOwned)) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         const prevStatus = aApplication?.history?.at(-2)?.status;
@@ -883,7 +882,8 @@ class Application {
     async verifyReviewerPermission(context) {
         verifySession(context)
             .verifyInitialized();
-        if (!await this.#isPermittedScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.REVIEW)) {
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.REVIEW);
+        if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
     }
