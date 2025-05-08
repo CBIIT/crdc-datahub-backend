@@ -202,19 +202,17 @@ class UserService {
     async getUser(params, context) {
         verifySession(context)
             .verifyInitialized();
-        await this.#isPermitted(context?.userInfo, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
-
         if (!params?.userID) {
             throw new Error(SUBMODULE_ERROR.INVALID_USERID);
         }
-        const isFederalLeadOnly = await this.#isFederalLeadPermission(context?.userInfo);
-        if (context?.userInfo?.role === ROLES.FEDERAL_LEAD && !isFederalLeadOnly) {
-            throw new Error(ERROR.INVALID_FEDERAL_LEAD_REQUEST);
+
+        const userScope = await this.#getManageUserScope(context?.userInfo);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
         const filters = {
-            _id: params.userID,
-            ...(isFederalLeadOnly ? { role: ROLES.FEDERAL_LEAD } : {})
+            _id: params.userID
         };
 
         const result = await this.userCollection.aggregate([{
@@ -222,6 +220,14 @@ class UserService {
         }, {"$limit": 1}]);
         if (result?.length === 1) {
             const user = result[0];
+            const roleScope = userScope.getRoleScope();
+            if (user && !userScope.isAllScope() && roleScope && roleScope?.scopeValues?.length > 0) {
+                const roleSet = new Set(Object.values(ROLES));
+                const filteredRoles = roleScope?.scopeValues.filter(role => roleSet.has(role));
+                if (!filteredRoles?.includes(user?.role)) {
+                    throw new Error(ERROR.INVALID_ROLE_SCOPE_REQUEST);
+                }
+            }
             const studies = await this.#findApprovedStudies(user?.studies);
             const institution = user?.role === ROLES.SUBMITTER && user?.institution?._id ? user.institution : null;
             return getDataCommonsDisplayNamesForUser({
@@ -237,16 +243,18 @@ class UserService {
     async listUsers(params, context) {
         verifySession(context)
             .verifyInitialized();
-        await this.#isPermitted(context?.userInfo, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
-        const isFederalLeadOnly = await this.#isFederalLeadPermission(context?.userInfo);
-
-        if (context?.userInfo?.role === ROLES.FEDERAL_LEAD && !isFederalLeadOnly) {
+        const userScope = await this.#getManageUserScope(context?.userInfo);
+        if (userScope.isNoneScope()) {
             return [];
         }
 
+        const roleScope = userScope.getRoleScope();
+        const roleSet = new Set(Object.values(ROLES));
+        const filteredRoles = roleScope?.scopeValues.filter(role => roleSet.has(role));
         const result = await this.userCollection.aggregate([{
             "$match": {
-                ...(isFederalLeadOnly ? { role: ROLES.FEDERAL_LEAD } : {})
+                ...(!userScope.isAllScope() ?
+                    { role: {$in: filteredRoles || []} } : {})
             }
         }]);
         result.map(async (user) => {
@@ -354,7 +362,11 @@ class UserService {
     async editUser(params, context) {
         verifySession(context)
             .verifyInitialized();
-        await this.#isPermitted(context?.userInfo, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+        const userScope = await this.#getManageUserScope(context?.userInfo);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
         if (!params.userID) {
             throw new Error(SUBMODULE_ERROR.INVALID_USERID);
         }
@@ -364,9 +376,12 @@ class UserService {
             throw new Error(SUBMODULE_ERROR.USER_NOT_FOUND);
         }
 
-        const isFederalLeadOnly = await this.#isFederalLeadPermission(context?.userInfo);
-        if (context?.userInfo?.role === ROLES.FEDERAL_LEAD && (user[0]?.role !== ROLES.FEDERAL_LEAD || !isFederalLeadOnly)) {
-            throw new Error(ERROR.INVALID_FEDERAL_LEAD_REQUEST);
+        const roleScope = userScope.getRoleScope();
+        const roleSet = new Set(Object.values(ROLES));
+        const filteredRoles = roleScope?.scopeValues.filter(role => roleSet.has(role));
+
+        if (roleScope?.scope && !(filteredRoles?.includes(user[0]?.role) || roleScope?.scopeValues?.length === 0)) {
+            throw new Error(ERROR.INVALID_ROLE_SCOPE_REQUEST);
         }
 
         let updatedUser = {};
@@ -449,20 +464,15 @@ class UserService {
         return { ...prevUser, ...userAfterUpdate};
     }
 
-    async #isFederalLeadPermission(userInfo) {
+    async #getManageUserScope(userInfo) {
         const validScopes = await this.authorizationService.getPermissionScope(userInfo, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
-        return UserScope.create(validScopes)
-            .isPermittedRole(ROLES.FEDERAL_LEAD);
-    }
-
-    async #isPermitted(userInfo, permission) {
-        const validScopes = await this.authorizationService.getPermissionScope(userInfo, permission);
-        // If the permission scope has none only, it is NOT allowed.
-        const isNotPermitted = UserScope.create(validScopes)
-            .isNoneScope();
-        if (isNotPermitted) {
-            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        const userScope = UserScope.create(validScopes);
+        // valid scopes; none, all, role/role:RoleScope
+        const isValidUserScope = userScope.isNoneScope() || userScope.isAllScope() || userScope.isRoleScope();
+        if (!isValidUserScope) {
+            throw new Error(replaceErrorString(ERROR.INVALID_USER_SCOPE));
         }
+        return userScope;
     }
 
     async #notifyUpdatedUser(prevUser, newUser, newRole) {
@@ -807,6 +817,28 @@ class UserService {
                 console.error("Failed to remove the data concierge in studies");
             }
         }
+    }
+     /**
+     * API: isUserPrimaryContact
+     * @param {*} param 
+     * @param {*} context 
+     * @returns bool
+     */
+     async isUserPrimaryContact(param, context){
+        verifySession(context)
+            .verifyInitialized()
+            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+        const {userID} = param;
+        const user = await this.getUserByID(userID);
+        if (!user) {
+            throw new Error(ERROR.USER_NOT_EXIST);
+        }
+        // return true if the user is primary contact of any study or program (aka. organization). Otherwise it should be false.
+        const [primaryContactInProgram, primaryContactInStudy] = await Promise.all([
+            this.organizationCollection.aggregate([{ "$match": {"conciergeID": user._id }}, {"$limit": 1}]),
+            this.approvedStudiesCollection.aggregate([{"$match": {"primaryContactID": user._id }}, {"$limit": 1}])
+        ]);
+        return (primaryContactInStudy.length > 0 || primaryContactInProgram.length > 0)
     }
 }
 
