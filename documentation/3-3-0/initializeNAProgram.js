@@ -50,11 +50,11 @@ function getUnmappedStudies() {
 }
 function addStudiesToNAProgram(initialNaProgram) {
     let unmappedStudies = getUnmappedStudies();
-    let naProgam = db.organization.findOne({_id: initialNaProgram._id});
-    if (!naProgam) {
-        naProgam = initialNaProgram;
+    let naProgram = db.organization.findOne({_id: initialNaProgram._id});
+    if (!naProgram) {
+        naProgram = initialNaProgram;
     }
-    naProgam.studies = naProgam.studies || [];
+    naProgram.studies = naProgram.studies || [];
     unmappedStudies.forEach(studyId => {
         naProgram.studies.push({"_id": studyId});
     });
