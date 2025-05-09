@@ -32,6 +32,7 @@ const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utilit
 const {getDataCommonsDisplayNamesForSubmission, getDataCommonsDisplayNamesForListSubmissions,
     getDataCommonsDisplayNamesForUser, getDataCommonsDisplayNamesForReleasedNode
 } = require("../utility/data-commons-remapper");
+const SCOPES = require("../constants/permission-scope-constants");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -55,7 +56,7 @@ class Submission {
     constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService,
                 dataRecordService, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList,
                 hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs, 
-                submissionBucketName, configurationService, uploadingMonitor, dataCommonsBucketMap) {
+                submissionBucketName, configurationService, uploadingMonitor, dataCommonsBucketMap, authorizationService) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -78,13 +79,19 @@ class Submission {
         this.configurationService = configurationService;
         this.uploadingMonitor = uploadingMonitor;
         this.dataCommonsBucketMap = dataCommonsBucketMap;
+        this.authorizationService = authorizationService;
     }
 
     async createSubmission(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
+            .verifyInitialized();
         const userInfo = context?.userInfo;
+        // Check permissions
+        let usersPermissionScopes = this.authorizationService.getPermissionScope(userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
+        const userHasPermission = determineIfUserHasSubmissionActionPermission(usersPermissionScopes, userInfo, {dataCommons: params.dataCommons, studyID: params.studyID});
+        if (!userHasPermission) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
         const hasStudies = userInfo?.studies?.length > 0;
         const isRoleWithoutStudies = userInfo?.role === ROLES.DATA_COMMONS_PERSONNEL || userInfo?.role === ROLES.ADMIN;
         if (!hasStudies && !isRoleWithoutStudies){
@@ -335,7 +342,7 @@ class Submission {
         return this.batchService.listBatches(params);
     }
 
-  async getSubmission(params, context){
+    async getSubmission(params, context){
         verifySession(context)
             .verifyInitialized()
             .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
@@ -2044,13 +2051,13 @@ const isUserScope = (userID, userRole, userStudies, userDataCommons, aSubmission
     }
 }
 
-const isAllStudy = (userStudies) => {
+/*const isAllStudy = (userStudies) => {
     const studies = Array.isArray(userStudies) && userStudies.length > 0 ? userStudies : [];
     return studies.find(study =>
         (typeof study === 'object' && study._id === "All") ||
         (typeof study === 'string' && study === "All")
     );
-}
+}*/
 
 const getUserEmails = (users) => {
     return users
@@ -2266,6 +2273,29 @@ function logDaysDifference(inactiveDays, accessedAt, submissionID) {
     const hours = Math.floor((differenceMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const minutes = Math.floor((differenceMs % (1000 * 60 * 60)) / (1000 * 60));
     console.log(`Submission ID: ${submissionID}, Inactive Days: ${inactiveDays}, Last Accessed: ${startedDate}, Current Time: ${endDate}  Difference: ${days} days, ${hours} hours, ${minutes} minutes`);
+}
+
+function determineIfUserHasSubmissionActionPermission(permissionScopes, user, submission){
+    let userHasPermission = false;
+    for (let permissionAndScope of permissionScopes) {
+        if (permissionAndScope.scope === SCOPES.NONE){
+            break;
+        }
+        else if (
+          // scope = ALL
+          permissionAndScope.scope === SCOPES.ALL ||
+          // scope = STUDY and user has access to the submission study
+          (permissionAndScope.scope === SCOPES.STUDY && permissionAndScope.scopeValues.includes(submission.studyID)) ||
+          // scope = DC and user is assigned to the submission data commons
+          (permissionAndScope.scope === SCOPES.DC && permissionAndScope.scopeValues.includes(submission.dataCommons)) ||
+          // scope = OWN and user is the submitter
+          (permissionAndScope.scope === SCOPES.OWN && submission.submitterID === user._id || submission.c)
+        ){
+            userHasPermission = true;
+            break;
+        }
+    }
+    return userHasPermission;
 }
 
 module.exports = {
