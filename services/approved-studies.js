@@ -265,14 +265,10 @@ class ApprovedStudiesService {
                 programs: {
                     $cond: [
                         { $isArray: "$programs" },
-                        {
-                            $reverseArray: {
-                                $sortArray: {
-                                    input: "$programs",
-                                    sortBy: { name: DIRECTION.DESC }
-                                }
-                            }
-                        },
+                        { $sortArray: {
+                                input: "$programs",
+                                sortBy: { name: DIRECTION.DESC }
+                        }},
                         []
                     ]
                 }
