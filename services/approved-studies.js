@@ -21,6 +21,8 @@ const {getDataCommonsDisplayNamesForApprovedStudy, getDataCommonsDisplayNamesFor
 } = require("../utility/data-commons-remapper");
 const {ORGANIZATION_COLLECTION, USER_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
+const {UserScope} = require("../domain/user-scope");
+const {replaceErrorString} = require("../utility/string-util");
 const CONTROLLED_ACCESS_ALL = "All";
 const CONTROLLED_ACCESS_OPEN = "Open";
 const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
@@ -28,11 +30,12 @@ const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN
 const NA_PROGRAM = "NA";
 class ApprovedStudiesService {
     #ALL = "All";
-    constructor(approvedStudiesCollection, userCollection, organizationService, submissionCollection) {
+    constructor(approvedStudiesCollection, userCollection, organizationService, submissionCollection, authorizationService) {
         this.approvedStudiesCollection = approvedStudiesCollection;
         this.userCollection = userCollection;
         this.organizationService = organizationService;
         this.submissionCollection = submissionCollection;
+        this.authorizationService = authorizationService;
     }
 
     async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName) {
@@ -66,9 +69,11 @@ class ApprovedStudiesService {
      */
     async getApprovedStudyAPI(params, context) {
         verifySession(context)
-          .verifyInitialized()
-          .verifyPermission(ADMIN.MANAGE_STUDIES)
-
+          .verifyInitialized();
+        const userScope = await this.#getUserScope(context?.userInfo, ADMIN.MANAGE_STUDIES);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
         return getDataCommonsDisplayNamesForApprovedStudy(await this.getApprovedStudy(params));
     }
 
@@ -244,8 +249,12 @@ class ApprovedStudiesService {
      */
     async addApprovedStudyAPI(params, context) {
         verifySession(context)
-          .verifyInitialized()
-          .verifyPermission(ADMIN.MANAGE_STUDIES);
+          .verifyInitialized();
+        const userScope = await this.#getUserScope(context?.userInfo, ADMIN.MANAGE_STUDIES);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
         let {
             name,
             acronym,
@@ -296,8 +305,11 @@ class ApprovedStudiesService {
      */
     async editApprovedStudyAPI(params, context) {
         verifySession(context)
-          .verifyInitialized()
-          .verifyPermission(ADMIN.MANAGE_STUDIES);
+          .verifyInitialized();
+        const userScope = await this.#getUserScope(context?.userInfo, ADMIN.MANAGE_STUDIES);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
 
         const {
             studyID,
@@ -444,6 +456,18 @@ class ApprovedStudiesService {
             throw new Error(ERROR.INVALID_ORCID);
         }
         return params;
+    }
+
+    async #getUserScope(userInfo, permission) {
+        const validScopes = await this.authorizationService.getPermissionScope(userInfo, permission);
+        const userScope = UserScope.create(validScopes);
+        // valid scopes; none, all, role/role:RoleScope
+        const isValidUserScope = userScope.isNoneScope() || userScope.isAllScope();
+        if (!isValidUserScope) {
+            console.warn(ERROR.INVALID_USER_SCOPE, permission);
+            throw new Error(replaceErrorString(ERROR.INVALID_USER_SCOPE));
+        }
+        return userScope;
     }
 }
 

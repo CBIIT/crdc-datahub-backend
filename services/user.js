@@ -277,12 +277,13 @@ class UserService {
      */
     async listActiveDCPsAPI(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission([USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_STUDIES, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_PROGRAMS]);
+            .verifyInitialized();
+        const userStudyScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_STUDIES);
+        const userProgramsScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_PROGRAMS);
 
-        // TODO
-        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REQUEST_ACCESS);
-        if (userScope.isNoneScope()) {
+        const isStudyNone = userStudyScope.isNoneScope();
+        const isProgramNone = userProgramsScope.isNoneScope();
+        if ((isStudyNone && isProgramNone) || (isStudyNone !== isProgramNone)) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
@@ -838,8 +839,12 @@ class UserService {
      */
      async isUserPrimaryContact(param, context){
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+            .verifyInitialized();
+         const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+         if (userScope.isNoneScope()) {
+             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+         }
+
         const {userID} = param;
         const user = await this.getUserByID(userID);
         if (!user) {
