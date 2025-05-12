@@ -347,17 +347,6 @@ class Submission {
             this.#isViewablePermission(context?.userInfo, aSubmission),
             // Store data file size into submission document
             (async () => {
-                const dataFileSize = await this.#getS3DirectorySize(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/`);
-                const isDataFileChanged = aSubmission?.dataFileSize?.size !== dataFileSize.size || aSubmission?.dataFileSize?.formatted !== dataFileSize.formatted;
-                if (isDataFileChanged) {
-                    const updatedSubmission = await this.submissionCollection.findOneAndUpdate({_id: aSubmission?._id}, {dataFileSize, updatedAt: getCurrentTime()}, {returnDocument: 'after', upsert: true});
-                    if (!updatedSubmission?.value) {
-                        throw new Error(ERROR.FAILED_RECORD_FILESIZE_PROPERTY, `SubmissionID: ${aSubmission?._id}`);
-                    }
-                }
-                aSubmission.dataFileSize = dataFileSize;
-            })(),
-            (async () => {
                 if (aSubmission?.studyID) {
                     const submissions = await this.submissionCollection.aggregate([
                         {"$match": {$and: [
@@ -399,6 +388,8 @@ class Submission {
               }
             })()
         ]);
+        this.#updateDataFileSize(aSubmission);
+
         if (isPermitted) {
             // Store the timestamp for the inactive submission purpose
             const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
@@ -429,6 +420,17 @@ class Submission {
             return getDataCommonsDisplayNamesForSubmission(submission);
         }
         throw new Error(ERROR.INVALID_ROLE);
+    }
+
+    async #updateDataFileSize(aSubmission) {
+        const dataFileSize = await this.#getS3DirectorySize(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/`);
+        const isDataFileChanged = aSubmission?.dataFileSize?.size !== dataFileSize.size || aSubmission?.dataFileSize?.formatted !== dataFileSize.formatted;
+        if (isDataFileChanged) {
+            const updatedSubmission = await this.submissionCollection.findOneAndUpdate({_id: aSubmission?._id}, {dataFileSize, updatedAt: getCurrentTime()}, {returnDocument: 'after', upsert: true});
+            if (!updatedSubmission?.value) {
+                throw new Error(ERROR.FAILED_RECORD_FILESIZE_PROPERTY, `SubmissionID: ${aSubmission?._id}`);
+            }
+        }
     }
 
     async #isViewablePermission(userInfo, aSubmission) {
