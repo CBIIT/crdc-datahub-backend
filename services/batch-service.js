@@ -121,7 +121,21 @@ class BatchService {
     }
 
     async listBatches(params) {
-        const pipeline = [{"$match": {submissionID: params.submissionID}}];
+        const pipeline = [{"$match": {submissionID: params.submissionID}}, {
+            $project: {
+                displayID: 1,
+                type: 1,
+                status: 1,
+                fileCount: 1,
+                createdAt: 1,
+                updatedAt: 1,
+                errors: 1,
+                files: {
+                    errors: 1,
+                    status: 1,
+                    fileName: 1,
+                    nodeType: 1}
+        }}];
         const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
         const combinedPipeline = pipeline.concat([
             {
