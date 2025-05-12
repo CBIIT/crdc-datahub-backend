@@ -43,6 +43,9 @@ const {constraintDirective, constraintDirectiveTypeDefs} = require("graphql-cons
 const {makeExecutableSchema} = require("@graphql-tools/schema");
 const ERROR = require("../constants/error-constants");
 const {AuthorizationService} = require("../services/authorization-service");
+const {UserScope} = require("../domain/user-scope");
+const {replaceErrorString} = require("../utility/string-util");
+const {ADMIN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 
 // Create schema with constraint directive
 const schema = constraintDirective()(
@@ -199,9 +202,27 @@ dbConnector.connect().then(async () => {
         grantToken : userService.grantToken.bind(userService),
         listActiveDCPs: userService.listActiveDCPsAPI.bind(userService),
         listPrograms : organizationService.listPrograms.bind(organizationService),
-        getOrganization : organizationService.getOrganizationAPI.bind(organizationService),
-        editOrganization : organizationService.editOrganizationAPI.bind(organizationService),
-        createOrganization : organizationService.createOrganizationAPI.bind(organizationService),
+        getOrganization : async (params, context) => {
+            const userScope = await getOrgUserScope(authorizationService, context?.userInfo, ADMIN.MANAGE_PROGRAMS);
+            if (userScope.isNoneScope()) {
+                throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+            }
+            return await organizationService.getOrganizationAPI(params, context);
+        },
+        editOrganization : async (params, context) => {
+            const userScope = await getOrgUserScope(authorizationService, context?.userInfo, ADMIN.MANAGE_PROGRAMS);
+            if (userScope.isNoneScope()) {
+                throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+            }
+            return await organizationService.editOrganizationAPI(params, context);
+        },
+        createOrganization : async (params, context) => {
+            const userScope = await getOrgUserScope(authorizationService, context?.userInfo, ADMIN.MANAGE_PROGRAMS);
+            if (userScope.isNoneScope()) {
+                throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+            }
+            return await organizationService.createOrganizationAPI(params, context);
+        },
         deleteDataRecords: submissionService.deleteDataRecords.bind(submissionService),
         getDashboardURL: dashboardService.getDashboardURL.bind(dashboardService),
         retrieveCDEs: cdeService.getCDEs.bind(cdeService),
@@ -216,6 +237,21 @@ dbConnector.connect().then(async () => {
         userIsPrimaryContact: userService.isUserPrimaryContact.bind(userService)
     };
 });
+
+async function getOrgUserScope(authorizationService, userInfo, permission) {
+    if (!userInfo?.email || !userInfo?.IDP) {
+        throw new Error(ERROR.NOT_LOGGED_IN);
+    }
+    const validScopes = await authorizationService.getPermissionScope(userInfo, permission);
+    const userScope = UserScope.create(validScopes);
+    // valid scopes; none, all, role/role:RoleScope
+    const isValidUserScope = userScope.isNoneScope() || userScope.isAllScope();
+    if (!isValidUserScope) {
+        console.warn(ERROR.INVALID_USER_SCOPE, permission);
+        throw new Error(replaceErrorString(ERROR.INVALID_USER_SCOPE));
+    }
+    return userScope;
+}
 
 
 module.exports = (req, res, next) => {
