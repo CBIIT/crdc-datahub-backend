@@ -43,9 +43,7 @@ class QcResultService{
             .verifyInitialized();
         const createScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
         const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
-        const isCreateNone = createScope.isNoneScope();
-        const isViewNone = viewScope.isNoneScope();
-        if ((isCreateNone && isViewNone) || (isCreateNone !== isViewNone)) {
+        if (createScope.isNoneScope() && viewScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         // Check that the specified submissionID exists
@@ -187,9 +185,7 @@ class QcResultService{
             .verifyInitialized();
         const createScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
         const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
-        const isCreateNone = createScope.isNoneScope();
-        const isViewNone = viewScope.isNoneScope();
-        if ((isCreateNone && isViewNone) || (isCreateNone !== isViewNone)) {
+        if (createScope.isNoneScope() && viewScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         // Check that the specified submissionID exists
