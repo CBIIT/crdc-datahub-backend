@@ -56,7 +56,7 @@ class Submission {
     constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService,
                 dataRecordService, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList,
                 hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs, 
-                submissionBucketName, configurationService, uploadingMonitor, dataCommonsBucketMap) {
+                submissionBucketName, configurationService, uploadingMonitor, dataCommonsBucketMap, authorizationService) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -79,6 +79,7 @@ class Submission {
         this.configurationService = configurationService;
         this.uploadingMonitor = uploadingMonitor;
         this.dataCommonsBucketMap = dataCommonsBucketMap;
+        this.authorizationService = authorizationService;
     }
 
     async createSubmission(params, context) {
@@ -155,24 +156,14 @@ class Submission {
     }
 
     async listSubmissions(params, context) {
-        let userInfoVerifier = verifySession(context)
+        verifySession(context)
             .verifyInitialized();
-        try{
-            userInfoVerifier.verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
-        }
-        catch(permissionError){
-            console.warn(permissionError);
+        const createScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
+        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        if (createScope.isNoneScope() && viewScope.isNoneScope()) {
             console.warn("Failed permission verification for listSubmissions, returning empty list");
             return {submissions: [], total: 0};
         }
-
-
-        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
-        if (userScope.isNoneScope()) {
-            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
-        }
-
-
 
         validateListSubmissionsParams(params);
 
@@ -239,7 +230,9 @@ class Submission {
             .notEmpty()
             .type([BATCH.TYPE.METADATA, BATCH.TYPE.DATA_FILE]);
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
-        await verifyBatchPermission(this.userService, aSubmission, userInfo);
+
+        this.#verifyBatchPermission(aSubmission, userInfo?._id);
+
         // The submission status must be valid states
         if (![NEW, IN_PROGRESS ,WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
             throw new Error(ERROR.INVALID_SUBMISSION_STATUS);
@@ -316,8 +309,8 @@ class Submission {
             throw new Error(ERROR.INVALID_UPDATE_BATCH_STATUS);
         }
         const aSubmission = await findByID(this.submissionCollection, aBatch.submissionID);
-        // submission owner & submitter's Org Owner
-        await verifyBatchPermission(this.userService, aSubmission, userInfo);
+
+        this.#verifyBatchPermission(aSubmission, userInfo?._id);
 
         const res = await this.batchService.updateBatch(aBatch, aSubmission?.bucketName, params?.files);
         // new status is ready for the validation
@@ -999,8 +992,7 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        //only the submitter of current submission can download the configuration file for data file uploading
-        await verifyBatchPermission(this.userService, aSubmission, context.userInfo);
+        this.#verifyBatchPermission(aSubmission, context?.userInfo?._id);
         //set parameters
         const parameters = {submissionID: params.submissionID, apiURL: params.apiURL, 
             dataFolder: (params.dataFolder)?  params.dataFolder : "/Users/my_name/my_files",
@@ -1033,8 +1025,7 @@ class Submission {
         if (!aSubmission) {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        //only the submitter of current submission can download the configuration file for data file uploading
-        await verifyBatchPermission(this.userService, aSubmission, context.userInfo);
+        this.#verifyBatchPermission(aSubmission, context?.userInfo?._id);
 
         // data model file node properties into the string
         const latestDataModel = await this.fetchDataModelInfo();
@@ -1736,6 +1727,19 @@ class Submission {
         }
     }
 
+    #verifyBatchPermission(aSubmission, userID) {
+        if (!aSubmission) {
+            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+        }
+        // Only for Data Submission Owner / Collaborators
+        const submitterCollaborator = (aSubmission?.collaborators || []).map(u => u.collaboratorID);
+        const isCollaborator = submitterCollaborator.includes(userID);
+        const isOwned = userID === aSubmission?.submitterID;
+        if (!isCollaborator && !isOwned) {
+            throw new Error(ERROR.INVALID_BATCH_PERMISSION);
+        }
+    }
+
     async #getUserScope(userInfo, aPermission) {
         const validScopes = await this.authorizationService.getPermissionScope(userInfo, aPermission);
         const userScope = UserScope.create(validScopes);
@@ -2086,25 +2090,6 @@ const getUserEmails = (users) => {
 const findByID = async (submissionCollection, id) => {
     const aSubmission = await submissionCollection.find(id);
     return (aSubmission?.length > 0) ? aSubmission[0] : null;
-}
-
-const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
-    // verify submission owner
-    if (!aSubmission) {
-        throw new Error(ERROR.SUBMISSION_NOT_EXIST);
-    }
-    const collaborativeUsers =  await userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
-    const collaborativeUserIDs = collaborativeUsers.map(u => u._id);
-    const isCreatePermission = (
-        (userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE) &&
-            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission)) ||
-        // Collaborator
-        collaborativeUserIDs.includes(userInfo?._id)
-    );
-
-    if (!isCreatePermission) {
-        throw new Error(ERROR.INVALID_BATCH_PERMISSION);
-    }
 }
 
 function validateCreateSubmissionParams (params, allowedDataCommons, hiddenDataCommons, intention, dataType, userInfo) {
