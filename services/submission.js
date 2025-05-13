@@ -1731,8 +1731,7 @@ class Submission {
         // Only for Data Submission Owner / Collaborators
         const submitterCollaborator = (aSubmission?.collaborators || []).map(u => u.collaboratorID);
         const isCollaborator = submitterCollaborator.includes(userID);
-        const isOwned = userID === aSubmission?.submitterID;
-        if (!isCollaborator && !isOwned) {
+        if (!isCollaborator && userID !== aSubmission?.submitterID) {
             throw new Error(ERROR.INVALID_BATCH_PERMISSION);
         }
     }
