@@ -275,6 +275,10 @@ class Submission {
         if (!aBatch) {
             throw new Error(ERROR.BATCH_NOT_EXIST);
         }
+
+        const aSubmission = await findByID(this.submissionCollection, aBatch.submissionID);
+        this.#verifyBatchPermission(aSubmission, userInfo?._id);
+
         // check if it's a heartbeat call sent by CLI of uploading data file.
         // CLI uploader sends uploading heartbeat every 5 min by calling the API with a parameter, uploading: true
         if (params?.uploading === true) {
@@ -304,9 +308,6 @@ class Submission {
         if (![BATCH.STATUSES.UPLOADING].includes(aBatch?.status)) {
             throw new Error(ERROR.INVALID_UPDATE_BATCH_STATUS);
         }
-        const aSubmission = await findByID(this.submissionCollection, aBatch.submissionID);
-
-        this.#verifyBatchPermission(aSubmission, userInfo?._id);
 
         const res = await this.batchService.updateBatch(aBatch, aSubmission?.bucketName, params?.files);
         // new status is ready for the validation
