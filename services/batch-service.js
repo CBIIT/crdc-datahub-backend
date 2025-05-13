@@ -193,8 +193,8 @@ class BatchService {
             if(!file){
                 throw new Error(ERROR.FILE_NOT_EXIST);
             }
-            const output_filename = `${submissionName}_metadata_batch${aBatch.displayID}${fileName}`;
-            return await this.s3Service.createDownloadSignedURL(aBatch?.bucketName, aBatch?.filePrefix, fileName, output_filename) ;
+            const outputFilename = `${submissionName}_metadata_batch${aBatch.displayID}${fileName}`;
+            return await this.s3Service.createDownloadSignedURL(aBatch?.bucketName, aBatch?.filePrefix, fileName, outputFilename) ;
         }
         // if no fileName, return all files in the batch as zip file
         let zipFileName = aBatch?.zipFileName;
