@@ -32,6 +32,7 @@ const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utilit
 const {getDataCommonsDisplayNamesForSubmission, getDataCommonsDisplayNamesForListSubmissions,
     getDataCommonsDisplayNamesForUser, getDataCommonsDisplayNamesForReleasedNode
 } = require("../utility/data-commons-remapper");
+const {UserScope} = require("../domain/user-scope");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -82,27 +83,30 @@ class Submission {
 
     async createSubmission(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
-        const userInfo = context?.userInfo;
-        const hasStudies = userInfo?.studies?.length > 0;
-        const isRoleWithoutStudies = userInfo?.role === ROLES.DATA_COMMONS_PERSONNEL || userInfo?.role === ROLES.ADMIN;
-        if (!hasStudies && !isRoleWithoutStudies){
-            throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
-        }
-
-        if (!isAllStudy(userInfo.studies) && !isRoleWithoutStudies) {
-            const study = userInfo.studies.find(study =>
-                study._id === params.studyID
-            );
-            if (!study) {
-                throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
-            }
-        }
-
-        if (!isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, {studyID: params.studyID, dataCommons: params.dataCommons, submitterID: userInfo?._id})) {
+            .verifyInitialized();
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
+        if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
+        // const userInfo = context?.userInfo;
+        // const hasStudies = userInfo?.studies?.length > 0;
+        // const isRoleWithoutStudies = userInfo?.role === ROLES.DATA_COMMONS_PERSONNEL || userInfo?.role === ROLES.ADMIN;
+        // if (!hasStudies && !isRoleWithoutStudies){
+        //     throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
+        // }
+
+        // if (!isAllStudy(userInfo.studies) && !isRoleWithoutStudies) {
+        //     const study = userInfo.studies.find(study =>
+        //         study._id === params.studyID
+        //     );
+        //     if (!study) {
+        //         throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
+        //     }
+        // }
+
+        // if (!isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, {studyID: params.studyID, dataCommons: params.dataCommons, submitterID: userInfo?._id})) {
+        //     throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        // }
 
         const intention = [INTENTION.UPDATE, INTENTION.DELETE].find((i) => i.toLowerCase() === params?.intention.toLowerCase());
         const dataType = [DATA_TYPE.METADATA_AND_DATA_FILES, DATA_TYPE.METADATA_ONLY].find((i) => i.toLowerCase() === params?.dataType.toLowerCase());
@@ -161,6 +165,15 @@ class Submission {
             console.warn("Failed permission verification for listSubmissions, returning empty list");
             return {submissions: [], total: 0};
         }
+
+
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
+
+
         validateListSubmissionsParams(params);
 
         const filterConditions = [
@@ -1721,6 +1734,17 @@ class Submission {
         catch (e) {
             throw new Error(ERROR.FAILED_GET_METADATA_FILE);
         }
+    }
+
+    async #getUserScope(userInfo, aPermission) {
+        const validScopes = await this.authorizationService.getPermissionScope(userInfo, aPermission);
+        const userScope = UserScope.create(validScopes);
+        // valid scopes; none, all
+        const isValidUserScope = userScope.isNoneScope() || userScope.isAllScope() || userScope.isRoleScope();
+        if (!isValidUserScope) {
+            throw new Error(replaceErrorString(ERROR.INVALID_USER_SCOPE));
+        }
+        return userScope;
     }
 }
 
