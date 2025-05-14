@@ -4,6 +4,7 @@ const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants.js");
+const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const BATCH_SIZE = 300;
 const ERROR = "Error";
 const WARNING = "Warning";
@@ -553,6 +554,14 @@ class DataRecordService {
         };
         return await this.dataRecordsCollection.distinct("nodeType", filter);
     }
+
+    async resetDataRecords(submissionID) {
+        const updatedSubmission = await this.dataRecordsCollection.updateMany({submissionID: submissionID}, {status: VALIDATION_STATUS.NEW, updatedAt: getCurrentTime()});
+        if (!updatedSubmission.acknowledged) {
+            console.error(`Failed to update the program in the submission: ${aSubmission?._id}`);
+        }
+    }
+
 
     #getSubmissionStatQuery(submissionID, validNodeStatus) {
         return [

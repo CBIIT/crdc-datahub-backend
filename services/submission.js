@@ -1470,15 +1470,25 @@ class Submission {
         }
 
         const updatedSubmission = await this.submissionCollection.findOneAndUpdate(
-            {_id: aSubmission?._id, modelVersion: {"$ne": version}},
-            {modelVersion: version, updatedAt: getCurrentTime()},
+            {_id: aSubmission?._id, modelVersion: {"$ne": version}}, {
+                modelVersion: version,
+                updatedAt: getCurrentTime(),
+                metadataValidationStatus: VALIDATION_STATUS.NEW,
+                fileValidationStatus: VALIDATION_STATUS.NEW,
+                crossSubmissionStatus: VALIDATION_STATUS.NEW},
             {returnDocument: 'after'}
         );
+        // Set data records to New
 
         if (!updatedSubmission.value) {
             console.error(ERROR.FAILED_UPDATE_MODEL_VERSION, `SubmissionID: ${aSubmission?._id}`)
             throw new Error(ERROR.FAILED_UPDATE_MODEL_VERSION);
         }
+
+        this.dataRecordService.dataRecordsCollection
+
+
+
         return updatedSubmission.value;
     }
 
