@@ -18,7 +18,7 @@
             "_id": "submission_request:create:all",
             "group": "Submission Request Permissions",
             "name": "Create",
-            "inherited": ["submission_request:view"],
+            "inherited": ["submission_request:view:all"],
             "order": 2,
             "checked": false,
             "disabled": false
@@ -27,7 +27,7 @@
             "_id": "submission_request:review:all",
             "group": "Submission Request Permissions",
             "name": "Review",
-            "inherited": ["submission_request:view"],
+            "inherited": ["submission_request:view:all"],
             "order": 4,
             "checked": false,
             "disabled": false
@@ -67,7 +67,7 @@
           {
             "_id": "data_submission:create:study",
             "group": "Data Submission Permissions",
-            "inherited": ["data_submission:view"],
+            "inherited": ["data_submission:view:study"],
             "name": "Create",
             "order": 2,
             "checked": false,
@@ -85,7 +85,7 @@
             "_id": "data_submission:review:study",
             "group": "Data Submission Permissions",
             "name": "Review",
-            "inherited": ["data_submission:view"],
+            "inherited": ["data_submission:view:study"],
             "order": 4,
             "checked": false,
             "disabled": false
@@ -317,7 +317,7 @@
             "_id": "submission_request:create:all",
             "group": "Submission Request Permissions",
             "name": "Create",
-            "inherited": ["submission_request:view"],
+            "inherited": ["submission_request:view:all"],
             "order": 2,
             "checked": false,
             "disabled": false
@@ -326,7 +326,7 @@
             "_id": "submission_request:review:all",
             "group": "Submission Request Permissions",
             "name": "Review",
-            "inherited": ["submission_request:view"],
+            "inherited": ["submission_request:view:all"],
             "order": 4,
             "checked": false,
             "disabled": false
@@ -366,7 +366,7 @@
           {
             "_id": "data_submission:create:DC",
             "group": "Data Submission Permissions",
-            "inherited": ["data_submission:view"],
+            "inherited": ["data_submission:view:DC"],
             "name": "Create",
             "order": 2,
             "checked": false,
@@ -383,7 +383,7 @@
           {
             "_id": "data_submission:review:DC",
             "group": "Data Submission Permissions",
-            "inherited": ["data_submission:view"],
+            "inherited": ["data_submission:view:DC"],
             "name": "Review",
             "order": 4,
             "checked": true,
@@ -616,7 +616,7 @@
           {
             "_id": "submission_request:create:all",
             "group": "Submission Request Permissions",
-            "inherited": ["submission_request:view"],
+            "inherited": ["submission_request:view:all"],
             "name": "Create",
             "order": 2,
             "checked": false,
@@ -625,7 +625,7 @@
           {
             "_id": "submission_request:review:all",
             "group": "Submission Request Permissions",
-            "inherited": ["submission_request:view"],
+            "inherited": ["submission_request:view:all"],
             "name": "Review",
             "order": 4,
             "checked": false,
@@ -667,7 +667,7 @@
             "_id": "data_submission:create:all",
             "group": "Data Submission Permissions",
             "name": "Create",
-            "inherited": ["data_submission:view"],
+            "inherited": ["data_submission:view:all"],
             "order": 2,
             "checked": false,
             "disabled": false
@@ -683,7 +683,7 @@
           {
             "_id": "data_submission:review:all",
             "group": "Data Submission Permissions",
-            "inherited": ["data_submission:view"],
+            "inherited": ["data_submission:view:all"],
             "name": "Review",
             "order": 4,
             "checked": false,
@@ -916,7 +916,7 @@
           {
             "_id": "submission_request:create:own",
             "group": "Submission Request Permissions",
-            "inherited": ["submission_request:view"],
+            "inherited": ["submission_request:view:own"],
             "name": "Create",
             "order": 2,
             "checked": true,
@@ -925,7 +925,7 @@
           {
             "_id": "submission_request:review:none",
             "group": "Submission Request Permissions",
-            "inherited": ["submission_request:view"],
+            "inherited": ["submission_request:view:none"],
             "name": "Review",
             "order": 4,
             "checked": false,
@@ -967,7 +967,7 @@
             "_id": "data_submission:create:own",
             "group": "Data Submission Permissions",
             "name": "Create",
-            "inherited": ["data_submission:view"],
+            "inherited": ["data_submission:view:own"],
             "order": 2,
             "checked": true,
             "disabled": true
@@ -983,7 +983,7 @@
           {
             "_id": "data_submission:review:none",
             "group": "Data Submission Permissions",
-            "inherited": ["data_submission:view"],
+            "inherited": ["data_submission:view:none"],
             "name": "Review",
             "order": 4,
             "checked": false,
@@ -1216,7 +1216,7 @@
           {
             "_id": "submission_request:create:own",
             "group": "Submission Request Permissions",
-            "inherited": ["submission_request:view"],
+            "inherited": ["submission_request:view:own"],
             "name": "Create",
             "order": 2,
             "checked": true,
@@ -1225,7 +1225,7 @@
           {
             "_id": "submission_request:review:none",
             "group": "Submission Request Permissions",
-            "inherited": ["submission_request:view"],
+            "inherited": ["submission_request:view:none"],
             "name": "Review",
             "order": 4,
             "checked": false,
@@ -1267,7 +1267,7 @@
             "_id": "data_submission:create:none",
             "group": "Data Submission Permissions",
             "name": "Create",
-            "inherited": ["data_submission:view"],
+            "inherited": ["data_submission:view:none"],
             "order": 2,
             "checked": false,
             "disabled": true
@@ -1283,7 +1283,7 @@
           {
             "_id": "data_submission:review:none",
             "group": "Data Submission Permissions",
-            "inherited": ["data_submission:view"],
+            "inherited": ["data_submission:view:none"],
             "name": "Review",
             "order": 4,
             "checked": false,

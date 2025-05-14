@@ -139,26 +139,24 @@ class Submission {
     async listSubmissions(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const createScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
-        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
-        if (createScope.isNoneScope() && viewScope.isNoneScope()) {
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        if (userScope.isNoneScope()) {
             console.warn("Failed permission verification for listSubmissions, returning empty list");
             return {submissions: [], total: 0};
         }
-
         validateListSubmissionsParams(params);
 
         const filterConditions = [
             // default filter for listing submissions
-            this.#listConditions(context?.userInfo, params.status, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, createScope, viewScope),
+            this.#listConditions(context?.userInfo, params.status, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
             // no filter for dataCommons aggregation
-            this.#listConditions(context?.userInfo, ALL_FILTER, ALL_FILTER, null, null, ALL_FILTER, ALL_FILTER, createScope, viewScope),
+            this.#listConditions(context?.userInfo, ALL_FILTER, ALL_FILTER, null, null, ALL_FILTER, ALL_FILTER, userScope),
             // note: Aggregation of Submitter name should not be filtered by a submitterName
-            this.#listConditions(context?.userInfo, params?.status, params.organization, params.name, params.dbGaPID, params.dataCommons, ALL_FILTER, createScope, viewScope),
+            this.#listConditions(context?.userInfo, params?.status, params.organization, params.name, params.dbGaPID, params.dataCommons, ALL_FILTER, userScope),
             // note: Aggregation of Organization name should not be filtered by a organization
-            this.#listConditions(context?.userInfo, params?.status, ALL_FILTER, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, createScope, viewScope),
+            this.#listConditions(context?.userInfo, params?.status, ALL_FILTER, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
             // note: Aggregation of status name should not be filtered by a statues
-            this.#listConditions(context?.userInfo, ALL_FILTER, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, createScope, viewScope),
+            this.#listConditions(context?.userInfo, ALL_FILTER, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
         ]
 
         const [listConditions, dataCommonsCondition, submitterNameCondition, organizationCondition, statusCondition] = filterConditions;
@@ -316,9 +314,8 @@ class Submission {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
 
-        const createScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
         const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
-        if (createScope.isNoneScope() && viewScope.isNoneScope()) {
+        if (viewScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
@@ -334,9 +331,8 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
 
-        const createScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
         const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
-        const isNotPermitted = createScope.isNoneScope() && viewScope.isNoneScope();
+        const isNotPermitted = viewScope.isNoneScope();
         if (isNotPermitted) {
           throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -642,9 +638,8 @@ class Submission {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
 
-        const createScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
         const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
-        if (createScope.isNoneScope() && viewScope.isNoneScope()) {
+        if (viewScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
@@ -738,9 +733,8 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        const createScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
         const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
-        if (createScope.isNoneScope() && viewScope.isNoneScope()) {
+        if (viewScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
@@ -770,13 +764,11 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        const createScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
         const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
-        if (createScope.isNoneScope() && viewScope.isNoneScope()) {
+        if (viewScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
-        // TODO removed the hard-coding value
         if(!["All", "New", "Error", "Passed", "Warning"].includes(status)){
             throw new Error(ERROR.INVALID_NODE_STATUS_NOT_FOUND);
         }
@@ -936,9 +928,8 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        const createScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
         const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
-        if (createScope.isNoneScope() && viewScope.isNoneScope()) {
+        if (viewScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
@@ -959,9 +950,8 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        const createScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
         const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
-        if (createScope.isNoneScope() && viewScope.isNoneScope()) {
+        if (viewScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
@@ -1537,9 +1527,8 @@ class Submission {
         const submitterCollaborator = (aSubmission?.collaborators || []).map(u => u.collaboratorID);
         const isCollaborator = submitterCollaborator.includes(userInfo?._id);
 
-        const createPermission = userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE) &&
-            aSubmission.submitterID === userInfo?._id;
-        if (!createPermission && !isCollaborator) {
+        const userScope = await this.#getUserScope(userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
+        if (userScope.isNoneScope() && !isCollaborator) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         return aSubmission;
@@ -1640,7 +1629,7 @@ class Submission {
         return collaboratorUserIDs.includes(userInfo?._id);
     }
 
-    #listConditions(userInfo, status, organizationID, submissionName, dbGaPID, dataCommonsParams, submitterName, createScope, viewScope){
+    #listConditions(userInfo, status, organizationID, submissionName, dbGaPID, dataCommonsParams, submitterName, userScope){
         const {_id, dataCommons, studies} = userInfo;
         const validSubmissionStatus = [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
             REJECTED, WITHDRAWN, DELETED];
@@ -1658,20 +1647,18 @@ class Submission {
         const baseConditions = { ...statusCondition, ...organizationCondition, ...nameCondition,
             ...dbGaPIDCondition, ...dataCommonsCondition, ...submitterNameCondition };
         return (() => {
-            const userStudies = Array.isArray(studies) && studies.length > 0 ? studies : [];
-            const studyIDs = userStudies?.map(s => s?._id).filter(Boolean);
             switch (true) {
-                case viewScope.isAllScope() || createScope.isAllScope():
+                case userScope.isAllScope():
                     return baseConditions;
-                case viewScope.isStudyScope() || createScope.isStudyScope():
-                    // TODO determine scope values determine the query.
-                    const studyQuery = isAllStudy(userStudies) ? {} : {studyID: {$in: studyIDs}};
+                case userScope.isStudyScope():
+                    const studyQuery = isAllStudy(userScope?.scopeValues) ? {} : {studyID: {$in: userScope?.scopeValues}};
                     return {...baseConditions, ...studyQuery};
-                case (viewScope.isDCScope() || createScope.isDCScope()):
-                    // TODO determine scope values determine the query.
-                    const aFilteredDataCommon = (dataCommonsParams && dataCommons?.includes(dataCommonsParams)) ? [dataCommonsParams] : []
+                case (userScope.isDCScope()):
+                    const aFilteredDataCommon = (dataCommonsParams && userScope?.scopeValues?.includes(dataCommonsParams)) ? [dataCommonsParams] : []
                     return {...baseConditions, dataCommons: {$in: dataCommonsParams !== ALL_FILTER ? aFilteredDataCommon : dataCommons}};
-                case viewScope.isOwnScope() || createScope.isOwnScope():
+                case userScope.isOwnScope():
+                    const userStudies = Array.isArray(studies) && studies.length > 0 ? studies : [];
+                    const studyIDs = userStudies?.map(s => s?._id).filter(Boolean);
                     if (isAllStudy(userStudies)) {
                         return baseConditions;
                     }
@@ -1682,7 +1669,7 @@ class Submission {
                 default:
                     throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
             }
-        });
+        })();
     }
 
     /**
