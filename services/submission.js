@@ -1651,10 +1651,12 @@ class Submission {
                 case userScope.isAllScope():
                     return baseConditions;
                 case userScope.isStudyScope():
-                    const studyQuery = isAllStudy(userScope?.scopeValues) ? {} : {studyID: {$in: userScope?.scopeValues}};
+                    const studyScope = userScope.getStudyScope();
+                    const studyQuery = isAllStudy(studyScope?.scopeValues) ? {} : {studyID: {$in: studyScope?.scopeValues}};
                     return {...baseConditions, ...studyQuery};
                 case (userScope.isDCScope()):
-                    const aFilteredDataCommon = (dataCommonsParams && userScope?.scopeValues?.includes(dataCommonsParams)) ? [dataCommonsParams] : []
+                    const DCScope = userScope.getDataCommonsScope();
+                    const aFilteredDataCommon = (dataCommonsParams && DCScope?.scopeValues?.includes(dataCommonsParams)) ? [dataCommonsParams] : []
                     return {...baseConditions, dataCommons: {$in: dataCommonsParams !== ALL_FILTER ? aFilteredDataCommon : dataCommons}};
                 case userScope.isOwnScope():
                     const userStudies = Array.isArray(studies) && studies.length > 0 ? studies : [];
@@ -1729,7 +1731,7 @@ class Submission {
         const validScopes = await this.authorizationService.getPermissionScope(userInfo, aPermission);
         const userScope = UserScope.create(validScopes);
         // valid scopes; none, all
-        const isValidUserScope = userScope.isNoneScope() || userScope.isAllScope() || userScope.isRoleScope();
+        const isValidUserScope = userScope.isNoneScope() || userScope.isOwnScope() || userScope.isAllScope() || userScope.isRoleScope() || userScope.isStudyScope();
         if (!isValidUserScope) {
             throw new Error(replaceErrorString(ERROR.INVALID_USER_SCOPE));
         }
