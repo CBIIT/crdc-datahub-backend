@@ -48,6 +48,14 @@ class UserScope {
     isNoneScope() {
         return this.scopes?.some(scope => scope?.scope === SCOPES.NONE && scope?.scopeValues?.length === 0);
     }
+
+    isStudyScope() {
+        return this.scopes?.some(scope => scope?.scope === SCOPES.STUDY);
+    }
+
+    isDCScope() {
+        return this.scopes?.some(scope => scope?.scope === SCOPES.DC);
+    }
 }
 
 module.exports = {
