@@ -47,7 +47,7 @@ COMPLETE_DATA_SUBMISSION_CONTENT: "The Data Submission, $submissionName for the 
 CANCEL_DATA_SUBMISSION_SUBJECT: "CRDC Data Submission Canceled"
 CANCEL_DATA_SUBMISSION_CONTENT: "Data Submission $submissionID / $submissionName for study $studyName has been canceled by user $canceledBy and no further work on this submission will be possible. If this cancellation is in error, please contact $conciergeName at $conciergeEmail"
 SUBMIT_DATA_SUBMISSION_SUBJECT: "Submission Received – Your Data is Now Under Review"
-SUBMIT_DATA_SUBMISSION_CONTENT_FIRST: "Thank you for your data submission, $submissionName to the CRDC Submission Portal. We have successfully received your data submission, and the Primary Contact assigned to your submission will begin the review process shortly."
+SUBMIT_DATA_SUBMISSION_CONTENT_FIRST: "Thank you for your data submission, $submissionName to the CRDC Submission Portal. We have successfully received your data submission, and the Data Concierge assigned to your submission will begin the review process shortly."
 SUBMIT_DATA_SUBMISSION_CONTENT_SECOND: "During the review, you’ll be notified if we require any additional information or changes. If your submission meets all requirements, it will be scheduled for the release to the $dataCommonsName Data Commons. If you have any questions, please contact $contactName via $contactEmail"
 WITHDRAW_DATA_SUBMISSION_SUBJECT: "CRDC Data Submission Withdrawn"
 WITHDRAW_DATA_SUBMISSION_CONTENT: "Data Submission $submissionName / $submissionID for study $studyName has been withdrawn by $withdrawnByName Please contact the submitter at $withdrawnByEmail to clarify why the submission was withdrawn and determine if any action is needed."
