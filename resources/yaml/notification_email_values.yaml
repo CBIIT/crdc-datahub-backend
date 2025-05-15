@@ -40,7 +40,7 @@ INACTIVE_ADMIN_USER_CONTENT: "The following user accounts has been disabled due 
 DEACTIVATE_USER_SUBJECT: "Your CRDC Submission Portal account has been disabled"
 DEACTIVATE_USER_CONTENT: "Your CRDC Submission Portal account has been deactivated by the CRDC Submission Portal Administrator. To reactivate your account, please contact $officialEmail"
 REMIND_EXPIRED_APPLICATION_SUBJECT: "Your CRDC Submission Request is about to expire in $remainDays days."
-REMIND_EXPIRED_APPLICATION_CONTENT: "Your Submission Request for the following study has been inactive for $inactiveDays days. If you intend to complete this data submission, please log in to $url to resume your Submission Request."
+REMIND_EXPIRED_APPLICATION_CONTENT: "Your Submission Request for the below study has been inactive for $inactiveDays days. If you are still interested in submitting your data to CRDC, please log in to CRDC Submission Portal $url to resume your Submission Request."
 REMIND_EXPIRED_APPLICATION_SECOND_CONTENT: "If no updates are made within the next $remainDays days, your Submission Request will be deleted."
 COMPLETE_DATA_SUBMISSION_SUBJECT: "CRDC Data Submission Completed"
 COMPLETE_DATA_SUBMISSION_CONTENT: "The Data Submission, $submissionName for the $studyName study has been completed and all data successfully transferred to the appropriate data commons. If you believe this is an error, please contact $conciergeName at $conciergeEmail"
