@@ -1953,7 +1953,7 @@ const sendEmails = {
         const additionalInfo = [
             [SUBMISSION_ID, aSubmission?._id],
             [DATA_SUBMISSION_TYPE, aSubmission?.intention],
-            [DESTINATION_LOCATION, `${dataCommonBucket} at ${aSubmission?.rootPath}`]];
+            [DESTINATION_LOCATION, `${dataCommonBucket}`]];
 
         const filteredBCCUsers = BCCUsers.filter((u) => isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
         await notificationsService.releaseDataSubmissionNotification(getUserEmails(filteredDCPUsers), getUserEmails(filteredBCCUsers), {

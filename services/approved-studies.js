@@ -21,6 +21,9 @@ const {getDataCommonsDisplayNamesForApprovedStudy, getDataCommonsDisplayNamesFor
 } = require("../utility/data-commons-remapper");
 const {ORGANIZATION_COLLECTION, USER_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
+const {SORT, DIRECTION} = require("../crdc-datahub-database-drivers/constants/monogodb-constants");
+const {UserScope} = require("../domain/user-scope");
+const {replaceErrorString} = require("../utility/string-util");
 const CONTROLLED_ACCESS_ALL = "All";
 const CONTROLLED_ACCESS_OPEN = "Open";
 const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
@@ -28,11 +31,12 @@ const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN
 const NA_PROGRAM = "NA";
 class ApprovedStudiesService {
     #ALL = "All";
-    constructor(approvedStudiesCollection, userCollection, organizationService, submissionCollection) {
+    constructor(approvedStudiesCollection, userCollection, organizationService, submissionCollection, authorizationService) {
         this.approvedStudiesCollection = approvedStudiesCollection;
         this.userCollection = userCollection;
         this.organizationService = organizationService;
         this.submissionCollection = submissionCollection;
+        this.authorizationService = authorizationService;
     }
 
     async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName) {
@@ -66,9 +70,11 @@ class ApprovedStudiesService {
      */
     async getApprovedStudyAPI(params, context) {
         verifySession(context)
-          .verifyInitialized()
-          .verifyPermission(ADMIN.MANAGE_STUDIES)
-
+          .verifyInitialized();
+        const userScope = await this.#getUserScope(context?.userInfo, ADMIN.MANAGE_STUDIES);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
         return getDataCommonsDisplayNamesForApprovedStudy(await this.getApprovedStudy(params));
     }
 
@@ -165,9 +171,49 @@ class ApprovedStudiesService {
                         "$$ROOT",
                         {
                             primaryContact: {
-                                _id: { $arrayElemAt: ["$primaryContact._id", 0] },
-                                firstName: { $arrayElemAt: ["$primaryContact.firstName", 0] },
-                                lastName: { $arrayElemAt: ["$primaryContact.lastName", 0] }
+                                _id: {
+                                    $cond: [
+                                        "$useProgramPC",
+                                        { $arrayElemAt: ["$programs.conciergeID", 0] },
+                                        { $arrayElemAt: ["$primaryContact._id", 0] }
+                                    ]
+                                },
+                                firstName: {
+                                    $cond: [
+                                        "$useProgramPC",
+                                        {
+                                            $ifNull: [
+                                                { $arrayElemAt: [
+                                                        { $split: [
+                                                                { $arrayElemAt: ["$programs.conciergeName", 0] },
+                                                                " "
+                                                            ] },
+                                                        0 // first element → firstName
+                                                    ] },
+                                                ""
+                                            ]
+                                        },
+                                        { $arrayElemAt: ["$primaryContact._id", 0] }
+                                    ]
+                                },
+                                lastName: {
+                                    $cond: [
+                                        "$useProgramPC",
+                                        {
+                                            $ifNull: [
+                                                { $arrayElemAt: [
+                                                        { $split: [
+                                                                { $arrayElemAt: ["$programs.conciergeName", 0] },
+                                                                " "
+                                                            ] },
+                                                        1 // second element → lastName
+                                                ] },
+                                                ""
+                                            ]
+                                        },
+                                        { $arrayElemAt: ["$primaryContact.lastName", 0] }
+                                    ]
+                                }
                             }
                         }
                     ]
@@ -209,15 +255,52 @@ class ApprovedStudiesService {
         // Added the custom sort
         const isNotStudyName = orderBy !== "studyName";
         const customPaginationPipeline = paginationPipe?.map(pagination =>
-            Object.keys(pagination)?.includes("$sort") && isNotStudyName ? {...pagination, $sort: {...pagination.$sort, studyName: 1}} : pagination
+            Object.keys(pagination)?.includes("$sort") && isNotStudyName ? {...pagination, $sort: {...pagination.$sort, studyName: DIRECTION.ASC}} : pagination
         );
+
+        const programSort = "programs.name";
+        const isProgramSort = orderBy === programSort;
+        const programPipeLine = paginationPipe?.map(pagination =>
+            Object.keys(pagination)?.includes("$sort") && pagination.$sort === programSort ? {...pagination, $sort: {...pagination.$sort, [programSort]: sortDirection?.toLowerCase() === SORT.DESC ? DIRECTION.DESC : DIRECTION.ASC}} : pagination
+        );
+
+        // Always sort programs array inside each document by name DESC
+        pipelines.push({
+            $addFields: {
+                programs: {
+                    $cond: [
+                        { $isArray: "$programs" },
+                        { $sortArray: {
+                                input: "$programs",
+                                sortBy: { name: DIRECTION.DESC }
+                        }},
+                        []
+                    ]
+                }
+            }
+        });
+        // This is the program’s custom sort order; the program name in the first element should be sorted.
+        if (isProgramSort) {
+            pipelines.push(
+                { $unwind: { path: "$programs", preserveNullAndEmptyArrays: true } },
+                { $sort: { "programs.name": sortDirection === SORT.DESC ? DIRECTION.DESC : DIRECTION.ASC } },
+                { $group: {
+                        _id: "$_id",
+                        doc: { $first: "$$ROOT" },
+                        programs: { $push: "$programs" }
+                }},
+                { $replaceRoot: {
+                        newRoot: { $mergeObjects: ["$doc", { programs: "$programs" }] }
+                }}
+            );
+        }
 
         pipelines.push({
             $facet: {
                 total: [{
                     $count: "total"
                 }],
-                results: customPaginationPipeline
+                results: isProgramSort ? programPipeLine : customPaginationPipeline
             }
         });
         pipelines.push({
@@ -244,8 +327,12 @@ class ApprovedStudiesService {
      */
     async addApprovedStudyAPI(params, context) {
         verifySession(context)
-          .verifyInitialized()
-          .verifyPermission(ADMIN.MANAGE_STUDIES);
+          .verifyInitialized();
+        const userScope = await this.#getUserScope(context?.userInfo, ADMIN.MANAGE_STUDIES);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
         let {
             name,
             acronym,
@@ -296,8 +383,11 @@ class ApprovedStudiesService {
      */
     async editApprovedStudyAPI(params, context) {
         verifySession(context)
-          .verifyInitialized()
-          .verifyPermission(ADMIN.MANAGE_STUDIES);
+          .verifyInitialized();
+        const userScope = await this.#getUserScope(context?.userInfo, ADMIN.MANAGE_STUDIES);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
 
         const {
             studyID,
@@ -444,6 +534,18 @@ class ApprovedStudiesService {
             throw new Error(ERROR.INVALID_ORCID);
         }
         return params;
+    }
+
+    async #getUserScope(userInfo, permission) {
+        const validScopes = await this.authorizationService.getPermissionScope(userInfo, permission);
+        const userScope = UserScope.create(validScopes);
+        // valid scopes; none, all, role/role:RoleScope
+        const isValidUserScope = userScope.isNoneScope() || userScope.isAllScope();
+        if (!isValidUserScope) {
+            console.warn(ERROR.INVALID_USER_SCOPE, permission);
+            throw new Error(replaceErrorString(ERROR.INVALID_USER_SCOPE));
+        }
+        return userScope;
     }
 }
 
