@@ -226,7 +226,9 @@ class Submission {
             .notEmpty()
             .type([BATCH.TYPE.METADATA, BATCH.TYPE.DATA_FILE]);
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
-        await verifyBatchPermission(this.userService, aSubmission, userInfo);
+
+        this.#verifyBatchPermission(aSubmission, userInfo?._id);
+
         // The submission status must be valid states
         if (![NEW, IN_PROGRESS ,WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
             throw new Error(ERROR.INVALID_SUBMISSION_STATUS);
@@ -273,6 +275,10 @@ class Submission {
         if (!aBatch) {
             throw new Error(ERROR.BATCH_NOT_EXIST);
         }
+
+        const aSubmission = await findByID(this.submissionCollection, aBatch.submissionID);
+        this.#verifyBatchPermission(aSubmission, userInfo?._id);
+
         // check if it's a heartbeat call sent by CLI of uploading data file.
         // CLI uploader sends uploading heartbeat every 5 min by calling the API with a parameter, uploading: true
         if (params?.uploading === true) {
@@ -302,9 +308,6 @@ class Submission {
         if (![BATCH.STATUSES.UPLOADING].includes(aBatch?.status)) {
             throw new Error(ERROR.INVALID_UPDATE_BATCH_STATUS);
         }
-        const aSubmission = await findByID(this.submissionCollection, aBatch.submissionID);
-        // submission owner & submitter's Org Owner
-        await verifyBatchPermission(this.userService, aSubmission, userInfo);
 
         const res = await this.batchService.updateBatch(aBatch, aSubmission?.bucketName, params?.files);
         // new status is ready for the validation
@@ -986,8 +989,7 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        //only the submitter of current submission can download the configuration file for data file uploading
-        await verifyBatchPermission(this.userService, aSubmission, context.userInfo);
+        this.#verifyBatchPermission(aSubmission, context?.userInfo?._id);
         //set parameters
         const parameters = {submissionID: params.submissionID, apiURL: params.apiURL, 
             dataFolder: (params.dataFolder)?  params.dataFolder : "/Users/my_name/my_files",
@@ -1020,8 +1022,7 @@ class Submission {
         if (!aSubmission) {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        //only the submitter of current submission can download the configuration file for data file uploading
-        await verifyBatchPermission(this.userService, aSubmission, context.userInfo);
+        this.#verifyBatchPermission(aSubmission, context?.userInfo?._id);
 
         // data model file node properties into the string
         const latestDataModel = await this.fetchDataModelInfo();
@@ -1722,6 +1723,18 @@ class Submission {
             throw new Error(ERROR.FAILED_GET_METADATA_FILE);
         }
     }
+
+    #verifyBatchPermission(aSubmission, userID) {
+        if (!aSubmission) {
+            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+        }
+        // Only for Data Submission Owner / Collaborators
+        const submitterCollaborator = (aSubmission?.collaborators || []).map(u => u.collaboratorID);
+        const isCollaborator = submitterCollaborator.includes(userID);
+        if (!isCollaborator && userID !== aSubmission?.submitterID) {
+            throw new Error(ERROR.INVALID_BATCH_PERMISSION);
+        }
+    }
 }
 
 const updateSubmissionStatus = async (submissionCollection, aSubmission, userInfo, newStatus) => {
@@ -2062,25 +2075,6 @@ const getUserEmails = (users) => {
 const findByID = async (submissionCollection, id) => {
     const aSubmission = await submissionCollection.find(id);
     return (aSubmission?.length > 0) ? aSubmission[0] : null;
-}
-
-const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
-    // verify submission owner
-    if (!aSubmission) {
-        throw new Error(ERROR.SUBMISSION_NOT_EXIST);
-    }
-    const collaborativeUsers =  await userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
-    const collaborativeUserIDs = collaborativeUsers.map(u => u._id);
-    const isCreatePermission = (
-        (userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE) &&
-            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission)) ||
-        // Collaborator
-        collaborativeUserIDs.includes(userInfo?._id)
-    );
-
-    if (!isCreatePermission) {
-        throw new Error(ERROR.INVALID_BATCH_PERMISSION);
-    }
 }
 
 function validateCreateSubmissionParams (params, allowedDataCommons, hiddenDataCommons, intention, dataType, userInfo) {
