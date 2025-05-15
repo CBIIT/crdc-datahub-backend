@@ -314,7 +314,7 @@ class Submission {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
 
-        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
         if (viewScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -331,13 +331,13 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
 
-        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
         const isNotPermitted = viewScope.isNoneScope();
         if (isNotPermitted) {
           throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
-      await Promise.all([
+        await Promise.all([
             // Store data file size into submission document
             (async () => {
                 const dataFileSize = await this.#getS3DirectorySize(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/`);
@@ -454,7 +454,9 @@ class Submission {
         const verifier = verifySubmissionAction(action, submission.status, comment);
         const collaboratorUserIDs = Collaborators.createCollaborators(submission?.collaborators).getEditableCollaboratorIDs();
         // User has valid permissions or collaborator, valid user scope
-        if (!await verifier.isValidPermissions(action, userInfo?._id, collaboratorUserIDs, this.#getUserScope)) {
+        if (!await verifier.isValidPermissions(action, userInfo, collaboratorUserIDs, async (...args) => {
+            return await this.#getUserScope(...args, submission);
+        })) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         const newStatus = verifier.getNewStatus();
@@ -638,7 +640,7 @@ class Submission {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
 
-        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
         if (viewScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -660,8 +662,8 @@ class Submission {
         }
         const userInfo = context.userInfo;
 
-        const createScope = await this.#getUserScope(userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
-        const reviewScope = await this.#getUserScope(userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW);
+        const createScope = await this.#getUserScope(userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, aSubmission);
+        const reviewScope = await this.#getUserScope(userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW, aSubmission);
         const isNotPermitted = !this.#isCollaborator(userInfo, aSubmission) && createScope.isNoneScope() && reviewScope.isNoneScope();
         if (isNotPermitted) {
             throw new Error(ERROR.INVALID_VALIDATE_METADATA)
@@ -716,7 +718,7 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        const reviewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW);
+        const reviewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW, aSubmission);
         if (reviewScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION)
         }
@@ -733,11 +735,10 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
         if (viewScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
-
         return this.dataRecordService.listSubmissionNodeTypes(submissionID)
     }
     /**
@@ -764,7 +765,7 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
         if (viewScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -928,7 +929,7 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
         if (viewScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -950,7 +951,7 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
         if (viewScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -1360,7 +1361,7 @@ class Submission {
             throw new Error(ERROR.INVALID_DELETE_SUBMISSION_STATUS);
         }
 
-        const createScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
+        const createScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, aSubmission);
         const isNotPermitted = !this.#isCollaborator(context?.userInfo, aSubmission) && createScope.isNoneScope();
         if (isNotPermitted) {
             throw new Error(ERROR.INVALID_DELETE_DATA_RECORDS_PERMISSION)
@@ -1436,7 +1437,7 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW);
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW, aSubmission);
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -1497,7 +1498,7 @@ class Submission {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
 
-        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, submission);
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -1527,7 +1528,7 @@ class Submission {
         const submitterCollaborator = (aSubmission?.collaborators || []).map(u => u.collaboratorID);
         const isCollaborator = submitterCollaborator.includes(userInfo?._id);
 
-        const userScope = await this.#getUserScope(userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
+        const userScope = await this.#getUserScope(userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, aSubmission);
         if (userScope.isNoneScope() && !isCollaborator) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -1701,7 +1702,7 @@ class Submission {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
 
-        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -1721,17 +1722,31 @@ class Submission {
         // Only for Data Submission Owner / Collaborators
         const submitterCollaborator = (aSubmission?.collaborators || []).map(u => u.collaboratorID);
         const isCollaborator = submitterCollaborator.includes(userID);
-        const isOwned = userID === aSubmission?.submitterID;
-        if (!isCollaborator && !isOwned) {
+        if (!isCollaborator && userID !== aSubmission?.submitterID) {
             throw new Error(ERROR.INVALID_BATCH_PERMISSION);
         }
     }
 
-    async #getUserScope(userInfo, aPermission) {
+    async #getUserScope(userInfo, aPermission, aSubmission = null) {
         const validScopes = await this.authorizationService.getPermissionScope(userInfo, aPermission);
         const userScope = UserScope.create(validScopes);
-        // valid scopes; none, all
-        const isValidUserScope = userScope.isNoneScope() || userScope.isOwnScope() || userScope.isAllScope() || userScope.isRoleScope() || userScope.isStudyScope();
+        const isRoleScope = userScope.isRoleScope();
+        const isOwnScope = userScope.isOwnScope();
+        const isStudyScope = userScope.isStudyScope();
+        const isDCScope = userScope.isDCScope();
+
+        if (aSubmission && ((isOwnScope && aSubmission !== aSubmission?.submitterID) ||
+            isStudyScope && !userScope.hasStudyValue(aSubmission?.studyID) ||
+            isDCScope && !userScope.hasDCValue(aSubmission?.dataCommons) ||
+            isRoleScope && !userScope.getRoleScope()?.scopeValues?.length === 0
+        )) {
+            const errorMsg = replaceErrorString(ERROR.INVALID_SCOPE_VALUES, aPermission) + `SubmissionID: ${aSubmission?._id}, userID: ${userInfo?._id}`
+            console.error(errorMsg);
+            throw new Error(errorMsg);
+        }
+
+        const isValidUserScope = userScope.isNoneScope() || isOwnScope || userScope.isAllScope() ||
+            isRoleScope || isStudyScope || isDCScope;
         if (!isValidUserScope) {
             throw new Error(replaceErrorString(ERROR.INVALID_USER_SCOPE));
         }
