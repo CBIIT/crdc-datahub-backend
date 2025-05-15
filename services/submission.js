@@ -1732,12 +1732,11 @@ class Submission {
         const userScope = UserScope.create(validScopes);
         const isRoleScope = userScope.isRoleScope();
         const isOwnScope = userScope.isOwnScope();
-        const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
 
         const isStudyScope = userScope.isStudyScope();
         const isDCScope = userScope.isDCScope();
         // DC scope, study scope, own scope including collaborator, and role scope is missing valid scope values
-        if (aSubmission && ((isOwnScope && (aSubmission !== aSubmission?.submitterID && !collaboratorUserIDs.includes(userInfo?._id))) ||
+        if (aSubmission && ((isOwnScope && (aSubmission !== aSubmission?.submitterID && !this.#isCollaborator(userInfo, aSubmission))) ||
             isStudyScope && !userScope.hasStudyValue(aSubmission?.studyID) ||
             isDCScope && !userScope.hasDCValue(aSubmission?.dataCommons) ||
             isRoleScope && !userScope.getRoleScope()?.scopeValues?.length === 0
