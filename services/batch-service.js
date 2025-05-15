@@ -187,13 +187,14 @@ class BatchService {
      * @returns string
      */ 
     async getMetadataFile(submission, aBatch, fileName) {
+        const submissionName = submission.name.replace("/", "_");
         if(fileName){
             const file = aBatch?.files?.find(f=>f.fileName === fileName && f.status === FILE.UPLOAD_STATUSES.UPLOADED);
             if(!file){
                 throw new Error(ERROR.FILE_NOT_EXIST);
             }
-            const output_filename =  `${submission.name}_metadata_batch${aBatch.displayID}${fileName}`;
-            return await this.s3Service.createDownloadSignedURL(aBatch?.bucketName, aBatch?.filePrefix, fileName, output_filename) ;
+            const outputFilename = `${submissionName}_metadata_batch${aBatch.displayID}${fileName}`;
+            return await this.s3Service.createDownloadSignedURL(aBatch?.bucketName, aBatch?.filePrefix, fileName, outputFilename) ;
         }
         // if no fileName, return all files in the batch as zip file
         let zipFileName = aBatch?.zipFileName;
@@ -217,7 +218,7 @@ class BatchService {
                     throw new Error(ERROR.NO_METADATA_FILES_DOWNLOADED);
                 }
                 //zip all downloaded files
-                zipFileName = `${submission.name}_metadata_batch${aBatch.displayID}.zip`;
+                zipFileName = `${submissionName}_metadata_batch${aBatch.displayID}.zip`;
                 const zipFilePath = path.join(tempFolder, zipFileName);
                 await zipFilesInDir(download_dir, zipFilePath);
                 //check if zip file already exists
