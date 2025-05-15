@@ -21,6 +21,7 @@ const {getDataCommonsDisplayNamesForApprovedStudy, getDataCommonsDisplayNamesFor
 } = require("../utility/data-commons-remapper");
 const {ORGANIZATION_COLLECTION, USER_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
+const {SORT, DIRECTION} = require("../crdc-datahub-database-drivers/constants/monogodb-constants");
 const {UserScope} = require("../domain/user-scope");
 const {replaceErrorString} = require("../utility/string-util");
 const CONTROLLED_ACCESS_ALL = "All";
@@ -170,9 +171,49 @@ class ApprovedStudiesService {
                         "$$ROOT",
                         {
                             primaryContact: {
-                                _id: { $arrayElemAt: ["$primaryContact._id", 0] },
-                                firstName: { $arrayElemAt: ["$primaryContact.firstName", 0] },
-                                lastName: { $arrayElemAt: ["$primaryContact.lastName", 0] }
+                                _id: {
+                                    $cond: [
+                                        "$useProgramPC",
+                                        { $arrayElemAt: ["$programs.conciergeID", 0] },
+                                        { $arrayElemAt: ["$primaryContact._id", 0] }
+                                    ]
+                                },
+                                firstName: {
+                                    $cond: [
+                                        "$useProgramPC",
+                                        {
+                                            $ifNull: [
+                                                { $arrayElemAt: [
+                                                        { $split: [
+                                                                { $arrayElemAt: ["$programs.conciergeName", 0] },
+                                                                " "
+                                                            ] },
+                                                        0 // first element → firstName
+                                                    ] },
+                                                ""
+                                            ]
+                                        },
+                                        { $arrayElemAt: ["$primaryContact._id", 0] }
+                                    ]
+                                },
+                                lastName: {
+                                    $cond: [
+                                        "$useProgramPC",
+                                        {
+                                            $ifNull: [
+                                                { $arrayElemAt: [
+                                                        { $split: [
+                                                                { $arrayElemAt: ["$programs.conciergeName", 0] },
+                                                                " "
+                                                            ] },
+                                                        1 // second element → lastName
+                                                ] },
+                                                ""
+                                            ]
+                                        },
+                                        { $arrayElemAt: ["$primaryContact.lastName", 0] }
+                                    ]
+                                }
                             }
                         }
                     ]
@@ -214,15 +255,52 @@ class ApprovedStudiesService {
         // Added the custom sort
         const isNotStudyName = orderBy !== "studyName";
         const customPaginationPipeline = paginationPipe?.map(pagination =>
-            Object.keys(pagination)?.includes("$sort") && isNotStudyName ? {...pagination, $sort: {...pagination.$sort, studyName: 1}} : pagination
+            Object.keys(pagination)?.includes("$sort") && isNotStudyName ? {...pagination, $sort: {...pagination.$sort, studyName: DIRECTION.ASC}} : pagination
         );
+
+        const programSort = "programs.name";
+        const isProgramSort = orderBy === programSort;
+        const programPipeLine = paginationPipe?.map(pagination =>
+            Object.keys(pagination)?.includes("$sort") && pagination.$sort === programSort ? {...pagination, $sort: {...pagination.$sort, [programSort]: sortDirection?.toLowerCase() === SORT.DESC ? DIRECTION.DESC : DIRECTION.ASC}} : pagination
+        );
+
+        // Always sort programs array inside each document by name DESC
+        pipelines.push({
+            $addFields: {
+                programs: {
+                    $cond: [
+                        { $isArray: "$programs" },
+                        { $sortArray: {
+                                input: "$programs",
+                                sortBy: { name: DIRECTION.DESC }
+                        }},
+                        []
+                    ]
+                }
+            }
+        });
+        // This is the program’s custom sort order; the program name in the first element should be sorted.
+        if (isProgramSort) {
+            pipelines.push(
+                { $unwind: { path: "$programs", preserveNullAndEmptyArrays: true } },
+                { $sort: { "programs.name": sortDirection === SORT.DESC ? DIRECTION.DESC : DIRECTION.ASC } },
+                { $group: {
+                        _id: "$_id",
+                        doc: { $first: "$$ROOT" },
+                        programs: { $push: "$programs" }
+                }},
+                { $replaceRoot: {
+                        newRoot: { $mergeObjects: ["$doc", { programs: "$programs" }] }
+                }}
+            );
+        }
 
         pipelines.push({
             $facet: {
                 total: [{
                     $count: "total"
                 }],
-                results: customPaginationPipeline
+                results: isProgramSort ? programPipeLine : customPaginationPipeline
             }
         });
         pipelines.push({
