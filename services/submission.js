@@ -1647,32 +1647,29 @@ class Submission {
 
         const baseConditions = { ...statusCondition, ...organizationCondition, ...nameCondition,
             ...dbGaPIDCondition, ...dataCommonsCondition, ...submitterNameCondition };
-        return (() => {
-            switch (true) {
-                case userScope.isAllScope():
-                    return baseConditions;
-                case userScope.isStudyScope():
-                    const studyScope = userScope.getStudyScope();
-                    const studyQuery = isAllStudy(studyScope?.scopeValues) ? {} : {studyID: {$in: studyScope?.scopeValues}};
-                    return {...baseConditions, ...studyQuery};
-                case (userScope.isDCScope()):
-                    const DCScope = userScope.getDataCommonsScope();
-                    const aFilteredDataCommon = (dataCommonsParams && DCScope?.scopeValues?.includes(dataCommonsParams)) ? [dataCommonsParams] : []
-                    return {...baseConditions, dataCommons: {$in: dataCommonsParams !== ALL_FILTER ? aFilteredDataCommon : dataCommons}};
-                case userScope.isOwnScope():
-                    const userStudies = Array.isArray(studies) && studies.length > 0 ? studies : [];
-                    const studyIDs = userStudies?.map(s => s?._id).filter(Boolean);
-                    if (isAllStudy(userStudies)) {
-                        return baseConditions;
-                    }
-                    return {...baseConditions, "$or": [
-                            {"submitterID": _id},
-                            {"studyID": {$in: studyIDs || []}},
-                            {"collaborators.collaboratorID": _id, "collaborators.permission": {$in: [COLLABORATOR_PERMISSIONS.CAN_EDIT]}}]};
-                default:
-                    throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+
+        if (userScope.isAllScope()) {
+            return baseConditions;
+        } else if (userScope.isStudyScope()) {
+            const studyScope = userScope.getStudyScope();
+            const studyQuery = isAllStudy(studyScope?.scopeValues) ? {} : {studyID: {$in: studyScope?.scopeValues}};
+            return {...baseConditions, ...studyQuery};
+        } else if (userScope.isDCScope()) {
+            const DCScope = userScope.getDataCommonsScope();
+            const aFilteredDataCommon = (dataCommonsParams && DCScope?.scopeValues?.includes(dataCommonsParams)) ? [dataCommonsParams] : []
+            return {...baseConditions, dataCommons: {$in: dataCommonsParams !== ALL_FILTER ? aFilteredDataCommon : dataCommons}};
+        } else if (userScope.isOwnScope()) {
+            const userStudies = Array.isArray(studies) && studies.length > 0 ? studies : [];
+            const studyIDs = userStudies?.map(s => s?._id).filter(Boolean);
+            if (isAllStudy(userStudies)) {
+                return baseConditions;
             }
-        })();
+            return {...baseConditions, "$or": [
+                    {"submitterID": _id},
+                    {"studyID": {$in: studyIDs || []}},
+                    {"collaborators.collaboratorID": _id, "collaborators.permission": {$in: [COLLABORATOR_PERMISSIONS.CAN_EDIT]}}]};
+        }
+        throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
     }
 
     /**
