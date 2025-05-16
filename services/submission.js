@@ -1486,7 +1486,7 @@ class Submission {
             throw new Error(errorMsg);
         }
 
-        const updatedDataRecords = await this.dataRecordService.resetDataRecords(updatedSubmission?._id, VALIDATION_STATUS.NEW);
+        const updatedDataRecords = await this.dataRecordService.resetDataRecords(updatedSubmission?.value?._id, VALIDATION_STATUS.NEW);
         if (!updatedDataRecords.acknowledged) {
             const errorMsg = `${ERROR.FAILED_RESET_DATA_RECORDS}; SubmissionID: ${aSubmission?._id}`;
             console.error(errorMsg);
