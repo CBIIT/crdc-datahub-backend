@@ -150,16 +150,21 @@ class Application {
     async saveApplication(params, context) {
         verifySession(context)
             .verifyInitialized()
-        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CREATE);
-        if (userScope.isNoneScope()) {
-            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
-        }
         let inputApplication = params.application;
         const id = inputApplication?._id;
         if (!id) {
+            const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CREATE);
+            if (userScope.isNoneScope()) {
+                throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+            }
             return await this.createApplication(inputApplication, context.userInfo);
         }
+
         const storedApplication = await this.getApplicationById(id);
+        if (storedApplication?.applicant.applicantID !== context?.userInfo?._id) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
         const prevStatus = storedApplication?.status;
         let application = {...storedApplication, ...inputApplication, status: IN_PROGRESS};
         // auto upgrade version based on configuration
@@ -209,17 +214,12 @@ class Application {
         const studyNameCondition = (studyName != null && studyName !== this.#ALL_FILTER) ? {studyName: studyQuery} : {};
 
         const baseConditions = {...statusCondition, ...programNameCondition, ...studyNameCondition, ...submitterNameCondition};
-        return (() => {
-            switch (true) {
-                case userScope.isAllScope():
-                    return baseConditions;
-                // Submitter/User
-                case userScope.isOwnScope():
-                    return {...baseConditions, "applicant.applicantID": userID};
-                default:
-                    throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
-            }
-        })();
+        if (userScope.isAllScope()) {
+            return baseConditions;
+        } else if (userScope.isOwnScope()) {
+            return {...baseConditions, "applicant.applicantID": userID};
+        }
+        throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
     }
 
     async listApplications(params, context) {
@@ -335,12 +335,11 @@ class Application {
     async reopenApplication(document, context) {
         verifySession(context)
             .verifyInitialized();
-        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CREATE);
-        if (userScope.isNoneScope()) {
+        const application = await this.getApplicationById(document._id);
+        if (context?.userInfo?._id !== application?.applicant?.applicantID) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
-        const application = await this.getApplicationById(document._id);
         application.version = await this.#getApplicationVersionByStatus(application.status, application?.version);
         if (application && application.status) {
             const reviewComment = this.#getInProgressComment(application?.history);
@@ -418,7 +417,7 @@ class Application {
             throw new Error(ERROR.INVALID_APPLICATION_RESTORE_STATE);
         }
         const userInfo = context?.userInfo;
-        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.REVIEW);
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
         if (userScope.isNoneScope() || !(userScope.isOwnScope() || userScope.isAllScope())) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
