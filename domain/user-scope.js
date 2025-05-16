@@ -48,6 +48,23 @@ class UserScope {
     isNoneScope() {
         return this.scopes?.some(scope => scope?.scope === SCOPES.NONE && scope?.scopeValues?.length === 0);
     }
+
+    isStudyScope() {
+        return this.scopes?.some(scope => scope?.scope === SCOPES.STUDY);
+    }
+
+    hasStudyValue(studyID) {
+        return this.scopes?.some(scope => scope?.scope === SCOPES.STUDY && scope?.scopeValues.includes(studyID));
+    }
+
+    isDCScope() {
+        return this.scopes?.some(scope => scope?.scope === SCOPES.DC);
+    }
+
+    hasDCValue(dataCommons) {
+        return this.scopes?.some(scope => scope?.scope === SCOPES.DC && scope?.scopeValues.includes(dataCommons));
+    }
+
 }
 
 module.exports = {
