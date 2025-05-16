@@ -101,6 +101,8 @@ const ERROR = {
     INVALID_SUBMISSION_STATUS_MODEL_VERSION: "Invalid submission status to update the model-version: $item$",
     INVALID_MODEL_VERSION_PERMISSION: "You do not have the correct permissions to update the model-version",
     FAILED_UPDATE_MODEL_VERSION: "Failed to update the model-version for the submission.",
+    FAILED_RESET_SUBMISSION: "Failed to update the submission with the new status during model-version update.",
+    FAILED_RESET_DATA_RECORDS: "Failed to update the data records with the new status during model-version update.",
     // Token
     INVALID_TOKEN_EMPTY: "Invalid token: it is empty string!",
     INVALID_TOKEN_NO_USER_ID: 'Invalid token: no user id!',

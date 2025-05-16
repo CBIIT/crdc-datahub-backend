@@ -555,11 +555,8 @@ class DataRecordService {
         return await this.dataRecordsCollection.distinct("nodeType", filter);
     }
 
-    async resetDataRecords(submissionID) {
-        const updatedSubmission = await this.dataRecordsCollection.updateMany({submissionID: submissionID}, {status: VALIDATION_STATUS.NEW, updatedAt: getCurrentTime()});
-        if (!updatedSubmission.acknowledged) {
-            console.error(`Failed to update the program in the submission: ${aSubmission?._id}`);
-        }
+    async resetDataRecords(submissionID, status) {
+        return await this.dataRecordsCollection.updateMany({submissionID: submissionID}, {status: status, updatedAt: getCurrentTime()});
     }
 
 
