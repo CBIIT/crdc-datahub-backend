@@ -481,7 +481,7 @@ class UserService {
         const validScopes = await this.authorizationService.getPermissionScope(userInfo, permission);
         const userScope = UserScope.create(validScopes);
         // valid scopes; none, all, role/role:RoleScope
-        const isValidUserScope = userScope.isNoneScope() || userScope.isAllScope() || userScope.isRoleScope();
+        const isValidUserScope = userScope.isNoneScope() || userScope.isAllScope() || userScope.isRoleScope() || userScope.isOwnScope();
         if (!isValidUserScope) {
             throw new Error(replaceErrorString(ERROR.INVALID_USER_SCOPE));
         }

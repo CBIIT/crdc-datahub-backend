@@ -298,7 +298,7 @@ class QcResultService{
         const validScopes = await this.authorizationService.getPermissionScope(userInfo, permission);
         const userScope = UserScope.create(validScopes);
         // valid scopes; none, all, role/role:RoleScope
-        const isValidUserScope = userScope.isNoneScope() || userScope.isAllScope();
+        const isValidUserScope = userScope.isNoneScope() || userScope.isAllScope() || userScope.isStudyScope() || userScope.isDCScope() || userScope.isOwnScope();
         if (!isValidUserScope) {
             console.warn(ERROR.INVALID_USER_SCOPE, permission);
             throw new Error(replaceErrorString(ERROR.INVALID_USER_SCOPE));
