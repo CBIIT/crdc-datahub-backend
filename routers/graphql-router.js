@@ -90,7 +90,7 @@ dbConnector.connect().then(async () => {
 
 
     const qcResultCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, QC_RESULTS_COLLECTION);
-    const qcResultsService = new QcResultService(qcResultCollection, submissionCollection);
+    const qcResultsService = new QcResultService(qcResultCollection, submissionCollection, authorizationService);
 
     const releaseCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, RELEASE_DATA_RECORDS_COLLECTION);
     const dataRecordCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_COLLECTION);

@@ -33,9 +33,10 @@ function formatSeverityFilter(severity){
 }
 
 class QcResultService{
-    constructor(qcResultCollection, submissionCollection){
+    constructor(qcResultCollection, submissionCollection, authorizationService){
         this.qcResultCollection = qcResultCollection;
         this.submissionCollection = submissionCollection;
+        this.authorizationService = authorizationService;
     }
 
     async submissionQCResultsAPI(params, context){
