@@ -424,7 +424,7 @@ class Application {
         }
         // User owned application
         const isApplicationOwned = userInfo?._id === aApplication?.applicant?.applicantID;
-        if (userScope.isNoneScope() || (userScope.isOwnScope() && !isApplicationOwned)) {
+        if (userScope.isOwnScope() && !isApplicationOwned) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         const prevStatus = aApplication?.history?.at(-2)?.status;
