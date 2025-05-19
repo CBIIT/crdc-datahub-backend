@@ -377,7 +377,7 @@ class Application {
             .verifyInitialized();
         const userInfo = context?.userInfo;
         const userScope = await this.#getUserScope(userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
-        if (userScope.isNoneScope() && !(userScope.isOwnScope() && userScope.isAllScope())) {
+        if (userScope.isNoneScope() && (!userScope.isOwnScope() && !userScope.isAllScope())) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         const aApplication = await this.getApplicationById(document._id);
@@ -419,7 +419,7 @@ class Application {
         }
         const userInfo = context?.userInfo;
         const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
-        if (userScope.isNoneScope() || !(userScope.isOwnScope() && userScope.isAllScope())) {
+        if (userScope.isNoneScope() || (!userScope.isOwnScope() && !userScope.isAllScope())) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         // User owned application
