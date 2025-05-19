@@ -267,5 +267,71 @@ describe('authorization service test', () => {
     });
 
 
+    test("/Test submission request - invalid view permission", async () => {
+        pbacDefaults = [
+            {
+                role: USER.ROLES.SUBMITTER,
+                permissions: [
+                    {
+                        "_id": `${PERMISSIONS.SUBMISSION_REQUEST.VIEW}`
+                    }
+                ],
+
+            }
+        ];
+        configurationService.getPBACByRoles = jest.fn().mockReturnValue(pbacDefaults);
+        userInput = {
+            role: USER.ROLES.SUBMITTER,
+            studies: [
+                {_id: "study1"},
+                {_id: "study2"},
+                {_id: "study3"}
+            ],
+            scopes: [SCOPES.ROLE],
+        };
+
+        const permissionInput = [
+            `${PERMISSIONS.SUBMISSION_REQUEST.VIEW}XXXX`,
+            null,
+            undefined
+        ];
+
+        const result = await authorizationService.getPermissionScope(userInput, permissionInput);
+        expect(result).toStrictEqual(defaultOutput);
+    });
+
+
+    test("/Test submission request - SR view permission", async () => {
+        pbacDefaults = [
+            {
+                role: USER.ROLES.SUBMITTER,
+                permissions: [
+                    {
+                        "_id": `${PERMISSIONS.SUBMISSION_REQUEST.VIEW}`
+                    }
+                ],
+
+            }
+        ];
+        configurationService.getPBACByRoles = jest.fn().mockReturnValue(pbacDefaults);
+        userInput = {
+            role: USER.ROLES.SUBMITTER,
+            studies: [
+                {_id: "study1"},
+                {_id: "study2"},
+                {_id: "study3"}
+            ],
+            scopes: [SCOPES.ROLE],
+        };
+
+        const permissionInput = [
+            `${PERMISSIONS.SUBMISSION_REQUEST.VIEW}`,
+            null,
+            undefined
+        ];
+
+        const result = await authorizationService.getPermissionScope(userInput, permissionInput);
+        expect(result).toStrictEqual(defaultOutput);
+    });
 });
 
