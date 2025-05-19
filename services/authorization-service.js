@@ -13,6 +13,7 @@ class AuthorizationService {
         scope: SCOPES.NONE,
         scopeValues: []
     };
+    #EVERY_SCOPE_VALUES = Object.values(SCOPES);
     constructor(configurationService) {
         this.configurationService = configurationService;
     }
@@ -130,13 +131,8 @@ class AuthorizationService {
             }
             const { permission, scopes: inputScope, scopeValues: inputScopeValues } = parsePermissionString(p);
             const outputScopes = await this.#getScopePermission(user, {scopes: inputScope, scopeValues: inputScopeValues}, permission);
-            const hasDefaultScope = outputScopes?.some(scope => scope?.scope === this.#DEFAULT_OUTPUT.scope);
-            const hasNoInputScope = inputScope?.length === 0 && inputScopeValues?.length === 0;
-            const hasValidInputScope = inputScope?.length > 0 || inputScopeValues?.length > 0;
-            const isValidScope = (hasDefaultScope && hasNoInputScope) || (!hasDefaultScope && hasValidInputScope);
-            const hasAllScope = inputScope?.some(scope => scope === SCOPES.ALL) || outputScopes?.some(scope => scope?.scope === SCOPES.ALL);
-            const emptyScope = inputScope?.includes("") || inputScopeValues?.includes("");
-            if (this.#allPermissionNamesSet.has(permission) && (isValidScope || hasAllScope) && !emptyScope) {
+            const hasAnyScope = outputScopes?.some(scope => this.#EVERY_SCOPE_VALUES?.includes(scope.scope));
+            if (this.#allPermissionNamesSet.has(permission) && (hasAnyScope)) {
                 filtered.push(p);
             }
         }

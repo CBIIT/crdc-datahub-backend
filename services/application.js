@@ -377,10 +377,11 @@ class Application {
             .verifyInitialized();
         const userInfo = context?.userInfo;
         const userScope = await this.#getUserScope(userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
-        if (userScope.isNoneScope() && !(userScope.isOwnScope() || userScope.isAllScope())) {
+        if (userScope.isNoneScope() && !(userScope.isOwnScope() && userScope.isAllScope())) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         const aApplication = await this.getApplicationById(document._id);
+        const isApplicationOwned = userScope.isOwnScope() && userInfo?._id === aApplication?.applicant?.applicantID;
         const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, INQUIRED];
         if (!validApplicationStatus.includes(aApplication.status)) {
             throw new Error(ERROR.VERIFY.INVALID_STATE_APPLICATION);
@@ -388,7 +389,7 @@ class Application {
         aApplication.version = await this.#getApplicationVersionByStatus(aApplication.status, aApplication?.version);
         const powerUserCond = [NEW, IN_PROGRESS, INQUIRED, SUBMITTED, IN_REVIEW].includes(aApplication?.status);
         const isValidCond = [NEW, IN_PROGRESS, INQUIRED].includes(aApplication?.status) && userInfo?._id === aApplication?.applicant?.applicantID;
-        if ((userScope.isAllScope() && !powerUserCond) || (userScope.isOwnScope() && !isValidCond)) {
+        if ((userScope.isAllScope() && !powerUserCond) || (isApplicationOwned && !isValidCond)) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
@@ -418,13 +419,12 @@ class Application {
         }
         const userInfo = context?.userInfo;
         const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
-        if (userScope.isNoneScope() || !(userScope.isOwnScope() || userScope.isAllScope())) {
+        if (userScope.isNoneScope() || !(userScope.isOwnScope() && userScope.isAllScope())) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         // User owned application
         const isApplicationOwned = userInfo?._id === aApplication?.applicant?.applicantID;
-
-        if ((userScope.isOwnScope() && !isApplicationOwned)) {
+        if (userScope.isNoneScope() || (userScope.isOwnScope() && !isApplicationOwned)) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         const prevStatus = aApplication?.history?.at(-2)?.status;
