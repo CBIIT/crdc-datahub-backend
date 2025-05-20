@@ -393,7 +393,10 @@ class UserService {
         const roleSet = new Set(Object.values(ROLES));
         const filteredRoles = roleScope?.scopeValues.filter(role => roleSet.has(role));
 
-        if (roleScope?.scope && !(filteredRoles?.includes(user[0]?.role) || roleScope?.scopeValues?.length === 0)) {
+        if (roleScope?.scope && (
+            !filteredRoles?.includes(user[0]?.role) || // check current role
+            (params?.role && !filteredRoles?.includes(params?.role)) || // limit changing another role
+            roleScope?.scopeValues?.length === 0)) {
             throw new Error(ERROR.INVALID_ROLE_SCOPE_REQUEST);
         }
 
