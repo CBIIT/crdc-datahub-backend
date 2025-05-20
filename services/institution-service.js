@@ -136,6 +136,10 @@ class InstitutionService {
             throw new Error(ERROR.EMPTY_INSTITUTION_NAME);
         }
 
+        if (trimmedName?.length > 100) {
+            throw new Error(ERROR.MAX_INSTITUTION_NAME_LIMIT);
+        }
+
         if (trimmedName) {
             const existingInstitutions = await this.#findOneByCaseInsensitiveName(trimmedName);
             const isDuplicate = existingInstitutions.some(inst => inst?._id !== institutionID);
