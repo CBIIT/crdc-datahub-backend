@@ -41,7 +41,7 @@ function updatePBACNewScope(version) {
             const key = `${parts[0]}:${parts[1]}`;
             const candidates = groupMap[key];
             if (!candidates) {
-                console.error(`The user ID ${user._id} permission is properly configured, please check the user's permission`, `ID: ${user._id}`, `permissions: ${user.permissions}`, `new-permissions: ${newPermissions}`);
+                console.error(`The user ID ${user._id} permission is properly configured, please check the user's permission`, `ID: ${user._id}`, `permission: ${oldPerm}`);
                 return null;
             }
             return candidates[0];
