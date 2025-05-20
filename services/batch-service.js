@@ -182,8 +182,9 @@ class BatchService {
     }
     /**
      * getMetadataFile
-     * @param {*} params 
-     * @param {*} context 
+     * @param {*} submission
+     * @param {*} aBatch
+     * @param {*} fileName
      * @returns string
      */ 
     async getMetadataFile(submission, aBatch, fileName) {
@@ -284,7 +285,7 @@ class UploadingMonitor {
     /**
      * getInstance
      * @param {*} batchCollection 
-     * @param {*} interval 
+     * @param {*} configurationService
      * @returns UploadingChecker
      */
     static getInstance(batchCollection, configurationService) {

@@ -5,6 +5,7 @@ const {replaceErrorString} = require("../utility/string-util");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {verifySession} = require("../verifier/user-info-verifier");
+const {UserScope} = require("../domain/user-scope");
 
 function replaceNaN(results, replacement){
     results?.map((result) => {
@@ -32,15 +33,20 @@ function formatSeverityFilter(severity){
 }
 
 class QcResultService{
-    constructor(qcResultCollection, submissionCollection){
+    constructor(qcResultCollection, submissionCollection, authorizationService){
         this.qcResultCollection = qcResultCollection;
         this.submissionCollection = submissionCollection;
+        this.authorizationService = authorizationService;
     }
 
     async submissionQCResultsAPI(params, context){
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
+            .verifyInitialized();
+        const createScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
+        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        if (createScope.isNoneScope() && viewScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
         // Check that the specified submissionID exists
         const submission = await this.submissionCollection.findOne(params._id);
         if(!submission){
@@ -177,8 +183,12 @@ class QcResultService{
 
     async aggregatedSubmissionQCResultsAPI(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
+            .verifyInitialized();
+        const createScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
+        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        if (createScope.isNoneScope() && viewScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
         // Check that the specified submissionID exists
         const submission = await this.submissionCollection.findOne(params.submissionID);
         if(!submission){
@@ -283,6 +293,18 @@ class QcResultService{
             total: totalRecords,
             results: paginatedPipelineResult
         };
+    }
+
+    async #getUserScope(userInfo, permission) {
+        const validScopes = await this.authorizationService.getPermissionScope(userInfo, permission);
+        const userScope = UserScope.create(validScopes);
+        // valid scopes; none, all, role/role:RoleScope
+        const isValidUserScope = userScope.isNoneScope() || userScope.isAllScope() || userScope.isStudyScope() || userScope.isDCScope() || userScope.isOwnScope();
+        if (!isValidUserScope) {
+            console.warn(ERROR.INVALID_USER_SCOPE, permission);
+            throw new Error(replaceErrorString(ERROR.INVALID_USER_SCOPE));
+        }
+        return userScope;
     }
 }
 
