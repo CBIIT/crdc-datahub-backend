@@ -872,9 +872,10 @@ class Application {
         if (isUndefined(controlledAccess)) {
             console.error(ERROR.APPLICATION_CONTROLLED_ACCESS_NOT_FOUND, ` id=${aApplication?._id}`);
         }
+        const programName = aApplication?.programName ?? "NA";
         return await this.approvedStudiesService.storeApprovedStudies(
             aApplication?.studyName, studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name, controlledAccess, aApplication?.ORCID,
-            aApplication?.PI, aApplication?.openAccess, aApplication.programName
+            aApplication?.PI, aApplication?.openAccess, programName
         );
     }
 

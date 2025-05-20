@@ -194,7 +194,7 @@ const ERROR = {
     INVALID_PRIMARY_CONTACT: "No data concierge found with the data concierge ID",
     INVALID_PRIMARY_CONTACT_ROLE: "The user role for a data concierge must be Data Commons Personnel",
     INVALID_PRIMARY_CONTACT_ATTEMPT: "Please, do not provide the data concierge ID when the useProgramPC is true.",
-    UPLOADING_BATCH_CRASHED: "CLI stopped responding while uploading data files.",
+    UPLOADING_BATCH_CRASHED: "CLI stopped responding while uploading files.",
     UPLOADING_BATCH_INTERRUPTED: 'File uploading is interrupted.',
     FAILED_UPDATE_BATCH_STATUS: "Failed to update the batch status.",
     FILE_NOT_EXIST: "The File requested does not exist.",
