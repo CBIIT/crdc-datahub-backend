@@ -103,6 +103,7 @@ const ERROR = {
     FAILED_UPDATE_MODEL_VERSION: "Failed to update the model-version for the submission.",
     FAILED_RESET_SUBMISSION: "Failed to update the submission with the new status during model-version update.",
     FAILED_RESET_DATA_RECORDS: "Failed to update the data records with the new status during model-version update.",
+    FAILED_RESET_QC_RESULT: "Failed to delete the qc-result data during model-version update.",
     // Token
     INVALID_TOKEN_EMPTY: "Invalid token: it is empty string!",
     INVALID_TOKEN_NO_USER_ID: 'Invalid token: no user id!',

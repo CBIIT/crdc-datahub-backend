@@ -1493,6 +1493,12 @@ class Submission {
             throw new Error(errorMsg);
         }
 
+        const updatedQCResult = await this.qcResultsService.resetQCResultData(aSubmission?._id);
+        if (!updatedQCResult.acknowledged) {
+            const errorMsg = `${ERROR.FAILED_RESET_QC_RESULT}; SubmissionID: ${aSubmission?._id}`;
+            console.error(errorMsg);
+            throw new Error(errorMsg);
+        }
         return updatedSubmission.value;
     }
 
