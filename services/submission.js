@@ -1469,6 +1469,10 @@ class Submission {
             return aSubmission;
         }
 
+        return await this.#resetValidation(aSubmission, version);
+    }
+
+    async #resetValidation(aSubmission, version){
         const updatedSubmission = await this.submissionCollection.findOneAndUpdate(
             {_id: aSubmission?._id, modelVersion: {"$ne": version}}, { // update condition
                 // Update documents
@@ -1501,7 +1505,6 @@ class Submission {
         }
         return updatedSubmission.value;
     }
-
 
     /**
      * API: get releases data
