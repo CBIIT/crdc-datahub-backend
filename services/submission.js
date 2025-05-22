@@ -1468,42 +1468,49 @@ class Submission {
         if (aSubmission?.modelVersion === version) {
             return aSubmission;
         }
-
-        return await this.#resetValidation(aSubmission, version);
-    }
-
-    async #resetValidation(aSubmission, version){
         const updatedSubmission = await this.submissionCollection.findOneAndUpdate(
             {_id: aSubmission?._id, modelVersion: {"$ne": version}}, { // update condition
                 // Update documents
                 modelVersion: version,
-                updatedAt: getCurrentTime(),
-                metadataValidationStatus: VALIDATION_STATUS.NEW,
-                fileValidationStatus: VALIDATION_STATUS.NEW,
-                crossSubmissionStatus: VALIDATION_STATUS.NEW},
+                updatedAt: getCurrentTime()},
             {returnDocument: 'after'}
         );
+        await this.#resetValidation(aSubmission?._id);
+        return updatedSubmission?.value;
+    }
 
-        if (!updatedSubmission.value) {
-            const errorMsg = `${ERROR.FAILED_RESET_SUBMISSION}; SubmissionID: ${aSubmission?._id}`;
+    async #resetValidation(aSubmissionID){
+        const [resetSubmission, resetDataRecords, resetQCResult] = await Promise.all([
+            this.submissionCollection.findOneAndUpdate(
+                {_id: aSubmissionID}, { // update condition
+                    // Update documents
+                    updatedAt: getCurrentTime(),
+                    metadataValidationStatus: VALIDATION_STATUS.NEW,
+                    fileValidationStatus: VALIDATION_STATUS.NEW,
+                    crossSubmissionStatus: VALIDATION_STATUS.NEW},
+                {returnDocument: 'after'}
+            ),
+            this.dataRecordService.resetDataRecords(aSubmissionID, VALIDATION_STATUS.NEW),
+            this.qcResultsService.resetQCResultData(aSubmissionID)
+        ]);
+
+        if (!resetSubmission.value) {
+            const errorMsg = `${ERROR.FAILED_RESET_SUBMISSION}; SubmissionID: ${aSubmissionID}`;
             console.error(errorMsg)
             throw new Error(errorMsg);
         }
 
-        const updatedDataRecords = await this.dataRecordService.resetDataRecords(updatedSubmission?.value?._id, VALIDATION_STATUS.NEW);
-        if (!updatedDataRecords.acknowledged) {
-            const errorMsg = `${ERROR.FAILED_RESET_DATA_RECORDS}; SubmissionID: ${aSubmission?._id}`;
+        if (!resetDataRecords.acknowledged) {
+            const errorMsg = `${ERROR.FAILED_RESET_DATA_RECORDS}; SubmissionID: ${aSubmissionID}`;
             console.error(errorMsg);
             throw new Error(errorMsg);
         }
 
-        const updatedQCResult = await this.qcResultsService.resetQCResultData(aSubmission?._id);
-        if (!updatedQCResult.acknowledged) {
+        if (!resetQCResult.acknowledged) {
             const errorMsg = `${ERROR.FAILED_RESET_QC_RESULT}; SubmissionID: ${aSubmission?._id}`;
             console.error(errorMsg);
             throw new Error(errorMsg);
         }
-        return updatedSubmission.value;
     }
 
     /**
