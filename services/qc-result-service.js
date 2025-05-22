@@ -181,6 +181,10 @@ class QcResultService{
         return result || [];
     }
 
+    async resetQCResultData(submissionID) {
+        return await this.qcResultCollection.deleteMany({"submissionID": submissionID});
+    }
+
     async aggregatedSubmissionQCResultsAPI(params, context) {
         verifySession(context)
             .verifyInitialized();

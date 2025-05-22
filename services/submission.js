@@ -1467,20 +1467,50 @@ class Submission {
         if (aSubmission?.modelVersion === version) {
             return aSubmission;
         }
-
         const updatedSubmission = await this.submissionCollection.findOneAndUpdate(
-            {_id: aSubmission?._id, modelVersion: {"$ne": version}},
-            {modelVersion: version, updatedAt: getCurrentTime()},
+            {_id: aSubmission?._id, modelVersion: {"$ne": version}}, { // update condition
+                // Update documents
+                modelVersion: version,
+                updatedAt: getCurrentTime()},
             {returnDocument: 'after'}
         );
-
-        if (!updatedSubmission.value) {
-            console.error(ERROR.FAILED_UPDATE_MODEL_VERSION, `SubmissionID: ${aSubmission?._id}`)
-            throw new Error(ERROR.FAILED_UPDATE_MODEL_VERSION);
-        }
-        return updatedSubmission.value;
+        await this.#resetValidation(aSubmission?._id);
+        return updatedSubmission?.value;
     }
 
+    async #resetValidation(aSubmissionID){
+        const [resetSubmission, resetDataRecords, resetQCResult] = await Promise.all([
+            this.submissionCollection.findOneAndUpdate(
+                {_id: aSubmissionID}, { // update condition
+                    // Update documents
+                    updatedAt: getCurrentTime(),
+                    metadataValidationStatus: VALIDATION_STATUS.NEW,
+                    fileValidationStatus: VALIDATION_STATUS.NEW,
+                    crossSubmissionStatus: VALIDATION_STATUS.NEW},
+                {returnDocument: 'after'}
+            ),
+            this.dataRecordService.resetDataRecords(aSubmissionID, VALIDATION_STATUS.NEW),
+            this.qcResultsService.resetQCResultData(aSubmissionID)
+        ]);
+
+        if (!resetSubmission.value) {
+            const errorMsg = `${ERROR.FAILED_RESET_SUBMISSION}; SubmissionID: ${aSubmissionID}`;
+            console.error(errorMsg)
+            throw new Error(errorMsg);
+        }
+
+        if (!resetDataRecords.acknowledged) {
+            const errorMsg = `${ERROR.FAILED_RESET_DATA_RECORDS}; SubmissionID: ${aSubmissionID}`;
+            console.error(errorMsg);
+            throw new Error(errorMsg);
+        }
+
+        if (!resetQCResult.acknowledged) {
+            const errorMsg = `${ERROR.FAILED_RESET_QC_RESULT}; SubmissionID: ${aSubmission?._id}`;
+            console.error(errorMsg);
+            throw new Error(errorMsg);
+        }
+    }
 
     /**
      * API: get releases data
