@@ -465,7 +465,7 @@ class Submission {
         //update submission
         let events = submission.history || [];
         // admin permission and submit action only can leave a comment
-        const isCommentRequired = ACTIONS.REJECT === action || (!verifier.isSubmitActionCommentRequired(submission, isAdminAction, params?.comment));
+        const isCommentRequired = ACTIONS.REJECT === action || (!verifier.isSubmitActionCommentRequired(submission, !userScope.isNoneScope(), params?.comment));
         events.push(HistoryEventBuilder.createEvent(userInfo._id, newStatus, isCommentRequired ? params?.comment : null));
 
         // When the status changes to COMPLETED, store the total data size of the S3 directory in the submission document.
