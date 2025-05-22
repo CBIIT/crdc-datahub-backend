@@ -13,14 +13,12 @@ const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/cons
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const {
-    SUBMISSION_REQUEST,
-    ADMIN,
-    DATA_SUBMISSION,
     EMAIL_NOTIFICATIONS: EN
 } = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {getDataCommonsDisplayNamesForUser} = require("../utility/data-commons-remapper");
 const {UserScope} = require("../domain/user-scope");
 const {COMPLETED, CANCELED, DELETED} = require("../constants/submission-constants");
+const SCOPES = require("../constants/permission-scope-constants");
 
 const isLoggedInOrThrow = (context) => {
     if (!context?.userInfo?.email || !context?.userInfo?.IDP) throw new Error(SUBMODULE_ERROR.NOT_LOGGED_IN);
@@ -763,7 +761,7 @@ class UserService {
             _id: {"$ne": submitterID},
             "role": USER.ROLES.SUBMITTER,
             "userStatus": USER.STATUSES.ACTIVE,
-            "permissions": {"$in": [USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE]},
+            "permissions": {"$in": [`${USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE}:${SCOPES.OWN}`]},
             "$or": [{"studies": {"$in": [studyID, "All"]}}, {"studies._id": {"$in": [studyID, "All"]}}]
         }; // user's studies contains studyID
         const users = await this.userCollection.aggregate([{"$match": query}]);

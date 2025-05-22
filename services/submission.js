@@ -451,16 +451,16 @@ class Submission {
         // verify if the action is valid based on current submission status
         const verifier = verifySubmissionAction(action, submission.status, comment);
         const collaboratorUserIDs = Collaborators.createCollaborators(submission?.collaborators).getEditableCollaboratorIDs();
-        // User has valid permissions or collaborator, valid user scope
+        // User has valid permissions or collaborator, valid user scope, with the callback function
         if (!await verifier.isValidPermissions(action, userInfo, collaboratorUserIDs, async (...args) => {
             return await this.#getUserScope(...args, submission);
         })) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         const newStatus = verifier.getNewStatus();
-        const isAdminAction = userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.ADMIN_SUBMIT);
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.ADMIN_SUBMIT, submission);
         const dataFileSize = await this.#getS3DirectorySize(submission?.bucketName, `${submission?.rootPath}/${FILE}/`);
-        verifier.isValidSubmitAction(isAdminAction, submission, params?.comment, dataFileSize?.size);
+        verifier.isValidSubmitAction(!userScope.isNoneScope(), submission, params?.comment, dataFileSize?.size);
         await this.#isValidReleaseAction(action, submission?._id, submission?.studyID, submission?.crossSubmissionStatus);
         //update submission
         let events = submission.history || [];
@@ -1050,7 +1050,10 @@ class Submission {
         if (!aSubmission.collaborators) 
             aSubmission.collaborators = [];
 
-        this.#verifySubmissionCreator(context?.userInfo, aSubmission);
+        if (aSubmission.submitterID !== context?.userInfo?._id) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
         // validate collaborators one by one.
         for (const collaborator of collaborators) {
             //find a submitter with the collaborator ID
@@ -1411,7 +1414,11 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        this.#verifySubmissionCreator(context?.userInfo, aSubmission);
+
+        if (aSubmission.submitterID !== context?.userInfo?._id) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
         // find Collaborators with aSubmission.studyID
         let collaborators = await this.userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
         return collaborators.map((user) => {
@@ -1531,13 +1538,6 @@ class Submission {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         return aSubmission;
-    }
-    // Only owned submission and create permission.
-    #verifySubmissionCreator(userInfo, aSubmission) {
-        if (!(userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE) &&
-            aSubmission.submitterID === userInfo?._id)) {
-            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
-        }
     }
 
     async #logDataRecord(userInfo, submissionID, nodeType, nodeIDs) {
@@ -2090,7 +2090,7 @@ const findByID = async (submissionCollection, id) => {
     return (aSubmission?.length > 0) ? aSubmission[0] : null;
 }
 
-function validateCreateSubmissionParams (params, allowedDataCommons, hiddenDataCommons, intention, dataType, userInfo) {
+function validateCreateSubmissionParams (params, allowedDataCommons, hiddenDataCommons, intention, dataType) {
     if (!params.name || params?.name?.trim().length === 0 || !params.studyID || !params.dataCommons) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
     }
