@@ -193,7 +193,7 @@ class ApprovedStudiesService {
                                                 ""
                                             ]
                                         },
-                                        { $arrayElemAt: ["$primaryContact._id", 0] }
+                                        { $arrayElemAt: ["$primaryContact.firstName", 0] }
                                     ]
                                 },
                                 lastName: {
