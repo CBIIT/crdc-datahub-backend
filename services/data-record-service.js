@@ -556,7 +556,17 @@ class DataRecordService {
     }
 
     async resetDataRecords(submissionID, status) {
-        return await this.dataRecordsCollection.updateMany({submissionID: submissionID}, {status: status, updatedAt: getCurrentTime()});
+        return await this.dataRecordsCollection.updateMany(
+            { submissionID: submissionID },
+            [{ $set: {
+                status: status,
+                updatedAt: getCurrentTime(),
+                s3FileInfo: {
+                    $cond: [
+                        { $gt: ["$s3FileInfo.status", null] }, // only if exists
+                        { $mergeObjects: ["$s3FileInfo", { status: status }] }, // override
+                        "$s3FileInfo" // otherwise leave unchanged
+        ]}}}]);
     }
 
 
