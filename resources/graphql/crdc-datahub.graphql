@@ -61,6 +61,7 @@ type Applicant {
 type Organization {
     _id: ID
     name: String
+    abbreviation: String
 }
 
 type ListApplications {
@@ -124,6 +125,7 @@ type Submission {
     validationType: [String] # String [metadata, file, cross-submission, data file]
     validationScope: String
     studyID: String
+    studyName: String
     controlledAccess: Boolean
     ORCID: String
     deletingData: Boolean
