@@ -116,7 +116,7 @@ class Submission {
             approvedStudy.primaryContact = await this.userService.getUserByID(approvedStudy.primaryContactID)
         }
         const newSubmission = getDataCommonsDisplayNamesForSubmission(DataSubmission.createSubmission(
-            params.name, context.userInfo, params.dataCommons, params.studyID, approvedStudy?.dbGaPID, program, modelVersion, intention, dataType, approvedStudy, this.submissionBucketName));
+            params.name, context.userInfo, params.dataCommons, approvedStudy?.dbGaPID, program, modelVersion, intention, dataType, approvedStudy, this.submissionBucketName));
         const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
@@ -400,23 +400,17 @@ class Submission {
                 {returnDocument: 'after'});
             aSubmission = updateSubmission.value;
         }
-        // add userName in each history
-        for (const history of aSubmission?.history) {
-            if (history?.userName) continue;
-            if (!history?.userID) continue;
-            const user = await this.userService.getUserByID(history.userID);
-            history.userName = user.firstName + " " + user.lastName;
-        }
+
         const programs = await this.organizationService.organizationCollection.aggregate([{ "$match": { "studies._id": aSubmission.studyID } }, { "$limit": 1 }]);
         const aProgram = programs?.length > 0 ? programs?.pop() : {};
         // The data concierge in the listing submission API only applies if the getSubmission is triggered.
         if (aProgram?._id !== aSubmission?.organization?._id || aProgram?.name !== aSubmission?.organization?.name) {
-            const updatedSubmission = await this.submissionCollection.updateOne({"_id": aSubmission?._id}, {organization: {_id: aProgram?._id, name: aProgram?.name}, updatedAt: getCurrentTime()});
+            const updatedSubmission = await this.submissionCollection.updateOne({"_id": aSubmission?._id}, {organization: {_id: aProgram?._id, name: aProgram?.name, abbreviation: aProgram?.abbreviation}, updatedAt: getCurrentTime()});
             if (!updatedSubmission.acknowledged) {
                 console.error(`Failed to update the program in the submission: ${aSubmission?._id}`);
             }
         }
-        let submission = {...aSubmission, organization: {_id: aProgram?._id, name: aProgram?.name}}
+        let submission = {...aSubmission, organization: {_id: aProgram?._id, name: aProgram?.name, abbreviation: aProgram?.abbreviation}}
         return getDataCommonsDisplayNamesForSubmission(submission);
     }
 
@@ -2187,7 +2181,7 @@ class DataValidation {
 
 class DataSubmission {
     #SUBMISSIONS = "submissions";
-    constructor(name, userInfo, dataCommons, studyID, dbGaPID, aProgram, modelVersion, intention, dataType, approvedStudy, submissionBucketName) {
+    constructor(name, userInfo, dataCommons, dbGaPID, aProgram, modelVersion, intention, dataType, approvedStudy, submissionBucketName) {
         this._id = v4();
         this.name = name;
         this.submitterID = userInfo._id;
@@ -2195,13 +2189,14 @@ class DataSubmission {
         this.submitterName = formatName(userInfo);
         this.dataCommons = dataCommons;
         this.modelVersion = modelVersion;
-        this.studyID = studyID;
+        this.studyID = approvedStudy?._id;
         this.dbGaPID = dbGaPID;
         this.status = NEW;
         this.history = [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)];
         this.organization = {
             _id: (aProgram && aProgram?._id) ? aProgram?._id : null,
-            name: (aProgram && aProgram?.name) ? aProgram?.name : null
+            name: (aProgram && aProgram?.name) ? aProgram?.name : null,
+            abbreviation: (aProgram && aProgram?.abbreviation) ? aProgram?.abbreviation : null
         };
         this.bucketName = submissionBucketName;
         this.rootPath = `${this.#SUBMISSIONS}/${this._id}`;
@@ -2214,7 +2209,8 @@ class DataSubmission {
         this.fileWarnings = [];
         this.intention = intention;
         this.dataType = dataType;
-        this.studyAbbreviation = approvedStudy?.studyAbbreviation
+        this.studyAbbreviation = approvedStudy?.studyAbbreviation;
+        this.studyName = approvedStudy?.studyName;
         if (!isUndefined(approvedStudy?.controlledAccess)) {
             this.controlledAccess = approvedStudy.controlledAccess;
         }
@@ -2223,8 +2219,8 @@ class DataSubmission {
         this.dataFileSize = FileSize.createFileSize(0);
     }
 
-    static createSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization, submissionBucketName) {
-        return new DataSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization, submissionBucketName);
+    static createSubmission(name, userInfo, dataCommons, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization, submissionBucketName) {
+        return new DataSubmission(name, userInfo, dataCommons, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization, submissionBucketName);
     }
 
     #getConciergeName(approvedStudy, aProgram){

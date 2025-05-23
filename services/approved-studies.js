@@ -455,9 +455,9 @@ class ApprovedStudiesService {
         const updatedSubmissions = await this.submissionCollection.updateMany({
             studyID: updateStudy._id,
             status: {$in: [NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, CANCELED, DELETED, ARCHIVED]},
-            $or: [{conciergeName: { "$ne": conciergeName?.trim() }}, {conciergeEmail: { "$ne": conciergeEmail }}]}, {
+            $or: [{conciergeName: { "$ne": conciergeName?.trim() }}, {conciergeEmail: { "$ne": conciergeEmail }}, {studyName: { "$ne": name }}]}, {
             // To update the data concierge
-            conciergeName: conciergeName?.trim(), conciergeEmail, updatedAt: getCurrentTime()});
+            conciergeName: conciergeName?.trim(), conciergeEmail, studyName: name, updatedAt: getCurrentTime()});
         if (!updatedSubmissions?.acknowledged) {
             console.log(ERROR.FAILED_PRIMARY_CONTACT_UPDATE, `StudyID: ${studyID}`);
             throw new Error(ERROR.FAILED_PRIMARY_CONTACT_UPDATE);
