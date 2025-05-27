@@ -1,6 +1,7 @@
 const {verifySession} = require("../verifier/user-info-verifier");
 const PBAC_CONFIG_TYPE = "PBAC";
 const CLI_UPLOADER_VERSION = "CLI_UPLOADER_VERSION";
+const MAINTENANCE_MODE = "MAINTENANCE_MODE";
 class ConfigurationService {
     constructor(configurationCollection) {
         this.configurationCollection = configurationCollection;
@@ -13,6 +14,15 @@ class ConfigurationService {
             }
         }, {"$limit": 1}]);
         return (result?.length === 1) ? result[0] : null;
+    }
+
+    async isMaintenanceMode() {
+        const result = await this.configurationCollection.aggregate([{
+            "$match": {
+                type : MAINTENANCE_MODE
+            }
+        }, {"$limit": 1}]);
+        return (result?.length === 1) ? (result[0]?.keys?.flag || false) : false;
     }
 
     async findManyByType(type) {

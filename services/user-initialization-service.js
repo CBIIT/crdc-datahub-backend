@@ -35,6 +35,13 @@ class UserInitializationService {
             // add full organization info to user info
             user.organization = await this.#getUserOrganization(orgID);
         }
+
+        const isMaintenanceMode = await this.configurationService.isMaintenanceMode();
+        if (isMaintenanceMode && user?.role !== USER.ROLES.ADMIN) {
+            console.log(ERROR.MAINTENANCE_MODE, `userID: ${userInfo?._id}`)
+            throw new Error(ERROR.MAINTENANCE_MODE);
+        }
+
         return user;
     }
 

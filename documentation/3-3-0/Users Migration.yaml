@@ -109,4 +109,11 @@ Commands:
         { notifications: "data_submission:missing_primary_contact" },
         { $pull: { notifications: "data_submission:missing_primary_contact" } }
       );
-
+  - insert the maintenance mode into configuration collection CRDCDH-2841:  |
+        db.configuration.insertOne({
+            _id: "df408763-39ac-4906-9da6-986e61e2a017",
+            type: "MAINTENANCE_MODE",
+            keys: {
+                flag: false
+            }
+        });
