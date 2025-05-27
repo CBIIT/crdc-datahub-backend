@@ -129,31 +129,31 @@ dbConnector.connect().then(async () => {
         submitApplication: dataInterface.submitApplication.bind(dataInterface),
         approveApplication:  async (params, context)=> {
             const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
-            return dataInterface.approveApplication({...params, comment}, context);
+            return await dataInterface.approveApplication({...params, comment}, context);
         },
-        rejectApplication: (params, context)=> {
+        rejectApplication: async (params, context)=> {
             const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
-            return dataInterface.rejectApplication({...params, comment}, context);
+            return await dataInterface.rejectApplication({...params, comment}, context);
         },
         inquireApplication: async (params, context)=> {
             const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
-            return dataInterface.inquireApplication({...params, comment}, context);
+            return await dataInterface.inquireApplication({...params, comment}, context);
         },
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
-        deleteApplication: (params, context)=> {
+        deleteApplication: async (params, context)=> {
             const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
             if (comment?.trim().length > 500) {
                 throw new Error(ERROR.COMMENT_LIMIT);
             }
 
-            return dataInterface.deleteApplication({...params, comment}, context);
+            return await dataInterface.deleteApplication({...params, comment}, context);
         },
-        restoreApplication: (params, context)=> {
+        restoreApplication: async (params, context)=> {
             const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
             if (comment?.trim().length > 500) {
                 throw new Error(ERROR.COMMENT_LIMIT);
             }
-            return dataInterface.restoreApplication({...params, comment}, context);
+            return await dataInterface.restoreApplication({...params, comment}, context);
         },
         listApprovedStudies: approvedStudiesService.listApprovedStudiesAPI.bind(approvedStudiesService),
         createApprovedStudy: approvedStudiesService.addApprovedStudyAPI.bind(approvedStudiesService),
@@ -167,7 +167,7 @@ dbConnector.connect().then(async () => {
         getSubmission:  submissionService.getSubmission.bind(submissionService),
         createTempCredentials: async (params, context)=> {
             const aSubmission = await submissionService.verifyTempCredential(params?.submissionID, context?.userInfo);
-            return awsService.createTempCredentials(aSubmission.bucketName, aSubmission.rootPath);
+            return await awsService.createTempCredentials(aSubmission.bucketName, aSubmission.rootPath);
         },
         submissionAction: submissionService.submissionAction.bind(submissionService),
         validateSubmission: submissionService.validateSubmission.bind(submissionService),
@@ -227,14 +227,15 @@ dbConnector.connect().then(async () => {
         getDashboardURL: dashboardService.getDashboardURL.bind(dashboardService),
         retrieveCDEs: cdeService.getCDEs.bind(cdeService),
         editSubmissionCollaborators: submissionService.editSubmissionCollaborators.bind(submissionService),
-        requestAccess: (params, context)=> {
+        requestAccess: async (params, context)=> {
             const institutionName = sanitizeHtml(params?.institutionName, {allowedTags: [],allowedAttributes: {}});
-            return userService.requestAccess({...params, institutionName}, context);
+            return await userService.requestAccess({...params, institutionName}, context);
         },
         retrievePBACDefaults: configurationService.getPBACDefaults.bind(configurationService),
         downloadMetadataFile: submissionService.getMetadataFile.bind(submissionService),
         retrieveCLIUploaderVersion: configurationService.retrieveCLIUploaderVersion.bind(configurationService),
-        userIsPrimaryContact: userService.isUserPrimaryContact.bind(userService)
+        userIsPrimaryContact: userService.isUserPrimaryContact.bind(userService),
+        isMaintenanceMode: configurationService.isMaintenanceMode.bind(configurationService)
     };
 });
 
