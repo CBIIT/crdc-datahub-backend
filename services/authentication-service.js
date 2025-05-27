@@ -5,8 +5,9 @@ const {USER} = require("../crdc-datahub-database-drivers/constants/user-constant
 
 class AuthenticationService {
 
-    constructor(userCollection) {
+    constructor(userCollection, configurationService) {
         this.userCollection = userCollection;
+        this.configurationService = configurationService
     }
 
     async verifyAuthenticated(userInfo, token) {
@@ -17,6 +18,13 @@ class AuthenticationService {
             // request has neither an active user session nor a token
             throw new Error(ERROR.INVALID_SESSION_OR_TOKEN);
         }
+
+        const isMaintenanceMode = await this.configurationService.isMaintenanceMode();
+        if (isMaintenanceMode && userInfo?.role !== USER.ROLES.ADMIN) {
+            console.log(ERROR.MAINTENANCE_MODE, `userID: ${userInfo?._id}`)
+            throw new Error(ERROR.MAINTENANCE_MODE);
+        }
+
         if (isTokenInRequest){
             token = token.split(' ')[1];
             const tokenUserInfo = decodeToken(token, config.token_secret);

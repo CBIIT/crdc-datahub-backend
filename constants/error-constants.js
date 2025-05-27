@@ -220,6 +220,8 @@ const ERROR = {
     // User Scope
     INVALID_USER_SCOPE: "Invalid user scope permission is requested",
     INVALID_SCOPE_VALUES: "You have the required permission $item$, but no values are assigned to it.",
+    // Maintenance Mode
+    MAINTENANCE_MODE: "The CRDC Submission Portal site is currently undergoing scheduled maintenance. Please check back soon. We appreciate your patience."
 }
 
 module.exports = ERROR;
