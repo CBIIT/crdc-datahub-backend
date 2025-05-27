@@ -37,4 +37,21 @@ function updateSubmission() {
     console.log(`Updated Records: ${updatedCount}`);
 }
 
+function updateNonAssignedProgram(NAProgramID) {
+    const aProgram = db.organization.findOne({ _id: NAProgramID });
+    const res = db.submissions.updateMany(
+        {$or: [{"organization._id":  {$eq: null}}, {organization: {"$exists": false}}]},
+        { $set: {
+                "organization._id": aProgram?._id,
+                "organization.name": aProgram?.name,
+                "organization.abbreviation": aProgram?.abbreviation,
+        } }
+    );
+
+    console.log(`Matched Records: ${res.matchedCount || 0}`);
+    console.log(`Updated Records: ${res.modifiedCount || 0}`);
+}
+
 updateSubmission();
+// NA program, must be created in the organization collection before running the script
+updateNonAssignedProgram("437e864a-621b-40f5-b214-3dc368137081");
