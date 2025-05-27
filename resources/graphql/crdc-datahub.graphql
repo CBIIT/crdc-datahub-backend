@@ -775,6 +775,7 @@ type Query {
     downloadMetadataFile(batchID: String!, fileName: String):String # download metadata file from S3 with presigned URL
 
     retrieveCLIUploaderVersion: String @public
+    isMaintenanceMode: Boolean @public
     userIsPrimaryContact(userID: ID!): Boolean 
 }
 type Mutation {
