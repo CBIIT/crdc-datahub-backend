@@ -101,6 +101,9 @@ const ERROR = {
     INVALID_SUBMISSION_STATUS_MODEL_VERSION: "Invalid submission status to update the model-version: $item$",
     INVALID_MODEL_VERSION_PERMISSION: "You do not have the correct permissions to update the model-version",
     FAILED_UPDATE_MODEL_VERSION: "Failed to update the model-version for the submission.",
+    FAILED_RESET_SUBMISSION: "Failed to update the submission with the new status during model-version update.",
+    FAILED_RESET_DATA_RECORDS: "Failed to update the data records with the new status during model-version update.",
+    FAILED_RESET_QC_RESULT: "Failed to delete the qc-result data during model-version update.",
     // Token
     INVALID_TOKEN_EMPTY: "Invalid token: it is empty string!",
     INVALID_TOKEN_NO_USER_ID: 'Invalid token: no user id!',
@@ -173,6 +176,7 @@ const ERROR = {
     INVALID_APPROVED_STUDIES_ACCESS_REQUEST: "Failed to request an access request because of invalid or missing approved study IDs.",
     DUPLICATE_ORGANIZATION_NAME: "Duplicate organization name found: $item$",
     NO_ADMIN_USER: "No admin user found or no PBAC request access notification is enabled.",
+    INVALID_ROLE_SCOPE_REQUEST: "You only have limited access with the given role scope.",
     // QC Results
     FAILED_INSERT_QC_RESULT: "An error occurred while attempting to insert the qc-result into the database.",
     CONTROLLED_STUDY_NO_DBGAPID: "dbGaP ID must be provided before data submissions can begin.",
@@ -193,7 +197,7 @@ const ERROR = {
     INVALID_PRIMARY_CONTACT: "No data concierge found with the data concierge ID",
     INVALID_PRIMARY_CONTACT_ROLE: "The user role for a data concierge must be Data Commons Personnel",
     INVALID_PRIMARY_CONTACT_ATTEMPT: "Please, do not provide the data concierge ID when the useProgramPC is true.",
-    UPLOADING_BATCH_CRASHED: "CLI stopped responding while uploading data files.",
+    UPLOADING_BATCH_CRASHED: "CLI stopped responding while uploading files.",
     UPLOADING_BATCH_INTERRUPTED: 'File uploading is interrupted.',
     FAILED_UPDATE_BATCH_STATUS: "Failed to update the batch status.",
     FILE_NOT_EXIST: "The File requested does not exist.",
@@ -211,6 +215,13 @@ const ERROR = {
     DUPLICATE_INSTITUTION_NAME: "This institution name already exists. Please enter a different name.",
     FAILED_CREATE_INSTITUTION: "Failed to create a new institution",
     MAX_INSTITUTION_NAME_LIMIT: "Institution name cannot exceed 100 characters.",
+    // Get Permission Scopes
+    INVALID_PERMISSION_STRING: "Failed to parse the permission string, the provided permission is either null or not a string.",
+    // User Scope
+    INVALID_USER_SCOPE: "Invalid user scope permission is requested",
+    INVALID_SCOPE_VALUES: "You have the required permission $item$, but no values are assigned to it.",
+    // Maintenance Mode
+    MAINTENANCE_MODE: "The CRDC Submission Portal site is currently undergoing scheduled maintenance. Please check back soon. We appreciate your patience."
 }
 
 module.exports = ERROR;

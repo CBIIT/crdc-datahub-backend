@@ -42,6 +42,10 @@ const sanitizeHtml = require("sanitize-html");
 const {constraintDirective, constraintDirectiveTypeDefs} = require("graphql-constraint-directive");
 const {makeExecutableSchema} = require("@graphql-tools/schema");
 const ERROR = require("../constants/error-constants");
+const {AuthorizationService} = require("../services/authorization-service");
+const {UserScope} = require("../domain/user-scope");
+const {replaceErrorString} = require("../utility/string-util");
+const {ADMIN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 
 // Create schema with constraint directive
 const schema = constraintDirective()(
@@ -62,17 +66,18 @@ dbConnector.connect().then(async () => {
     const notificationsService = new NotifyUser(emailService, config.tier);
 
     const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
-    const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
-    const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
-    const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection, approvedStudiesCollection);
-    const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, userCollection, organizationService, submissionCollection);
-
     const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
     const configurationService = new ConfigurationService(configurationCollection)
+    const authorizationService = new AuthorizationService(configurationService);
+    const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
+    const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
+    const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection, approvedStudiesCollection, authorizationService);
+    const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, userCollection, organizationService, submissionCollection, authorizationService);
+
 
     const institutionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, INSTITUTION_COLLECTION, userCollection);
-    const institutionService = new InstitutionService(institutionCollection, userCollection);
-    const userService = new UserService(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, approvedStudiesService, config.inactive_user_days, configurationService, institutionService);
+    const institutionService = new InstitutionService(institutionCollection, userCollection, authorizationService);
+    const userService = new UserService(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, approvedStudiesService, config.inactive_user_days, configurationService, institutionService, authorizationService);
     const s3Service = new S3Service();
     const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
     const awsService = new AWSService();
@@ -85,7 +90,7 @@ dbConnector.connect().then(async () => {
 
 
     const qcResultCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, QC_RESULTS_COLLECTION);
-    const qcResultsService = new QcResultService(qcResultCollection, submissionCollection);
+    const qcResultsService = new QcResultService(qcResultCollection, submissionCollection, authorizationService);
 
     const releaseCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, RELEASE_DATA_RECORDS_COLLECTION);
     const dataRecordCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_COLLECTION);
@@ -104,10 +109,10 @@ dbConnector.connect().then(async () => {
     const submissionService = new Submission(logCollection, submissionCollection, batchService, userService,
         organizationService, notificationsService, dataRecordService, fetchDataModelInfo, awsService, config.export_queue,
         s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService, config.uploaderCLIConfigs,
-        config.submission_bucket, configurationService, uploadingMonitor, config.dataCommonsBucketMap);
-    const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService, configurationService);
+        config.submission_bucket, configurationService, uploadingMonitor, config.dataCommonsBucketMap, authorizationService);
+    const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService, configurationService, authorizationService);
 
-    const dashboardService = new DashboardService(userService, awsService, configurationService, {sessionTimeout: config.dashboardSessionTimeout});
+    const dashboardService = new DashboardService(userService, awsService, configurationService, {sessionTimeout: config.dashboardSessionTimeout}, authorizationService);
     userInitializationService = new UserInitializationService(userCollection, organizationCollection, approvedStudiesCollection, configurationService);
     authenticationService = new AuthenticationService(userCollection);
     
@@ -124,31 +129,31 @@ dbConnector.connect().then(async () => {
         submitApplication: dataInterface.submitApplication.bind(dataInterface),
         approveApplication:  async (params, context)=> {
             const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
-            return dataInterface.approveApplication({...params, comment}, context);
+            return await dataInterface.approveApplication({...params, comment}, context);
         },
-        rejectApplication: (params, context)=> {
+        rejectApplication: async (params, context)=> {
             const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
-            return dataInterface.rejectApplication({...params, comment}, context);
+            return await dataInterface.rejectApplication({...params, comment}, context);
         },
         inquireApplication: async (params, context)=> {
             const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
-            return dataInterface.inquireApplication({...params, comment}, context);
+            return await dataInterface.inquireApplication({...params, comment}, context);
         },
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
-        deleteApplication: (params, context)=> {
+        deleteApplication: async (params, context)=> {
             const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
             if (comment?.trim().length > 500) {
                 throw new Error(ERROR.COMMENT_LIMIT);
             }
 
-            return dataInterface.deleteApplication({...params, comment}, context);
+            return await dataInterface.deleteApplication({...params, comment}, context);
         },
-        restoreApplication: (params, context)=> {
+        restoreApplication: async (params, context)=> {
             const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
             if (comment?.trim().length > 500) {
                 throw new Error(ERROR.COMMENT_LIMIT);
             }
-            return dataInterface.restoreApplication({...params, comment}, context);
+            return await dataInterface.restoreApplication({...params, comment}, context);
         },
         listApprovedStudies: approvedStudiesService.listApprovedStudiesAPI.bind(approvedStudiesService),
         createApprovedStudy: approvedStudiesService.addApprovedStudyAPI.bind(approvedStudiesService),
@@ -162,7 +167,7 @@ dbConnector.connect().then(async () => {
         getSubmission:  submissionService.getSubmission.bind(submissionService),
         createTempCredentials: async (params, context)=> {
             const aSubmission = await submissionService.verifyTempCredential(params?.submissionID, context?.userInfo);
-            return awsService.createTempCredentials(aSubmission.bucketName, aSubmission.rootPath);
+            return await awsService.createTempCredentials(aSubmission.bucketName, aSubmission.rootPath);
         },
         submissionAction: submissionService.submissionAction.bind(submissionService),
         validateSubmission: submissionService.validateSubmission.bind(submissionService),
@@ -197,22 +202,57 @@ dbConnector.connect().then(async () => {
         grantToken : userService.grantToken.bind(userService),
         listActiveDCPs: userService.listActiveDCPsAPI.bind(userService),
         listPrograms : organizationService.listPrograms.bind(organizationService),
-        getOrganization : organizationService.getOrganizationAPI.bind(organizationService),
-        editOrganization : organizationService.editOrganizationAPI.bind(organizationService),
-        createOrganization : organizationService.createOrganizationAPI.bind(organizationService),
+        getOrganization : async (params, context) => {
+            const userScope = await getOrgUserScope(authorizationService, context?.userInfo, ADMIN.MANAGE_PROGRAMS);
+            if (userScope.isNoneScope()) {
+                throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+            }
+            return await organizationService.getOrganizationAPI(params, context);
+        },
+        editOrganization : async (params, context) => {
+            const userScope = await getOrgUserScope(authorizationService, context?.userInfo, ADMIN.MANAGE_PROGRAMS);
+            if (userScope.isNoneScope()) {
+                throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+            }
+            return await organizationService.editOrganizationAPI(params, context);
+        },
+        createOrganization : async (params, context) => {
+            const userScope = await getOrgUserScope(authorizationService, context?.userInfo, ADMIN.MANAGE_PROGRAMS);
+            if (userScope.isNoneScope()) {
+                throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+            }
+            return await organizationService.createOrganizationAPI(params, context);
+        },
         deleteDataRecords: submissionService.deleteDataRecords.bind(submissionService),
         getDashboardURL: dashboardService.getDashboardURL.bind(dashboardService),
         retrieveCDEs: cdeService.getCDEs.bind(cdeService),
         editSubmissionCollaborators: submissionService.editSubmissionCollaborators.bind(submissionService),
-        requestAccess: (params, context)=> {
+        requestAccess: async (params, context)=> {
             const institutionName = sanitizeHtml(params?.institutionName, {allowedTags: [],allowedAttributes: {}});
-            return userService.requestAccess({...params, institutionName}, context);
+            return await userService.requestAccess({...params, institutionName}, context);
         },
         retrievePBACDefaults: configurationService.getPBACDefaults.bind(configurationService),
         downloadMetadataFile: submissionService.getMetadataFile.bind(submissionService),
         retrieveCLIUploaderVersion: configurationService.retrieveCLIUploaderVersion.bind(configurationService),
+        userIsPrimaryContact: userService.isUserPrimaryContact.bind(userService),
+        isMaintenanceMode: configurationService.isMaintenanceMode.bind(configurationService)
     };
 });
+
+async function getOrgUserScope(authorizationService, userInfo, permission) {
+    if (!userInfo?.email || !userInfo?.IDP) {
+        throw new Error(ERROR.NOT_LOGGED_IN);
+    }
+    const validScopes = await authorizationService.getPermissionScope(userInfo, permission);
+    const userScope = UserScope.create(validScopes);
+    // valid scopes; none, all, role/role:RoleScope
+    const isValidUserScope = userScope.isNoneScope() || userScope.isAllScope();
+    if (!isValidUserScope) {
+        console.warn(ERROR.INVALID_USER_SCOPE, permission);
+        throw new Error(replaceErrorString(ERROR.INVALID_USER_SCOPE));
+    }
+    return userScope;
+}
 
 
 module.exports = (req, res, next) => {

@@ -83,9 +83,15 @@ class SubmissionActionVerifier {
             return this.#actionName === ACTIONS.SUBMIT && isAdminAction && isError && (!comment || comment?.trim()?.length === 0);
     }
 
-    isValidPermissions(action, userID, userPermissions = [], collaboratorUserIDs = []) {
-        const collaboratorCondition = [ACTIONS.SUBMIT, ACTIONS.WITHDRAW, ACTIONS.CANCEL].includes(action) && collaboratorUserIDs.includes(userID);
-        return userPermissions?.some(item => this.#permissions.includes(item)) || collaboratorCondition;
+    async isValidPermissions(action, userInfo, collaboratorUserIDs = [], authorizationCallback) {
+        const collaboratorCondition = [ACTIONS.SUBMIT, ACTIONS.WITHDRAW, ACTIONS.CANCEL].includes(action) && collaboratorUserIDs.includes(userInfo?._id);
+
+        const multiUserScopes = await Promise.all(
+            this.#permissions.map(aPermission => authorizationCallback(userInfo, aPermission))
+        );
+
+        const isNotPermitted = multiUserScopes?.every(userScope => userScope.isNoneScope());
+        return !isNotPermitted || collaboratorCondition;
     }
 
     // Private Function

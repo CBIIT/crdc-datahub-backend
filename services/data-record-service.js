@@ -4,6 +4,7 @@ const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants.js");
+const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const BATCH_SIZE = 300;
 const ERROR = "Error";
 const WARNING = "Warning";
@@ -553,6 +554,21 @@ class DataRecordService {
         };
         return await this.dataRecordsCollection.distinct("nodeType", filter);
     }
+
+    async resetDataRecords(submissionID, status) {
+        return await this.dataRecordsCollection.updateMany(
+            { submissionID: submissionID },
+            [{ $set: {
+                status: status,
+                updatedAt: getCurrentTime(),
+                s3FileInfo: {
+                    $cond: [
+                        { $gt: ["$s3FileInfo.status", null] }, // only if exists
+                        { $mergeObjects: ["$s3FileInfo", { status: status }] }, // override
+                        "$s3FileInfo" // otherwise leave unchanged
+        ]}}}]);
+    }
+
 
     #getSubmissionStatQuery(submissionID, validNodeStatus) {
         return [

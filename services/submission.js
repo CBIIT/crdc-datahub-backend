@@ -32,6 +32,7 @@ const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utilit
 const {getDataCommonsDisplayNamesForSubmission, getDataCommonsDisplayNamesForListSubmissions,
     getDataCommonsDisplayNamesForUser, getDataCommonsDisplayNamesForReleasedNode
 } = require("../utility/data-commons-remapper");
+const {UserScope} = require("../domain/user-scope");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -55,7 +56,7 @@ class Submission {
     constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService,
                 dataRecordService, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList,
                 hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs, 
-                submissionBucketName, configurationService, uploadingMonitor, dataCommonsBucketMap) {
+                submissionBucketName, configurationService, uploadingMonitor, dataCommonsBucketMap, authorizationService) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -78,29 +79,14 @@ class Submission {
         this.configurationService = configurationService;
         this.uploadingMonitor = uploadingMonitor;
         this.dataCommonsBucketMap = dataCommonsBucketMap;
+        this.authorizationService = authorizationService;
     }
 
     async createSubmission(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
-        const userInfo = context?.userInfo;
-        const hasStudies = userInfo?.studies?.length > 0;
-        const isRoleWithoutStudies = userInfo?.role === ROLES.DATA_COMMONS_PERSONNEL || userInfo?.role === ROLES.ADMIN;
-        if (!hasStudies && !isRoleWithoutStudies){
-            throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
-        }
-
-        if (!isAllStudy(userInfo.studies) && !isRoleWithoutStudies) {
-            const study = userInfo.studies.find(study =>
-                study._id === params.studyID
-            );
-            if (!study) {
-                throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
-            }
-        }
-
-        if (!isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, {studyID: params.studyID, dataCommons: params.dataCommons, submitterID: userInfo?._id})) {
+            .verifyInitialized();
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
+        if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
@@ -130,7 +116,7 @@ class Submission {
             approvedStudy.primaryContact = await this.userService.getUserByID(approvedStudy.primaryContactID)
         }
         const newSubmission = getDataCommonsDisplayNamesForSubmission(DataSubmission.createSubmission(
-            params.name, context.userInfo, params.dataCommons, params.studyID, approvedStudy?.dbGaPID, program, modelVersion, intention, dataType, approvedStudy, this.submissionBucketName));
+            params.name, context.userInfo, params.dataCommons, approvedStudy?.dbGaPID, program, modelVersion, intention, dataType, approvedStudy, this.submissionBucketName));
         const res = await this.submissionCollection.insert(newSubmission);
         if (!(res?.acknowledged)) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
@@ -151,13 +137,10 @@ class Submission {
     }
 
     async listSubmissions(params, context) {
-        let userInfoVerifier = verifySession(context)
+        verifySession(context)
             .verifyInitialized();
-        try{
-            userInfoVerifier.verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
-        }
-        catch(permissionError){
-            console.warn(permissionError);
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        if (userScope.isNoneScope()) {
             console.warn("Failed permission verification for listSubmissions, returning empty list");
             return {submissions: [], total: 0};
         }
@@ -165,15 +148,15 @@ class Submission {
 
         const filterConditions = [
             // default filter for listing submissions
-            this.#listConditions(context?.userInfo, params.status, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName),
+            this.#listConditions(context?.userInfo, params.status, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
             // no filter for dataCommons aggregation
-            this.#listConditions(context?.userInfo, ALL_FILTER, ALL_FILTER, null, null, ALL_FILTER, ALL_FILTER),
+            this.#listConditions(context?.userInfo, ALL_FILTER, ALL_FILTER, null, null, ALL_FILTER, ALL_FILTER, userScope),
             // note: Aggregation of Submitter name should not be filtered by a submitterName
-            this.#listConditions(context?.userInfo, params?.status, params.organization, params.name, params.dbGaPID, params.dataCommons, ALL_FILTER),
+            this.#listConditions(context?.userInfo, params?.status, params.organization, params.name, params.dbGaPID, params.dataCommons, ALL_FILTER, userScope),
             // note: Aggregation of Organization name should not be filtered by a organization
-            this.#listConditions(context?.userInfo, params?.status, ALL_FILTER, params.name, params.dbGaPID, params.dataCommons, params?.submitterName),
+            this.#listConditions(context?.userInfo, params?.status, ALL_FILTER, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
             // note: Aggregation of status name should not be filtered by a statues
-            this.#listConditions(context?.userInfo, ALL_FILTER, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName),
+            this.#listConditions(context?.userInfo, ALL_FILTER, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
         ]
 
         const [listConditions, dataCommonsCondition, submitterNameCondition, organizationCondition, statusCondition] = filterConditions;
@@ -226,7 +209,9 @@ class Submission {
             .notEmpty()
             .type([BATCH.TYPE.METADATA, BATCH.TYPE.DATA_FILE]);
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
-        await verifyBatchPermission(this.userService, aSubmission, userInfo);
+
+        this.#verifyBatchPermission(aSubmission, userInfo?._id);
+
         // The submission status must be valid states
         if (![NEW, IN_PROGRESS ,WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
             throw new Error(ERROR.INVALID_SUBMISSION_STATUS);
@@ -273,6 +258,10 @@ class Submission {
         if (!aBatch) {
             throw new Error(ERROR.BATCH_NOT_EXIST);
         }
+
+        const aSubmission = await findByID(this.submissionCollection, aBatch.submissionID);
+        this.#verifyBatchPermission(aSubmission, userInfo?._id);
+
         // check if it's a heartbeat call sent by CLI of uploading data file.
         // CLI uploader sends uploading heartbeat every 5 min by calling the API with a parameter, uploading: true
         if (params?.uploading === true) {
@@ -281,30 +270,25 @@ class Submission {
             return {}
         }
         else {
-            if (aBatch.type === VALIDATION.TYPES.DATA_FILE) {
-                // remove uploading batch from the uploading batch pool if uploading is completed or failed
-                this.uploadingMonitor.removeUploadingBatch(aBatch._id);
-                // check files if any success == false and error contains 'File uploading is interrupted.'
-                if (params?.files?.some((file) => file?.succeeded === false && file?.errors?.includes(ERROR.UPLOADING_BATCH_INTERRUPTED))) {
-                    // update the batch status to failed
-                    await this.uploadingMonitor.setUploadingFailed(aBatch._id, BATCH.STATUSES.FAILED, ERROR.UPLOADING_BATCH_INTERRUPTED, true);
-                    return {
-                        _id: aBatch._id,
-                        submissionID: aBatch.submissionID,
-                        type: aBatch.type,
-                        fileCount: aBatch.fileCount,
-                        status: BATCH.STATUSES.FAILED,
-                        updatedAt: getCurrentTime(),
-                    }
+            // remove uploading batch from the uploading batch pool if uploading is completed or failed
+            this.uploadingMonitor.removeUploadingBatch(aBatch._id);
+            // check files if any success == false and error contains 'File uploading is interrupted.'
+            if (params?.files?.some((file) => file?.succeeded === false && file?.errors?.includes(ERROR.UPLOADING_BATCH_INTERRUPTED))) {
+                // update the batch status to failed
+                await this.uploadingMonitor.setUploadingFailed(aBatch._id, BATCH.STATUSES.FAILED, ERROR.UPLOADING_BATCH_INTERRUPTED, true);
+                return {
+                    _id: aBatch._id,
+                    submissionID: aBatch.submissionID,
+                    type: aBatch.type,
+                    fileCount: aBatch.fileCount,
+                    status: BATCH.STATUSES.FAILED,
+                    updatedAt: getCurrentTime(),
                 }
             }
         }
         if (![BATCH.STATUSES.UPLOADING].includes(aBatch?.status)) {
             throw new Error(ERROR.INVALID_UPDATE_BATCH_STATUS);
         }
-        const aSubmission = await findByID(this.submissionCollection, aBatch.submissionID);
-        // submission owner & submitter's Org Owner
-        await verifyBatchPermission(this.userService, aSubmission, userInfo);
 
         const res = await this.batchService.updateBatch(aBatch, aSubmission?.bucketName, params?.files);
         // new status is ready for the validation
@@ -321,31 +305,37 @@ class Submission {
 
     async listBatches(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
+            .verifyInitialized();
+
         const aSubmission = await findByID(this.submissionCollection,params?.submissionID);
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
 
-        if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
-            throw new Error(ERROR.INVALID_ROLE);
+        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        if (viewScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
-        const collaborativeUsers =  await this.userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
-        params.collaboratorUserIDs = collaborativeUsers.map(u => u._id);
-        return this.batchService.listBatches(params, context);
+
+        return this.batchService.listBatches(params);
     }
 
   async getSubmission(params, context){
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
+            .verifyInitialized();
+
         let aSubmission = await findByID(this.submissionCollection, params._id);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        const [isPermitted] = await Promise.all([
-            this.#isViewablePermission(context?.userInfo, aSubmission),
+
+        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        const isNotPermitted = viewScope.isNoneScope();
+        if (isNotPermitted) {
+          throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
+        await Promise.all([
             // Store data file size into submission document
             (async () => {
                 const dataFileSize = await this.#getS3DirectorySize(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/`);
@@ -400,43 +390,28 @@ class Submission {
               }
             })()
         ]);
-        if (isPermitted) {
-            // Store the timestamp for the inactive submission purpose
-            const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
-            if (conditionSubmitter) {
-                const everyReminderDays = this.#getEveryReminderQuery(this.emailParams.remindSubmissionDay, false);
-                const updateSubmission = await this.submissionCollection.findOneAndUpdate({_id: aSubmission?._id},
-                    {accessedAt: getCurrentTime(), ...everyReminderDays},
-                    {returnDocument: 'after'});
-                aSubmission = updateSubmission.value;
-            }
-            // add userName in each history
-            for (const history of aSubmission?.history) {
-                if (history?.userName) continue;
-                if (!history?.userID) continue;
-                const user = await this.userService.getUserByID(history.userID);
-                history.userName = user.firstName + " " + user.lastName;
-            }
-            const programs = await this.organizationService.organizationCollection.aggregate([{ "$match": { "studies._id": aSubmission.studyID } }, { "$limit": 1 }]);
-            const aProgram = programs?.length > 0 ? programs?.pop() : {};
-            // The data concierge in the listing submission API only applies if the getSubmission is triggered.
-            if (aProgram?._id !== aSubmission?.organization?._id || aProgram?.name !== aSubmission?.organization?.name) {
-                const updatedSubmission = await this.submissionCollection.updateOne({"_id": aSubmission?._id}, {organization: {_id: aProgram?._id, name: aProgram?.name}, updatedAt: getCurrentTime()});
-                if (!updatedSubmission.acknowledged) {
-                    console.error(`Failed to update the program in the submission: ${aSubmission?._id}`);
-                }
-            }
-            let submission = {...aSubmission, organization: {_id: aProgram?._id, name: aProgram?.name}}
-            return getDataCommonsDisplayNamesForSubmission(submission);
-        }
-        throw new Error(ERROR.INVALID_ROLE);
-    }
 
-    async #isViewablePermission(userInfo, aSubmission) {
-        const collaborativeUsers =  await this.userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
-        const collaborativeUserIDs = collaborativeUsers.map(u => u._id);
-        const conditionCollaborator = collaborativeUserIDs.includes(userInfo?._id);
-        return isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission) || conditionCollaborator;
+        // Store the timestamp for the inactive submission purpose
+        const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
+        if (conditionSubmitter) {
+            const everyReminderDays = this.#getEveryReminderQuery(this.emailParams.remindSubmissionDay, false);
+            const updateSubmission = await this.submissionCollection.findOneAndUpdate({_id: aSubmission?._id},
+                {accessedAt: getCurrentTime(), ...everyReminderDays},
+                {returnDocument: 'after'});
+            aSubmission = updateSubmission.value;
+        }
+
+        const programs = await this.organizationService.organizationCollection.aggregate([{ "$match": { "studies._id": aSubmission.studyID } }, { "$limit": 1 }]);
+        const aProgram = programs?.length > 0 ? programs?.pop() : {};
+        // The data concierge in the listing submission API only applies if the getSubmission is triggered.
+        if (aProgram?._id !== aSubmission?.organization?._id || aProgram?.name !== aSubmission?.organization?.name) {
+            const updatedSubmission = await this.submissionCollection.updateOne({"_id": aSubmission?._id}, {organization: {_id: aProgram?._id, name: aProgram?.name, abbreviation: aProgram?.abbreviation}, updatedAt: getCurrentTime()});
+            if (!updatedSubmission.acknowledged) {
+                console.error(`Failed to update the program in the submission: ${aSubmission?._id}`);
+            }
+        }
+        let submission = {...aSubmission, organization: {_id: aProgram?._id, name: aProgram?.name, abbreviation: aProgram?.abbreviation}}
+        return getDataCommonsDisplayNamesForSubmission(submission);
     }
 
     /**
@@ -470,21 +445,21 @@ class Submission {
         // verify if the action is valid based on current submission status
         const verifier = verifySubmissionAction(action, submission.status, comment);
         const collaboratorUserIDs = Collaborators.createCollaborators(submission?.collaborators).getEditableCollaboratorIDs();
-        // User has valid permissions or collaborator, valid user scope
-        const isCollaborator = collaboratorUserIDs.includes(userInfo._id);
-        if (!(verifier.isValidPermissions(action, userInfo?._id, userInfo?.permissions, collaboratorUserIDs)
-            && (isCollaborator || isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, submission)))) {
+        // User has valid permissions or collaborator, valid user scope, with the callback function
+        if (!await verifier.isValidPermissions(action, userInfo, collaboratorUserIDs, async (...args) => {
+            return await this.#getUserScope(...args, submission);
+        })) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         const newStatus = verifier.getNewStatus();
-        const isAdminAction = userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.ADMIN_SUBMIT);
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.ADMIN_SUBMIT, submission);
         const dataFileSize = await this.#getS3DirectorySize(submission?.bucketName, `${submission?.rootPath}/${FILE}/`);
-        verifier.isValidSubmitAction(isAdminAction, submission, params?.comment, dataFileSize?.size);
+        verifier.isValidSubmitAction(!userScope.isNoneScope(), submission, params?.comment, dataFileSize?.size);
         await this.#isValidReleaseAction(action, submission?._id, submission?.studyID, submission?.crossSubmissionStatus);
         //update submission
         let events = submission.history || [];
         // admin permission and submit action only can leave a comment
-        const isCommentRequired = ACTIONS.REJECT === action || (!verifier.isSubmitActionCommentRequired(submission, isAdminAction, params?.comment));
+        const isCommentRequired = ACTIONS.REJECT === action || (!verifier.isSubmitActionCommentRequired(submission, !userScope.isNoneScope(), params?.comment));
         events.push(HistoryEventBuilder.createEvent(userInfo._id, newStatus, isCommentRequired ? params?.comment : null));
 
         // When the status changes to COMPLETED, store the total data size of the S3 directory in the submission document.
@@ -650,15 +625,16 @@ class Submission {
 
     async submissionStats(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
+            .verifyInitialized();
+
         const aSubmission = await findByID(this.submissionCollection, params?._id);
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
 
-        if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
-            throw new Error(ERROR.INVALID_ROLE);
+        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        if (viewScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
         const submissionStats = await this.dataRecordService.submissionStats(aSubmission);
@@ -677,7 +653,11 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
         const userInfo = context.userInfo;
-        if (!this.#isValidAction(userInfo, aSubmission)) {
+
+        const createScope = await this.#getUserScope(userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, aSubmission);
+        const reviewScope = await this.#getUserScope(userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW, aSubmission);
+        const isNotPermitted = !this.#isCollaborator(userInfo, aSubmission) && createScope.isNoneScope() && reviewScope.isNoneScope();
+        if (isNotPermitted) {
             throw new Error(ERROR.INVALID_VALIDATE_METADATA)
         }
         // start validation, change validating status
@@ -730,26 +710,26 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        const userInfo = context.userInfo;
-        if (!(userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW) &&
-            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission))) {
-            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        const reviewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW, aSubmission);
+        if (reviewScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION)
         }
         return this.dataRecordService.submissionCrossValidationResults(params.submissionID, params.nodeTypes, params.batchIDs, params.severities, params.first, params.offset, params.orderBy, params.sortDirection);
     }
 
     async listSubmissionNodeTypes(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
+            .verifyInitialized();
+
         const submissionID = params?._id;
         const aSubmission = await findByID(this.submissionCollection, submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
-            throw new Error(ERROR.INVALID_ROLE);
+        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        if (viewScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         return this.dataRecordService.listSubmissionNodeTypes(submissionID)
     }
@@ -761,8 +741,7 @@ class Submission {
      */
     async listSubmissionNodes(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
+            .verifyInitialized();
         const {
             submissionID, 
             nodeType, 
@@ -778,8 +757,9 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
-            throw new Error(ERROR.INVALID_ROLE);
+        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        if (viewScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
         if(!["All", "New", "Error", "Passed", "Warning"].includes(status)){
@@ -934,16 +914,16 @@ class Submission {
      */
     async getNodeDetail(params, context){
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
+            .verifyInitialized();
 
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
-            throw new Error(ERROR.INVALID_ROLE);
+        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        if (viewScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
         return await this.dataRecordService.NodeDetail(params.submissionID, params.nodeType, params.nodeID);
@@ -956,15 +936,16 @@ class Submission {
      */
     async getRelatedNodes(params, context){
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
+            .verifyInitialized();
+
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        if (!await this.#isViewablePermission(context?.userInfo, aSubmission)) {
-            throw new Error(ERROR.INVALID_ROLE);
+        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        if (viewScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
         if (!NODE_RELATION_TYPES.includes(params.relationship)){
@@ -987,8 +968,7 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        //only the submitter of current submission can download the configuration file for data file uploading
-        await verifyBatchPermission(this.userService, aSubmission, context.userInfo);
+        this.#verifyBatchPermission(aSubmission, context?.userInfo?._id);
         //set parameters
         const parameters = {submissionID: params.submissionID, apiURL: params.apiURL, 
             dataFolder: (params.dataFolder)?  params.dataFolder : "/Users/my_name/my_files",
@@ -1021,8 +1001,7 @@ class Submission {
         if (!aSubmission) {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        //only the submitter of current submission can download the configuration file for data file uploading
-        await verifyBatchPermission(this.userService, aSubmission, context.userInfo);
+        this.#verifyBatchPermission(aSubmission, context?.userInfo?._id);
 
         // data model file node properties into the string
         const latestDataModel = await this.fetchDataModelInfo();
@@ -1065,7 +1044,10 @@ class Submission {
         if (!aSubmission.collaborators) 
             aSubmission.collaborators = [];
 
-        this.#verifySubmissionCreator(context?.userInfo, aSubmission);
+        if (aSubmission.submitterID !== context?.userInfo?._id) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
         // validate collaborators one by one.
         for (const collaborator of collaborators) {
             //find a submitter with the collaborator ID
@@ -1374,7 +1356,9 @@ class Submission {
             throw new Error(ERROR.INVALID_DELETE_SUBMISSION_STATUS);
         }
 
-        if (!await this.#isCreatePermission(context?.userInfo, aSubmission)) {
+        const createScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, aSubmission);
+        const isNotPermitted = !this.#isCollaborator(context?.userInfo, aSubmission) && createScope.isNoneScope();
+        if (isNotPermitted) {
             throw new Error(ERROR.INVALID_DELETE_DATA_RECORDS_PERMISSION)
         }
 
@@ -1424,7 +1408,11 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        this.#verifySubmissionCreator(context?.userInfo, aSubmission);
+
+        if (aSubmission.submitterID !== context?.userInfo?._id) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
         // find Collaborators with aSubmission.studyID
         let collaborators = await this.userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
         return collaborators.map((user) => {
@@ -1440,13 +1428,17 @@ class Submission {
      */
     async updateSubmissionModelVersion(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW);
+            .verifyInitialized();
 
         const {_id, version} = params;
         const aSubmission = await findByID(this.submissionCollection, _id);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
+        }
+
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW, aSubmission);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
         const dataModels = await this.fetchDataModelInfo();
@@ -1469,20 +1461,50 @@ class Submission {
         if (aSubmission?.modelVersion === version) {
             return aSubmission;
         }
-
         const updatedSubmission = await this.submissionCollection.findOneAndUpdate(
-            {_id: aSubmission?._id, modelVersion: {"$ne": version}},
-            {modelVersion: version, updatedAt: getCurrentTime()},
+            {_id: aSubmission?._id, modelVersion: {"$ne": version}}, { // update condition
+                // Update documents
+                modelVersion: version,
+                updatedAt: getCurrentTime()},
             {returnDocument: 'after'}
         );
-
-        if (!updatedSubmission.value) {
-            console.error(ERROR.FAILED_UPDATE_MODEL_VERSION, `SubmissionID: ${aSubmission?._id}`)
-            throw new Error(ERROR.FAILED_UPDATE_MODEL_VERSION);
-        }
-        return updatedSubmission.value;
+        await this.#resetValidation(aSubmission?._id);
+        return updatedSubmission?.value;
     }
 
+    async #resetValidation(aSubmissionID){
+        const [resetSubmission, resetDataRecords, resetQCResult] = await Promise.all([
+            this.submissionCollection.findOneAndUpdate(
+                {_id: aSubmissionID}, { // update condition
+                    // Update documents
+                    updatedAt: getCurrentTime(),
+                    metadataValidationStatus: VALIDATION_STATUS.NEW,
+                    fileValidationStatus: VALIDATION_STATUS.NEW,
+                    crossSubmissionStatus: VALIDATION_STATUS.NEW},
+                {returnDocument: 'after'}
+            ),
+            this.dataRecordService.resetDataRecords(aSubmissionID, VALIDATION_STATUS.NEW),
+            this.qcResultsService.resetQCResultData(aSubmissionID)
+        ]);
+
+        if (!resetSubmission.value) {
+            const errorMsg = `${ERROR.FAILED_RESET_SUBMISSION}; SubmissionID: ${aSubmissionID}`;
+            console.error(errorMsg)
+            throw new Error(errorMsg);
+        }
+
+        if (!resetDataRecords.acknowledged) {
+            const errorMsg = `${ERROR.FAILED_RESET_DATA_RECORDS}; SubmissionID: ${aSubmissionID}`;
+            console.error(errorMsg);
+            throw new Error(errorMsg);
+        }
+
+        if (!resetQCResult.acknowledged) {
+            const errorMsg = `${ERROR.FAILED_RESET_QC_RESULT}; SubmissionID: ${aSubmission?._id}`;
+            console.error(errorMsg);
+            throw new Error(errorMsg);
+        }
+    }
 
     /**
      * API: get releases data
@@ -1490,21 +1512,24 @@ class Submission {
      * @param {*} context 
      * @returns {Promise<Object>}
      */
-    async getReleasedNodeByIDs(params, context)
-    {
+    async getReleasedNodeByIDs(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+            .verifyInitialized();
+
         const {
-            submissionID = submissionID,
-            nodeType = nodeType,
-            nodeID = nodeID,
-            status = status
+            submissionID,
+            nodeType,
+            nodeID,
+            status
         } = params; // all three parameters are required in GraphQL API
         const submission = await this.submissionCollection.findOne(submissionID);
-        if(!submission)
-        {
+        if (!submission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+        }
+
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, submission);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
         const results = await this.dataRecordService.getReleasedAndNewNode(submissionID, submission.dataCommons, nodeType, nodeID, status);
@@ -1532,19 +1557,11 @@ class Submission {
         const submitterCollaborator = (aSubmission?.collaborators || []).map(u => u.collaboratorID);
         const isCollaborator = submitterCollaborator.includes(userInfo?._id);
 
-        const createPermission = userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE) &&
-            aSubmission.submitterID === userInfo?._id;
-        if (!createPermission && !isCollaborator) {
+        const userScope = await this.#getUserScope(userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, aSubmission);
+        if (userScope.isNoneScope() && !isCollaborator) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         return aSubmission;
-    }
-    // Only owned submission and create permission.
-    #verifySubmissionCreator(userInfo, aSubmission) {
-        if (!(userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE) &&
-            aSubmission.submitterID === userInfo?._id)) {
-            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
-        }
     }
 
     async #logDataRecord(userInfo, submissionID, nodeType, nodeIDs) {
@@ -1630,26 +1647,13 @@ class Submission {
         }, {[`${FINAL_INACTIVE_REMINDER}`]: status});
     }
 
-    #isCreatePermission(userInfo, aSubmission) {
-        const isCreatePermission = (
-            userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE) &&
-            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission)
-        );
+    #isCollaborator(userInfo, aSubmission) {
         const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
-        const isCollaborator = collaboratorUserIDs.includes(userInfo?._id);
-        return isCreatePermission || isCollaborator;
+        return collaboratorUserIDs.includes(userInfo?._id);
     }
 
-    #isValidAction(userInfo, aSubmission) {
-        const isReviewPermission = (
-            userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW) &&
-            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission)
-        );
-        return this.#isCreatePermission || isReviewPermission;
-    }
-
-    #listConditions(userInfo, status, organizationID, submissionName, dbGaPID, dataCommonsParams, submitterName){
-        const {_id, role, dataCommons, studies} = userInfo;
+    #listConditions(userInfo, status, organizationID, submissionName, dbGaPID, dataCommonsParams, submitterName, userScope){
+        const {_id, dataCommons, studies} = userInfo;
         const validSubmissionStatus = [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
             REJECTED, WITHDRAWN, DELETED];
         const statusCondition = status && !status?.includes(ALL_FILTER) ?
@@ -1665,29 +1669,29 @@ class Submission {
 
         const baseConditions = { ...statusCondition, ...organizationCondition, ...nameCondition,
             ...dbGaPIDCondition, ...dataCommonsCondition, ...submitterNameCondition };
-        return (() => {
+
+        if (userScope.isAllScope()) {
+            return baseConditions;
+        } else if (userScope.isStudyScope()) {
+            const studyScope = userScope.getStudyScope();
+            const studyQuery = isAllStudy(studyScope?.scopeValues) ? {} : {studyID: {$in: studyScope?.scopeValues}};
+            return {...baseConditions, ...studyQuery};
+        } else if (userScope.isDCScope()) {
+            const DCScope = userScope.getDataCommonsScope();
+            const aFilteredDataCommon = (dataCommonsParams && DCScope?.scopeValues?.includes(dataCommonsParams)) ? [dataCommonsParams] : []
+            return {...baseConditions, dataCommons: {$in: dataCommonsParams !== ALL_FILTER ? aFilteredDataCommon : dataCommons}};
+        } else if (userScope.isOwnScope()) {
             const userStudies = Array.isArray(studies) && studies.length > 0 ? studies : [];
             const studyIDs = userStudies?.map(s => s?._id).filter(Boolean);
-            switch (role) {
-                case ROLES.ADMIN:
-                    return baseConditions;
-                case ROLES.FEDERAL_LEAD:
-                    const studyQuery = isAllStudy(userStudies) ? {} : {studyID: {$in: studyIDs}};
-                    return {...baseConditions, ...studyQuery};
-                case ROLES.DATA_COMMONS_PERSONNEL:
-                    const aFilteredDataCommon = (dataCommonsParams && dataCommons?.includes(dataCommonsParams)) ? [dataCommonsParams] : []
-                    return {...baseConditions, dataCommons: {$in: dataCommonsParams !== ALL_FILTER ? aFilteredDataCommon : dataCommons}};
-                // Submitter or User role
-                default:
-                    if (isAllStudy(userStudies)) {
-                        return baseConditions;
-                    }
-                    return {...baseConditions, "$or": [
-                        {"submitterID": _id},
-                        {"studyID": {$in: studyIDs || []}},
-                        {"collaborators.collaboratorID": _id, "collaborators.permission": {$in: [COLLABORATOR_PERMISSIONS.CAN_EDIT]}}]};
+            if (isAllStudy(userStudies)) {
+                return baseConditions;
             }
-        })();
+            return {...baseConditions, "$or": [
+                    {"submitterID": _id},
+                    {"studyID": {$in: studyIDs || []}},
+                    {"collaborators.collaboratorID": _id, "collaborators.permission": {$in: [COLLABORATOR_PERMISSIONS.CAN_EDIT]}}]};
+        }
+        throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
     }
 
     /**
@@ -1698,8 +1702,8 @@ class Submission {
      */
     async getMetadataFile(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission([USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW]);
+            .verifyInitialized();
+
         const {
             batchID: batchID,
             fileName: fileName
@@ -1716,12 +1720,57 @@ class Submission {
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
+
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
         try{
             return await this.batchService.getMetadataFile(aSubmission, aBatch, fileName);
         }
         catch (e) {
             throw new Error(ERROR.FAILED_GET_METADATA_FILE);
         }
+    }
+
+    #verifyBatchPermission(aSubmission, userID) {
+        if (!aSubmission) {
+            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+        }
+        // Only for Data Submission Owner / Collaborators
+        const submitterCollaborator = (aSubmission?.collaborators || []).map(u => u.collaboratorID);
+        const isCollaborator = submitterCollaborator.includes(userID);
+        if (!isCollaborator && userID !== aSubmission?.submitterID) {
+            throw new Error(ERROR.INVALID_BATCH_PERMISSION);
+        }
+    }
+
+    async #getUserScope(userInfo, aPermission, aSubmission = null) {
+        const validScopes = await this.authorizationService.getPermissionScope(userInfo, aPermission);
+        const userScope = UserScope.create(validScopes);
+        const isRoleScope = userScope.isRoleScope();
+        const isOwnScope = userScope.isOwnScope();
+
+        const isStudyScope = userScope.isStudyScope();
+        const isDCScope = userScope.isDCScope();
+        // DC scope, study scope, own scope including collaborator, and role scope is missing valid scope values
+        if (aSubmission && ((isOwnScope && (userInfo?._id !== aSubmission?.submitterID && !this.#isCollaborator(userInfo, aSubmission))) ||
+            isStudyScope && !userScope.hasStudyValue(aSubmission?.studyID) ||
+            isDCScope && !userScope.hasDCValue(aSubmission?.dataCommons) ||
+            isRoleScope && !userScope.getRoleScope()?.scopeValues?.length === 0
+        )) {
+            const errorMsg = replaceErrorString(ERROR.INVALID_SCOPE_VALUES, aPermission) + `SubmissionID: ${aSubmission?._id}, userID: ${userInfo?._id}`
+            console.error(errorMsg);
+            throw new Error(errorMsg);
+        }
+
+        const isValidUserScope = userScope.isNoneScope() || isOwnScope || userScope.isAllScope() ||
+            isRoleScope || isStudyScope || isDCScope;
+        if (!isValidUserScope) {
+            throw new Error(replaceErrorString(ERROR.INVALID_USER_SCOPE));
+        }
+        return userScope;
     }
 }
 
@@ -1923,7 +1972,7 @@ const sendEmails = {
         const additionalInfo = [
             [SUBMISSION_ID, aSubmission?._id],
             [DATA_SUBMISSION_TYPE, aSubmission?.intention],
-            [DESTINATION_LOCATION, `${dataCommonBucket} at ${aSubmission?.rootPath}`]];
+            [DESTINATION_LOCATION, `${dataCommonBucket}`]];
 
         const filteredBCCUsers = BCCUsers.filter((u) => isUserScope(u?._id, u?.role, u?.studies, u?.dataCommons, aSubmission));
         await notificationsService.releaseDataSubmissionNotification(getUserEmails(filteredDCPUsers), getUserEmails(filteredBCCUsers), {
@@ -2065,27 +2114,7 @@ const findByID = async (submissionCollection, id) => {
     return (aSubmission?.length > 0) ? aSubmission[0] : null;
 }
 
-
-const verifyBatchPermission= async(userService, aSubmission, userInfo) => {
-    // verify submission owner
-    if (!aSubmission) {
-        throw new Error(ERROR.SUBMISSION_NOT_EXIST);
-    }
-    const collaborativeUsers =  await userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
-    const collaborativeUserIDs = collaborativeUsers.map(u => u._id);
-    const isCreatePermission = (
-        (userInfo?.permissions.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE) &&
-            isUserScope(userInfo?._id, userInfo?.role, userInfo?.studies, userInfo?.dataCommons, aSubmission)) ||
-        // Collaborator
-        collaborativeUserIDs.includes(userInfo?._id)
-    );
-
-    if (!isCreatePermission) {
-        throw new Error(ERROR.INVALID_BATCH_PERMISSION);
-    }
-}
-
-function validateCreateSubmissionParams (params, allowedDataCommons, hiddenDataCommons, intention, dataType, userInfo) {
+function validateCreateSubmissionParams (params, allowedDataCommons, hiddenDataCommons, intention, dataType) {
     if (!params.name || params?.name?.trim().length === 0 || !params.studyID || !params.dataCommons) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
     }
@@ -2152,7 +2181,7 @@ class DataValidation {
 
 class DataSubmission {
     #SUBMISSIONS = "submissions";
-    constructor(name, userInfo, dataCommons, studyID, dbGaPID, aProgram, modelVersion, intention, dataType, approvedStudy, submissionBucketName) {
+    constructor(name, userInfo, dataCommons, dbGaPID, aProgram, modelVersion, intention, dataType, approvedStudy, submissionBucketName) {
         this._id = v4();
         this.name = name;
         this.submitterID = userInfo._id;
@@ -2160,13 +2189,14 @@ class DataSubmission {
         this.submitterName = formatName(userInfo);
         this.dataCommons = dataCommons;
         this.modelVersion = modelVersion;
-        this.studyID = studyID;
+        this.studyID = approvedStudy?._id;
         this.dbGaPID = dbGaPID;
         this.status = NEW;
         this.history = [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)];
         this.organization = {
             _id: (aProgram && aProgram?._id) ? aProgram?._id : null,
-            name: (aProgram && aProgram?.name) ? aProgram?.name : null
+            name: (aProgram && aProgram?.name) ? aProgram?.name : null,
+            abbreviation: (aProgram && aProgram?.abbreviation) ? aProgram?.abbreviation : null
         };
         this.bucketName = submissionBucketName;
         this.rootPath = `${this.#SUBMISSIONS}/${this._id}`;
@@ -2179,7 +2209,8 @@ class DataSubmission {
         this.fileWarnings = [];
         this.intention = intention;
         this.dataType = dataType;
-        this.studyAbbreviation = approvedStudy?.studyAbbreviation
+        this.studyAbbreviation = approvedStudy?.studyAbbreviation;
+        this.studyName = approvedStudy?.studyName;
         if (!isUndefined(approvedStudy?.controlledAccess)) {
             this.controlledAccess = approvedStudy.controlledAccess;
         }
@@ -2188,8 +2219,8 @@ class DataSubmission {
         this.dataFileSize = FileSize.createFileSize(0);
     }
 
-    static createSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization, submissionBucketName) {
-        return new DataSubmission(name, userInfo, dataCommons, studyID, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization, submissionBucketName);
+    static createSubmission(name, userInfo, dataCommons, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization, submissionBucketName) {
+        return new DataSubmission(name, userInfo, dataCommons, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization, submissionBucketName);
     }
 
     #getConciergeName(approvedStudy, aProgram){
@@ -2254,12 +2285,6 @@ class Collaborators {
     }
 }
 
-// Month/Date/Year, Hour:Minutes PM or AM
-const formatDate = (date) => {
-    return `${date.toLocaleString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}`;
-}
-
-// TODO remove temporary for QA
 function logDaysDifference(inactiveDays, accessedAt, submissionID) {
     const startedDate = accessedAt; // Ensure it's a Date object
     const endDate = getCurrentTime();

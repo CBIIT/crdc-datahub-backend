@@ -13,13 +13,12 @@ const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/cons
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const {
-    SUBMISSION_REQUEST,
-    ADMIN,
-    DATA_SUBMISSION,
     EMAIL_NOTIFICATIONS: EN
 } = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {getDataCommonsDisplayNamesForUser} = require("../utility/data-commons-remapper");
+const {UserScope} = require("../domain/user-scope");
 const {COMPLETED, CANCELED, DELETED} = require("../constants/submission-constants");
+const SCOPES = require("../constants/permission-scope-constants");
 
 const isLoggedInOrThrow = (context) => {
     if (!context?.userInfo?.email || !context?.userInfo?.IDP) throw new Error(SUBMODULE_ERROR.NOT_LOGGED_IN);
@@ -39,11 +38,10 @@ const createToken = (userInfo, token_secret, token_timeout)=> {
 
 
 class UserService {
-    #allPermissionNamesSet = new Set([...Object.values(SUBMISSION_REQUEST), ...Object.values(DATA_SUBMISSION), ...Object.values(ADMIN)]);
     #allEmailNotificationNamesSet = new Set([...Object.values(EN.SUBMISSION_REQUEST), ...Object.values(EN.DATA_SUBMISSION), ...Object.values(EN.USER_ACCOUNT)]);
     #NIH = "nih";
     #NOT_APPLICABLE = "NA";
-    constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, approvedStudiesService, inactiveUserDays, configurationService, institutionService) {
+    constructor(userCollection, logCollection, organizationCollection, notificationsService, submissionsCollection, applicationCollection, officialEmail, appUrl, approvedStudiesService, inactiveUserDays, configurationService, institutionService, authorizationService) {
         this.userCollection = userCollection;
         this.logCollection = logCollection;
         this.organizationCollection = organizationCollection;
@@ -57,12 +55,17 @@ class UserService {
         this.inactiveUserDays = inactiveUserDays;
         this.configurationService = configurationService;
         this.institutionService = institutionService;
+        this.authorizationService = authorizationService;
     }
 
     async requestAccess(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REQUEST_ACCESS);
+            .verifyInitialized();
+
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REQUEST_ACCESS);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
 
         const approvedStudies = params?.studies?.length > 0 ?
             await this.approvedStudiesService.listApprovedStudies({_id: {$in: params?.studies}})
@@ -200,19 +203,33 @@ class UserService {
 
     async getUser(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
-        
+            .verifyInitialized();
         if (!params?.userID) {
             throw new Error(SUBMODULE_ERROR.INVALID_USERID);
         }
 
-        const filters = { _id: params.userID };
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
+        const filters = {
+            _id: params.userID
+        };
+
         const result = await this.userCollection.aggregate([{
             "$match": filters
         }, {"$limit": 1}]);
         if (result?.length === 1) {
             const user = result[0];
+            const roleScope = userScope.getRoleScope();
+            if (user && !userScope.isAllScope() && roleScope && roleScope?.scopeValues?.length > 0) {
+                const roleSet = new Set(Object.values(ROLES));
+                const filteredRoles = roleScope?.scopeValues.filter(role => roleSet.has(role));
+                if (!filteredRoles?.includes(user?.role)) {
+                    throw new Error(ERROR.INVALID_ROLE_SCOPE_REQUEST);
+                }
+            }
             const studies = await this.#findApprovedStudies(user?.studies);
             const institution = user?.role === ROLES.SUBMITTER && user?.institution?._id ? user.institution : null;
             return getDataCommonsDisplayNamesForUser({
@@ -227,13 +244,21 @@ class UserService {
 
     async listUsers(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+            .verifyInitialized();
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+        if (userScope.isNoneScope()) {
+            return [];
+        }
 
+        const roleScope = userScope.getRoleScope();
+        const roleSet = new Set(Object.values(ROLES));
+        const filteredRoles = roleScope?.scopeValues.filter(role => roleSet.has(role));
         const result = await this.userCollection.aggregate([{
-            "$match": {}
-        },]);
-
+            "$match": {
+                ...(!userScope.isAllScope() ?
+                    { role: {$in: filteredRoles || []} } : {})
+            }
+        }]);
         result.map(async (user) => {
             user.studies = await this.#findApprovedStudies(user?.studies);
             return getDataCommonsDisplayNamesForUser(user);
@@ -250,8 +275,17 @@ class UserService {
      */
     async listActiveDCPsAPI(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission([USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_STUDIES, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_PROGRAMS]);
+            .verifyInitialized();
+        const userStudyScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_STUDIES);
+        const userProgramsScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_PROGRAMS);
+
+        const isStudyNone = userStudyScope.isNoneScope();
+        const isProgramNone = userProgramsScope.isNoneScope();
+        if ((isStudyNone && isProgramNone) || (isStudyNone !== isProgramNone)) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
+
         const DCPUsers = await this.getDCPs(params.dataCommons || []);
         return DCPUsers?.map((user) => ({
             userID: user._id,
@@ -338,8 +372,11 @@ class UserService {
 
     async editUser(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission(USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+            .verifyInitialized();
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
 
         if (!params.userID) {
             throw new Error(SUBMODULE_ERROR.INVALID_USERID);
@@ -349,6 +386,18 @@ class UserService {
         if (!user || !Array.isArray(user) || user.length < 1 || user[0]?._id !== params.userID) {
             throw new Error(SUBMODULE_ERROR.USER_NOT_FOUND);
         }
+
+        const roleScope = userScope.getRoleScope();
+        const roleSet = new Set(Object.values(ROLES));
+        const filteredRoles = roleScope?.scopeValues.filter(role => roleSet.has(role));
+
+        if (roleScope?.scope && (
+            !filteredRoles?.includes(user[0]?.role) || // check current role
+            (params?.role && !filteredRoles?.includes(params?.role)) || // limit changing another role
+            roleScope?.scopeValues?.length === 0)) {
+            throw new Error(ERROR.INVALID_ROLE_SCOPE_REQUEST);
+        }
+
         let updatedUser = {};
         if (params.role && Object.values(USER.ROLES).includes(params.role)) {
             updatedUser.role = params.role;
@@ -373,7 +422,7 @@ class UserService {
         }
 
         updatedUser.dataCommons = DataCommon.get(user[0]?.dataCommons, params?.dataCommons);
-        await this.#setUserPermissions(user[0], params?.role, params?.permissions, params?.notifications, updatedUser);
+        await this.#setUserPermissions(user[0], params?.role, params?.permissions, params?.notifications, updatedUser, user);
         updatedUser  = await this.updateUserInfo(user[0], updatedUser, params.userID, params.status, params.role, params?.studies);
         return getDataCommonsDisplayNamesForUser(updatedUser);
     }
@@ -427,6 +476,17 @@ class UserService {
             userAfterUpdate.studies = validStudies; // return approved studies dynamically with all properties of studies
         }
         return { ...prevUser, ...userAfterUpdate};
+    }
+
+    async #getUserScope(userInfo, permission) {
+        const validScopes = await this.authorizationService.getPermissionScope(userInfo, permission);
+        const userScope = UserScope.create(validScopes);
+        // valid scopes; none, all, role/role:RoleScope
+        const isValidUserScope = userScope.isNoneScope() || userScope.isAllScope() || userScope.isRoleScope() || userScope.isOwnScope();
+        if (!isValidUserScope) {
+            throw new Error(replaceErrorString(ERROR.INVALID_USER_SCOPE));
+        }
+        return userScope;
     }
 
     async #notifyUpdatedUser(prevUser, newUser, newRole) {
@@ -645,21 +705,21 @@ class UserService {
         return await this.userCollection.aggregate(pipeline);
     }
 
-    #validateUserPermission(isUserRoleChange, userRole, permissions, notifications, accessControl) {
-        const invalidPermissions = permissions?.filter(permission => !this.#allPermissionNamesSet.has(permission));
-
+    #validateUserPermission(isUserRoleChange, userRole, inputPermissions, filteredValidPermissions, inputNotifications, accessControl) {
+        const filteredValidPermissionsSet = new Set(filteredValidPermissions);
+        const invalidPermissions = inputPermissions?.filter(p => !filteredValidPermissionsSet?.has(p));
         if (invalidPermissions?.length > 0) {
             throw new Error(replaceErrorString(ERROR.INVALID_PERMISSION_NAME, `${invalidPermissions.join(',')}`));
         }
-        const invalidNotifications = notifications?.filter(notification => !this.#allEmailNotificationNamesSet.has(notification));
+        const invalidNotifications = inputNotifications?.filter(notification => !this.#allEmailNotificationNamesSet.has(notification));
 
         if (invalidNotifications?.length > 0) {
             throw new Error(replaceErrorString(ERROR.INVALID_NOTIFICATION_NAME, `${invalidNotifications.join(',')}`));
         }
 
         return {
-            filteredPermissions: this.#setFilteredPermissions(isUserRoleChange, userRole, permissions, accessControl?.permissions?.permitted, accessControl?.permissions?.getInherited),
-            filteredNotifications: this.#setFilteredNotifications(isUserRoleChange, userRole, notifications, accessControl?.notifications?.permitted)
+            filteredPermissions: this.#setFilteredPermissions(isUserRoleChange, userRole, inputPermissions, accessControl?.permissions?.permitted, accessControl?.permissions?.getInherited),
+            filteredNotifications: this.#setFilteredNotifications(isUserRoleChange, userRole, inputNotifications, accessControl?.notifications?.permitted)
         }
     }
     // note for inheritedCallback; Some permissions are automatically enforced if they are inherited from the PBAC settings.
@@ -676,9 +736,13 @@ class UserService {
     async #setUserPermissions(currUser, newRole, permissions, notifications, updatedUser) {
         const isUserRoleChange = (newRole && (currUser?.role !== newRole));
         const userRole = isUserRoleChange ? newRole : currUser?.role;
-        const accessControl = await this.configurationService.getAccessControl(userRole);
+        const [accessControl, filteredValidPermissions] = await Promise.all([
+            this.configurationService.getAccessControl(userRole),
+            this.authorizationService.filterValidPermissions({role: userRole, ...currUser }, permissions)
+        ]);
         const {filteredPermissions, filteredNotifications} =
-            this.#validateUserPermission(isUserRoleChange, userRole, permissions, notifications, accessControl);
+            this.#validateUserPermission(isUserRoleChange, userRole, permissions, filteredValidPermissions,
+                notifications, accessControl);
 
         if (isUserRoleChange || (!isUserRoleChange && permissions !== undefined)) {
             if (!isIdenticalArrays(currUser?.permissions, filteredPermissions) && filteredPermissions) {
@@ -697,7 +761,7 @@ class UserService {
             _id: {"$ne": submitterID},
             "role": USER.ROLES.SUBMITTER,
             "userStatus": USER.STATUSES.ACTIVE,
-            "permissions": {"$in": [USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE]},
+            "permissions": {"$in": [`${USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE}:${SCOPES.OWN}`]},
             "$or": [{"studies": {"$in": [studyID, "All"]}}, {"studies._id": {"$in": [studyID, "All"]}}]
         }; // user's studies contains studyID
         const users = await this.userCollection.aggregate([{"$match": query}]);
@@ -767,6 +831,32 @@ class UserService {
                 console.error("Failed to remove the data concierge in studies");
             }
         }
+    }
+     /**
+     * API: isUserPrimaryContact
+     * @param {*} param 
+     * @param {*} context 
+     * @returns bool
+     */
+     async isUserPrimaryContact(param, context){
+        verifySession(context)
+            .verifyInitialized();
+         const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.ADMIN.MANAGE_USER);
+         if (userScope.isNoneScope()) {
+             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+         }
+
+        const {userID} = param;
+        const user = await this.getUserByID(userID);
+        if (!user) {
+            throw new Error(ERROR.USER_NOT_EXIST);
+        }
+        // return true if the user is primary contact of any study or program (aka. organization). Otherwise it should be false.
+        const [primaryContactInProgram, primaryContactInStudy] = await Promise.all([
+            this.organizationCollection.aggregate([{ "$match": {"conciergeID": user._id }}, {"$limit": 1}]),
+            this.approvedStudiesCollection.aggregate([{"$match": {"primaryContactID": user._id }}, {"$limit": 1}])
+        ]);
+        return (primaryContactInStudy.length > 0 || primaryContactInProgram.length > 0)
     }
 }
 

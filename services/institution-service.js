@@ -11,12 +11,14 @@ const ROLES = USER_CONSTANTS.USER.ROLES;
 const ERROR = require("../constants/error-constants");
 const {ADMIN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {replaceErrorString} = require("../utility/string-util");
+const {UserScope} = require("../domain/user-scope");
 
 class InstitutionService {
     #ALL_FILTER = "All";
-    constructor(institutionCollection, userCollection) {
+    constructor(institutionCollection, userCollection, authorizationService) {
         this.institutionCollection = institutionCollection;
         this.userCollection = userCollection;
+        this.authorizationService = authorizationService;
     }
 
     async getInstitutionByID(id) {
@@ -25,8 +27,12 @@ class InstitutionService {
 
     async createInstitution(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission(ADMIN.MANAGE_INSTITUTIONS);
+            .verifyInitialized();
+        const userScope = await this.#getUserScope(context?.userInfo, ADMIN.MANAGE_INSTITUTIONS);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
         const newName = params?.name?.trim();
         if (newName === '') {
             throw new Error(ERROR.EMPTY_INSTITUTION_NAME);
@@ -79,8 +85,11 @@ class InstitutionService {
      */
     async updateInstitution(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission(ADMIN.MANAGE_INSTITUTIONS);
+            .verifyInitialized();
+        const userScope = await this.#getUserScope(context?.userInfo, ADMIN.MANAGE_INSTITUTIONS);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
 
         const {_id: institutionID, name, status} = params;
         const aInstitution = await this.getInstitutionByID(institutionID);
@@ -115,8 +124,12 @@ class InstitutionService {
      */
     async getInstitution(params, context) {
         verifySession(context)
-            .verifyInitialized()
-            .verifyPermission(ADMIN.MANAGE_INSTITUTIONS);
+            .verifyInitialized();
+        const userScope = await this.#getUserScope(context?.userInfo, ADMIN.MANAGE_INSTITUTIONS);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
         const {_id: institutionID} = params;
         const aInstitution= await this.getInstitutionByID(institutionID)
         if (!aInstitution) {
@@ -134,6 +147,10 @@ class InstitutionService {
         const trimmedName = name?.trim();
         if (trimmedName === '') {
             throw new Error(ERROR.EMPTY_INSTITUTION_NAME);
+        }
+
+        if (trimmedName?.length > 100) {
+            throw new Error(ERROR.MAX_INSTITUTION_NAME_LIMIT);
         }
 
         if (trimmedName) {
@@ -236,6 +253,18 @@ class InstitutionService {
         catch (exception){
             console.error('An exception occurred while attempting to create new institutions: ', exception);
         }
+    }
+
+    async #getUserScope(userInfo, permission) {
+        const validScopes = await this.authorizationService.getPermissionScope(userInfo, permission);
+        const userScope = UserScope.create(validScopes);
+        // valid scopes; none, all, role/role:RoleScope
+        const isValidUserScope = userScope.isNoneScope() || userScope.isAllScope();
+        if (!isValidUserScope) {
+            console.warn(ERROR.INVALID_USER_SCOPE, permission);
+            throw new Error(replaceErrorString(ERROR.INVALID_USER_SCOPE));
+        }
+        return userScope;
     }
 }
 

@@ -127,21 +127,23 @@ class BatchService {
         return await this.findByID(aBatch._id);
     }
 
-    async listBatches(params, context) {
-        let pipeline = listBatchConditions(context.userInfo._id, params?.collaboratorUserIDs, context.userInfo?.role, context.userInfo?.organization, params.submissionID, context.userInfo?.dataCommons);
+    async listBatches(params) {
+        const pipeline = [{"$match": {submissionID: params.submissionID}}];
         const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
-        const noPaginationPipe = pipeline.concat(paginationPipe.getNoLimitPipeline());
-        const promises = [
-            await this.batchCollection.aggregate(pipeline.concat(paginationPipe.getPaginationPipeline())),
-            await this.batchCollection.aggregate(noPaginationPipe.concat([{$count: "count"}]))
-        ];
-        return await Promise.all(promises).then(function(results) {
-            const total = results[1]?.length > 0 ? results[1][0] : {};
-            return {
-                batches: (results[0] || []).map((batch)=>(batch)),
-                total: total?.count || 0
+        const combinedPipeline = pipeline.concat([
+            {
+                $facet: {
+                    batches: paginationPipe.getPaginationPipeline(),
+                    totalCount: [{ $count: "count" }]
+                }
             }
-        });
+        ]);
+
+        const res = await this.batchCollection.aggregate(combinedPipeline);
+        return {
+            batches: res[0]?.batches || [],
+            total: res[0]?.totalCount[0]?.count || 0
+        };
     }
     
     async deleteBatchByFilter(filter) {
@@ -180,18 +182,20 @@ class BatchService {
     }
     /**
      * getMetadataFile
-     * @param {*} params 
-     * @param {*} context 
+     * @param {*} submission
+     * @param {*} aBatch
+     * @param {*} fileName
      * @returns string
      */ 
     async getMetadataFile(submission, aBatch, fileName) {
+        const submissionName = submission.name.replace("/", "_");
         if(fileName){
             const file = aBatch?.files?.find(f=>f.fileName === fileName && f.status === FILE.UPLOAD_STATUSES.UPLOADED);
             if(!file){
                 throw new Error(ERROR.FILE_NOT_EXIST);
             }
-            const output_filename =  `${submission.name}_metadata_batch${aBatch.displayID}${fileName}`;
-            return await this.s3Service.createDownloadSignedURL(aBatch?.bucketName, aBatch?.filePrefix, fileName, output_filename) ;
+            const outputFilename = `${submissionName}_metadata_batch${aBatch.displayID}${fileName}`;
+            return await this.s3Service.createDownloadSignedURL(aBatch?.bucketName, aBatch?.filePrefix, fileName, outputFilename) ;
         }
         // if no fileName, return all files in the batch as zip file
         let zipFileName = aBatch?.zipFileName;
@@ -215,7 +219,7 @@ class BatchService {
                     throw new Error(ERROR.NO_METADATA_FILES_DOWNLOADED);
                 }
                 //zip all downloaded files
-                zipFileName = `${submission.name}_metadata_batch${aBatch.displayID}.zip`;
+                zipFileName = `${submissionName}_metadata_batch${aBatch.displayID}.zip`;
                 const zipFilePath = path.join(tempFolder, zipFileName);
                 await zipFilesInDir(download_dir, zipFilePath);
                 //check if zip file already exists
@@ -238,34 +242,6 @@ class BatchService {
         //return presigned download url
         return await this.s3Service.createDownloadSignedURL(aBatch.bucketName, aBatch.filePrefix, zipFileName);  
     }
-}
-const listBatchConditions = (userID, collaboratorUserIDs, userRole, aUserOrganization, submissionID, userDataCommonsNames) => {
-    const submissionJoin = [
-        {"$lookup": {
-            from: SUBMISSIONS_COLLECTION,
-            localField: "submissionID",
-            foreignField: "_id",
-            as: "batch"
-        }},
-        {"$unwind": {
-            path: "$batch",
-        }}
-    ];
-
-    const validStatusAndSubmissionID = {"submissionID": submissionID, "batch.status": {$in: [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED, REJECTED, WITHDRAWN]}};
-    const listAllSubmissionRoles = [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD];
-    if (listAllSubmissionRoles.includes(userRole) || collaboratorUserIDs.length > 0) {
-        return [...submissionJoin, {"$match": {...validStatusAndSubmissionID}}];
-    }
-
-    if (userRole === USER.ROLES.SUBMITTER || userRole === USER.ROLES.USER) {
-        return [...submissionJoin, {"$match": {...validStatusAndSubmissionID, "batch.submitterID": userID}}];
-    }
-
-    if (userRole === USER.ROLES.DATA_COMMONS_PERSONNEL && userDataCommonsNames?.length > 0) {
-        return [...submissionJoin, {"$match": {...validStatusAndSubmissionID, "batch.dataCommons": {$in: userDataCommonsNames}}}];
-    }
-    throw new Error(ERROR.INVALID_SUBMISSION_PERMISSION);
 }
 
 const asyncUpdateBatch = async (awsService, batchCollection, aBatch, sqsLoaderQueue, isAllUploaded, isAllSkipped) => {
@@ -309,7 +285,7 @@ class UploadingMonitor {
     /**
      * getInstance
      * @param {*} batchCollection 
-     * @param {*} interval 
+     * @param {*} configurationService
      * @returns UploadingChecker
      */
     static getInstance(batchCollection, configurationService) {

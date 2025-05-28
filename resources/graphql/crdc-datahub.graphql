@@ -61,6 +61,7 @@ type Applicant {
 type Organization {
     _id: ID
     name: String
+    abbreviation: String
 }
 
 type ListApplications {
@@ -124,6 +125,7 @@ type Submission {
     validationType: [String] # String [metadata, file, cross-submission, data file]
     validationScope: String
     studyID: String
+    studyName: String
     controlledAccess: Boolean
     ORCID: String
     deletingData: Boolean
@@ -277,6 +279,7 @@ type OrgInfo {
   status: String
   createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
   updateAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+  readOnly: Boolean
 }
 
 type UserOrganization {
@@ -291,6 +294,7 @@ type UserOrganization {
   description: String
   createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
   updateAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+  readOnly: Boolean
 }
 
 type Tokens {
@@ -771,6 +775,8 @@ type Query {
     downloadMetadataFile(batchID: String!, fileName: String):String # download metadata file from S3 with presigned URL
 
     retrieveCLIUploaderVersion: String @public
+    isMaintenanceMode: Boolean @public
+    userIsPrimaryContact(userID: ID!): Boolean 
 }
 type Mutation {
     "User initiated operations"
