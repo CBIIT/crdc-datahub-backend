@@ -37,8 +37,7 @@
   "devDependencies": {
     "@babel/core": "^7.26.10",
     "jest": "^29.5.0",
-    "prisma": "^6.6.0",
-    "typescript": "^5.8.3"
+    "prisma": "^6.6.0"
   },
   "overrides": {
     "semver": "$semver"
