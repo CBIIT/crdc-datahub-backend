@@ -982,8 +982,13 @@
           {
             "_id": "data_submission:create:own",
             "group": "Data Submission Permissions",
+<<<<<<< HEAD
             "inherited": ["data_submission:view:own"],
             "name": "Create",
+=======
+            "name": "Create",
+            "inherited": ["data_submission:view:study"],
+>>>>>>> b753d3f (Fixed to own to study.)
             "order": 2,
             "checked": true,
             "disabled": true
