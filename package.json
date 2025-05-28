@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@graphql-tools/schema": "^10.0.23",
+    "@prisma/client": "^6.6.0",
     "archiver": "^7.0.1",
     "aws-sdk": "^2.1462.0",
     "connect-mongo": "^5.0.0",

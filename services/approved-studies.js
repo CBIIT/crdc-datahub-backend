@@ -29,6 +29,9 @@ const CONTROLLED_ACCESS_OPEN = "Open";
 const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
 const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN, CONTROLLED_ACCESS_CONTROLLED];
 const NA_PROGRAM = "NA";
+
+const prisma = require("../prisma");
+
 class ApprovedStudiesService {
     #ALL = "All";
     constructor(approvedStudiesCollection, userCollection, organizationService, submissionCollection, authorizationService) {
@@ -93,11 +96,13 @@ class ApprovedStudiesService {
             throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
         }
 
-        const study = await this.approvedStudiesCollection.find(_id);
-        if (!study || !study.length) {
+        // const study = await this.approvedStudiesCollection.find(_id);
+        const study = await prisma.approvedStudies.findUnique({where: {id: _id}})
+        if (!study) {
             throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
         }
-        let returnStudy = study[0];
+        // Prisma doesn't allow using _id, so we have to map it
+        let returnStudy = {...study, _id: study.id};
         // find program/organization by study ID
         returnStudy.programs = await this.#findOrganizationByStudyID(_id)
         // find primaryContact
