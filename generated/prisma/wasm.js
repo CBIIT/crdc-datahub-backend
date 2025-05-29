@@ -123,12 +123,12 @@ exports.Prisma.CDEScalarFieldEnum = {
   updatedAt: 'updatedAt'
 };
 
-exports.Prisma.ApplicationsScalarFieldEnum = {
+exports.Prisma.ApplicationScalarFieldEnum = {
   id: 'id',
+  version: 'version',
   ORCID: 'ORCID',
   PI: 'PI',
   controlledAccess: 'controlledAccess',
-  createdAt: 'createdAt',
   inactiveReminder: 'inactiveReminder',
   openAccess: 'openAccess',
   programAbbreviation: 'programAbbreviation',
@@ -140,17 +140,16 @@ exports.Prisma.ApplicationsScalarFieldEnum = {
   studyAbbreviation: 'studyAbbreviation',
   studyName: 'studyName',
   submittedDate: 'submittedDate',
-  updatedAt: 'updatedAt',
-  version: 'version',
-  wholeProgram: 'wholeProgram'
+  wholeProgram: 'wholeProgram',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
 };
 
-exports.Prisma.ApprovedStudiesScalarFieldEnum = {
+exports.Prisma.ApprovedStudyScalarFieldEnum = {
   id: 'id',
   ORCID: 'ORCID',
   PI: 'PI',
   controlledAccess: 'controlledAccess',
-  createdAt: 'createdAt',
   dbGaPID: 'dbGaPID',
   openAccess: 'openAccess',
   originalOrg: 'originalOrg',
@@ -158,14 +157,14 @@ exports.Prisma.ApprovedStudiesScalarFieldEnum = {
   programName: 'programName',
   studyAbbreviation: 'studyAbbreviation',
   studyName: 'studyName',
-  updatedAt: 'updatedAt',
-  useProgramPC: 'useProgramPC'
+  useProgramPC: 'useProgramPC',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
 };
 
 exports.Prisma.BatchScalarFieldEnum = {
   id: 'id',
   bucketName: 'bucketName',
-  createdAt: 'createdAt',
   displayID: 'displayID',
   errors: 'errors',
   fileCount: 'fileCount',
@@ -175,8 +174,9 @@ exports.Prisma.BatchScalarFieldEnum = {
   submitterID: 'submitterID',
   submitterName: 'submitterName',
   type: 'type',
-  updatedAt: 'updatedAt',
-  zipFileName: 'zipFileName'
+  zipFileName: 'zipFileName',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
 };
 
 exports.Prisma.ConfigurationScalarFieldEnum = {
@@ -216,12 +216,11 @@ exports.Prisma.ConfigurationScalarFieldEnum = {
   version: 'version'
 };
 
-exports.Prisma.DataRecordsScalarFieldEnum = {
+exports.Prisma.DataRecordScalarFieldEnum = {
   id: 'id',
   CRDC_ID: 'CRDC_ID',
   IDPropName: 'IDPropName',
   batchIDs: 'batchIDs',
-  createdAt: 'createdAt',
   dataCommons: 'dataCommons',
   entityType: 'entityType',
   latestBatchDisplayID: 'latestBatchDisplayID',
@@ -236,9 +235,10 @@ exports.Prisma.DataRecordsScalarFieldEnum = {
   status: 'status',
   studyID: 'studyID',
   submissionID: 'submissionID',
-  updatedAt: 'updatedAt',
   uploadedDate: 'uploadedDate',
-  validatedAt: 'validatedAt'
+  validatedAt: 'validatedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
 };
 
 exports.Prisma.DataRecordsArchivedScalarFieldEnum = {
@@ -246,7 +246,6 @@ exports.Prisma.DataRecordsArchivedScalarFieldEnum = {
   CRDC_ID: 'CRDC_ID',
   IDPropName: 'IDPropName',
   batchIDs: 'batchIDs',
-  createdAt: 'createdAt',
   dataCommons: 'dataCommons',
   entityType: 'entityType',
   latestBatchDisplayID: 'latestBatchDisplayID',
@@ -261,31 +260,32 @@ exports.Prisma.DataRecordsArchivedScalarFieldEnum = {
   status: 'status',
   studyID: 'studyID',
   submissionID: 'submissionID',
-  updatedAt: 'updatedAt',
   uploadedDate: 'uploadedDate',
-  validatedAt: 'validatedAt'
+  validatedAt: 'validatedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
 };
 
 exports.Prisma.FileMD5ScalarFieldEnum = {
   id: 'id',
   LastModified: 'LastModified',
-  createdAt: 'createdAt',
   fileName: 'fileName',
   md5: 'md5',
   submissionID: 'submissionID',
+  createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
 
-exports.Prisma.InstitutionsScalarFieldEnum = {
+exports.Prisma.InstitutionScalarFieldEnum = {
   id: 'id',
-  createdAt: 'createdAt',
   name: 'name',
   status: 'status',
   submitterCount: 'submitterCount',
+  createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
 
-exports.Prisma.LogsScalarFieldEnum = {
+exports.Prisma.LogScalarFieldEnum = {
   id: 'id',
   action: 'action',
   applicationID: 'applicationID',
@@ -303,23 +303,22 @@ exports.Prisma.LogsScalarFieldEnum = {
   userName: 'userName'
 };
 
-exports.Prisma.OrganizationScalarFieldEnum = {
+exports.Prisma.ProgramScalarFieldEnum = {
   id: 'id',
   abbreviation: 'abbreviation',
   bucketName: 'bucketName',
   conciergeEmail: 'conciergeEmail',
   conciergeID: 'conciergeID',
   conciergeName: 'conciergeName',
-  createdAt: 'createdAt',
   description: 'description',
   name: 'name',
   rootPath: 'rootPath',
   status: 'status',
-  updateAt: 'updateAt',
-  updatedAt: 'updatedAt'
+  createdAt: 'createdAt',
+  updateAt: 'updateAt'
 };
 
-exports.Prisma.QcResultsScalarFieldEnum = {
+exports.Prisma.QcResultScalarFieldEnum = {
   id: 'id',
   batchIDs: 'batchIDs',
   dataRecordID: 'dataRecordID',
@@ -338,7 +337,6 @@ exports.Prisma.QcResultsScalarFieldEnum = {
 exports.Prisma.ReleaseScalarFieldEnum = {
   id: 'id',
   CRDC_ID: 'CRDC_ID',
-  createdAt: 'createdAt',
   dataCommons: 'dataCommons',
   entityType: 'entityType',
   nodeID: 'nodeID',
@@ -347,27 +345,19 @@ exports.Prisma.ReleaseScalarFieldEnum = {
   status: 'status',
   studyID: 'studyID',
   submissionID: 'submissionID',
+  createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
 
-exports.Prisma.SessionsScalarFieldEnum = {
-  id: 'id',
-  expires: 'expires',
-  lastModified: 'lastModified',
-  session: 'session'
-};
-
-exports.Prisma.SubmissionsScalarFieldEnum = {
+exports.Prisma.SubmissionScalarFieldEnum = {
   id: 'id',
   ORCID: 'ORCID',
   accessedAt: 'accessedAt',
   archived: 'archived',
   bucketName: 'bucketName',
-  collborators: 'collborators',
   conciergeEmail: 'conciergeEmail',
   conciergeName: 'conciergeName',
   controlledAccess: 'controlledAccess',
-  createdAt: 'createdAt',
   crossSubmissionStatus: 'crossSubmissionStatus',
   dataCommons: 'dataCommons',
   dataCommonsDisplayName: 'dataCommonsDisplayName',
@@ -392,23 +382,23 @@ exports.Prisma.SubmissionsScalarFieldEnum = {
   studyID: 'studyID',
   submitterID: 'submitterID',
   submitterName: 'submitterName',
-  updatedAt: 'updatedAt',
   validationEnded: 'validationEnded',
   validationScope: 'validationScope',
   validationStarted: 'validationStarted',
-  validationType: 'validationType'
+  validationType: 'validationType',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
 };
 
-exports.Prisma.SynonymsScalarFieldEnum = {
+exports.Prisma.SynonymScalarFieldEnum = {
   id: 'id',
   equivalent_term: 'equivalent_term',
   synonym_term: 'synonym_term'
 };
 
-exports.Prisma.UsersScalarFieldEnum = {
+exports.Prisma.UserScalarFieldEnum = {
   id: 'id',
   IDP: 'IDP',
-  createdAt: 'createdAt',
   dataCommons: 'dataCommons',
   email: 'email',
   firstName: 'firstName',
@@ -418,8 +408,9 @@ exports.Prisma.UsersScalarFieldEnum = {
   role: 'role',
   status: 'status',
   tokens: 'tokens',
-  updateAt: 'updateAt',
-  userStatus: 'userStatus'
+  userStatus: 'userStatus',
+  createdAt: 'createdAt',
+  updateAt: 'updateAt'
 };
 
 exports.Prisma.ValidationScalarFieldEnum = {
@@ -445,23 +436,22 @@ exports.Prisma.QueryMode = {
 
 exports.Prisma.ModelName = {
   CDE: 'CDE',
-  applications: 'applications',
-  approvedStudies: 'approvedStudies',
-  batch: 'batch',
-  configuration: 'configuration',
-  dataRecords: 'dataRecords',
-  dataRecordsArchived: 'dataRecordsArchived',
-  fileMD5: 'fileMD5',
-  institutions: 'institutions',
-  logs: 'logs',
-  organization: 'organization',
-  qcResults: 'qcResults',
-  release: 'release',
-  sessions: 'sessions',
-  submissions: 'submissions',
-  synonyms: 'synonyms',
-  users: 'users',
-  validation: 'validation'
+  Application: 'Application',
+  ApprovedStudy: 'ApprovedStudy',
+  Batch: 'Batch',
+  Configuration: 'Configuration',
+  DataRecord: 'DataRecord',
+  DataRecordsArchived: 'DataRecordsArchived',
+  FileMD5: 'FileMD5',
+  Institution: 'Institution',
+  Log: 'Log',
+  Program: 'Program',
+  QcResult: 'QcResult',
+  Release: 'Release',
+  Submission: 'Submission',
+  Synonym: 'Synonym',
+  User: 'User',
+  Validation: 'Validation'
 };
 
 /**
