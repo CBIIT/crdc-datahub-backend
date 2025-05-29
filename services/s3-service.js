@@ -212,6 +212,7 @@ class S3Service {
 
         let fileObjects = [];
         const listRecursively = async (params) => {
+            await new Promise(r => setTimeout(r, 100));
             try {
                 const data = await this.#listObjectsV2(params);
                 if (data.Contents) {
