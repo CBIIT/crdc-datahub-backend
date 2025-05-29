@@ -75,13 +75,13 @@ type AdditionalError {
 }
 
 type S3FileInfo {
-  createdAt DateTime?                     @db.Date
+  createdAt DateTime? @db.Date
   errors    Error[]
   fileName  String
   md5       String?
   size      String?
   status    String
-  updatedAt DateTime?                     @db.Date
+  updatedAt DateTime? @db.Date
   /// Could not determine type: the field only had null or empty values in the sample set.
   warnings  Error[]
 }
@@ -129,25 +129,35 @@ type History {
   userName      String?
 }
 
+type Error {
+  title             String
+  description       String
+  // Optional fields from QcResultsErrors that can be used across all error types
+  code              String?
+  offendingProperty String?
+  offendingValue    String?
+  severity          String?
+}
+
 model CDE {
-  id                String   @id @map("_id")
+  id                String   @id @default(uuid()) @map("_id")
   CDECode           String
   CDEFullName       String
   CDEVersion        String?
   PermissibleValues String[]
-  createdAt         DateTime @db.Date
-  updatedAt         DateTime @db.Date
+  createdAt         DateTime @default(now()) @db.Date
+  updatedAt         DateTime @updatedAt @db.Date
 
   @@index([CDECode, CDEVersion], map: "CDECode_1_CDEVersion_1")
 }
 
 model applications {
-  id                  String                   @id @map("_id")
+  id                  String    @id @default(uuid()) @map("_id")
+  version             String
   ORCID               String?
   PI                  String?
   applicant           Applicant
   controlledAccess    Boolean?
-  createdAt           DateTime                 @db.Date
   history             History[]
   inactiveReminder    Boolean?
   openAccess          Boolean?
@@ -162,17 +172,16 @@ model applications {
   studyName           String
   /// Multiple data types found: String: 4.8%, DateTime (Date): 95.2% out of 21 sampled entries
   submittedDate       DateTime?
-  updatedAt           DateTime                 @db.Date
-  version             String
   wholeProgram        Boolean?
+  createdAt           DateTime  @default(now()) @db.Date
+  updatedAt           DateTime  @updatedAt @db.Date
 }
 
 model approvedStudies {
-  id                String   @id @map("_id")
+  id                String   @id @default(uuid()) @map("_id")
   ORCID             String?
   PI                String?
   controlledAccess  Boolean
-  createdAt         DateTime @db.Date
   dbGaPID           String?
   openAccess        Boolean?
   originalOrg       String?
@@ -180,14 +189,14 @@ model approvedStudies {
   programName       String?
   studyAbbreviation String
   studyName         String
-  updatedAt         DateTime @db.Date
   useProgramPC      Boolean?
+  createdAt         DateTime @default(now()) @db.Date
+  updatedAt         DateTime @updatedAt @db.Date
 }
 
 model batch {
-  id            String       @id @map("_id")
+  id            String       @id @default(uuid()) @map("_id")
   bucketName    String
-  createdAt     DateTime     @db.Date
   displayID     Int
   errors        String[]
   fileCount     Int
@@ -198,12 +207,14 @@ model batch {
   submitterID   String?
   submitterName String?
   type          String
-  updatedAt     DateTime     @db.Date
   zipFileName   String?
+  createdAt     DateTime     @default(now()) @db.Date
+  updatedAt     DateTime     @updatedAt @db.Date
 }
 
+// needs schema standarlization badly!
 model configuration {
-  id                               String                  @id @map("_id")
+  id                               String            @id @default(uuid()) @map("_id")
   COMPLETED_RETENTION_DAYS         Int?
   DASHBOARD_SESSION_TIMEOUT        Int?
   Defaults                         PBACDefaults[]
@@ -242,12 +253,11 @@ model configuration {
 }
 
 model dataRecords {
-  id                   String                        @id @map("_id")
+  id                   String            @id @default(uuid()) @map("_id")
   CRDC_ID              String?
   IDPropName           String
   additionalErrors     AdditionalError[]
   batchIDs             String[]
-  createdAt            DateTime                      @db.Date
   dataCommons          String
   entityType           String?
   errors               Error[]
@@ -265,10 +275,11 @@ model dataRecords {
   status               String
   studyID              String
   submissionID         String
-  updatedAt            DateTime                      @db.Date
-  uploadedDate         DateTime                      @db.Date
-  validatedAt          DateTime?                     @db.Date
+  uploadedDate         DateTime          @db.Date
+  validatedAt          DateTime?         @db.Date
   warnings             Error[]
+  createdAt            DateTime          @default(now()) @db.Date
+  updatedAt            DateTime          @updatedAt @db.Date
 
   @@index([submissionID, nodeType, nodeID], map: "submissionID_nodeType_nodeID")
   @@index([dataCommons, nodeType, nodeID], map: "dataCommons_nodeType_nodeID")
@@ -277,13 +288,12 @@ model dataRecords {
 }
 
 model dataRecordsArchived {
-  id                   String                             @id @map("_id")
+  id                   String            @id @default(uuid()) @map("_id")
   CRDC_ID              String?
   IDPropName           String
   /// Could not determine type: the field only had null or empty values in the sample set.
   additionalErrors     AdditionalError[]
   batchIDs             String[]
-  createdAt            DateTime                           @db.Date
   dataCommons          String
   entityType           String?
   errors               Error[]
@@ -301,33 +311,34 @@ model dataRecordsArchived {
   status               String
   studyID              String?
   submissionID         String
-  updatedAt            DateTime                           @db.Date
-  uploadedDate         DateTime                           @db.Date
-  validatedAt          DateTime?                          @db.Date
+  uploadedDate         DateTime          @db.Date
+  validatedAt          DateTime?         @db.Date
   warnings             Error[]
+  createdAt            DateTime          @default(now()) @db.Date
+  updatedAt            DateTime          @updatedAt @db.Date
 }
 
 model fileMD5 {
-  id           String   @id @map("_id")
+  id           String   @id @default(uuid()) @map("_id")
   LastModified DateTime @db.Date
-  createdAt    DateTime @db.Date
   fileName     String
   md5          String
   submissionID String
-  updatedAt    DateTime @db.Date
+  createdAt    DateTime @default(now()) @db.Date
+  updatedAt    DateTime @updatedAt @db.Date
 }
 
 model institutions {
-  id             String    @id @map("_id")
-  createdAt      DateTime? @db.Date
+  id             String    @id @default(uuid()) @map("_id")
   name           String
   status         String
   submitterCount Int?
-  updatedAt      DateTime? @db.Date
+  createdAt      DateTime? @default(now()) @db.Date
+  updatedAt      DateTime? @updatedAt @db.Date
 }
 
 model logs {
-  id            String           @id @map("_id")
+  id            String           @id @default(uuid()) @map("_id")
   action        String?
   applicationID String?
   eventDetail   LogsEventDetail?
@@ -346,25 +357,23 @@ model logs {
 }
 
 model organization {
-  id             String                @id @map("_id")
+  id             String      @id @default(uuid()) @map("_id")
   abbreviation   String?
   bucketName     String?
   conciergeEmail String?
   conciergeID    String?
   conciergeName  String?
-  createdAt      DateTime              @db.Date
   description    String?
   name           String
   rootPath       String?
   status         String
   studies        StudyByID[]
-  updateAt       DateTime              @db.Date
-  /// Multiple data types found: String: 50%, DateTime (Date): 50% out of 4 sampled entries
-  updatedAt      DateTime?
+  createdAt      DateTime    @default(now()) @db.Date
+  updateAt       DateTime    @updatedAt @db.Date // this is a typo, but it's been like this for a while
 }
 
 model qcResults {
-  id             String              @id @map("_id")
+  id             String   @id @default(uuid()) @map("_id")
   batchIDs       String[]
   dataRecordID   String
   displayID      Int
@@ -375,8 +384,8 @@ model qcResults {
   submissionID   String
   submittedID    String
   type           String
-  uploadedDate   DateTime            @db.Date
-  validatedDate  DateTime            @db.Date
+  uploadedDate   DateTime @db.Date
+  validatedDate  DateTime @db.Date
   validationType String
   warnings       Error[]
 
@@ -384,37 +393,28 @@ model qcResults {
 }
 
 model release {
-  id              String                 @id @map("_id")
-  CRDC_ID         String?
-  createdAt       DateTime               @db.Date
-  dataCommons     String
-  entityType      String?
-  nodeID          String
-  nodeType        String
-  parents         Parent[]
-  props           Json
-  status          String
-  studyID         String?
-  submissionID    String
-  updatedAt       DateTime?              @db.Date
+  id           String    @id @default(uuid()) @map("_id")
+  CRDC_ID      String?
+  dataCommons  String
+  entityType   String?
+  nodeID       String
+  nodeType     String
+  parents      Parent[]
+  props        Json
+  status       String
+  studyID      String?
+  submissionID String
+  createdAt    DateTime  @default(now()) @db.Date
+  updatedAt    DateTime? @updatedAt @db.Date
 
   @@index([dataCommons, nodeType, nodeID], map: "dataCommons_nodeType_nodeID")
   @@index([CRDC_ID], map: "CRDC_ID")
 }
 
-model sessions {
-  id           String   @id @map("_id")
-  expires      DateTime @db.Date
-  lastModified DateTime @db.Date
-  session      String
-
-  @@index([expires], map: "expires_1")
-}
-
 model submissions {
-  id                       String                     @id @map("_id")
+  id                       String         @id @default(uuid()) @map("_id")
   ORCID                    String?
-  accessedAt               DateTime                   @db.Date
+  accessedAt               DateTime       @db.Date
   archived                 Boolean?
   bucketName               String
   collaborators            Collaborator[]
@@ -422,7 +422,6 @@ model submissions {
   conciergeEmail           String?
   conciergeName            String?
   controlledAccess         Boolean?
-  createdAt                DateTime                   @db.Date
   /// Multiple data types found: String: 92.9%, Boolean: 7.1% out of 375 sampled entries
   crossSubmissionStatus    String?
   dataCommons              String
@@ -457,16 +456,17 @@ model submissions {
   studyID                  String
   submitterID              String
   submitterName            String
-  updatedAt                DateTime                   @db.Date
-  validationEnded          DateTime?                  @db.Date
+  validationEnded          DateTime?      @db.Date
   validationScope          String?
-  validationStarted        DateTime?                  @db.Date
+  validationStarted        DateTime?      @db.Date
   validationType           String[]
+  createdAt                DateTime       @default(now()) @db.Date
+  updatedAt                DateTime       @updatedAt @db.Date
 }
 
 model synonyms {
   /// Multiple data types found: String: 47.5%, String (ObjectId): 52.5% out of 1000 sampled entries
-  id              Json   @id @map("_id")
+  id              String @id @default(uuid()) @map("_id")
   equivalent_term String
   synonym_term    String
 
@@ -474,10 +474,9 @@ model synonyms {
 }
 
 model users {
-  id            String             @id @map("_id")
+  id            String       @id @default(uuid()) @map("_id")
   IDP           String
   /// Multiple data types found: String: 14.6%, DateTime (Date): 85.4% out of 48 sampled entries
-  createdAt     DateTime
   dataCommons   String[]
   email         String
   firstName     String
@@ -487,30 +486,21 @@ model users {
   organization  OrgInfo?
   permissions   String[]
   role          String
-  status        String?
+  status        String? // do we use this???
   studies       StudyByID[]
   tokens        String[]
-  /// Multiple data types found: String: 2.1%, DateTime (Date): 97.9% out of 48 sampled entries
-  updateAt      DateTime
   userStatus    String
+  createdAt     DateTime     @default(now()) @db.Date
+  /// Multiple data types found: String: 2.1%, DateTime (Date): 97.9% out of 48 sampled entries
+  updateAt      DateTime     @updatedAt @db.Date
 }
 
 model validation {
-  id           String    @id @map("_id")
+  id           String    @id @default(uuid()) @map("_id")
   ended        DateTime? @db.Date
   scope        String?
   started      DateTime  @db.Date
   status       String?
   submissionID String
   type         String[]
-}
-
-type Error {
-  title       String
-  description String
-  // Optional fields from QcResultsErrors that can be used across all error types
-  code              String?
-  offendingProperty String?
-  offendingValue    String?
-  severity          String?
 }
