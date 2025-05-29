@@ -171,7 +171,7 @@ model applications {
   studyAbbreviation   String
   studyName           String
   /// Multiple data types found: String: 4.8%, DateTime (Date): 95.2% out of 21 sampled entries
-  submittedDate       DateTime?
+  submittedDate       DateTime? @db.Date
   wholeProgram        Boolean?
   createdAt           DateTime  @default(now()) @db.Date
   updatedAt           DateTime  @updatedAt @db.Date
@@ -192,6 +192,8 @@ model approvedStudies {
   useProgramPC      Boolean?
   createdAt         DateTime @default(now()) @db.Date
   updatedAt         DateTime @updatedAt @db.Date
+
+  Concierge users? @relation(fields: [primaryContactID], references: [id])
 }
 
 model batch {
@@ -204,12 +206,14 @@ model batch {
   files         BatchFiles[]
   status        String
   submissionID  String
-  submitterID   String?
-  submitterName String?
+  submitterID   String? // do we use this one???
+  submitterName String? // do we use this one???
   type          String
   zipFileName   String?
   createdAt     DateTime     @default(now()) @db.Date
   updatedAt     DateTime     @updatedAt @db.Date
+
+  submission submissions @relation(fields: [submissionID], references: [id])
 }
 
 // needs schema standarlization badly!
@@ -280,6 +284,8 @@ model dataRecords {
   warnings             Error[]
   createdAt            DateTime          @default(now()) @db.Date
   updatedAt            DateTime          @updatedAt @db.Date
+
+  submission submissions @relation(fields: [submissionID], references: [id])
 
   @@index([submissionID, nodeType, nodeID], map: "submissionID_nodeType_nodeID")
   @@index([dataCommons, nodeType, nodeID], map: "dataCommons_nodeType_nodeID")
@@ -370,6 +376,10 @@ model organization {
   studies        StudyByID[]
   createdAt      DateTime    @default(now()) @db.Date
   updateAt       DateTime    @updatedAt @db.Date // this is a typo, but it's been like this for a while
+
+  Concierge users? @relation(fields: [conciergeID], references: [id])
+
+  // @@map("organization")
 }
 
 model qcResults {
@@ -388,6 +398,8 @@ model qcResults {
   validatedDate  DateTime @db.Date
   validationType String
   warnings       Error[]
+
+  submission submissions @relation(fields: [submissionID], references: [id])
 
   @@index([submissionID], map: "submissionID_1")
 }
@@ -418,7 +430,6 @@ model submissions {
   archived                 Boolean?
   bucketName               String
   collaborators            Collaborator[]
-  collborators             String?
   conciergeEmail           String?
   conciergeName            String?
   controlledAccess         Boolean?
@@ -462,6 +473,11 @@ model submissions {
   validationType           String[]
   createdAt                DateTime       @default(now()) @db.Date
   updatedAt                DateTime       @updatedAt @db.Date
+
+  batches     batch[]
+  dataRecords dataRecords[]
+  qcResults   qcResults[]
+  validations validation[]
 }
 
 model synonyms {
@@ -493,6 +509,9 @@ model users {
   createdAt     DateTime     @default(now()) @db.Date
   /// Multiple data types found: String: 2.1%, DateTime (Date): 97.9% out of 48 sampled entries
   updateAt      DateTime     @updatedAt @db.Date
+
+  programs        organization[]
+  approvedStudies approvedStudies[]
 }
 
 model validation {
@@ -503,4 +522,6 @@ model validation {
   status       String?
   submissionID String
   type         String[]
+
+  submission submissions @relation(fields: [submissionID], references: [id])
 }
