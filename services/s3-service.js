@@ -209,26 +209,25 @@ class S3Service {
             Bucket: bucketName,
             Prefix: (dir.endsWith("/")) ? dir : dir + "/"
         };
-
         let fileObjects = [];
-        const listRecursively = async (params) => {
-            try {
-                const data = await this.#listObjectsV2(params);
+        let isTruncated = true;
+        try{
+            while (isTruncated){
+                const data = await this.#listObjectsV2(listParams);
                 if (data.Contents) {
                     fileObjects.push(...data.Contents);
-                    if (data.IsTruncated) {  // If more objects are available, continue with the next token
-                        params.ContinuationToken = data.NextContinuationToken;
-                        await listRecursively(params);
-                    }
                 }
-            } catch (err) {
-                console.error(`Failed to listing files from bucket "${bucketName}": ${err.toString()}`);
-                throw err;
+                isTruncated = data.IsTruncated;
+                if (isTruncated) {
+                    listParams.ContinuationToken = data.NextContinuationToken;
+                }
             }
-        };
-
-        await listRecursively(listParams);  // Start recursive listing
-        return fileObjects;
+            return fileObjects;
+        }
+        catch (err) {
+            console.error(`Failed to listing files from bucket "${bucketName}": ${err.toString()}`);
+            throw err;
+        }
     }
 
     async #listObjectsV2(params) {
