@@ -211,9 +211,25 @@ class S3Service {
         };
         let fileObjects = [];
         let isTruncated = true;
+        let maxAttempts = 5;
+        let attempts = 0;
         try{
             while (isTruncated){
-                const data = await this.#listObjectsV2(listParams);
+                attempts++;
+                let data;
+                try{
+                    data = await this.#listObjectsV2(listParams);
+                }
+                catch (err){
+                    if (attempts <= maxAttempts){
+                        console.error(`retrying S3 request after error: ${err.toString()}`);
+                        let sleepTime = 100*2**(attempts-1);
+                        console.error(`waiting ${sleepTime} ms before retrying`)
+                        await new Promise(r => setTimeout(r, sleepTime));
+                        continue;
+                    }
+                    throw err;
+                }
                 if (data.Contents) {
                     fileObjects.push(...data.Contents);
                 }
