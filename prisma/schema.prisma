@@ -92,7 +92,7 @@ type LogsEventDetail {
   submissionID String
 }
 
-type Institution {
+type InstitutionInfo {
   id     String @map("_id")
   name   String
   status String
@@ -151,7 +151,7 @@ model CDE {
   @@index([CDECode, CDEVersion], map: "CDECode_1_CDEVersion_1")
 }
 
-model applications {
+model Application {
   id                  String    @id @default(uuid()) @map("_id")
   version             String
   ORCID               String?
@@ -175,9 +175,11 @@ model applications {
   wholeProgram        Boolean?
   createdAt           DateTime  @default(now()) @db.Date
   updatedAt           DateTime  @updatedAt @db.Date
+
+  @@map("applications")
 }
 
-model approvedStudies {
+model ApprovedStudy {
   id                String   @id @default(uuid()) @map("_id")
   ORCID             String?
   PI                String?
@@ -193,10 +195,12 @@ model approvedStudies {
   createdAt         DateTime @default(now()) @db.Date
   updatedAt         DateTime @updatedAt @db.Date
 
-  Concierge users? @relation(fields: [primaryContactID], references: [id])
+  Concierge User? @relation(fields: [primaryContactID], references: [id])
+
+  @@map("approvedStudies")
 }
 
-model batch {
+model Batch {
   id            String       @id @default(uuid()) @map("_id")
   bucketName    String
   displayID     Int
@@ -213,11 +217,13 @@ model batch {
   createdAt     DateTime     @default(now()) @db.Date
   updatedAt     DateTime     @updatedAt @db.Date
 
-  submission submissions @relation(fields: [submissionID], references: [id])
+  submission Submission @relation(fields: [submissionID], references: [id])
+
+  @@map("batch")
 }
 
 // needs schema standarlization badly!
-model configuration {
+model Configuration {
   id                               String            @id @default(uuid()) @map("_id")
   COMPLETED_RETENTION_DAYS         Int?
   DASHBOARD_SESSION_TIMEOUT        Int?
@@ -254,9 +260,11 @@ model configuration {
   timeout                          Int?
   type                             String
   version                          String?
+
+  @@map("configuration")
 }
 
-model dataRecords {
+model DataRecord {
   id                   String            @id @default(uuid()) @map("_id")
   CRDC_ID              String?
   IDPropName           String
@@ -285,15 +293,16 @@ model dataRecords {
   createdAt            DateTime          @default(now()) @db.Date
   updatedAt            DateTime          @updatedAt @db.Date
 
-  submission submissions @relation(fields: [submissionID], references: [id])
+  submission Submission @relation(fields: [submissionID], references: [id])
 
   @@index([submissionID, nodeType, nodeID], map: "submissionID_nodeType_nodeID")
   @@index([dataCommons, nodeType, nodeID], map: "dataCommons_nodeType_nodeID")
   @@index([submissionID], map: "submissionID_index")
   @@index([studyID, entityType, nodeID], map: "studyID_entityType_nodeID")
+  @@map("dataRecords")
 }
 
-model dataRecordsArchived {
+model DataRecordsArchived {
   id                   String            @id @default(uuid()) @map("_id")
   CRDC_ID              String?
   IDPropName           String
@@ -322,9 +331,11 @@ model dataRecordsArchived {
   warnings             Error[]
   createdAt            DateTime          @default(now()) @db.Date
   updatedAt            DateTime          @updatedAt @db.Date
+
+  @@map("dataRecordsArchived")
 }
 
-model fileMD5 {
+model FileMD5 {
   id           String   @id @default(uuid()) @map("_id")
   LastModified DateTime @db.Date
   fileName     String
@@ -332,18 +343,22 @@ model fileMD5 {
   submissionID String
   createdAt    DateTime @default(now()) @db.Date
   updatedAt    DateTime @updatedAt @db.Date
+
+  @@map("fileMD5")
 }
 
-model institutions {
+model Institution {
   id             String    @id @default(uuid()) @map("_id")
   name           String
   status         String
   submitterCount Int?
   createdAt      DateTime? @default(now()) @db.Date
   updatedAt      DateTime? @updatedAt @db.Date
+
+  @@map("institutions")
 }
 
-model logs {
+model Log {
   id            String           @id @default(uuid()) @map("_id")
   action        String?
   applicationID String?
@@ -360,9 +375,11 @@ model logs {
   userID        String
   userIDP       String?
   userName      String?
+
+  @@map("logs")
 }
 
-model organization {
+model Program {
   id             String      @id @default(uuid()) @map("_id")
   abbreviation   String?
   bucketName     String?
@@ -377,12 +394,12 @@ model organization {
   createdAt      DateTime    @default(now()) @db.Date
   updateAt       DateTime    @updatedAt @db.Date // this is a typo, but it's been like this for a while
 
-  Concierge users? @relation(fields: [conciergeID], references: [id])
+  Concierge User? @relation(fields: [conciergeID], references: [id])
 
-  // @@map("organization")
+  @@map("organization")
 }
 
-model qcResults {
+model QcResult {
   id             String   @id @default(uuid()) @map("_id")
   batchIDs       String[]
   dataRecordID   String
@@ -399,12 +416,13 @@ model qcResults {
   validationType String
   warnings       Error[]
 
-  submission submissions @relation(fields: [submissionID], references: [id])
+  submission Submission @relation(fields: [submissionID], references: [id])
 
   @@index([submissionID], map: "submissionID_1")
+  @@map("qcResults")
 }
 
-model release {
+model Release {
   id           String    @id @default(uuid()) @map("_id")
   CRDC_ID      String?
   dataCommons  String
@@ -421,9 +439,10 @@ model release {
 
   @@index([dataCommons, nodeType, nodeID], map: "dataCommons_nodeType_nodeID")
   @@index([CRDC_ID], map: "CRDC_ID")
+  @@map("release")
 }
 
-model submissions {
+model Submission {
   id                       String         @id @default(uuid()) @map("_id")
   ORCID                    String?
   accessedAt               DateTime       @db.Date
@@ -474,29 +493,32 @@ model submissions {
   createdAt                DateTime       @default(now()) @db.Date
   updatedAt                DateTime       @updatedAt @db.Date
 
-  batches     batch[]
-  dataRecords dataRecords[]
-  qcResults   qcResults[]
-  validations validation[]
+  batches     Batch[]
+  dataRecords DataRecord[]
+  qcResults   QcResult[]
+  validations Validation[]
+
+  @@map("submissions")
 }
 
-model synonyms {
+model Synonym {
   /// Multiple data types found: String: 47.5%, String (ObjectId): 52.5% out of 1000 sampled entries
   id              String @id @default(uuid()) @map("_id")
   equivalent_term String
   synonym_term    String
 
   @@index([synonym_term], map: "synonym_term_1")
+  @@map("synonyms")
 }
 
-model users {
-  id            String       @id @default(uuid()) @map("_id")
+model User {
+  id            String           @id @default(uuid()) @map("_id")
   IDP           String
   /// Multiple data types found: String: 14.6%, DateTime (Date): 85.4% out of 48 sampled entries
   dataCommons   String[]
   email         String
   firstName     String
-  institution   Institution?
+  institution   InstitutionInfo?
   lastName      String
   notifications String[]
   organization  OrgInfo?
@@ -506,15 +528,17 @@ model users {
   studies       StudyByID[]
   tokens        String[]
   userStatus    String
-  createdAt     DateTime     @default(now()) @db.Date
+  createdAt     DateTime         @default(now()) @db.Date
   /// Multiple data types found: String: 2.1%, DateTime (Date): 97.9% out of 48 sampled entries
-  updateAt      DateTime     @updatedAt @db.Date
+  updateAt      DateTime         @updatedAt @db.Date
 
-  programs        organization[]
-  approvedStudies approvedStudies[]
+  programs        Program[]
+  approvedStudies ApprovedStudy[]
+
+  @@map("users")
 }
 
-model validation {
+model Validation {
   id           String    @id @default(uuid()) @map("_id")
   ended        DateTime? @db.Date
   scope        String?
@@ -523,5 +547,7 @@ model validation {
   submissionID String
   type         String[]
 
-  submission submissions @relation(fields: [submissionID], references: [id])
+  submission Submission @relation(fields: [submissionID], references: [id])
+
+  @@map("validation")
 }
