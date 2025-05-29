@@ -96,20 +96,20 @@ class ApprovedStudiesService {
             throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
         }
 
-        const returnStudy = await getApprovedStudyByID(_id)
+        const approvedStudy = await getApprovedStudyByID(_id)
 
-        if (!returnStudy) {
+        if (!approvedStudy) {
             throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
         }
         // find program/organization by study ID
-        returnStudy.programs = await this.#findOrganizationByStudyID(_id)
+        approvedStudy.programs = await this.#findOrganizationByStudyID(_id)
         // find primaryContact
-        if (returnStudy?.primaryContactID)
+        if (approvedStudy?.primaryContactID)
         {
-            returnStudy.primaryContact = await this.#findUserByID(returnStudy.primaryContactID);
+            approvedStudy.primaryContact = await this.#findUserByID(approvedStudy.primaryContactID);
         }
 
-        return returnStudy;
+        return approvedStudy;
     }
 
     async #findOrganizationByStudyID(studyID)
