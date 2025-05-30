@@ -105,7 +105,7 @@ class BatchService {
         // Store error files that were not uploaded to the S3 bucket
         if (aBatch.status !== BATCH.STATUSES.UPLOADING) {
             const noUploadedFiles = files
-                .filter(file => !s3UploadedFiles.has(file.fileName))
+                .filter(file => !s3UploadedFiles.has(file.fileName) && isTrue(file.succeeded))
                 .map(file => file.fileName);
             if (noUploadedFiles.length > 0) {
                 aBatch.errors = aBatch.errors || [];
