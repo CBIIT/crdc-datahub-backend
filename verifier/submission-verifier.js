@@ -57,19 +57,39 @@ class SubmissionActionVerifier {
     }
 
 
-    isValidSubmitAction(isAdminAction, aSubmission, comment, dataFileSize) {
-        if(this.#actionName === ACTIONS.SUBMIT) {
-            const isInvalidAdminStatus = !this.#isValidAdminStatus(isAdminAction, aSubmission, dataFileSize);
-            const validStatus = [VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING];
-            // if deleted intention, allow it to be submitted without any data files. Ignore any value if meta-data only data file
-            const ignoreFileValidationStatus = aSubmission?.dataType === DATA_TYPE.METADATA_ONLY;
-            const isValidatedStatus = aSubmission?.intention === INTENTION.DELETE || (validStatus.includes(aSubmission?.metadataValidationStatus)
-                && (ignoreFileValidationStatus || dataFileSize > 0));
+    isValidSubmitAction(isAdminAction, aSubmission, comment, dataFileSize, hasOrphanedFiles, hasUploadingBatch) {
+        if (this.#actionName === ACTIONS.SUBMIT) {
+            const validationStatuses = [VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING];
+            // 1. The metadataValidationStatus and fileValidationStatus should not be Validating.
+            const validationRunning = aSubmission.metadataValidationStatus === VALIDATION_STATUS.VALIDATING;
 
-            if (isInvalidAdminStatus) {
-                if (isAdminAction ||(!isAdminAction && (!isValidatedStatus))) {
-                    throw new Error(ERROR.VERIFY.INVALID_SUBMIT_ACTION);
-                }
+            // 2. The dataFileSize.size property should be greater than 0 for submissions with the data type Metadata and Data Files.; ignore if metadata only && delete intention
+            const ignoreDataFileValidation = aSubmission?.intention === INTENTION.DELETE || aSubmission?.dataType === DATA_TYPE.METADATA_ONLY;
+            const isValidDataFileSize = ignoreDataFileValidation || (aSubmission?.dataType === DATA_TYPE.METADATA_AND_DATA_FILES && dataFileSize > 0);
+
+            // 3. The metadataValidationStatus and fileValidationStatus should not be New
+            const isValidValidationNotNew = aSubmission?.metadataValidationStatus !== VALIDATION_STATUS.NEW && aSubmission?.fileValidationStatus !== VALIDATION_STATUS.NEW;
+
+            // Admin can skip the requirement; The metadataValidationStatus and fileValidationStatus should not be Error.
+            const hasValidationErrors = aSubmission?.metadataValidationStatus === VALIDATION_STATUS.ERROR || aSubmission?.fileValidationStatus === VALIDATION_STATUS.ERROR;
+            const ignoreErrorValidation = isAdminAction && hasValidationErrors;
+            // 4. Metadata validation should be initialized for submissions with the intention Delete.
+            const isValidDeleteIntention = aSubmission?.intention === INTENTION.UPDATE || (aSubmission?.intention === INTENTION.DELETE && validationStatuses.includes(aSubmission?.metadataValidationStatus));
+
+            const isValidStatus =
+                // 5. Metadata validation should be initialized for submissions with the intention Delete / the data type Metadata Only.
+                (aSubmission?.dataType === DATA_TYPE.METADATA_ONLY &&
+                    (ignoreErrorValidation || validationStatuses.includes(aSubmission?.metadataValidationStatus))) ||
+                // 6. Metadata validation should be initialized for submissions with the data type Metadata and Data Files.
+                (aSubmission?.dataType === DATA_TYPE.METADATA_AND_DATA_FILES &&
+                    (ignoreErrorValidation || (validationStatuses.includes(aSubmission?.metadataValidationStatus) && validationStatuses.includes(aSubmission?.fileValidationStatus))));
+
+            const isInvalidSubmit = validationRunning || hasUploadingBatch || !isValidDeleteIntention ||
+                !isValidStatus || !isValidDataFileSize || !isValidValidationNotNew || hasOrphanedFiles
+
+            if (isInvalidSubmit) {
+                console.error(ERROR.VERIFY.INVALID_SUBMIT_ACTION, `SubmissionID:${aSubmission?._id}`);
+                throw new Error(ERROR.VERIFY.INVALID_SUBMIT_ACTION);
             }
 
             if ([INTENTION.UPDATE].includes(aSubmission?.intention) && this.isSubmitActionCommentRequired(aSubmission, isAdminAction, comment)) {
@@ -92,17 +112,6 @@ class SubmissionActionVerifier {
 
         const isNotPermitted = multiUserScopes?.every(userScope => userScope.isNoneScope());
         return !isNotPermitted || collaboratorCondition;
-    }
-
-    // Private Function
-    #isValidAdminStatus(isAdminSubmitAction, aSubmission, dataFileSize) {
-        const isMetadataInvalid = aSubmission?.metadataValidationStatus === VALIDATION_STATUS.NEW;
-        const isDeleteIntention = aSubmission?.intention === INTENTION.DELETE;
-        const ignoreFileValidationStatus = aSubmission?.dataType === DATA_TYPE.METADATA_ONLY;
-        // if deleted intention, allow it to be submitted without any data files, if metadata only, any value is ignored for fileValidationStatus
-        const isDataFileValidated = isDeleteIntention || !isMetadataInvalid && (ignoreFileValidationStatus || dataFileSize > 0);
-        // null fileValidationStatus means this submission doesn't have any files uploaded
-        return isAdminSubmitAction && isDataFileValidated;
     }
 }
 
