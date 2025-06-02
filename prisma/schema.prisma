@@ -217,7 +217,7 @@ model Batch {
   createdAt     DateTime     @default(now()) @db.Date
   updatedAt     DateTime     @updatedAt @db.Date
 
-  submission Submission @relation(fields: [submissionID], references: [id])
+  submission Submission @relation(fields: [submissionID], references: [id], onDelete: Cascade)
 
   @@map("batch")
 }
@@ -293,7 +293,7 @@ model DataRecord {
   createdAt            DateTime          @default(now()) @db.Date
   updatedAt            DateTime          @updatedAt @db.Date
 
-  submission Submission @relation(fields: [submissionID], references: [id])
+  submission Submission @relation(fields: [submissionID], references: [id], onDelete: Cascade)
 
   @@index([submissionID, nodeType, nodeID], map: "submissionID_nodeType_nodeID")
   @@index([dataCommons, nodeType, nodeID], map: "dataCommons_nodeType_nodeID")
@@ -416,7 +416,7 @@ model QcResult {
   validationType String
   warnings       Error[]
 
-  submission Submission @relation(fields: [submissionID], references: [id])
+  submission Submission @relation(fields: [submissionID], references: [id], onDelete: Cascade)
 
   @@index([submissionID], map: "submissionID_1")
   @@map("qcResults")
@@ -547,7 +547,7 @@ model Validation {
   submissionID String
   type         String[]
 
-  submission Submission @relation(fields: [submissionID], references: [id])
+  submission Submission @relation(fields: [submissionID], references: [id], onDelete: Cascade)
 
   @@map("validation")
 }
