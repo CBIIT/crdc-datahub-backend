@@ -264,48 +264,95 @@ class S3Service {
         let isTruncated = true;
         let continuationToken = null;
         const filesToBeDelete = [];
-        //1) file deletable files
-        while (isTruncated) {
-            listParams.ContinuationToken = continuationToken;
-            const listResponse = await this.s3.listObjectsV2(listParams).promise();;
-            isTruncated = listResponse.IsTruncated;
-            continuationToken = listResponse.NextContinuationToken;
+        const maxRetries = 5; // Increased max retries
+        const initialRetryDelay = 1000; // 1 second initial delay
 
-            // Iterate through the objects (files) listed in Contents
-            for (const object of listResponse.Contents) {
-                const objectKey = object.Key;
-
-                // Skip the folder itself (if it exists as an object)
-                if (objectKey.endsWith("/")) {
-                    continue;
+        // Helper function to retry S3 operations with exponential backoff
+        const retryOperation = async (operation, retryCount = 0) => {
+            try {
+                return await operation();
+            } catch (error) {
+                // Check for both 502 and 503 errors
+                if ((error.statusCode === 502 || error.statusCode === 503) && retryCount < maxRetries) {
+                    // Exponential backoff: 1s, 2s, 4s, 8s, 16s
+                    const delay = initialRetryDelay * Math.pow(2, retryCount);
+                    console.warn(`S3 service error (${error.statusCode}), retrying in ${delay}ms... (attempt ${retryCount + 1}/${maxRetries})`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    return retryOperation(operation, retryCount + 1);
                 }
+                // Log detailed error information
+                console.error(`S3 operation failed after ${retryCount} retries:`, {
+                    statusCode: error.statusCode,
+                    code: error.code,
+                    message: error.message,
+                    requestId: error.requestId
+                });
+                throw error;
+            }
+        };
 
-                // Get the tags for the object
-                const tagParams = {
-                    Bucket: bucketName,
-                    Key: objectKey,
-                };
+        try {
+            //1) find deletable files
+            while (isTruncated) {
+                listParams.ContinuationToken = continuationToken;
+                const listResponse = await retryOperation(() => this.s3.listObjectsV2(listParams).promise());
+                isTruncated = listResponse.IsTruncated;
+                continuationToken = listResponse.NextContinuationToken;
 
-                const tagResponse = await this.s3.getObjectTagging(tagParams).promise();
+                // Process files in smaller batches to reduce load
+                const batchSize = 100;
+                for (let i = 0; i < listResponse.Contents.length; i += batchSize) {
+                    const batch = listResponse.Contents.slice(i, i + batchSize);
+                    await Promise.all(batch.map(async (object) => {
+                        const objectKey = object.Key;
 
-                // Check if the object has the desired tag, {key: "Completed", value: true}
-                const hasCompleteTag = tagResponse.TagSet.some(
-                    (tag) => tag.Key === completed_tag?.Key && tag.Value === completed_tag?.Value
-                );
+                        if (objectKey.endsWith("/")) {
+                            return;
+                        }
 
-                if (hasCompleteTag && object.LastModified < purgeDate) {
-                    filesToBeDelete.push(objectKey);
+                        const tagParams = {
+                            Bucket: bucketName,
+                            Key: objectKey,
+                        };
+
+                        try {
+                            const tagResponse = await retryOperation(() => this.s3.getObjectTagging(tagParams).promise());
+                            const hasCompleteTag = tagResponse.TagSet.some(
+                                (tag) => tag.Key === completed_tag?.Key && tag.Value === completed_tag?.Value
+                            );
+
+                            if (hasCompleteTag && object.LastModified < purgeDate) {
+                                filesToBeDelete.push(objectKey);
+                            }
+                        } catch (error) {
+                            console.error(`Failed to process object ${objectKey}:`, error.message);
+                            // Continue processing other objects even if one fails
+                        }
+                    }));
                 }
             }
+
+            //2) delete deletable files in batches
+            if (filesToBeDelete.length > 0) {
+                const batchSize = 1000; // S3 allows up to 1000 objects per delete request
+                for (let i = 0; i < filesToBeDelete.length; i += batchSize) {
+                    const batch = filesToBeDelete.slice(i, i + batchSize);
+                    await retryOperation(() => this.#deleteObjects(bucketName, batch));
+                    console.info(`Purged batch of ${batch.length} deleted data files successfully.`);
+                }
+                console.info(`Completed purging ${filesToBeDelete.length} deleted data files.`);
+            } else {
+                console.info("No data files to be purged.");
+            }
+            return true;
+        } catch (error) {
+            console.error(`Failed to purge deleted files: ${error.message}`, {
+                statusCode: error.statusCode,
+                code: error.code,
+                requestId: error.requestId
+            });
+            throw error;
         }
-        //2) delete deletable files
-        if (filesToBeDelete.length > 0) {
-            await this.#deleteObjects(bucketName, filesToBeDelete);
-            console.info(`Purged ${filesToBeDelete.length} deleted data files successfully: [${filesToBeDelete}].`);
-        }
-        else 
-            console.info("No data files to be purged.");
-        return true;  // if no exceptions
     }
 
     async #deleteObjects(bucketName, fileKeyList) {
