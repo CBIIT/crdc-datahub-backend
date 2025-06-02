@@ -452,9 +452,14 @@ class Submission {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         const newStatus = verifier.getNewStatus();
-        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.ADMIN_SUBMIT, submission);
-        const dataFileSize = await this.#getS3DirectorySize(submission?.bucketName, `${submission?.rootPath}/${FILE}/`);
-        verifier.isValidSubmitAction(!userScope.isNoneScope(), submission, params?.comment, dataFileSize?.size);
+        const [userScope, dataFileSize, orphanedErrorFiles, uploadingBatches] = await Promise.all([
+            this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.ADMIN_SUBMIT, submission),
+            this.#getS3DirectorySize(submission?.bucketName, `${submission?.rootPath}/${FILE}/`),
+            this.qcResultsService.findBySubmissionErrorCodes(params.submissionID, ERRORS.CODES.F008_MISSING_DATA_NODE_FILE),
+            this.batchService.findOneBatchByStatus(params.submissionID, BATCH.STATUSES.UPLOADING)
+        ]);
+
+        verifier.isValidSubmitAction(!userScope.isNoneScope(), submission, params?.comment, dataFileSize?.size, orphanedErrorFiles?.length > 0, uploadingBatches.length > 0);
         await this.#isValidReleaseAction(action, submission?._id, submission?.studyID, submission?.crossSubmissionStatus);
         //update submission
         let events = submission.history || [];
