@@ -55,6 +55,11 @@ class BatchService {
         }
         return newBatch;
     }
+
+    async findOneBatchByStatus(submissionID, status) {
+        return await this.batchCollection.aggregate([{ "$match": { submissionID, status } }, { "$limit": 1 }]) || [];
+    }
+
     async updateBatch(aBatch, bucketName, files) {
         const uploadFiles = new Map(files
             .filter(aFile => (aFile?.fileName) && aFile?.fileName.trim().length > 0)
