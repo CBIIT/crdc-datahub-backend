@@ -777,6 +777,7 @@ type Query {
     retrieveCLIUploaderVersion: String @public
     isMaintenanceMode: Boolean @public
     userIsPrimaryContact(userID: ID!): Boolean 
+    downloadDBGaPLoadSheet(submissionID: String!):String # download dbGaP load sheet from S3 with presigned URL
 }
 type Mutation {
     "User initiated operations"
