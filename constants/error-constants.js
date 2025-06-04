@@ -221,7 +221,12 @@ const ERROR = {
     INVALID_USER_SCOPE: "Invalid user scope permission is requested",
     INVALID_SCOPE_VALUES: "You have the required permission $item$, but no values are assigned to it.",
     // Maintenance Mode
-    MAINTENANCE_MODE: "The CRDC Submission Portal site is currently undergoing scheduled maintenance. Please check back soon. We appreciate your patience."
+    MAINTENANCE_MODE: "The CRDC Submission Portal site is currently undergoing scheduled maintenance. Please check back soon. We appreciate your patience.",
+    NOT_SUPPORTED_DATA_COMMONS_FOR_LOAD_SHEET: "No dbGaP loading sheet for the data commons.",
+    INVALID_PARTICIPANT_NOT_FOUND: "Participant not found for the given submissionID",
+    INVALID_SAMPLE_NOT_FOUND: "Sample not found for the given submissionID.",
+    INVALID_PARTICIPANT_SAMPLE_NOT_FOUND: "Map of participant and sample not found for the given submissionID.",
+    FAILED_CREATE_LOAD_SHEET: "Failed to create dbGaP loading sheet for the given submissionID.",
 }
 
 module.exports = ERROR;

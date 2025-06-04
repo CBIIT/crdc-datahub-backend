@@ -235,7 +235,8 @@ dbConnector.connect().then(async () => {
         downloadMetadataFile: submissionService.getMetadataFile.bind(submissionService),
         retrieveCLIUploaderVersion: configurationService.retrieveCLIUploaderVersion.bind(configurationService),
         userIsPrimaryContact: userService.isUserPrimaryContact.bind(userService),
-        isMaintenanceMode: configurationService.isMaintenanceMode.bind(configurationService)
+        isMaintenanceMode: configurationService.isMaintenanceMode.bind(configurationService),
+        downloadDBGaPLoadSheet : submissionService.downloadDBGaPLoadSheet.bind(submissionService)
     };
 });
 
