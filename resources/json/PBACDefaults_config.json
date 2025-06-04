@@ -12,7 +12,7 @@
             "name": "View",
             "order": 1,
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "submission_request:create:all",
@@ -36,6 +36,7 @@
             "_id": "submission_request:submit:all",
             "group": "Submission Request Permissions",
             "name": "Submit",
+            "inherited": ["submission_request:view:all"],
             "order": 3,
             "checked": true,
             "disabled": false
@@ -361,7 +362,7 @@
             "name": "View",
             "order": 1,
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "data_submission:create:DC",
@@ -661,7 +662,7 @@
             "name": "View",
             "order": 1,
             "checked": true,
-            "disabled": false
+            "disabled": true
           },
           {
             "_id": "data_submission:create:all",
