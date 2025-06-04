@@ -32,8 +32,16 @@ const NODE_VIEW = {
 const NODE_RELATION_TYPE_PARENT="parent";
 const NODE_RELATION_TYPE_CHILD="child";
 const NODE_RELATION_TYPES = [NODE_RELATION_TYPE_PARENT, NODE_RELATION_TYPE_CHILD];
-
 const FILE = "file";
+const DATA_SHEET = {
+    SUBJECT_ID: "SUBJECT_ID",
+    SAMPLE_ID: "SAMPLE_ID",
+    RACE: "RACE",
+    AGE_ONSET: "AGE_ONSET", 
+    BODY_SITE: "BODY_SITE",
+    ANALYTE_TYPE: "ANALYTE_TYPE",
+    IS_TUMOR: "IS_TUMOR"
+};
 class DataRecordService {
     constructor(dataRecordsCollection, dataRecordArchiveCollection, releaseCollection, fileQueueName, metadataQueueName, awsService, s3Service, qcResultsService, exportQueue) {
         this.dataRecordsCollection = dataRecordsCollection;
@@ -704,10 +712,10 @@ class DataRecordService {
      */
     async createDBGaPLoadSheetForCDS(aSubmission){
         const datacommon = aSubmission.dataCommons;
+        const dataDefinitionSourceDir = `resources/data-definition/${datacommon}`;
         const tempFolder = `logs/${aSubmission._id}`;
         const dbGaPDir = `dbGaP${aSubmission.dbGaPID}_${aSubmission.name}_${getFormatDateStr(getCurrentTime())}`;
         const download_dir = path.join(tempFolder, dbGaPDir);
-        const subjectSampleMapping = `${download_dir}/${dbGaPDir}_SubjectSampleMapping_DD`;
         // 1) create subject sample mapping sheet
         const participants = await this.dataRecordsCollection.aggregate([{
             $match: {
@@ -728,7 +736,7 @@ class DataRecordService {
             const subject = sampleNode.parents.find(p=>p.parentType === "participant");
             const subjectID = subject? subject?.parentIDValue : "";
             const sampleID = sampleNode.nodeID;
-            return subjectID? {"participant_id": subjectID, "sample_id": sampleID}: null;
+            return subjectID ? { [DATA_SHEET.SUBJECT_ID]: subjectID, [DATA_SHEET.SAMPLE_ID]: sampleID } : null;
         });
         subjectSampleMapArr = subjectSampleMapArr.filter((subjectSampleMap) => subjectSampleMap !== null);
         if (subjectSampleMapArr.length === 0 ) throw new Error(ERRORS.INVALID_PARTICIPANT_SAMPLE_NOT_FOUND);
@@ -740,24 +748,27 @@ class DataRecordService {
             fs.mkdirSync(download_dir, { recursive: true });
         }
         // copy subject Sample Mapping Dd from resource/data-definition/{datacommon}/SubjectSampleMapping_DD.xslx
-        const ssmsSourceFile = `resources/data-definition/${datacommon}/SubjectSampleMapping_DD.xlsx`;
-        fs.copyFileSync(ssmsSourceFile, subjectSampleMapping + ".xlsx");
+        const subjectSampleMapping = `${download_dir}/${dbGaPDir}_SubjectSampleMapping`;
+        const ssmsSourceFile = `${dataDefinitionSourceDir}/SubjectSampleMapping_DD.xlsx`;
+        fs.copyFileSync(ssmsSourceFile, subjectSampleMapping + "_DD.xlsx");
         // save subjectSampleMapArr to tsv file
-        const subjectSampleMap_DS = subjectSampleMapping + ".txt";
+        
+        const subjectSampleMap_DS = subjectSampleMapping + "_DS.txt";
         arrayOfObjectsToTSV(subjectSampleMapArr, subjectSampleMap_DS);  
         // 3) create Subject Phenotype DD and DS
-        const subjectPhenotypeArr = await participants.map((participant) => {
+        const subjectPhenotypeArr = await Promise.all(
+            participants.map(async (participant) => {
             const subjectID = participant.props?.dbGaP_subject_id? participant.props.dbGaP_subject_id : participant.nodeID;
             const race = participant.props?.race;
-            const ageAtDiagnosis = this.#getAgeAtDiagnosisByParticipant(subjectID, aSubmission._id);
-            return {"participant_id": subjectID, "race": race, "age_at_diagnosis": ageAtDiagnosis};
-        });
+            const ageAtDiagnosis = await this.#getAgeAtDiagnosisByParticipant(subjectID, aSubmission._id);
+            return {[DATA_SHEET.SUBJECT_ID]: subjectID, [DATA_SHEET.RACE]: race, [DATA_SHEET.AGE_ONSET]: ageAtDiagnosis};
+        }));
         if (subjectPhenotypeArr.length > 0){
-            const subjectPhenotype = `${download_dir}/${dbGaPDir}_SubjectPhenotype_DD`;
-            const subjectPhenotypeSourceFile = `resources/data-definition/${datacommon}/SubjectPhenotypes_DD.xlsx`;
-            fs.copyFileSync(subjectPhenotypeSourceFile, subjectPhenotype + ".xlsx");
+            const subjectPhenotype = `${download_dir}/${dbGaPDir}_SubjectPhenotype`;
+            const subjectPhenotypeSourceFile = `${dataDefinitionSourceDir}/SubjectPhenotypes_DD.xlsx`;
+            fs.copyFileSync(subjectPhenotypeSourceFile, subjectPhenotype + "_DD.xlsx");
             // save subjectPhenotypeArr to tsv file
-            const subjectPhenotype_DS = subjectPhenotype + ".txt";
+            const subjectPhenotype_DS = subjectPhenotype + "_DS.txt";
             arrayOfObjectsToTSV(subjectPhenotypeArr, subjectPhenotype_DS);
         }
         // 4) create sample attribute DD and DS
@@ -765,15 +776,15 @@ class DataRecordService {
             const sampleID = sample.props?.biosample_accession? sample.props.biosample_accession: sample.nodeID;
             const sampleSite= sample.props?.sample_anatomic_site;
             const sampleTypeCategory = sample.props?.sample_type_category;
-            const sampleTumorStatus = sample.props?.sample_tumor_status;
-            return {"sample_id": sampleID, "sample_anatomic_site":sampleSite, "sample_type_category": sampleTypeCategory, "sample_tumor_status": 
-                sampleTumorStatus};
+            const sampleTumorStatus = (sample.props?.sample_tumor_status === "Tumor") ? 1 : 0;
+            return {[DATA_SHEET.SAMPLE_ID]: sampleID, [DATA_SHEET.BODY_SITE]: sampleSite, [DATA_SHEET.ANALYTE_TYPE]: sampleTypeCategory, 
+                [DATA_SHEET.IS_TUMOR]: sampleTumorStatus};
         });
         if (sampleAttributesArr.length > 0){
-            const sampleAttributes = `${download_dir}/${dbGaPDir}_SampleAttributes_DD`;
-            const sampleAttributesSourceFile = `resources/data-definition/${datacommon}/SampleAttributes_DD.xlsx`;
-            fs.copyFileSync(sampleAttributesSourceFile, sampleAttributes + ".xlsx");
-            const sampleAttributes_DS = sampleAttributes + ".txt";
+            const sampleAttributes = `${download_dir}/${dbGaPDir}_SampleAttributes`;
+            const sampleAttributesSourceFile = `${dataDefinitionSourceDir}/SampleAttributes_DD.xlsx`;
+            fs.copyFileSync(sampleAttributesSourceFile, sampleAttributes + "_DD.xlsx");
+            const sampleAttributes_DS = sampleAttributes + "_DS.txt";
             // save sampleAttributesArr to tsv file
             arrayOfObjectsToTSV(sampleAttributesArr, sampleAttributes_DS);
         }
@@ -820,7 +831,7 @@ class DataRecordService {
                 }));
                 if (genomicInfoArr.length > 0){
                     const sequenceMetadata = `${download_dir}/${dbGaPDir}_SequenceMetadata_DD`;
-                    const sequenceMetadataSourceFile = `resources/data-definition/${datacommon}/SequenceMetadata_DD.xlsx`;
+                    const sequenceMetadataSourceFile = `${dataDefinitionSourceDir}/SequenceMetadata_DD.xlsx`;
                     fs.copyFileSync(sequenceMetadataSourceFile, sequenceMetadata + ".xlsx");
                     const sequencingMetadata_DS = `${download_dir}/${dbGaPDir}_${sampleID}_sequencingMetadata_DS.txt`;
                     // save Sequencing Metadata to tsv file
@@ -844,7 +855,7 @@ class DataRecordService {
                 "parents.parentIDValue": subjectID
             }
         }, {$limit: 1}]);
-        return diagnosis?.age_at_diagnosis;
+        return diagnosis? (diagnosis?.age_at_diagnosis??null) : null;
     }
     /**
      * #getGenomicInfoByFile
