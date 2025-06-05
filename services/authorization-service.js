@@ -132,7 +132,7 @@ class AuthorizationService {
             const { permission, scopes: inputScope, scopeValues: inputScopeValues } = parsePermissionString(p);
             const outputScopes = await this.#getScopePermission(user, {scopes: inputScope, scopeValues: inputScopeValues}, permission);
             const hasAnyScope = outputScopes?.some(scope => this.#EVERY_SCOPE_VALUES.includes(scope.scope));
-            if (this.#allPermissionNamesSet.has(permission) && (hasAnyScope)) {
+            if (this.#allPermissionNamesSet.has(permission) && (hasAnyScope) && inputScope?.length > 0) {
                 filtered.push(p);
             }
         }
