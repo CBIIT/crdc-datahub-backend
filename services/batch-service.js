@@ -130,6 +130,15 @@ class BatchService {
                     aBatch.status = BATCH.STATUSES.FAILED;
                 }
             }
+
+            const batchErrorSet = new Set(aBatch.errors || []);
+            const newErrors = files.flatMap(file => file.errors)
+                .filter(error => !batchErrorSet.has(error));
+
+            if (newErrors.length > 0) {
+                aBatch.errors = aBatch.errors || [];
+                aBatch.errors.push(...newErrors);
+            }
         }
         await asyncUpdateBatch(this.awsService, this.batchCollection, aBatch, this.sqsLoaderQueue, isAllUploaded, isAllSkipped);
         return await this.findByID(aBatch._id);
