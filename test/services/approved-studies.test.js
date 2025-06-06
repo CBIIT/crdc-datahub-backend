@@ -3,11 +3,24 @@ const { ADMIN } = require('../../crdc-datahub-database-drivers/constants/user-pe
 const ERROR = require('../../constants/error-constants');
 const { verifySession } = require('../../verifier/user-info-verifier');
 const { getDataCommonsDisplayNamesForApprovedStudy } = require('../../utility/data-commons-remapper');
+const { ApprovedStudies } = require('../../crdc-datahub-database-drivers/domain/approved-studies');
 
 // Mock dependencies
 jest.mock('../../verifier/user-info-verifier');
 jest.mock('../../utility/data-commons-remapper');
 jest.mock('../../dao/approvedStudy');
+
+// Mock ApprovedStudies static method
+jest.mock('../../crdc-datahub-database-drivers/domain/approved-studies', () => {
+    const originalModule = jest.requireActual('../../crdc-datahub-database-drivers/domain/approved-studies');
+    return {
+        ...originalModule,
+        ApprovedStudies: {
+            ...originalModule.ApprovedStudies,
+            createApprovedStudies: jest.fn()
+        }
+    };
+});
 
 describe('ApprovedStudiesService', () => {
     let service;
@@ -153,6 +166,53 @@ describe('ApprovedStudiesService', () => {
             await expect(service.getApprovedStudyAPI({ _id: null }, mockContext))
                 .rejects
                 .toThrow(ERROR.APPROVED_STUDY_NOT_FOUND);
+        });
+    });
+
+    describe('storeApprovedStudies', () => {
+        const studyName = 'Study A';
+        const studyAbbreviation = 'SA';
+        const dbGaPID = '1234-5678-9012-345';
+        const organizationName = 'Org1';
+        const controlledAccess = true;
+        const ORCID = '0000-0002-1825-0097';
+        const PI = 'Dr. Smith';
+        const openAccess = false;
+        const programName = 'Program1';
+        const fakeStudy = { studyName, studyAbbreviation };
+        const fakeResult = { value: fakeStudy };
+
+        it('should store and return the approved study (success)', async () => {
+            ApprovedStudies.createApprovedStudies.mockReturnValue(fakeStudy);
+            mockApprovedStudiesCollection.findOneAndUpdate.mockResolvedValue(fakeResult);
+
+            const result = await service.storeApprovedStudies(
+                studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName
+            );
+
+            expect(ApprovedStudies.createApprovedStudies).toHaveBeenCalledWith(
+                studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName
+            );
+            expect(mockApprovedStudiesCollection.findOneAndUpdate).toHaveBeenCalledWith(
+                { studyName }, fakeStudy, { returnDocument: 'after', upsert: true }
+            );
+            expect(result).toBe(fakeStudy);
+        });
+
+        it('should log error and return undefined if insertion fails', async () => {
+            ApprovedStudies.createApprovedStudies.mockReturnValue(fakeStudy);
+            mockApprovedStudiesCollection.findOneAndUpdate.mockResolvedValue({ value: undefined });
+            const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
+
+            const result = await service.storeApprovedStudies(
+                studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName
+            );
+
+            expect(consoleSpy).toHaveBeenCalledWith(
+                expect.stringContaining(ERROR.APPROVED_STUDIES_INSERTION + ` studyName: ${studyName}`)
+            );
+            expect(result).toBeUndefined();
+            consoleSpy.mockRestore();
         });
     });
 }); 
