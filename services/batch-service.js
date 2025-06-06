@@ -73,7 +73,6 @@ class BatchService {
         const s3UploadedFiles = new Set(s3Files
             ?.map((f)=> f.Key?.replace(`${aBatch?.filePrefix}/`, ""))
             .filter((f)=>f !== ""));
-        const invalidAttemptErrorSet = new Set();
         if (!isAllSkipped) {
             let updatedFiles = [];
             for (const aFile of aBatch.files) {
@@ -93,7 +92,6 @@ class BatchService {
                         aBatch.errors = aBatch?.errors || [];
                         const invalidUploadError = replaceErrorString(ERROR.INVALID_UPLOAD_ATTEMPT, aFile.fileName);
                         aBatch.errors.push(invalidUploadError);
-                        invalidAttemptErrorSet.add(invalidUploadError);
                     }
                 }
                 updatedFiles.push(aFile) 
@@ -124,7 +122,7 @@ class BatchService {
                 const file = uploadFiles.get(aFileName);
                 // File already uploaded, but it marked the file as failed.
                 const invalidUploadError = replaceErrorString(ERROR.INVALID_UPLOAD_ATTEMPT, aFileName);
-                if (!isTrue(file?.succeeded) && s3UploadedFiles.has(aFileName) && !invalidAttemptErrorSet.has(invalidUploadError)) {
+                if (!isTrue(file?.succeeded) && s3UploadedFiles.has(aFileName)) {
                     aBatch.errors = aBatch.errors || [];
                     aBatch.errors.push(invalidUploadError);
                     aBatch.status = BATCH.STATUSES.FAILED;
@@ -133,12 +131,13 @@ class BatchService {
 
             const batchErrorSet = new Set(aBatch.errors || []);
             const newErrors = files.flatMap(file => file.errors)
-                .filter(error => !batchErrorSet.has(error));
+                .filter(error => error && !batchErrorSet.has(error));
 
             if (newErrors.length > 0) {
                 aBatch.errors = aBatch.errors || [];
                 aBatch.errors.push(...newErrors);
             }
+            aBatch.errors = new Set(aBatch.errors || []).toArray();
         }
         await asyncUpdateBatch(this.awsService, this.batchCollection, aBatch, this.sqsLoaderQueue, isAllUploaded, isAllSkipped);
         return await this.findByID(aBatch._id);
