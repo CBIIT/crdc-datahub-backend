@@ -73,6 +73,12 @@ type ListApplications {
     submitterNames: [String]
 }
 
+type ListReleasedStudies {
+    total: Int
+    dataCommons: [String],
+    studies: [ReleasedStudy]
+}
+
 type ListSubmissions {
     total: Int
     statuses: [String],
@@ -216,6 +222,15 @@ type TempCredentials {
     accessKeyId: String
     secretAccessKey: String
     sessionToken: String
+}
+
+type ReleasedStudy {
+    _id: ID
+    studyName: String
+    dbGaPID: String # aka. phs number
+    dataCommons: String
+    dataCommonsDisplayNames: String
+    studyAbbreviation: String
 }
 
 type ApprovedStudy {
@@ -776,7 +791,15 @@ type Query {
 
     retrieveCLIUploaderVersion: String @public
     isMaintenanceMode: Boolean @public
-    userIsPrimaryContact(userID: ID!): Boolean 
+    userIsPrimaryContact(userID: ID!): Boolean
+    listReleasedStudies(
+        name: String,
+        dbGaPID: String,
+        dataCommons: [String]!,
+        first: Int = 20,
+        offset: Int = 0,
+        orderBy: String = "studyAbbreviation",
+        sortDirection: String = "ASC"): ListReleasedStudies
 }
 type Mutation {
     "User initiated operations"
@@ -797,7 +820,7 @@ type Mutation {
     createSubmission (studyID: String!, dataCommons: String!, name: String!, intention: String!, dataType: String!): Submission
     submissionAction (
         submissionID: ID!,
-        # in [Submit, Release, Withdraw, Reject, Complete, Cancel, Archive]
+        # in [Submit, ReleaseService, Withdraw, Reject, Complete, Cancel, Archive]
         action: String!
         comment: String
     ): Submission
