@@ -1,0 +1,158 @@
+const { ApprovedStudiesService } = require('../../services/approved-studies');
+const { ADMIN } = require('../../crdc-datahub-database-drivers/constants/user-permission-constants');
+const ERROR = require('../../constants/error-constants');
+const { verifySession } = require('../../verifier/user-info-verifier');
+const { getDataCommonsDisplayNamesForApprovedStudy } = require('../../utility/data-commons-remapper');
+
+// Mock dependencies
+jest.mock('../../verifier/user-info-verifier');
+jest.mock('../../utility/data-commons-remapper');
+jest.mock('../../dao/approvedStudy');
+
+describe('ApprovedStudiesService', () => {
+    let service;
+    let mockApprovedStudiesCollection;
+    let mockUserCollection;
+    let mockOrganizationService;
+    let mockSubmissionCollection;
+    let mockAuthorizationService;
+
+    beforeEach(() => {
+        // Initialize mock collections and services
+        mockApprovedStudiesCollection = {
+            aggregate: jest.fn(),
+            find: jest.fn(),
+            findOneAndUpdate: jest.fn(),
+            insert: jest.fn(),
+            update: jest.fn()
+        };
+        mockUserCollection = {
+            aggregate: jest.fn()
+        };
+        mockOrganizationService = {
+            findByStudyID: jest.fn(),
+            organizationCollection: {
+                aggregate: jest.fn()
+            }
+        };
+        mockSubmissionCollection = {
+            updateMany: jest.fn()
+        };
+        mockAuthorizationService = {
+            getPermissionScope: jest.fn()
+        };
+
+        service = new ApprovedStudiesService(
+            mockApprovedStudiesCollection,
+            mockUserCollection,
+            mockOrganizationService,
+            mockSubmissionCollection,
+            mockAuthorizationService
+        );
+
+        // Reset all mocks
+        jest.clearAllMocks();
+    });
+
+    describe('getApprovedStudyAPI', () => {
+        const mockContext = {
+            userInfo: { id: 'user123', permissions: [`${ADMIN.MANAGE_STUDIES}:all`] }
+        };
+        const mockParams = { _id: 'study123' };
+        const mockStudy = {
+            _id: 'study123',
+            studyName: 'Test Study',
+            primaryContactID: 'contact123'
+        };
+        const mockPrograms = [{ _id: 'program123', name: 'Test Program' }];
+        const mockPrimaryContact = {
+            _id: 'contact123',
+            firstName: 'John',
+            lastName: 'Doe'
+        };
+
+        it('should successfully retrieve an approved study', async () => {
+            // Mock session verification
+            verifySession.mockReturnValue({
+                verifyInitialized: jest.fn()
+            });
+
+            // Mock permission check
+            mockAuthorizationService.getPermissionScope.mockResolvedValue([{ scope: 'all' }]);
+
+            // Mock study retrieval
+            require('../../dao/approvedStudy').mockResolvedValue(mockStudy);
+
+            // Mock organization lookup
+            mockOrganizationService.findByStudyID.mockResolvedValue(['program123']);
+            mockOrganizationService.organizationCollection.aggregate.mockResolvedValue(mockPrograms);
+
+            // Mock user lookup
+            mockUserCollection.aggregate.mockResolvedValue([mockPrimaryContact]);
+
+            // Mock data commons display name mapping
+            getDataCommonsDisplayNamesForApprovedStudy.mockReturnValue({
+                ...mockStudy,
+                programs: mockPrograms,
+                primaryContact: mockPrimaryContact
+            });
+
+            const result = await service.getApprovedStudyAPI(mockParams, mockContext);
+
+            expect(verifySession).toHaveBeenCalledWith(mockContext);
+            expect(mockAuthorizationService.getPermissionScope).toHaveBeenCalledWith(
+                mockContext.userInfo,
+                ADMIN.MANAGE_STUDIES
+            );
+            expect(result).toEqual({
+                ...mockStudy,
+                programs: mockPrograms,
+                primaryContact: mockPrimaryContact
+            });
+        });
+
+        it('should throw error when user lacks permission', async () => {
+            // Mock session verification
+            verifySession.mockReturnValue({
+                verifyInitialized: jest.fn()
+            });
+
+            // Mock permission check to return none scope
+            mockAuthorizationService.getPermissionScope.mockResolvedValue([{ scope: "none", scopeValues: [] }]);
+            await expect(service.getApprovedStudyAPI(mockParams, mockContext))
+                .rejects
+                .toThrow(ERROR.VERIFY.INVALID_PERMISSION);
+        });
+
+        it('should throw error when study is not found', async () => {
+            // Mock session verification
+            verifySession.mockReturnValue({
+                verifyInitialized: jest.fn()
+            });
+
+            // Mock permission check
+            mockAuthorizationService.getPermissionScope.mockResolvedValue([{ scope: 'all' }]);
+
+            // Mock study retrieval to return null
+            require('../../dao/approvedStudy').mockResolvedValue(null);
+
+            await expect(service.getApprovedStudyAPI(mockParams, mockContext))
+                .rejects
+                .toThrow(ERROR.APPROVED_STUDY_NOT_FOUND);
+        });
+
+        it('should throw error when study ID is invalid', async () => {
+            // Mock session verification
+            verifySession.mockReturnValue({
+                verifyInitialized: jest.fn()
+            });
+
+            // Mock permission check
+            mockAuthorizationService.getPermissionScope.mockResolvedValue([{ scope: 'all' }]);
+
+            await expect(service.getApprovedStudyAPI({ _id: null }, mockContext))
+                .rejects
+                .toThrow(ERROR.APPROVED_STUDY_NOT_FOUND);
+        });
+    });
+}); 
