@@ -55,6 +55,11 @@ class BatchService {
         }
         return newBatch;
     }
+
+    async findOneBatchByStatus(submissionID, status) {
+        return await this.batchCollection.aggregate([{ "$match": { submissionID, status } }, { "$limit": 1 }]) || [];
+    }
+
     async updateBatch(aBatch, bucketName, files) {
         const uploadFiles = new Map(files
             .filter(aFile => (aFile?.fileName) && aFile?.fileName.trim().length > 0)
@@ -68,7 +73,7 @@ class BatchService {
         const s3UploadedFiles = new Set(s3Files
             ?.map((f)=> f.Key?.replace(`${aBatch?.filePrefix}/`, ""))
             .filter((f)=>f !== ""));
-
+        const invalidAttemptErrorSet = new Set();
         if (!isAllSkipped) {
             let updatedFiles = [];
             for (const aFile of aBatch.files) {
@@ -86,7 +91,9 @@ class BatchService {
                     const invalidUploadAttempt = aUploadFile?.succeeded && !s3UploadedFiles.has(aFile.fileName) || !aUploadFile?.succeeded && s3UploadedFiles.has(aFile.fileName);
                     if (invalidUploadAttempt) {
                         aBatch.errors = aBatch?.errors || [];
-                        aBatch.errors.push(replaceErrorString(ERROR.INVALID_UPLOAD_ATTEMPT, aFile.fileName));
+                        const invalidUploadError = replaceErrorString(ERROR.INVALID_UPLOAD_ATTEMPT, aFile.fileName);
+                        aBatch.errors.push(invalidUploadError);
+                        invalidAttemptErrorSet.add(invalidUploadError);
                     }
                 }
                 updatedFiles.push(aFile) 
@@ -105,7 +112,7 @@ class BatchService {
         // Store error files that were not uploaded to the S3 bucket
         if (aBatch.status !== BATCH.STATUSES.UPLOADING) {
             const noUploadedFiles = files
-                .filter(file => !s3UploadedFiles.has(file.fileName))
+                .filter(file => !s3UploadedFiles.has(file.fileName) && isTrue(file.succeeded))
                 .map(file => file.fileName);
             if (noUploadedFiles.length > 0) {
                 aBatch.errors = aBatch.errors || [];
@@ -116,11 +123,21 @@ class BatchService {
             for (const aFileName of uploadFiles?.keys()) {
                 const file = uploadFiles.get(aFileName);
                 // File already uploaded, but it marked the file as failed.
-                if (!isTrue(file?.succeeded) && s3UploadedFiles.has(aFileName)) {
+                const invalidUploadError = replaceErrorString(ERROR.INVALID_UPLOAD_ATTEMPT, aFileName);
+                if (!isTrue(file?.succeeded) && s3UploadedFiles.has(aFileName) && !invalidAttemptErrorSet.has(invalidUploadError)) {
                     aBatch.errors = aBatch.errors || [];
-                    aBatch.errors.push(replaceErrorString(ERROR.INVALID_UPLOAD_ATTEMPT, aFileName));
+                    aBatch.errors.push(invalidUploadError);
                     aBatch.status = BATCH.STATUSES.FAILED;
                 }
+            }
+
+            const batchErrorSet = new Set(aBatch.errors || []);
+            const newErrors = files.flatMap(file => file.errors)
+                .filter(error => !batchErrorSet.has(error));
+
+            if (newErrors.length > 0) {
+                aBatch.errors = aBatch.errors || [];
+                aBatch.errors.push(...newErrors);
             }
         }
         await asyncUpdateBatch(this.awsService, this.batchCollection, aBatch, this.sqsLoaderQueue, isAllUploaded, isAllSkipped);
