@@ -78,9 +78,14 @@ class ReleaseService {
         const dataCommonsCondition = dataCommonsParams && !dataCommonsParams?.includes(this.#ALL_FILTER) ?
             { dataCommons: { $in: dataCommonsParams || [] } } : {};
 
-        const studyNameCondition = studyName ? {studyName: { $regex: studyName?.trim().replace(/\\/g, "\\\\"), $options: "i" }} : {};
-        const studyAbbreviation = studyName ? {studyAbbreviation: { $regex: studyName?.trim().replace(/\\/g, "\\\\"), $options: "i" }} : {};
-        const nameCondition = {};
+        const nameCondition = studyName
+            ? {
+                $or: [
+                    { studyName: { $regex: studyName.trim().replace(/\\/g, "\\\\"), $options: "i" } },
+                    { studyAbbreviation: { $regex: studyName.trim().replace(/\\/g, "\\\\"), $options: "i" } },
+                ],
+            }
+            : {};
 
         const dbGaPIDCondition = dbGaPID ? {dbGaPID: { $regex: dbGaPID?.trim().replace(/\\/g, "\\\\"), $options: "i" }} : {};
 
