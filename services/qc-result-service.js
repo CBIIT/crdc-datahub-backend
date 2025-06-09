@@ -145,11 +145,13 @@ class QcResultService{
         pagedPipeline.push({
             $skip: offset
         });
-        if (first > 0){
-            pagedPipeline.push({
-                $limit: first
-            });
+        if (first < 0){
+            first = 10000;
         }
+        pagedPipeline.push({
+            $limit: first
+        });
+        
         const pagedPipelineResult = await this.qcResultCollection.aggregate(pagedPipeline);
         const dataRecords = replaceNaN(pagedPipelineResult, null);
         return {
