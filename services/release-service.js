@@ -4,7 +4,7 @@ const {UserScope} = require("../domain/user-scope");
 const {replaceErrorString} = require("../utility/string-util");
 const ERROR = require("../constants/error-constants");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
-const {getDataCommonsDisplayNamesForReleasedNode} = require("../utility/data-commons-remapper");
+const {getDataCommonsDisplayNamesForReleasedNode, getDataCommonsDisplayName} = require("../utility/data-commons-remapper");
 const {APPROVED_STUDIES_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 
 class ReleaseService {
@@ -70,7 +70,9 @@ class ReleaseService {
                 return getDataCommonsDisplayNamesForReleasedNode(releasedStudy);
             }),
             total: releaseStudies[0]?.totalCount[0]?.count || 0,
-            dataCommons: dataCommons?.sort() || []
+            dataCommons: (dataCommons || [])
+                .map(getDataCommonsDisplayName)
+                .sort()
         }
     }
 
