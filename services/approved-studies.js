@@ -29,6 +29,9 @@ const CONTROLLED_ACCESS_OPEN = "Open";
 const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
 const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN, CONTROLLED_ACCESS_CONTROLLED];
 const NA_PROGRAM = "NA";
+
+const getApprovedStudyByID = require("../dao/approvedStudy")
+
 class ApprovedStudiesService {
     #ALL = "All";
     constructor(approvedStudiesCollection, userCollection, organizationService, submissionCollection, authorizationService) {
@@ -93,20 +96,20 @@ class ApprovedStudiesService {
             throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
         }
 
-        const study = await this.approvedStudiesCollection.find(_id);
-        if (!study || !study.length) {
+        const approvedStudy = await getApprovedStudyByID(_id)
+
+        if (!approvedStudy) {
             throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
         }
-        let returnStudy = study[0];
         // find program/organization by study ID
-        returnStudy.programs = await this.#findOrganizationByStudyID(_id)
+        approvedStudy.programs = await this.#findOrganizationByStudyID(_id)
         // find primaryContact
-        if (returnStudy?.primaryContactID)
+        if (approvedStudy?.primaryContactID)
         {
-            returnStudy.primaryContact = await this.#findUserByID(returnStudy.primaryContactID);
+            approvedStudy.primaryContact = await this.#findUserByID(approvedStudy.primaryContactID);
         }
 
-        return returnStudy;
+        return approvedStudy;
     }
 
     async #findOrganizationByStudyID(studyID)
