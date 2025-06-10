@@ -26,9 +26,9 @@ class ReleaseService {
 
         const filterConditions = [
             // default filter for listing released studies
-            this.#listConditions(params.name, params.dbGaPID, params.dataCommons, userScope),
+            this.#listStudyConditions(params.name, params.dbGaPID, params.dataCommons, userScope),
             // no filter for dataCommons aggregation
-            this.#listConditions(null, null, null, userScope),
+            this.#listStudyConditions(null, null, null, userScope),
         ];
 
         const [listConditions, dataCommonsCondition] = filterConditions;
@@ -74,7 +74,92 @@ class ReleaseService {
         }
     }
 
-    #listConditions(studyName, dbGaPID, dataCommonsParams, userScope){
+    async listReleasedDataRecords(params, context) {
+        verifySession(context)
+            .verifyInitialized();
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        if (userScope.isNoneScope()) {
+            console.warn("Failed permission verification for listing release metadata nodes, returning empty list");
+            return {total: 0, properties: [], nodes: []};
+        }
+
+        const {studyID, nodeTypes, first, offset, orderBy, sortDirection} = params;
+
+        const filterConditions = [
+            // default filter for listing released studies
+            this.#listNodesConditions(nodeTypes, userScope),
+            // no filter for node types aggregation
+            this.#listNodesConditions(null, userScope),
+        ];
+
+        const [listConditions, nodeTypesCondition] = filterConditions;
+        const paginationPipe = new MongoPagination(first, offset, orderBy, sortDirection);
+        const combinedPipeline = [
+            {$match: {studyID: studyID}, listConditions},
+            {$project: {combinedKeys: {
+                $setUnion: [
+                    {$map: {
+                            input: { $objectToArray: "$props" },
+                            as: "item",
+                            in: "$$item.k"
+                    }},
+                    {$map: {
+                            input: "$parents",
+                            as: "p",
+                            in: {
+                                $concat: ["$$p.parentType", ".", "$$p.parentIDPropName"]
+                    }
+            }}]}}},
+            {$facet: {
+                    studies: paginationPipe.getPaginationPipeline(),
+                    totalCount: [{ $count: "count" }]
+            }}
+        ];
+
+        const [releaseNodes, dataCommons] = await Promise.all([
+            this.releaseCollection.aggregate(combinedPipeline),
+            this.releaseCollection.distinct("nodeTypes", {studyID: studyID, ...nodeTypesCondition}),
+        ]);
+
+        return {
+            studies: (releaseNodes[0].studies || []).map((releasedStudy) => {
+                return getDataCommonsDisplayNamesForReleasedNode(releasedStudy);
+            }),
+            total: releaseNodes[0]?.totalCount[0]?.count || 0,
+            dataCommons: dataCommons?.sort() || []
+        }
+
+
+
+
+
+
+
+
+
+
+    }
+
+    #listNodesConditions(nodesParams, userScope){
+        const baseConditions = nodesParams && !nodesParams?.includes(this.#ALL_FILTER) ?
+            { nodeType: { $in: nodesParams || [] } } : {};
+        if (userScope.isAllScope()) {
+            return baseConditions;
+        } else if (userScope.isStudyScope()) {
+            const studyScope = userScope.getStudyScope();
+            const isAllStudy = studyScope?.scopeValues?.includes(this.#ALL_FILTER);
+            const studyQuery = isAllStudy ? {} : {studyID: {$in: studyScope?.scopeValues}};
+            return {...baseConditions, ...studyQuery};
+        } else if (userScope.isDCScope()) {
+            const DCScopes = userScope.getDataCommonsScope();
+            const dataCommonsCondition = { dataCommons: { $in: DCScopes.scopeValues } };
+            return {...baseConditions, ...dataCommonsCondition};
+        }
+        throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+    }
+
+
+    #listStudyConditions(studyName, dbGaPID, dataCommonsParams, userScope){
         const dataCommonsCondition = dataCommonsParams && !dataCommonsParams?.includes(this.#ALL_FILTER) ?
             { dataCommons: { $in: dataCommonsParams || [] } } : {};
 
