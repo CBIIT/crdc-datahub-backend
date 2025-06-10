@@ -672,10 +672,7 @@ class DataRecordService {
         if(!newNode){
             throw new Error(ERRORS.INVALID_NODE_NOT_FOUND);
         }
-         // process parents and add {parentType.parentIDPropName: parentIDValue} to props
-        newNode.parents.forEach((parent) => {
-            newNode.props[`${parent.parentType}.${parent.parentIDPropName}`] = parent.parentIDValue;
-        });
+        this.#processParents(newNode)
         newNode.props = JSON.stringify(newNode.props);
 
         // get release node
@@ -694,12 +691,21 @@ class DataRecordService {
         }
         const releaseNode = results[0];
         releaseNode.status = status;
-         // process parents and add {parentType.parentIDPropName: parentIDValue} to props
-        releaseNode.parents.forEach((parent) => {
-            releaseNode.props[`${parent.parentType}.${parent.parentIDPropName}`] = parent.parentIDValue;
-        });
+        this.#processParents(releaseNode)
         releaseNode.props = JSON.stringify(releaseNode.props);
         return [newNode, releaseNode]
+    }
+
+    /**
+     * #processParents
+     * @param {*} node 
+     */
+    #processParents(node){
+        if (node.parents && node.parents.length > 0) {
+            node.parents.forEach((parent) => {
+                node.props[`${parent.parentType}.${parent.parentIDPropName}`] = parent.parentIDValue;
+            });
+        }
     }
 }
 
