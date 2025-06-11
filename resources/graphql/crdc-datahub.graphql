@@ -79,6 +79,23 @@ type ListReleasedStudies {
     studies: [ReleasedStudy]
 }
 
+type ListNodeTypes {
+    total: Int
+    nodes: [NodeType]
+}
+
+type NodeType {
+    count: Int
+    name: String
+}
+
+type ListReleasedNodes {
+    total: Int
+    nodeTypes: [ListNodeTypes]
+    properties: [String], #all properties of a node including parents
+    nodes: JSON
+}
+
 type ListSubmissions {
     total: Int
     statuses: [String],
@@ -800,6 +817,9 @@ type Query {
         offset: Int = 0,
         orderBy: String = "studyAbbreviation",
         sortDirection: String = "ASC"): ListReleasedStudies
+    listReleasedDataRecords(
+    ): ListReleasedStudies
+
 }
 type Mutation {
     "User initiated operations"

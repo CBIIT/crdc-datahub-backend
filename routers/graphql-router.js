@@ -238,7 +238,8 @@ dbConnector.connect().then(async () => {
         retrieveCLIUploaderVersion: configurationService.retrieveCLIUploaderVersion.bind(configurationService),
         userIsPrimaryContact: userService.isUserPrimaryContact.bind(userService),
         isMaintenanceMode: configurationService.isMaintenanceMode.bind(configurationService),
-        listReleasedStudies: releaseService.listReleasedStudies.bind(releaseService)
+        listReleasedStudies: releaseService.listReleasedStudies.bind(releaseService),
+        listReleasedDataRecords: releaseService.listReleasedDataRecords.bind(releaseService)
     };
 });
 
