@@ -4,7 +4,7 @@ const {UserScope} = require("../domain/user-scope");
 const {replaceErrorString} = require("../utility/string-util");
 const ERROR = require("../constants/error-constants");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
-const {getDataCommonsDisplayNamesForReleasedNode, getDataCommonsDisplayName} = require("../utility/data-commons-remapper");
+const {getDataCommonsDisplayNamesForReleasedNode, getDataCommonsDisplayName, getDataCommonsOrigin} = require("../utility/data-commons-remapper");
 const {APPROVED_STUDIES_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 
 class ReleaseService {
@@ -24,9 +24,14 @@ class ReleaseService {
             return {total: 0, studies: []};
         }
 
+        const originalDataCommons = (params.dataCommonsDisplayNames || []).map(value => {
+            const original = getDataCommonsOrigin(value);
+            return original ? original : value;
+        });
+
         const filterConditions = [
             // default filter for listing released studies
-            this.#listConditions(params.name, params.dbGaPID, params.dataCommons, userScope),
+            this.#listConditions(params.name, params.dbGaPID, originalDataCommons, userScope),
             // no filter for dataCommons aggregation
             this.#listConditions(null, null, null, userScope),
         ];
@@ -70,7 +75,7 @@ class ReleaseService {
                 return getDataCommonsDisplayNamesForReleasedNode(releasedStudy);
             }),
             total: releaseStudies[0]?.totalCount[0]?.count || 0,
-            dataCommons: (dataCommons || [])
+            dataCommonsDisplayNames: (dataCommons || [])
                 .map(getDataCommonsDisplayName)
                 .sort()
         }
