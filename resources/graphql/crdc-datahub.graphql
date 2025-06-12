@@ -1,5 +1,6 @@
 directive @public on FIELD_DEFINITION|QUERY
 scalar Date
+scalar JSON
 
 type Application {
     # backend managed fields
