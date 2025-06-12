@@ -4,6 +4,7 @@
   "description": "The CRDC DataHub Backend API service",
   "private": true,
   "scripts": {
+    "prestart": "prisma generate",
     "start": "node ./bin/www",
     "test": "jest"
   },
