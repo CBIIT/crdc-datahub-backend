@@ -824,7 +824,7 @@ type Query {
         offset: Int = 0,
         orderBy: String = "studyAbbreviation",
         sortDirection: String = "ASC"
-    ): ListReleasedStudies
+    ): ListReleasedNodes
 
 }
 type Mutation {
