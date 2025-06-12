@@ -75,7 +75,7 @@ type ListApplications {
 
 type ListReleasedStudies {
     total: Int
-    dataCommons: [String],
+    dataCommonsDisplayNames: [String]
     studies: [ReleasedStudy]
 }
 
@@ -795,7 +795,7 @@ type Query {
     listReleasedStudies(
         name: String,
         dbGaPID: String,
-        dataCommons: [String]!,
+        dataCommonsDisplayNames: [String]!,
         first: Int = 20,
         offset: Int = 0,
         orderBy: String = "studyAbbreviation",

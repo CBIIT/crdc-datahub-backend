@@ -102,7 +102,15 @@ function getDataCommonsDisplayNamesForReleasedNode(releasedNode){
     return releasedNode;
 }
 
+function getDataCommonsOrigin(displayDataCommon) {
+    if (!displayDataCommon){
+        return null;
+    }
+    return Object.keys(DISPLAY_NAMES_MAP).find(key => DISPLAY_NAMES_MAP[key] === displayDataCommon);
+}
+
 module.exports = {
+    getDataCommonsOrigin,
     getDataCommonsDisplayName,
     genericGetDataCommonsDisplayNames,
     getDataCommonsDisplayNamesForSubmission,
