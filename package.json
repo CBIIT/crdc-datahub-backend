@@ -5,8 +5,7 @@
   "private": true,
   "scripts": {
     "start": "node ./bin/www",
-    "test": "jest",
-    "generate": "prisma generate"
+    "test": "jest"
   },
   "dependencies": {
     "@graphql-tools/schema": "^10.0.23",
