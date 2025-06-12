@@ -94,7 +94,7 @@ type ListReleasedNodes {
     total: Int
     nodeTypes: [ListNodeTypes]
     properties: [String], #all properties of a node including parents
-    nodes: JSON
+    nodes: [JSON]
 }
 
 type ListSubmissions {

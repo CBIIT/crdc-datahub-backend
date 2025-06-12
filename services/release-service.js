@@ -204,8 +204,8 @@ class ReleaseService {
                 }},
             {$group: {
                     _id: null,
-                    allProperties: { $addToSet: "$allKeys" } // 중복 제거
-                }}
+                    allProperties: { $addToSet: "$allKeys" }
+            }},
         ];
 
         const [releaseNodes, allProperties, dataCommons] = await Promise.all([
@@ -215,11 +215,10 @@ class ReleaseService {
         ]);
 
         return {
-            studies: (releaseNodes[0].studies || []).map((releasedStudy) => {
-                return getDataCommonsDisplayNamesForReleasedNode(releasedStudy);
-            }),
             total: releaseNodes[0]?.totalCount[0]?.count || 0,
-            dataCommons: dataCommons?.sort() || []
+            nodeTypes: [],
+            properties: allProperties[0]?.allProperties || [],
+            nodes: releaseNodes || []
         }
     }
 
