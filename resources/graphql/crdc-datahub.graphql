@@ -818,6 +818,11 @@ type Query {
         orderBy: String = "studyAbbreviation",
         sortDirection: String = "ASC"): ListReleasedStudies
     listReleasedDataRecords(
+        studyID: String,
+        first: Int = 20,
+        offset: Int = 0,
+        orderBy: String = "studyAbbreviation",
+        sortDirection: String = "ASC"
     ): ListReleasedStudies
 
 }

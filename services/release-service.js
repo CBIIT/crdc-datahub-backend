@@ -178,8 +178,39 @@ class ReleaseService {
         ];
 
 
-        const [releaseNodes, dataCommons] = await Promise.all([
+        const allPropertiesPipeline = [
+            {$match: { studyID: studyID, ...listConditions } },
+            {$project: {propsKeys: {
+                        $map: {
+                            input: { $objectToArray: "$props" },
+                            as: "kv",
+                            in: "$$kv.k"
+                        }},
+                    parentKeys: {
+                        $map: {
+                            input: "$parents",
+                            as: "p",
+                            in: {
+                                $concat: ["$$p.parentType", ".", "$$p.parentIDPropName"]
+                            }
+                        }
+                    }
+                }},
+            {$project:  {
+                    allKeys: { $concatArrays: ["$propsKeys", "$parentKeys"] }
+                }},
+            {$unwind: {
+                    path: "$allKeys"
+                }},
+            {$group: {
+                    _id: null,
+                    allProperties: { $addToSet: "$allKeys" } // 중복 제거
+                }}
+        ];
+
+        const [releaseNodes, allProperties, dataCommons] = await Promise.all([
             this.releaseCollection.aggregate(combinedPipeline),
+            this.releaseCollection.aggregate(allPropertiesPipeline),
             this.releaseCollection.distinct("nodeTypes", {studyID: studyID, ...nodeTypesCondition}),
         ]);
 
@@ -190,16 +221,6 @@ class ReleaseService {
             total: releaseNodes[0]?.totalCount[0]?.count || 0,
             dataCommons: dataCommons?.sort() || []
         }
-
-
-
-
-
-
-
-
-
-
     }
 
     #listNodesConditions(nodesParams, userScope){
