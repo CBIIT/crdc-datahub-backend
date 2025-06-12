@@ -33,6 +33,7 @@ const {getDataCommonsDisplayNamesForSubmission, getDataCommonsDisplayNamesForLis
     getDataCommonsDisplayNamesForUser, getDataCommonsDisplayNamesForReleasedNode
 } = require("../utility/data-commons-remapper");
 const {UserScope} = require("../domain/user-scope");
+const SubmissionDAO = require("../dao/submission");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -46,6 +47,7 @@ const FINAL_INACTIVE_REMINDER = "finalInactiveReminder";
 const SUBMISSION_ID = "Submission ID";
 const DATA_SUBMISSION_TYPE = "Data Submission Type";
 const DESTINATION_LOCATION = "Destination Location";
+
 // Set to array
 Set.prototype.toArray = function() {
     return Array.from(this);
@@ -80,6 +82,7 @@ class Submission {
         this.uploadingMonitor = uploadingMonitor;
         this.dataCommonsBucketMap = dataCommonsBucketMap;
         this.authorizationService = authorizationService;
+        this.submissionDAO = new SubmissionDAO();
     }
 
     async createSubmission(params, context) {
@@ -969,7 +972,7 @@ class Submission {
     async getUploaderCLIConfigs(params, context){
         verifySession(context)
             .verifyInitialized();
-        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        const aSubmission = await this.submissionDAO.findById(params.submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
@@ -1002,7 +1005,7 @@ class Submission {
     async getDataFileConfigs(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        const aSubmission = await this.submissionDAO.findById(params.submissionID);
         if (!aSubmission) {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }

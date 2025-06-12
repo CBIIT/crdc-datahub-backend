@@ -2,11 +2,12 @@ const ERROR = require("../constants/error-constants");
 const {decodeToken} = require("../verifier/token-verifier");
 const config = require("../config");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
+const UserDAO = require("../dao/user");
 
 class AuthenticationService {
 
-    constructor(userCollection) {
-        this.userCollection = userCollection;
+    constructor() {
+        this.userDAO = new UserDAO();
     }
 
     async verifyAuthenticated(userInfo, token) {
@@ -46,11 +47,11 @@ class AuthenticationService {
     }
 
     async #getUser(userID){
-        const response = await this.userCollection.find(userID);
-        if (!response || response.length < 1) {
+        const response = await this.userDAO.findById(userID);
+        if (!response ) {
             return null;
         }
-        return response[0];
+        return response;
     }
 }
 

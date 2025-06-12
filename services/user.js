@@ -68,7 +68,7 @@ class UserService {
         }
 
         const approvedStudies = params?.studies?.length > 0 ?
-            await this.approvedStudiesService.listApprovedStudies({_id: {$in: params?.studies}})
+            await this.approvedStudiesService.listApprovedStudiesByIDs(params?.studies)
             : []
         if (approvedStudies.length === 0) {
             return new Error(ERROR.INVALID_APPROVED_STUDIES_ACCESS_REQUEST);
@@ -77,7 +77,6 @@ class UserService {
         if (params?.institutionName?.trim()?.length > 100) {
             return new Error(ERROR.MAX_INSTITUTION_NAME_LIMIT);
         }
-
 
         const adminUsers = await this.getUsersByNotifications([EN.USER_ACCOUNT.USER_REQUEST_ACCESS],
             [ROLES.ADMIN]);

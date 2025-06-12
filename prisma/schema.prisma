@@ -478,8 +478,8 @@ model Submission {
   name                     String
   nodeCount                Int?
   organization             OrgInfo
-  /// Could not determine type: the field only had null or empty values in the sample set.
-  reviewComment            String?
+  /// Could not determine type: the field only had null or empty values in the sample set. not defined in GraphQL schema.
+  /// reviewComment            String?  
   rootPath                 String
   status                   String
   studyAbbreviation        String?

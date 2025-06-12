@@ -2,35 +2,23 @@ const {verifySession} = require("../verifier/user-info-verifier");
 const PBAC_CONFIG_TYPE = "PBAC";
 const CLI_UPLOADER_VERSION = "CLI_UPLOADER_VERSION";
 const MAINTENANCE_MODE = "MAINTENANCE_MODE";
+const ConfigurationDAO = require("../dao/configuration");
 class ConfigurationService {
-    constructor(configurationCollection) {
-        this.configurationCollection = configurationCollection;
+    constructor() {
+        this.configurationDAO = new ConfigurationDAO();
     }
 
     async findByType(type) {
-        const result = await this.configurationCollection.aggregate([{
-            "$match": {
-                type
-            }
-        }, {"$limit": 1}]);
-        return (result?.length === 1) ? result[0] : null;
+        return await this.configurationDAO.findByType(type) || null;
     }
 
     async isMaintenanceMode() {
-        const result = await this.configurationCollection.aggregate([{
-            "$match": {
-                type : MAINTENANCE_MODE
-            }
-        }, {"$limit": 1}]);
-        return (result?.length === 1) ? (result[0]?.keys?.flag || false) : false;
+        const result = await this.configurationDAO.findByType(MAINTENANCE_MODE);
+        return (result) ? (result?.keys?.flag || false) : false;
     }
 
     async findManyByType(type) {
-        return await this.configurationCollection.aggregate([{
-            "$match": {
-                type
-            }
-        }]) || [];
+        return await this.configurationDAO.findManyByType(type) || [];
     }
 
     /**
@@ -50,13 +38,17 @@ class ConfigurationService {
      * @returns {Object} PBAC defaults
      */
     async getPBACByRoles(roles){
-        const result = await this.configurationCollection.aggregate([{
-            "$match": { "type": PBAC_CONFIG_TYPE }
-        }, {"$limit": 1}]);
-        if (!result || result.length === 0){
+        let result = await this.configurationDAO.findByType(PBAC_CONFIG_TYPE);
+        if (!result || !result?.Defaults || result?.Defaults.length === 0){
             return null;
         }
-        return (roles.includes("All"))? result[0].Defaults : result[0].Defaults.filter((item)=> roles.includes(item.role));
+        let pbacArray = result.Defaults.map(role => {
+            const permissions = role.permissions.map(permission => ({...permission, _id: permission.id}));
+            const notifications = (role.notifications || []).map(n => ({...n, _id: n.id}));
+            return {...role, permissions: permissions, notifications: notifications}
+        });
+        result = {Defaults:pbacArray};
+        return (roles.includes("All"))? result.Defaults : result.Defaults.filter((item)=> roles.includes(item.role));
     }
 
     /**
@@ -88,10 +80,8 @@ class ConfigurationService {
     }
 
     async getCurrentCLIUploaderVersion() {
-        const result = await this.configurationCollection.aggregate([{
-            "$match": { "type": CLI_UPLOADER_VERSION }
-        }, {"$limit": 1}]);
-        return (result?.length === 1) ? result[0]?.current_version : null;
+        const result = await this.configurationDAO.findByType(CLI_UPLOADER_VERSION);
+        return (result) ? result?.current_version : null;
     }
 }
 
