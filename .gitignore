@@ -9,3 +9,4 @@ node_modules
 local-files
 coverage
 dist/
+generated/prisma/
