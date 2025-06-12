@@ -4,7 +4,7 @@ ENV NODE_ENV production
 WORKDIR /usr/src/app
 COPY package*.json ./
 RUN npm ci --only=production
-RUN npx prisma generate
 COPY  --chown=node:node . .
+RUN npx prisma generate
 EXPOSE 8080
 CMD [ "node", "./bin/www" ]
