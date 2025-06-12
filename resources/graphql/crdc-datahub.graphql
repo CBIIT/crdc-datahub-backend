@@ -228,8 +228,8 @@ type ReleasedStudy {
     _id: ID
     studyName: String
     dbGaPID: String # aka. phs number
-    dataCommons: String
-    dataCommonsDisplayNames: String
+    dataCommons: [String]
+    dataCommonsDisplayNames: [String]
     studyAbbreviation: String
 }
 

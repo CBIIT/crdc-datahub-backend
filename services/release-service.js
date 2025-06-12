@@ -5,7 +5,8 @@ const {replaceErrorString} = require("../utility/string-util");
 const ERROR = require("../constants/error-constants");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const {getDataCommonsDisplayNamesForReleasedNode, getDataCommonsDisplayName, getDataCommonsOrigin} = require("../utility/data-commons-remapper");
-const {APPROVED_STUDIES_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
+const {APPROVED_STUDIES_COLLECTION, DATA_COMMONS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
+const {SORT, DIRECTION} = require("../crdc-datahub-database-drivers/constants/monogodb-constants");
 
 class ReleaseService {
     #ALL_FILTER = "All";
@@ -42,7 +43,32 @@ class ReleaseService {
             {$match: {nodeType: this.#STUDY_NODE, studyID: {$exists: true}}},
             {$group:{
                 _id: "$studyID",
-                dataCommons: { $first: "$dataCommons" }
+                dataCommons: { $addToSet: "$dataCommons" }
+            }},
+            {$unwind: { path: "$dataCommons" }},
+
+            {$lookup: {
+                from: DATA_COMMONS_COLLECTION,
+                let: { dc: "$dataCommons" },
+                pipeline: [
+                    { $match: { $expr: { $eq: ["$dataCommons", "$$dc"] } } },
+                    { $project: { _id: 0, dataCommonsDisplayName: 1 } }
+                ],
+                as: "matched"}
+            },
+            {$addFields: {
+                mappedDisplayName: {
+                    $cond: [
+                        { $gt: [{ $size: "$matched" }, 0] },
+                        { $arrayElemAt: ["$matched.dataCommonsDisplayName", 0] },
+                        "$dataCommons"
+                    ]
+            }}},
+            {$group: {
+                    _id: "$_id",
+                    dataCommons: { $push: "$dataCommons" },
+                    dataCommonsDisplayNames: { $push: "$mappedDisplayName" },
+                    doc: { $first: "$$ROOT" }
             }},
             {$lookup: {
                 from: APPROVED_STUDIES_COLLECTION,
@@ -58,6 +84,22 @@ class ReleaseService {
                         "$$ROOT",
                         {dbGaPID : "$approvedStudies.dbGaPID", studyName: "$approvedStudies.studyName", studyAbbreviation: "$approvedStudies.studyAbbreviation"}
             ]}}},
+            // Always set the dataCommonsDisplayNames asc. This array needs to be sorted on FE.
+            {$set: {
+                dataCommonsDisplayNames: {
+                    $sortArray: {
+                        input: "$dataCommonsDisplayNames",
+                        sortBy: 1
+                    }
+                }
+            }},
+            ...(params.orderBy === 'dataCommonsDisplayNames'
+                ? [{
+                    $sort: {
+                        "dataCommonsDisplayNames.0": params.sortDirection?.toLowerCase() === SORT.DESC ? DIRECTION.DESC : DIRECTION.ASC  // ascending by first element
+                    }
+                }]
+                : []),
             {"$match": listConditions},
             {$facet: {
                 studies: paginationPipe.getPaginationPipeline(),
