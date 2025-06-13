@@ -83,18 +83,46 @@ class ReleaseService {
             return {total: 0, properties: [], nodes: []};
         }
 
-        const {studyID, nodeTypes, first, offset, orderBy, sortDirection} = params;
-
+        const {studyID, nodeTypes, first, offset, orderBy, sortDirection, properties} = params;
         const [listConditions, nodeTypesCondition] = [
             // default filter for listing released studies
             this.#listNodesConditions(nodeTypes, userScope),
             // no filter for node types aggregation
             this.#listNodesConditions(null, userScope),
-        ];;
+        ];
         const paginationPipe = new MongoPagination(first, offset, orderBy, sortDirection);
-        const commonQuery = [{$match: { studyID: studyID, ...listConditions } }];
+
+        const [rootKeys, parentKeys] = [[], []];
+        (params?.properties || []).forEach(field => {
+            if (field.includes('.')) {
+                parentKeys.push(field);
+            } else {
+                rootKeys.push(field);
+            }
+        });
+
+        const rootKeyConditions = (rootKeys || []).map(field => ({
+            [`props.${field}`]: { $exists: true }
+        }));
+
+        const parentKeyConditions = (parentKeys || []).map(field => {
+            const [parentType, parentIDPropName] = field.split(".");
+            return { parentType, parentIDPropName };
+        });
+
+        const propertiesConditions = [...rootKeyConditions, ...parentKeyConditions];
+
+        const commonQuery = [
+            {
+                $match: {
+                    studyID,
+                    ...listConditions,
+                    ...(propertiesConditions.length > 0 ? { $and: propertiesConditions } : {})
+                }
+            }
+        ];
+
         const combinedPipeline = [
-            // TODO add properties parameters
             ...commonQuery,
             {$addFields: {
                 parentPairs: {
@@ -169,85 +197,79 @@ class ReleaseService {
                 newRoot: {
                     $mergeObjects: ["$props", "$merged"]
             }}},
-            // TODO add project if the properties provided
+            ...(properties?.length > 0
+                ? [{
+                    $project: Object.fromEntries(
+                        (properties || []).map(field => [field, 1])
+                    )
+                }]
+                : []),
             {$facet: {
                 studies: paginationPipe.getPaginationPipeline(),
                 totalCount: [{ $count: "count" }]
             }}
         ];
 
-
         const allPropertiesPipeline = [
             ...commonQuery,
-            {$project: {propsKeys: {
-                        $map: {
-                            input: { $objectToArray: "$props" },
-                            as: "kv",
-                            in: "$$kv.k"
-                        }},
-                    parentKeys: {
-                        $map: {
-                            input: "$parents",
-                            as: "p",
-                            in: {
-                                $concat: ["$$p.parentType", ".", "$$p.parentIDPropName"]
-                            }
-                        }
-                    }
+            {$project: {
+                propsKeys: {
+                    $map: {
+                        input: { $objectToArray: "$props" },
+                        as: "kv",
+                        in: "$$kv.k"
                 }},
+                parentKeys: {
+                    $map: {
+                        input: "$parents",
+                        as: "p",
+                        in: {
+                            $concat: ["$$p.parentType", ".", "$$p.parentIDPropName"]
+            }}}}},
             {$project:  {
-                    allKeys: { $concatArrays: ["$propsKeys", "$parentKeys"] }
-                }},
+                allKeys: { $concatArrays: ["$propsKeys", "$parentKeys"] }
+            }},
             {$unwind: {
-                    path: "$allKeys"
-                }},
+                path: "$allKeys"
+            }},
             {$group: {
-                    _id: null,
-                    allProperties: { $addToSet: "$allKeys" }
+                _id: null,
+                allProperties: { $addToSet: "$allKeys" }
             }},
         ];
 
         const nodeTypesPipeline = [
             ...commonQuery,
             {$group: {
-                    _id: "$nodeType",
-                    count: { $sum: 1 }
+                _id: "$nodeType",
+                count: { $sum: 1 }
             }},
             {$project: {
                 name: "$_id",
                 count: 1,
                 _id: 0
             }},
-            {
-                $facet: {
-                    nodes: [],
-                    total: [
-                        {
-                            $group: {
-                                _id: null,
-                                total: { $sum: "$count" }
-                            }
-                        },
-                        {
-                            $project: { _id: 0, total: 1 }
-                        }
-                    ]
-                }
-            },
-            {
-                $project: {
-                    nodes: "$nodes",
-                    total: { $arrayElemAt: ["$total.total", 0] }
-                }
-            },
+            {$sort: {
+                count: 1
+            }},
+            {$facet: {
+                nodes: [],
+                total: [
+                    {$group: {_id: null, total: { $sum: "$count" }}},
+                    {$project: { _id: 0, total: 1 }}
+                ]
+            }},
+            {$project: {
+                nodes: "$nodes",
+                total: { $arrayElemAt: ["$total.total", 0] }
+            }},
             {$sort: { count: -1 }}
         ];
 
         const [releaseNodes, allProperties, groupByNodes] = await Promise.all([
             this.releaseCollection.aggregate(combinedPipeline),
             this.releaseCollection.aggregate(allPropertiesPipeline),
-            this.releaseCollection.aggregate(nodeTypesPipeline),
-            this.releaseCollection.distinct("nodeTypes", {studyID: studyID, ...nodeTypesCondition}),
+            this.releaseCollection.aggregate(nodeTypesPipeline)
         ]);
 
         return {
