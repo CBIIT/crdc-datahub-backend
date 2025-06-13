@@ -24,13 +24,13 @@ const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo
 const {SORT, DIRECTION} = require("../crdc-datahub-database-drivers/constants/monogodb-constants");
 const {UserScope} = require("../domain/user-scope");
 const {replaceErrorString} = require("../utility/string-util");
+const ApprovedStudyDAO = require("../dao/approvedStudy");
+const UserDAO = require("../dao/user");
 const CONTROLLED_ACCESS_ALL = "All";
 const CONTROLLED_ACCESS_OPEN = "Open";
 const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
 const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN, CONTROLLED_ACCESS_CONTROLLED];
 const NA_PROGRAM = "NA";
-
-const getApprovedStudyByID = require("../dao/approvedStudy")
 
 class ApprovedStudiesService {
     #ALL = "All";
@@ -40,6 +40,8 @@ class ApprovedStudiesService {
         this.organizationService = organizationService;
         this.submissionCollection = submissionCollection;
         this.authorizationService = authorizationService;
+        this.approvedStudyDAO = new ApprovedStudyDAO();
+        this.userDAO = new UserDAO();
     }
 
     async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName) {
@@ -58,7 +60,7 @@ class ApprovedStudiesService {
      * @returns {Promise<Object[]>} An array of ApprovedStudies
      */
     async findByStudyName(studyName) {
-        return await this.approvedStudiesCollection.aggregate([{ "$match": {studyName}}]);
+        return await this.approvedStudyDAO.getApprovedStudyByName(studyName);
     }
 
     /**
@@ -96,7 +98,7 @@ class ApprovedStudiesService {
             throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
         }
 
-        const approvedStudy = await getApprovedStudyByID(_id)
+        const approvedStudy = await this.approvedStudyDAO.getApprovedStudyByID(_id)
 
         if (!approvedStudy) {
             throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
@@ -130,8 +132,9 @@ class ApprovedStudiesService {
      * @param {Filters} [filters] Filters to apply to the query
      * @returns {Promise<Object[]>} An array of ApprovedStudies
      */
-    async listApprovedStudies(filters = {}) {
-        return await this.approvedStudiesCollection.aggregate([{ "$match": filters }]);
+    async listApprovedStudiesByIDs(studyIDs) {
+        // return await this.approvedStudiesCollection.aggregate([{ "$match": filters }]);
+        return await this.approvedStudyDAO.getApprovedStudiesInStudies(studyIDs);
     }
 
     /**
@@ -492,8 +495,8 @@ class ApprovedStudiesService {
      * @returns 
      */
     async #findUserByID(userID){
-        const result = await this.userCollection.aggregate([{"$match": {"_id": userID, "userStatus": USER.STATUSES.ACTIVE}}]);
-        return (result && result.length > 0)? result[0]: null;
+        const result = await this.userDAO.findByIdAndStatus(userID, USER.STATUSES.ACTIVE);
+        return (result)? result : null;
     }
     /**
      * Validate the identifier format.
