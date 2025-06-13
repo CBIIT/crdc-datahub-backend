@@ -604,6 +604,27 @@ type Released_Node {
     updatedAt: Date
 }
 
+type SubmissionAttributesResult {
+    submissionAttributes: SubmissionAttributes
+    isValidationPassed: Boolean
+}
+
+type SubmissionAttributes {
+    isSubmissionStatusNew: Boolean
+    isValidating: Boolean
+    isBatchUploading: Boolean
+    isValidSubmissionStatus: Boolean
+    isValidDeleteIntention: Boolean
+    isReadyMetadataOnly: Boolean
+    isValidDataFileSize: Boolean
+    isReadyMetadataDataFile: Boolean
+    isValidationNotNew: Boolean
+    hasOrphanError: Boolean
+    isMetadataValidationError: Boolean
+    isDatafileValidationError: Boolean
+    isAdminSubmit: Boolean
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -800,6 +821,7 @@ type Query {
         offset: Int = 0,
         orderBy: String = "studyAbbreviation",
         sortDirection: String = "ASC"): ListReleasedStudies
+    getSubmissionAttributes(submissionID: ID!): SubmissionAttributesResult
 }
 type Mutation {
     "User initiated operations"
