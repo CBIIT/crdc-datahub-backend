@@ -4,8 +4,9 @@ const {UserScope} = require("../domain/user-scope");
 const {replaceErrorString} = require("../utility/string-util");
 const ERROR = require("../constants/error-constants");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
-const {getDataCommonsDisplayNamesForReleasedNode, getDataCommonsDisplayName} = require("../utility/data-commons-remapper");
-const {APPROVED_STUDIES_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
+const {getDataCommonsDisplayNamesForReleasedNode, getDataCommonsDisplayName, getDataCommonsOrigin} = require("../utility/data-commons-remapper");
+const {APPROVED_STUDIES_COLLECTION, DATA_COMMONS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
+const {SORT, DIRECTION} = require("../crdc-datahub-database-drivers/constants/monogodb-constants");
 
 class ReleaseService {
     #ALL_FILTER = "All";
@@ -24,9 +25,14 @@ class ReleaseService {
             return {total: 0, studies: []};
         }
 
+        const originalDataCommons = (params.dataCommonsDisplayNames || []).map(value => {
+            const original = getDataCommonsOrigin(value);
+            return original ? original : value;
+        });
+
         const filterConditions = [
             // default filter for listing released studies
-            this.#listConditions(params.name, params.dbGaPID, params.dataCommons, userScope),
+            this.#listConditions(params.name, params.dbGaPID, originalDataCommons, userScope),
             // no filter for dataCommons aggregation
             this.#listConditions(null, null, null, userScope),
         ];
@@ -37,7 +43,34 @@ class ReleaseService {
             {$match: {nodeType: this.#STUDY_NODE, studyID: {$exists: true}}},
             {$group:{
                 _id: "$studyID",
-                dataCommons: { $first: "$dataCommons" }
+                dataCommons: { $addToSet: "$dataCommons" }
+            }},
+            {$unwind: { path: "$dataCommons" }},
+
+            {$lookup: {
+                from: DATA_COMMONS_COLLECTION,
+                let: { dc: "$dataCommons" },
+                pipeline: [
+                    { $match: { $expr: { $eq: ["$dataCommons", "$$dc"] } } },
+                    { $project: { _id: 0, dataCommonsDisplayName: 1 } }
+                ],
+                as: "matched"}
+            },
+            {$addFields: {
+                mappedDisplayName: {
+                    $cond: [
+                        { $gt: [{ $size: "$matched" }, 0] },
+                        { $arrayElemAt: ["$matched.dataCommonsDisplayName", 0] },
+                        "$dataCommons"
+                    ]
+            }}},
+            // Always set the mappedDisplayName asc. This array needs to be sorted on FE.
+            {$sort: { mappedDisplayName: 1 }},
+            {$group: {
+                    _id: "$_id",
+                    dataCommons: { $push: "$dataCommons" },
+                    dataCommonsDisplayNames: { $push: "$mappedDisplayName" },
+                    doc: { $first: "$$ROOT" }
             }},
             {$lookup: {
                 from: APPROVED_STUDIES_COLLECTION,
@@ -53,6 +86,14 @@ class ReleaseService {
                         "$$ROOT",
                         {dbGaPID : "$approvedStudies.dbGaPID", studyName: "$approvedStudies.studyName", studyAbbreviation: "$approvedStudies.studyAbbreviation"}
             ]}}},
+            // Sort by the element of dataCommonsDisplayNames
+            ...(params.orderBy === 'dataCommonsDisplayNames'
+                ? [{
+                    $sort: {
+                        "dataCommonsDisplayNames.0": params.sortDirection?.toLowerCase() === SORT.DESC ? DIRECTION.DESC : DIRECTION.ASC  // ascending by first element
+                    }
+                }]
+                : []),
             {"$match": listConditions},
             {$facet: {
                 studies: paginationPipe.getPaginationPipeline(),
@@ -70,7 +111,7 @@ class ReleaseService {
                 return getDataCommonsDisplayNamesForReleasedNode(releasedStudy);
             }),
             total: releaseStudies[0]?.totalCount[0]?.count || 0,
-            dataCommons: (dataCommons || [])
+            dataCommonsDisplayNames: (dataCommons || [])
                 .map(getDataCommonsDisplayName)
                 .sort()
         }
