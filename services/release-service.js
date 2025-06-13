@@ -107,9 +107,7 @@ class ReleaseService {
         ]);
 
         return {
-            studies: (releaseStudies[0].studies || []).map((releasedStudy) => {
-                return getDataCommonsDisplayNamesForReleasedNode(releasedStudy);
-            }),
+            studies: releaseStudies[0].studies,
             total: releaseStudies[0]?.totalCount[0]?.count || 0,
             dataCommonsDisplayNames: (dataCommons || [])
                 .map(getDataCommonsDisplayName)
