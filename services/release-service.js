@@ -85,18 +85,17 @@ class ReleaseService {
 
         const {studyID, nodeTypes, first, offset, orderBy, sortDirection} = params;
 
-        const filterConditions = [
+        const [listConditions, nodeTypesCondition] = [
             // default filter for listing released studies
             this.#listNodesConditions(nodeTypes, userScope),
             // no filter for node types aggregation
             this.#listNodesConditions(null, userScope),
-        ];
-
-        const [listConditions, nodeTypesCondition] = filterConditions;
+        ];;
         const paginationPipe = new MongoPagination(first, offset, orderBy, sortDirection);
+        const commonQuery = [{$match: { studyID: studyID, ...listConditions } }];
         const combinedPipeline = [
             // TODO add properties parameters
-            {$match: { studyID: studyID, ...listConditions } },
+            ...commonQuery,
             {$addFields: {
                 parentPairs: {
                     $map: {
@@ -179,7 +178,7 @@ class ReleaseService {
 
 
         const allPropertiesPipeline = [
-            {$match: { studyID: studyID, ...listConditions } },
+            ...commonQuery,
             {$project: {propsKeys: {
                         $map: {
                             input: { $objectToArray: "$props" },
@@ -208,17 +207,57 @@ class ReleaseService {
             }},
         ];
 
-        const [releaseNodes, allProperties, dataCommons] = await Promise.all([
+        const nodeTypesPipeline = [
+            ...commonQuery,
+            {$group: {
+                    _id: "$nodeType",
+                    count: { $sum: 1 }
+            }},
+            {$project: {
+                name: "$_id",
+                count: 1,
+                _id: 0
+            }},
+            {
+                $facet: {
+                    nodes: [],
+                    total: [
+                        {
+                            $group: {
+                                _id: null,
+                                total: { $sum: "$count" }
+                            }
+                        },
+                        {
+                            $project: { _id: 0, total: 1 }
+                        }
+                    ]
+                }
+            },
+            {
+                $project: {
+                    nodes: "$nodes",
+                    total: { $arrayElemAt: ["$total.total", 0] }
+                }
+            },
+            {$sort: { count: -1 }}
+        ];
+
+        const [releaseNodes, allProperties, groupByNodes] = await Promise.all([
             this.releaseCollection.aggregate(combinedPipeline),
             this.releaseCollection.aggregate(allPropertiesPipeline),
+            this.releaseCollection.aggregate(nodeTypesPipeline),
             this.releaseCollection.distinct("nodeTypes", {studyID: studyID, ...nodeTypesCondition}),
         ]);
 
         return {
             total: releaseNodes[0]?.totalCount[0]?.count || 0,
-            nodeTypes: [],
+            nodeTypes: {
+                total: groupByNodes[0]?.total || 0,
+                nodes: groupByNodes[0]?.nodes || []
+            },
             properties: allProperties[0]?.allProperties || [],
-            nodes: releaseNodes || []
+            nodes: releaseNodes?.[0].studies || []
         }
     }
 
