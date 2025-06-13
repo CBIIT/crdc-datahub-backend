@@ -64,6 +64,8 @@ class ReleaseService {
                         "$dataCommons"
                     ]
             }}},
+            // Always set the mappedDisplayName asc. This array needs to be sorted on FE.
+            {$sort: { mappedDisplayName: 1 }},
             {$group: {
                     _id: "$_id",
                     dataCommons: { $push: "$dataCommons" },
@@ -84,15 +86,7 @@ class ReleaseService {
                         "$$ROOT",
                         {dbGaPID : "$approvedStudies.dbGaPID", studyName: "$approvedStudies.studyName", studyAbbreviation: "$approvedStudies.studyAbbreviation"}
             ]}}},
-            // Always set the dataCommonsDisplayNames asc. This array needs to be sorted on FE.
-            {$set: {
-                dataCommonsDisplayNames: {
-                    $sortArray: {
-                        input: "$dataCommonsDisplayNames",
-                        sortBy: 1
-                    }
-                }
-            }},
+            // Sort by the element of dataCommonsDisplayNames
             ...(params.orderBy === 'dataCommonsDisplayNames'
                 ? [{
                     $sort: {
