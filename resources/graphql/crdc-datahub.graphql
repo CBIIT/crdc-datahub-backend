@@ -92,7 +92,6 @@ type NodeType {
 
 type ListReleasedNodes {
     total: Int
-    nodeTypes: ListNodeTypes
     properties: [String], #all properties of a node including parents
     nodes: [JSON]
 }
@@ -820,13 +819,14 @@ type Query {
         sortDirection: String = "ASC"): ListReleasedStudies
     listReleasedDataRecords(
         studyID: String!
-        nodeTypes: [String]
+        nodeType: String!
         properties: [String]
         first: Int = 20
         offset: Int = 0
-        orderBy: String = "studyAbbreviation",
+        orderBy: String,
         sortDirection: String = "ASC"
     ): ListReleasedNodes
+    getReleaseNodeTypes(studyID: String!): ListNodeTypes
 
 }
 type Mutation {

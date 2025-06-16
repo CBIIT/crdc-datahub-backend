@@ -239,6 +239,7 @@ dbConnector.connect().then(async () => {
         userIsPrimaryContact: userService.isUserPrimaryContact.bind(userService),
         isMaintenanceMode: configurationService.isMaintenanceMode.bind(configurationService),
         listReleasedStudies: releaseService.listReleasedStudies.bind(releaseService),
+        getReleaseNodeTypes: releaseService.getReleaseNodeTypes.bind(releaseService),
         listReleasedDataRecords: releaseService.listReleasedDataRecords.bind(releaseService)
     };
 });
