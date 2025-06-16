@@ -4,8 +4,9 @@ const {UserScope} = require("../domain/user-scope");
 const {replaceErrorString} = require("../utility/string-util");
 const ERROR = require("../constants/error-constants");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
-const {getDataCommonsDisplayNamesForReleasedNode} = require("../utility/data-commons-remapper");
-const {APPROVED_STUDIES_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
+const {getDataCommonsDisplayNamesForReleasedNode, getDataCommonsDisplayName, getDataCommonsOrigin} = require("../utility/data-commons-remapper");
+const {APPROVED_STUDIES_COLLECTION, DATA_COMMONS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
+const {SORT, DIRECTION} = require("../crdc-datahub-database-drivers/constants/monogodb-constants");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 
 class ReleaseService {
@@ -25,9 +26,14 @@ class ReleaseService {
             return {total: 0, studies: []};
         }
 
+        const originalDataCommons = (params.dataCommonsDisplayNames || []).map(value => {
+            const original = getDataCommonsOrigin(value);
+            return original ? original : value;
+        });
+
         const filterConditions = [
             // default filter for listing released studies
-            this.#listStudyConditions(params.name, params.dbGaPID, params.dataCommons, userScope),
+            this.#listStudyConditions(params.name, params.dbGaPID, originalDataCommons, userScope),
             // no filter for dataCommons aggregation
             this.#listStudyConditions(null, null, null, userScope),
         ];
@@ -38,7 +44,34 @@ class ReleaseService {
             {$match: {nodeType: this.#STUDY_NODE, studyID: {$exists: true}}},
             {$group:{
                 _id: "$studyID",
-                dataCommons: { $first: "$dataCommons" }
+                dataCommons: { $addToSet: "$dataCommons" }
+            }},
+            {$unwind: { path: "$dataCommons" }},
+
+            {$lookup: {
+                from: DATA_COMMONS_COLLECTION,
+                let: { dc: "$dataCommons" },
+                pipeline: [
+                    { $match: { $expr: { $eq: ["$dataCommons", "$$dc"] } } },
+                    { $project: { _id: 0, dataCommonsDisplayName: 1 } }
+                ],
+                as: "matched"}
+            },
+            {$addFields: {
+                mappedDisplayName: {
+                    $cond: [
+                        { $gt: [{ $size: "$matched" }, 0] },
+                        { $arrayElemAt: ["$matched.dataCommonsDisplayName", 0] },
+                        "$dataCommons"
+                    ]
+            }}},
+            // Always set the mappedDisplayName asc. This array needs to be sorted on FE.
+            {$sort: { mappedDisplayName: 1 }},
+            {$group: {
+                    _id: "$_id",
+                    dataCommons: { $push: "$dataCommons" },
+                    dataCommonsDisplayNames: { $push: "$mappedDisplayName" },
+                    doc: { $first: "$$ROOT" }
             }},
             {$lookup: {
                 from: APPROVED_STUDIES_COLLECTION,
@@ -54,6 +87,14 @@ class ReleaseService {
                         "$$ROOT",
                         {dbGaPID : "$approvedStudies.dbGaPID", studyName: "$approvedStudies.studyName", studyAbbreviation: "$approvedStudies.studyAbbreviation"}
             ]}}},
+            // Sort by the element of dataCommonsDisplayNames
+            ...(params.orderBy === 'dataCommonsDisplayNames'
+                ? [{
+                    $sort: {
+                        "dataCommonsDisplayNames.0": params.sortDirection?.toLowerCase() === SORT.DESC ? DIRECTION.DESC : DIRECTION.ASC  // ascending by first element
+                    }
+                }]
+                : []),
             {"$match": listConditions},
             {$facet: {
                 studies: paginationPipe.getPaginationPipeline(),
@@ -67,11 +108,11 @@ class ReleaseService {
         ]);
 
         return {
-            studies: (releaseStudies[0].studies || []).map((releasedStudy) => {
-                return getDataCommonsDisplayNamesForReleasedNode(releasedStudy);
-            }),
+            studies: releaseStudies[0].studies,
             total: releaseStudies[0]?.totalCount[0]?.count || 0,
-            dataCommons: dataCommons?.sort() || []
+            dataCommonsDisplayNames: (dataCommons || [])
+                .map(getDataCommonsDisplayName)
+                .sort()
         }
     }
 
@@ -94,21 +135,21 @@ class ReleaseService {
                     name: "$_id",
                     count: 1,
                     _id: 0
-            }},
+                }},
             {$sort: {
                     count: 1
-            }},
+                }},
             {$facet: {
                     nodes: [],
                     total: [
                         {$group: {_id: null, total: { $sum: "$count" }}},
                         {$project: { _id: 0, total: 1 }}
                     ]
-            }},
+                }},
             {$project: {
                     nodes: "$nodes",
                     total: { $arrayElemAt: ["$total.total", 0] }
-            }},
+                }},
             {$sort: { count: -1 }}
         ];
 
@@ -163,79 +204,79 @@ class ReleaseService {
         const combinedPipeline = [
             ...commonQuery,
             {$addFields: {
-                parentPairs: {
-                    $map: {
-                        input: "$parents",
-                        as: "p",
-                        in: {
-                            k: { $concat: ["$$p.parentType", ".", "$$p.parentIDPropName"] },
-                            v: "$$p.parentIDValue"
+                    parentPairs: {
+                        $map: {
+                            input: "$parents",
+                            as: "p",
+                            in: {
+                                k: { $concat: ["$$p.parentType", ".", "$$p.parentIDPropName"] },
+                                v: "$$p.parentIDValue"
+                            }
                         }
                     }
-                }
-            }},
+                }},
             {$unwind: {
-                path: "$parentPairs"
-            }},
+                    path: "$parentPairs"
+                }},
             {$group: {
-                _id: "$_id",
-                props: { $first: "$props" },
-                kv: {
-                    $push: "$parentPairs"
-                }
-            }},
+                    _id: "$_id",
+                    props: { $first: "$props" },
+                    kv: {
+                        $push: "$parentPairs"
+                    }
+                }},
             {$project: {
-                props: 1,
-                merged: {
-                    $arrayToObject: {
-                        $map: {
-                            input: {
-                                $setUnion: {
-                                    $map: {
-                                        input: "$kv",
-                                        as: "i",
-                                        in: "$$i.k"
+                    props: 1,
+                    merged: {
+                        $arrayToObject: {
+                            $map: {
+                                input: {
+                                    $setUnion: {
+                                        $map: {
+                                            input: "$kv",
+                                            as: "i",
+                                            in: "$$i.k"
+                                        }
                                     }
-                                }
-                            },
-                            as: "key",
-                            in: {
-                                k: "$$key",
-                                v: {
-                                    $reduce: {
-                                        input: {
-                                            $map: {
-                                                input: {
-                                                    $filter: {
-                                                        input: "$kv",
-                                                        as: "item",
-                                                        cond: { $eq: ["$$item.k", "$$key"] }
-                                                    }
-                                                },
-                                                as: "f",
-                                                in: "$$f.v"
+                                },
+                                as: "key",
+                                in: {
+                                    k: "$$key",
+                                    v: {
+                                        $reduce: {
+                                            input: {
+                                                $map: {
+                                                    input: {
+                                                        $filter: {
+                                                            input: "$kv",
+                                                            as: "item",
+                                                            cond: { $eq: ["$$item.k", "$$key"] }
+                                                        }
+                                                    },
+                                                    as: "f",
+                                                    in: "$$f.v"
+                                                }
+                                            },
+                                            initialValue: "",
+                                            in: {
+                                                $cond: [
+                                                    { $eq: ["$$value", ""] },
+                                                    "$$this",
+                                                    { $concat: ["$$value", "|", "$$this"] }
+                                                ]
                                             }
-                                        },
-                                        initialValue: "",
-                                        in: {
-                                            $cond: [
-                                                { $eq: ["$$value", ""] },
-                                                "$$this",
-                                                { $concat: ["$$value", "|", "$$this"] }
-                                            ]
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                }
-            }},
+                }},
             { $replaceRoot: {
-                newRoot: {
-                    $mergeObjects: ["$props", "$merged"]
-                }
-            }},
+                    newRoot: {
+                        $mergeObjects: ["$props", "$merged"]
+                    }
+                }},
             ...(properties?.length > 0
                 ? [
                     {
@@ -269,29 +310,29 @@ class ReleaseService {
                 ]
                 : []),
             ...(orderBy.includes(".") ?
-            [{
-                $addFields: {
-                    _sortKey: {
-                        $getField: {
-                            field: orderBy,
-                            input: "$$ROOT",
+                [{
+                    $addFields: {
+                        _sortKey: {
+                            $getField: {
+                                field: orderBy,
+                                input: "$$ROOT",
+                            },
                         },
                     },
                 },
-            },
-            {
-                $sort: {
-                    _sortKey: getSortDirection(sortDirection),
-                },
+                    {
+                        $sort: {
+                            _sortKey: getSortDirection(sortDirection),
+                        },
 
-            },
-            {
-                $unset: "_sortKey",  // 👈 This removes the temporary sort key
-            }] : [] ) ,
+                    },
+                    {
+                        $unset: "_sortKey",  // 👈 This removes the temporary sort key
+                    }] : [] ) ,
             {$facet: {
-                studies: paginationPipe.getPaginationPipeline(),
-                totalCount: [{ $count: "count" }]
-            }}
+                    studies: paginationPipe.getPaginationPipeline(),
+                    totalCount: [{ $count: "count" }]
+                }}
         ];
 
         const allPropertiesPipeline = [

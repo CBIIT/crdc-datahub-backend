@@ -238,6 +238,7 @@ dbConnector.connect().then(async () => {
         retrieveCLIUploaderVersion: configurationService.retrieveCLIUploaderVersion.bind(configurationService),
         userIsPrimaryContact: userService.isUserPrimaryContact.bind(userService),
         isMaintenanceMode: configurationService.isMaintenanceMode.bind(configurationService),
+        getSubmissionAttributes: submissionService.getSubmissionAttributes.bind(submissionService)
         listReleasedStudies: releaseService.listReleasedStudies.bind(releaseService),
         getReleaseNodeTypes: releaseService.getReleaseNodeTypes.bind(releaseService),
         listReleasedDataRecords: releaseService.listReleasedDataRecords.bind(releaseService)

@@ -1,0 +1,12 @@
+Commands:
+  - Select database:
+      For DEV2 or QA2: |
+        use crdc-datahub2
+      For all other tiers: |
+        use crdc-datahub
+  - create the lookup table for the dataCommons display names into dataCommons collection CRDCDH-2809:  |
+        db.dataCommons.insertOne({
+          "_id": "4245e09e-52eb-42b6-85e9-a3a23539994f",
+          "dataCommons": "CDS",
+          "dataCommonsDisplayName": "GC"
+        });
