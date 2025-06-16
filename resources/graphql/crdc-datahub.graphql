@@ -245,8 +245,8 @@ type ReleasedStudy {
     _id: ID
     studyName: String
     dbGaPID: String # aka. phs number
-    dataCommons: String
-    dataCommonsDisplayNames: String
+    dataCommons: [String]
+    dataCommonsDisplayNames: [String]
     studyAbbreviation: String
 }
 
@@ -619,6 +619,27 @@ type Released_Node {
     props: String, #a stringified JSON string contains all properties of the node, including parent mapping properties like program.prorgam_acronym
     createdAt: Date,
     updatedAt: Date
+}
+
+type SubmissionAttributesResult {
+    submissionAttributes: SubmissionAttributes
+    isValidationPassed: Boolean
+}
+
+type SubmissionAttributes {
+    isSubmissionStatusNew: Boolean
+    isValidating: Boolean
+    isBatchUploading: Boolean
+    isValidSubmissionStatus: Boolean
+    isValidDeleteIntention: Boolean
+    isReadyMetadataOnly: Boolean
+    isValidDataFileSize: Boolean
+    isReadyMetadataDataFile: Boolean
+    isValidationNotNew: Boolean
+    hasOrphanError: Boolean
+    isMetadataValidationError: Boolean
+    isDatafileValidationError: Boolean
+    isAdminSubmit: Boolean
 }
 
 type Query {
