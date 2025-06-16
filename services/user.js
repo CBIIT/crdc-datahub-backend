@@ -63,9 +63,9 @@ class UserService {
             .verifyInitialized();
 
         const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REQUEST_ACCESS);
-        if (userScope.isNoneScope()) {
-            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
-        }
+        // if (userScope.isNoneScope()) {
+        //     throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        // }
 
         const approvedStudies = params?.studies?.length > 0 ?
             await this.approvedStudiesService.listApprovedStudiesByIDs(params?.studies)

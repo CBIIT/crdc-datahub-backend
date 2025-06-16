@@ -1,14 +1,15 @@
 const prisma = require("../prisma");
+const { SORT } = require('../constants/db-constants');
 
-class CdeDAO {
+class CdeDAO{
     async getCdeByCodeAndVersion(query){
         const matchedDocuments = await prisma.cDE.findMany({
             where: {
                 OR: query
             },
             orderBy: [
-                { CDECode: 'asc' },
-                { CDEVersion: 'desc' }
+                { CDECode: SORT.ASC },
+                { CDEVersion: SORT.DESC }
             ]
         })
         const results = Object.values(

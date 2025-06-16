@@ -1,21 +1,14 @@
 const prisma = require("../prisma");
+const GenericDAO = require("./generic");
 
-class ApprovedStudyDAO {
-    async getApprovedStudyByID(id) {
-        const study = await prisma.approvedStudy.findUnique({where: {id: id}})
-        //prisma doesn't allow using _id, so we have to map it
-        if (!study) {
-            return null
-        }
-        return {...study, _id: study.id}
+class ApprovedStudyDAO extends GenericDAO  {
+    constructor() {
+        super("approvedStudy");
     }
-    async getApprovedStudyByName(studyNme) {
-        const study = await prisma.approvedStudy.findFirst({where: {studyName: studyNme}})
-        //prisma doesn't allow using _id, so we have to map it
-        if (!study) {
-            return null
-        }
-        return {...study, _id: study.id}
+
+    async getApprovedStudyByID(studyID) {
+
+        return await this.findById(studyID)
     }
 
     async getApprovedStudiesInStudies(studyIDs) {
