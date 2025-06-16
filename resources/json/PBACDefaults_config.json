@@ -36,6 +36,7 @@
             "_id": "submission_request:submit:all",
             "group": "Submission Request Permissions",
             "name": "Submit",
+            "inherited": ["submission_request:view:all"],
             "order": 3,
             "checked": true,
             "disabled": false
@@ -44,6 +45,7 @@
             "_id": "submission_request:cancel:all",
             "group": "Submission Request Permissions",
             "name": "Cancel/Restore",
+            "inherited": ["submission_request:view:all"],
             "order": 5,
             "checked": false,
             "disabled": false
@@ -77,6 +79,7 @@
             "_id": "data_submission:cancel:study",
             "group": "Data Submission Permissions",
             "name": "Cancel",
+            "inherited": ["data_submission:view:study"],
             "order": 3,
             "checked": false,
             "disabled": false
@@ -94,6 +97,7 @@
             "_id": "data_submission:admin_submit:study",
             "group": "Data Submission Permissions",
             "name": "Admin Submit",
+            "inherited": ["data_submission:view:study"],
             "order": 5,
             "checked": false,
             "disabled": true
@@ -102,6 +106,7 @@
             "_id": "data_submission:confirm:study",
             "group": "Data Submission Permissions",
             "name": "Confirm",
+            "inherited": ["data_submission:view:study"],
             "order": 6,
             "checked": false,
             "disabled": false
@@ -335,6 +340,7 @@
             "_id": "submission_request:submit:all",
             "group": "Submission Request Permissions",
             "name": "Submit",
+            "inherited": ["submission_request:view:all"],
             "order": 3,
             "checked": false,
             "disabled": false
@@ -343,6 +349,7 @@
             "_id": "submission_request:cancel:all",
             "group": "Submission Request Permissions",
             "name": "Cancel/Restore",
+            "inherited": ["submission_request:view:all"],
             "order": 5,
             "checked": false,
             "disabled": false
@@ -376,6 +383,7 @@
             "_id": "data_submission:cancel:DC",
             "group": "Data Submission Permissions",
             "name": "Cancel",
+            "inherited": ["data_submission:view:DC"],
             "order": 3,
             "checked": true,
             "disabled": false
@@ -393,6 +401,7 @@
             "_id": "data_submission:admin_submit:DC",
             "group": "Data Submission Permissions",
             "name": "Admin Submit",
+            "inherited": ["data_submission:view:DC"],
             "order": 5,
             "checked": true,
             "disabled": false
@@ -401,6 +410,7 @@
             "_id": "data_submission:confirm:DC",
             "group": "Data Submission Permissions",
             "name": "Confirm",
+            "inherited": ["data_submission:view:DC"],
             "order": 6,
             "checked": true,
             "disabled": false
@@ -635,6 +645,7 @@
             "_id": "submission_request:submit:all",
             "group": "Submission Request Permissions",
             "name": "Submit",
+            "inherited": ["submission_request:view:all"],
             "order": 3,
             "checked": false,
             "disabled": false
@@ -643,6 +654,7 @@
             "_id": "submission_request:cancel:all",
             "group": "Submission Request Permissions",
             "name": "Cancel/Restore",
+            "inherited": ["submission_request:view:all"],
             "order": 5,
             "checked": false,
             "disabled": false
@@ -676,6 +688,7 @@
             "_id": "data_submission:cancel:all",
             "group": "Data Submission Permissions",
             "name": "Cancel",
+            "inherited": ["data_submission:view:all"],
             "order": 3,
             "checked": false,
             "disabled": false
@@ -693,6 +706,7 @@
             "_id": "data_submission:admin_submit:all",
             "group": "Data Submission Permissions",
             "name": "Admin Submit",
+            "inherited": ["data_submission:view:all"],
             "order": 5,
             "checked": true,
             "disabled": false
@@ -701,6 +715,7 @@
             "_id": "data_submission:confirm:all",
             "group": "Data Submission Permissions",
             "name": "Confirm",
+            "inherited": ["data_submission:view:all"],
             "order": 6,
             "checked": false,
             "disabled": false
@@ -935,6 +950,7 @@
             "_id": "submission_request:submit:own",
             "group": "Submission Request Permissions",
             "name": "Submit",
+            "inherited": ["submission_request:view:own"],
             "order": 3,
             "checked": true,
             "disabled": true
@@ -943,6 +959,7 @@
             "_id": "submission_request:cancel:own",
             "group": "Submission Request Permissions",
             "name": "Cancel/Restore",
+            "inherited": ["submission_request:view:own"],
             "order": 5,
             "checked": true,
             "disabled": true
@@ -993,6 +1010,7 @@
             "_id": "data_submission:admin_submit:none",
             "group": "Data Submission Permissions",
             "name": "Admin Submit",
+            "inherited": ["data_submission:view:study"],
             "order": 5,
             "checked": false,
             "disabled": true
@@ -1001,6 +1019,7 @@
             "_id": "data_submission:confirm:none",
             "group": "Data Submission Permissions",
             "name": "Confirm",
+            "inherited": ["data_submission:view:study"],
             "order": 6,
             "checked": false,
             "disabled": true
@@ -1235,6 +1254,7 @@
             "_id": "submission_request:submit:own",
             "group": "Submission Request Permissions",
             "name": "Submit",
+            "inherited": ["submission_request:view:own"],
             "order": 3,
             "checked": true,
             "disabled": true
@@ -1243,6 +1263,7 @@
             "_id": "submission_request:cancel:own",
             "group": "Submission Request Permissions",
             "name": "Cancel/Restore",
+            "inherited": ["submission_request:view:own"],
             "order": 5,
             "checked": true,
             "disabled": true
