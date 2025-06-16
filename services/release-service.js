@@ -115,7 +115,12 @@ class ReleaseService {
                 .sort()
         }
     }
-
+    /**
+     * API: Retrieves the total count and list of node types from the release collection for a given study.
+     * @param {*} params
+     * @param {*} context
+     * @returns {Promise<{ total: number, nodes: Array<{ name: string, count: number }> }>}
+     */
     async getReleaseNodeTypes(params, context) {
         verifySession(context)
             .verifyInitialized();
@@ -159,7 +164,12 @@ class ReleaseService {
             nodes: groupByNodes[0]?.nodes || []
         }
     }
-
+    /**
+     * API: List all released records from the release collection for a given study.
+     * @param {*} params
+     * @param {*} context
+     * @returns {Promise<JSON>}
+     */
     async listReleasedDataRecords(params, context) {
         verifySession(context)
             .verifyInitialized();
