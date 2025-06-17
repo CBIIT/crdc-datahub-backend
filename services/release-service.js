@@ -300,12 +300,12 @@ class ReleaseService {
                             newRoot: "$_tmp"
                         }
                     },
-                    {
+                    ...(orderBy ?
+                    [{
                         $sort: {
                             [this._dotToSafe(orderBy)]: getSortDirection(sortDirection),
                         },
-                    },
-
+                    }] : []),
                     {$project: {
                             _tmp2: {
                                 $arrayToObject: [this._buildKvPairsRestore(properties)]
