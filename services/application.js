@@ -18,11 +18,11 @@ const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/cons
 const {UserScope} = require("../domain/user-scope");
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 class Application {
-    #DELETE_REVIEW_COMMENT="This Submission Request has been deleted by the system due to inactivity.";
-    #ALL_FILTER="All";
-    #FINAL_INACTIVE_REMINDER = "finalInactiveReminder";
-    #INACTIVE_REMINDER = "inactiveReminder";
-    #CRDC_TEAM = "the CRDC team";
+    DELETE_REVIEW_COMMENT="This Submission Request has been deleted by the system due to inactivity.";
+    ALL_FILTER="All";
+    FINAL_INACTIVE_REMINDER = "finalInactiveReminder";
+    INACTIVE_REMINDER = "inactiveReminder";
+    CRDC_TEAM = "the CRDC team";
     constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService, configurationService, authorizationService) {
         this.logCollection = logCollection;
         this.applicationCollection = applicationCollection;
@@ -40,7 +40,7 @@ class Application {
     async getApplication(params, context) {
         verifySession(context)
             .verifyInitialized()
-        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
+        const userScope = await this.getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -48,14 +48,14 @@ class Application {
         let application = await this.getApplicationById(params._id);
         // add logics to check if conditional approval
         if (application.status === APPROVED){
-            await this.#checkConditionalApproval(application);
+            await this.checkConditionalApproval(application);
         }
         // populate the version with auto upgrade based on configuration
-        application.version  = await this.#getApplicationVersionByStatus(application.status, application.version);
+        application.version  = await this.getApplicationVersionByStatus(application.status, application.version);
         return application;
     }
 
-    async #getApplicationVersionByStatus(status, version = null ) {   
+    async getApplicationVersionByStatus(status, version = null ) {   
         const config = await this.configurationService.findByType("APPLICATION_FORM_VERSIONS"); //get version config dynamically
         const currentVersion = config?.current || "2.0";
         const newStatusVersion = config?.new || "3.0";
@@ -64,7 +64,7 @@ class Application {
         return [NEW, IN_PROGRESS, INQUIRED].includes(status) ? newStatusVersion : (!version)? currentVersion : version;
     }
 
-    async #checkConditionalApproval(application) {
+    async checkConditionalApproval(application) {
         // 1) controlled study missing dbGaPID
         const study_arr = await this.approvedStudiesService.findByStudyName(application.studyName);
         if (!study_arr || study_arr.length < 1) {
@@ -112,7 +112,7 @@ class Application {
             }
         }
         // populate the version with auto upgrade based on configuration
-        application.version  = await this.#getApplicationVersionByStatus(application.status, application.version);
+        application.version  = await this.getApplicationVersionByStatus(application.status, application.version);
         return application || null;
     }
 
@@ -136,7 +136,7 @@ class Application {
             updatedAt: timestamp,
             programAbbreviation: application?.programAbbreviation,
             programDescription: application?.programDescription,
-            version: (application?.version)? application.version : await this.#getApplicationVersionByStatus(NEW)
+            version: (application?.version)? application.version : await this.getApplicationVersionByStatus(NEW)
         };
         application = {
             ...application,
@@ -153,7 +153,7 @@ class Application {
         let inputApplication = params.application;
         const id = inputApplication?._id;
         if (!id) {
-            const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CREATE);
+            const userScope = await this.getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CREATE);
             if (userScope.isNoneScope()) {
                 throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
             }
@@ -168,7 +168,7 @@ class Application {
         const prevStatus = storedApplication?.status;
         let application = {...storedApplication, ...inputApplication, status: IN_PROGRESS};
         // auto upgrade version based on configuration
-        application.version = await this.#getApplicationVersionByStatus(IN_PROGRESS);
+        application.version = await this.getApplicationVersionByStatus(IN_PROGRESS);
         application = await updateApplication(this.applicationCollection, application, prevStatus, context?.userInfo?._id);
         if (prevStatus !== application.status){
             await logStateChange(this.logCollection, context.userInfo, application, prevStatus);
@@ -179,7 +179,7 @@ class Application {
     async getMyLastApplication(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
+        const userScope = await this.getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -196,22 +196,22 @@ class Application {
         const result = await this.applicationCollection.aggregate(pipeline);
         const application = result.length > 0 ? result[0] : null;
         // auto upgrade version
-        application.version = await this.#getApplicationVersionByStatus(IN_PROGRESS);
+        application.version = await this.getApplicationVersionByStatus(IN_PROGRESS);
         return application;
     }
 
-    #listApplicationConditions(userID, userScope, programName, studyName, statues, submitterName) {
+    listApplicationConditions(userID, userScope, programName, studyName, statues, submitterName) {
         const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, CANCELED, REJECTED, DELETED];
-        const statusCondition = statues && !statues?.includes(this.#ALL_FILTER) ?
+        const statusCondition = statues && !statues?.includes(this.ALL_FILTER) ?
             { status: { $in: statues || [] } } : { status: { $in: validApplicationStatus } };
         // Allowing empty string SubmitterName, ProgramName, StudyName
         // Submitter Name should be partial match
         const submitterQuery = submitterName?.trim().length > 0 ? {$regex: submitterName.trim().replace(/\\/g, "\\\\"), $options: "i"} : submitterName;
-        const submitterNameCondition = (submitterName != null && submitterName !== this.#ALL_FILTER) ? {"applicant.applicantName": submitterQuery} : {};
-        const programNameCondition = (programName != null && programName !== this.#ALL_FILTER) ? {programName: programName} : {};
+        const submitterNameCondition = (submitterName != null && submitterName !== this.ALL_FILTER) ? {"applicant.applicantName": submitterQuery} : {};
+        const programNameCondition = (programName != null && programName !== this.ALL_FILTER) ? {programName: programName} : {};
         // Study Name should be partial match
         const studyQuery = studyName?.trim().length > 0 ? {$regex: studyName?.trim().replace(/\\/g, "\\\\"), $options: "i"} : studyName;
-        const studyNameCondition = (studyName != null && studyName !== this.#ALL_FILTER) ? {studyName: studyQuery} : {};
+        const studyNameCondition = (studyName != null && studyName !== this.ALL_FILTER) ? {studyName: studyQuery} : {};
 
         const baseConditions = {...statusCondition, ...programNameCondition, ...studyNameCondition, ...submitterNameCondition};
         if (userScope.isAllScope()) {
@@ -227,7 +227,7 @@ class Application {
             .verifyInitialized()
 
         const userInfo = context?.userInfo;
-        const validStatuesSet = new Set([NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED, CANCELED, DELETED, this.#ALL_FILTER]);
+        const validStatuesSet = new Set([NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED, CANCELED, DELETED, this.ALL_FILTER]);
         const invalidStatues = (params?.statuses || [])
             .filter((i) => !validStatuesSet.has(i));
         if (invalidStatues?.length > 0) {
@@ -243,15 +243,15 @@ class Application {
 
         const filterConditions = [
             // default filter for listing submissions
-            this.#listApplicationConditions(userInfo?._id, userScope, params.programName, params.studyName, params.statuses, params?.submitterName),
+            this.listApplicationConditions(userInfo?._id, userScope, params.programName, params.studyName, params.statuses, params?.submitterName),
             // note: Aggregation of Program name should not be filtered by its name
-            this.#listApplicationConditions(userInfo?._id, userScope, this.#ALL_FILTER, params.studyName, params.statuses, params?.submitterName),
+            this.listApplicationConditions(userInfo?._id, userScope, this.ALL_FILTER, params.studyName, params.statuses, params?.submitterName),
             // note: Aggregation of Study name should not be filtered by its name
-            this.#listApplicationConditions(userInfo?._id, userScope, params.programName, this.#ALL_FILTER, params.statuses, params?.submitterName),
+            this.listApplicationConditions(userInfo?._id, userScope, params.programName, this.ALL_FILTER, params.statuses, params?.submitterName),
             // note: Aggregation of Statues name should not be filtered by its name
-            this.#listApplicationConditions(userInfo?._id, userScope, params.programName, params.studyName, this.#ALL_FILTER, params?.submitterName),
+            this.listApplicationConditions(userInfo?._id, userScope, params.programName, params.studyName, this.ALL_FILTER, params?.submitterName),
             // note: Aggregation of Submitter name should not be filtered by its name
-            this.#listApplicationConditions(userInfo?._id, userScope, params.programName, params.studyName, params.statuses, this.#ALL_FILTER),
+            this.listApplicationConditions(userInfo?._id, userScope, params.programName, params.studyName, params.statuses, this.ALL_FILTER),
         ];
         const [listConditions, programCondition, studyNameCondition, statuesCondition, submitterNameCondition] = filterConditions;
         let pipeline = [{"$match": listConditions}];
@@ -274,7 +274,7 @@ class Application {
         const results = await Promise.all(promises);
         const applications = (results[0] || []);
         for (let app of applications?.filter(a=>a.status === APPROVED)) {
-            await this.#checkConditionalApproval(app);
+            await this.checkConditionalApproval(app);
         }
 
         return {
@@ -293,7 +293,7 @@ class Application {
     async submitApplication(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.SUBMIT);
+        const userScope = await this.getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.SUBMIT);
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -325,7 +325,7 @@ class Application {
     }
 
 
-    #getInProgressComment(history) {
+    getInProgressComment(history) {
         const isValidComment = history?.length > 1 &&
             ([CANCELED, DELETED].includes(history?.at(-2)?.status) // Restored Reason
             || INQUIRED === history?.at(-1)?.status);
@@ -340,9 +340,9 @@ class Application {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
-        application.version = await this.#getApplicationVersionByStatus(application.status, application?.version);
+        application.version = await this.getApplicationVersionByStatus(application.status, application?.version);
         if (application && application.status) {
-            const reviewComment = this.#getInProgressComment(application?.history);
+            const reviewComment = this.getInProgressComment(application?.history);
             const history = HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, reviewComment);
             const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
                 $set: {status: IN_PROGRESS, updatedAt: history.dateTime, version: application.version},
@@ -361,7 +361,7 @@ class Application {
         return application;
     }
 
-    async #getUserScope(userInfo, permission) {
+    async getUserScope(userInfo, permission) {
         const validScopes = await this.authorizationService.getPermissionScope(userInfo, permission);
         const userScope = UserScope.create(validScopes);
         // valid scopes; none, all, own
@@ -376,7 +376,7 @@ class Application {
         verifySession(context)
             .verifyInitialized();
         const userInfo = context?.userInfo;
-        const userScope = await this.#getUserScope(userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
+        const userScope = await this.getUserScope(userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
         if (userScope.isNoneScope() || (!userScope.isOwnScope() && !userScope.isAllScope())) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -386,7 +386,7 @@ class Application {
         if (!validApplicationStatus.includes(aApplication.status)) {
             throw new Error(ERROR.VERIFY.INVALID_STATE_APPLICATION);
         }
-        aApplication.version = await this.#getApplicationVersionByStatus(aApplication.status, aApplication?.version);
+        aApplication.version = await this.getApplicationVersionByStatus(aApplication.status, aApplication?.version);
         const powerUserCond = [NEW, IN_PROGRESS, INQUIRED, SUBMITTED, IN_REVIEW].includes(aApplication?.status);
         const isValidCond = [NEW, IN_PROGRESS, INQUIRED].includes(aApplication?.status) && userInfo?._id === aApplication?.applicant?.applicantID;
         if ((userScope.isAllScope() && !powerUserCond) || (isApplicationOwned && !isValidCond)) {
@@ -400,7 +400,7 @@ class Application {
         });
 
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
-            await this.#sendCancelApplicationEmail(userInfo, aApplication);
+            await this.sendCancelApplicationEmail(userInfo, aApplication);
         } else {
             console.error(ERROR.FAILED_DELETE_APPLICATION, `${document._id}`);
             throw new Error(ERROR.FAILED_DELETE_APPLICATION);
@@ -418,7 +418,7 @@ class Application {
             throw new Error(ERROR.INVALID_APPLICATION_RESTORE_STATE);
         }
         const userInfo = context?.userInfo;
-        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
+        const userScope = await this.getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.CANCEL);
         if (userScope.isNoneScope() || (!userScope.isOwnScope() && !userScope.isAllScope())) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -436,7 +436,7 @@ class Application {
         });
 
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
-            await this.#sendRestoreApplicationEmail(aApplication);
+            await this.sendRestoreApplicationEmail(aApplication);
         } else {
             console.error(ERROR.FAILED_RESTORE_APPLICATION, `${aApplication._id}`);
             throw new Error(ERROR.FAILED_RESTORE_APPLICATION);
@@ -451,7 +451,7 @@ class Application {
         verifyApplication(application)
             .notEmpty()
             .state([IN_REVIEW, SUBMITTED]);
-        application.version = await this.#getApplicationVersionByStatus(application.status, application?.version);
+        application.version = await this.getApplicationVersionByStatus(application.status, application?.version);
         const approvedStudies = await this.approvedStudiesService.findByStudyName(application?.studyName);
         if (approvedStudies.length > 0) {
             throw new Error(replaceErrorString(ERROR.DUPLICATE_APPROVED_STUDY_NAME, `'${application?.studyName}'`));
@@ -471,7 +471,7 @@ class Application {
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             promises.unshift(this.getApplicationById(document._id));
             if(questionnaire) {
-                const approvedStudies = await this.#saveApprovedStudies(application, questionnaire);
+                const approvedStudies = await this.saveApprovedStudies(application, questionnaire);
                 // added approved studies into user collection
                 const { _id, ...updateUser } = context?.userInfo || {};
                 const currStudyIDs = context?.userInfo?.studies?.map((study)=> study?._id) || [];
@@ -509,7 +509,7 @@ class Application {
         verifyApplication(application)
             .notEmpty()
             .state([IN_REVIEW, SUBMITTED]);
-        application.version = await this.#getApplicationVersionByStatus(application.status, application?.version);
+        application.version = await this.getApplicationVersionByStatus(application.status, application?.version);
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, REJECTED, document.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
             $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime, version: application.version},
@@ -538,7 +538,7 @@ class Application {
             .notEmpty()
             .state([IN_REVIEW, SUBMITTED]);
         // auto upgrade version
-        application.version = await this.#getApplicationVersionByStatus(application.status);
+        application.version = await this.getApplicationVersionByStatus(application.status);
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, INQUIRED, document.comment);
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
             $set: {reviewComment: document.comment, status: INQUIRED, updatedAt: history.dateTime, version: application.version},
@@ -571,7 +571,7 @@ class Application {
 
         if (applications?.length > 0) {
             const [applicantUsers, BCCUsers] = await Promise.all([
-                this.#findUsersByApplicantIDs(applications),
+                this.findUsersByApplicantIDs(applications),
                 this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_DELETE],
                     [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]),
             ]);
@@ -581,7 +581,7 @@ class Application {
                     ?.filter((u) => u?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_DELETE))
                     ?.map((u) => u?._id)
             );
-            const history = HistoryEventBuilder.createEvent("", DELETED, this.#DELETE_REVIEW_COMMENT);
+            const history = HistoryEventBuilder.createEvent("", DELETED, this.DELETE_REVIEW_COMMENT);
             const updated = await this.dbService.updateMany(APPLICATION,
                 inactiveCondition,
                 {   // Once the submission request is deleted, the reminder email should not be sent.
@@ -604,16 +604,16 @@ class Application {
 
     async remindApplicationSubmission() {
         // The system sends an email reminder a day before the data submission expires
-        const finalInactiveApplications = await this.#getInactiveSubmissions(this.emailParams.inactiveDays - 1, this.#FINAL_INACTIVE_REMINDER)
+        const finalInactiveApplications = await this.getInactiveSubmissions(this.emailParams.inactiveDays - 1, this.FINAL_INACTIVE_REMINDER)
         if (finalInactiveApplications?.length > 0) {
             await Promise.all(finalInactiveApplications.map(async (aApplication) => {
-                await this.#sendEmailFinalInactiveApplication(aApplication);
+                await this.sendEmailFinalInactiveApplication(aApplication);
             }));
             const applicationIDs = finalInactiveApplications
                 .map(application => application._id);
             const query = {_id: {$in: applicationIDs}};
             // Disable all reminders to ensure no notifications are sent.
-            const everyReminderDays = this.#getEveryReminderQuery(this.emailParams.inactiveApplicationNotifyDays, true);
+            const everyReminderDays = this.getEveryReminderQuery(this.emailParams.inactiveApplicationNotifyDays, true);
             const updatedReminder = await this.applicationCollection.updateMany(query, everyReminderDays);
             if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
                 console.error("The email reminder flag intended to notify the inactive submission request (FINAL) is not being stored", `submissionIDs: ${applicationIDs.join(', ')}`);
@@ -623,7 +623,7 @@ class Application {
         const inactiveApplicationsPromises = [];
         for (const day of this.emailParams.inactiveApplicationNotifyDays) {
             const pastInactiveDays = this.emailParams.inactiveDays - day;
-            inactiveApplicationsPromises.push([pastInactiveDays, await this.#getInactiveSubmissions(pastInactiveDays, `${this.#INACTIVE_REMINDER}_${day}`)]);
+            inactiveApplicationsPromises.push([pastInactiveDays, await this.getInactiveSubmissions(pastInactiveDays, `${this.INACTIVE_REMINDER}_${day}`)]);
         }
         const inactiveApplicationsResult = await Promise.all(inactiveApplicationsPromises);
         const inactiveApplicationMapByDays = inactiveApplicationsResult.reduce((acc, [key, value]) => {
@@ -651,7 +651,7 @@ class Application {
                 for (const aApplication of aApplicationArray) {
                     const emailPromise = (async (pastDays) => {
                         // by default, final reminder 180 days
-                        await this.#sendEmailInactiveApplication(aApplication, pastDays);
+                        await this.sendEmailInactiveApplication(aApplication, pastDays);
                     })(pastDays);
                     emailPromises.push(emailPromise);
                     inactiveApplications.push([aApplication?._id, pastDays]);
@@ -667,7 +667,7 @@ class Application {
                 // The applications with the closest expiration dates will be flagged as true; no sent any notification anymore
                 // A notification will be sent at each interval. ex) 7, 30, 60 days before expiration
                 const reminderFilter = reminderDays.reduce((acc, day) => {
-                    acc[`${this.#INACTIVE_REMINDER}_${day}`] = true;
+                    acc[`${this.INACTIVE_REMINDER}_${day}`] = true;
                     return acc;
                 }, {});
                 const updatedReminder = await this.applicationCollection.update({_id: applicationID, ...reminderFilter});
@@ -678,7 +678,7 @@ class Application {
         }
     }
 
-    async #getInactiveSubmissions(inactiveDays, inactiveFlagField) {
+    async getInactiveSubmissions(inactiveDays, inactiveFlagField) {
         const remindCondition = {
             updatedAt: {
                 $lt: subtractDaysFromNow(inactiveDays),
@@ -692,7 +692,7 @@ class Application {
         return await this.applicationCollection.aggregate([{$match: remindCondition}]);
     }
 
-    async #findUsersByApplicantIDs(applications) {
+    async findUsersByApplicantIDs(applications) {
         const applicantIDs = applications
             ?.map((a) => a?.applicant?.applicantID) // Extract applicant IDs
             ?.filter(Boolean);
@@ -743,7 +743,7 @@ class Application {
         }
     }
 
-    async #cancelApplicationEmailInfo(application) {
+    async cancelApplicationEmailInfo(application) {
         const [applicant, BCCUsers] = await Promise.all([
             this.userService.userCollection.find(application?.applicant?.applicantID),
             this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_CANCEL],
@@ -758,14 +758,14 @@ class Application {
         return [applicantInfo, CCEmails, toBCCEmails];
     }
 
-    async #sendCancelApplicationEmail(userCanceledBy, application) {
-        const [applicantInfo, CCEmails, BCCUserEmails] = await this.#cancelApplicationEmailInfo(application);
+    async sendCancelApplicationEmail(userCanceledBy, application) {
+        const [applicantInfo, CCEmails, BCCUserEmails] = await this.cancelApplicationEmailInfo(application);
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_CANCEL)) {
             if (!applicantInfo?.email) {
                 console.error("Cancel submission request email notification does not have any recipient", `Application ID: ${application?._id}`);
                 return;
             }
-            const canceledByName = [ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL].includes(userCanceledBy?.role) ? this.#CRDC_TEAM: `${userCanceledBy.firstName} ${userCanceledBy.lastName || ""}`;
+            const canceledByName = [ROLES.ADMIN, ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL].includes(userCanceledBy?.role) ? this.CRDC_TEAM: `${userCanceledBy.firstName} ${userCanceledBy.lastName || ""}`;
             await this.notificationService.cancelApplicationNotification(applicantInfo?.email, CCEmails, BCCUserEmails, {
                 firstName: `${applicantInfo.firstName} ${applicantInfo.lastName || ""}`
             },{
@@ -776,8 +776,8 @@ class Application {
         }
     }
 
-    async #sendRestoreApplicationEmail(application) {
-        const [applicantInfo, CCEmails, BCCUserEmails] = await this.#cancelApplicationEmailInfo(application);
+    async sendRestoreApplicationEmail(application) {
+        const [applicantInfo, CCEmails, BCCUserEmails] = await this.cancelApplicationEmailInfo(application);
         if (!applicantInfo?.email) {
             console.error("Restore submission request email notification does not have any recipient", `Application ID: ${application?._id}`);
             return;
@@ -794,7 +794,7 @@ class Application {
 
     }
 
-    async #sendEmailFinalInactiveApplication(application) {
+    async sendEmailFinalInactiveApplication(application) {
         const [aSubmitter, BCCUsers] = await Promise.all([
             this.userService.getUserByID(application?.applicant?.applicantID),
             this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_EXPIRING],
@@ -825,7 +825,7 @@ class Application {
         }
     }
 
-    async #sendEmailInactiveApplication(application, interval) {
+    async sendEmailInactiveApplication(application, interval) {
         const [aSubmitter, BCCUsers] = await Promise.all([
             this.userService.getUserByID(application?.applicant?.applicantID),
             this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_EXPIRING],
@@ -858,14 +858,14 @@ class Application {
     }
 
     // Generates a query for the status of all email notification reminder.
-    #getEveryReminderQuery(remindSubmissionDay, status) {
+    getEveryReminderQuery(remindSubmissionDay, status) {
         return remindSubmissionDay.reduce((acc, day) => {
-            acc[`${this.#INACTIVE_REMINDER}_${day}`] = status;
+            acc[`${this.INACTIVE_REMINDER}_${day}`] = status;
             return acc;
-        }, {[`${this.#FINAL_INACTIVE_REMINDER}`]: status});
+        }, {[`${this.FINAL_INACTIVE_REMINDER}`]: status});
     }
 
-    async #saveApprovedStudies(aApplication, questionnaire) {
+    async saveApprovedStudies(aApplication, questionnaire) {
         // use study name when study abbreviation is not available
         const studyAbbreviation = !!aApplication?.studyAbbreviation?.trim() ? aApplication?.studyAbbreviation : questionnaire?.study?.name;
         const controlledAccess = aApplication?.controlledAccess;
@@ -882,7 +882,7 @@ class Application {
     async verifyReviewerPermission(context) {
         verifySession(context)
             .verifyInitialized();
-        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.REVIEW);
+        const userScope = await this.getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.REVIEW);
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }

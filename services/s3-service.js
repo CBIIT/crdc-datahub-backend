@@ -213,7 +213,7 @@ class S3Service {
         let fileObjects = [];
         const listRecursively = async (params) => {
             try {
-                const data = await this.#listObjectsV2(params);
+                const data = await this.listObjectsV2(params);
                 if (data.Contents) {
                     fileObjects.push(...data.Contents);
                     if (data.IsTruncated) {  // If more objects are available, continue with the next token
@@ -231,7 +231,7 @@ class S3Service {
         return fileObjects;
     }
 
-    async #listObjectsV2(params) {
+    async listObjectsV2(params) {
         return new Promise((resolve, reject) => {
             this.s3.listObjectsV2(params, (err, data) => {
                 if (err) {
@@ -299,7 +299,7 @@ class S3Service {
         }
         //2) delete deletable files
         if (filesToBeDelete.length > 0) {
-            await this.#deleteObjects(bucketName, filesToBeDelete);
+            await this.deleteObjects(bucketName, filesToBeDelete);
             console.info(`Purged ${filesToBeDelete.length} deleted data files successfully: [${filesToBeDelete}].`);
         }
         else 
@@ -307,7 +307,7 @@ class S3Service {
         return true;  // if no exceptions
     }
 
-    async #deleteObjects(bucketName, fileKeyList) {
+    async deleteObjects(bucketName, fileKeyList) {
         const deleteParams = {
             Bucket: bucketName,
             Delete: { Objects: fileKeyList.map(fileKey => ({ Key: fileKey})) }

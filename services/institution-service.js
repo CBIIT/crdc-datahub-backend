@@ -14,7 +14,7 @@ const {replaceErrorString} = require("../utility/string-util");
 const {UserScope} = require("../domain/user-scope");
 
 class InstitutionService {
-    #ALL_FILTER = "All";
+    ALL_FILTER = "All";
     constructor(institutionCollection, userCollection, authorizationService) {
         this.institutionCollection = institutionCollection;
         this.userCollection = userCollection;
@@ -28,7 +28,7 @@ class InstitutionService {
     async createInstitution(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const userScope = await this.#getUserScope(context?.userInfo, ADMIN.MANAGE_INSTITUTIONS);
+        const userScope = await this.getUserScope(context?.userInfo, ADMIN.MANAGE_INSTITUTIONS);
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -43,7 +43,7 @@ class InstitutionService {
             throw new Error(replaceErrorString(ERROR.INVALID_INSTITUTION_STATUS, params?.status))
         }
 
-        const institutions = await this.#findOneByCaseInsensitiveName(newName);
+        const institutions = await this.findOneByCaseInsensitiveName(newName);
         if (institutions.length > 0) {
             throw new Error(ERROR.DUPLICATE_INSTITUTION_NAME, newName);
         }
@@ -61,7 +61,7 @@ class InstitutionService {
     }
 
     // Returns all institution names as a String array
-    async #listInstitutions() {
+    async listInstitutions() {
         const institutions = await this.institutionCollection.findAll();
         let institutionsArray = [];
         institutions.forEach(x => {
@@ -86,14 +86,14 @@ class InstitutionService {
     async updateInstitution(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const userScope = await this.#getUserScope(context?.userInfo, ADMIN.MANAGE_INSTITUTIONS);
+        const userScope = await this.getUserScope(context?.userInfo, ADMIN.MANAGE_INSTITUTIONS);
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
         const {_id: institutionID, name, status} = params;
         const aInstitution = await this.getInstitutionByID(institutionID);
-        await this.#validateUpdateInstitution(aInstitution, institutionID, name, status);
+        await this.validateUpdateInstitution(aInstitution, institutionID, name, status);
         const [newName, newStatus] = [name?.trim() || aInstitution.name, status?.trim() || aInstitution.status];
         // no update
         if (newName === aInstitution.name && newStatus === aInstitution.status) {
@@ -125,7 +125,7 @@ class InstitutionService {
     async getInstitution(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const userScope = await this.#getUserScope(context?.userInfo, ADMIN.MANAGE_INSTITUTIONS);
+        const userScope = await this.getUserScope(context?.userInfo, ADMIN.MANAGE_INSTITUTIONS);
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -139,7 +139,7 @@ class InstitutionService {
     }
 
 
-    async #validateUpdateInstitution(currInstitution, institutionID, name, status) {
+    async validateUpdateInstitution(currInstitution, institutionID, name, status) {
         if (!currInstitution) {
             throw new Error(replaceErrorString(ERROR.INSTITUTION_ID_NOT_EXIST, institutionID));
         }
@@ -154,7 +154,7 @@ class InstitutionService {
         }
 
         if (trimmedName) {
-            const existingInstitutions = await this.#findOneByCaseInsensitiveName(trimmedName);
+            const existingInstitutions = await this.findOneByCaseInsensitiveName(trimmedName);
             const isDuplicate = existingInstitutions.some(inst => inst?._id !== institutionID);
             if (isDuplicate) {
                 throw new Error(ERROR.DUPLICATE_INSTITUTION_NAME, trimmedName);
@@ -168,7 +168,7 @@ class InstitutionService {
     }
 
     // find one institution by a name
-    async #findOneByCaseInsensitiveName(name) {
+    async findOneByCaseInsensitiveName(name) {
         return await this.institutionCollection.aggregate([{
             $match: {
                 $expr: {
@@ -181,7 +181,7 @@ class InstitutionService {
         }, { $limit: 1 }]);
     }
 
-    // Verify the user session then call #listInsitutions()
+    // Verify the user session then call listInsitutions()
     async listInstitutions(params, context) {
         verifySession(context)
             .verifyInitialized();
@@ -204,7 +204,7 @@ class InstitutionService {
         };
 
         const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
-        const pipeline = [{"$match": this.#listConditions(params?.name, params?.status)}, userJoin,
+        const pipeline = [{"$match": this.listConditions(params?.name, params?.status)}, userJoin,
             {
             $project: {
                 _id: 1,
@@ -228,17 +228,17 @@ class InstitutionService {
         }
     }
 
-    #listConditions(institutionName, status){
+    listConditions(institutionName, status){
         const validStatus = [INSTITUTION.STATUSES.INACTIVE, INSTITUTION.STATUSES.ACTIVE];
         const nameCondition = institutionName ? {name: { $regex: institutionName?.trim().replace(/\\/g, "\\\\"), $options: "i" }} : {};
-        const statusCondition = status && status !== this.#ALL_FILTER ?
+        const statusCondition = status && status !== this.ALL_FILTER ?
             { status: { $in: [status] || [] } } : { status: { $in: validStatus } };
         return {...nameCondition , ...statusCondition}
     }
 
     async addNewInstitutions(institutionNames){
         try{
-            const existingInstitutions = await this.#listInstitutions();
+            const existingInstitutions = await this.listInstitutions();
             const newInstitutionNames = getListDifference(institutionNames, existingInstitutions);
             if (newInstitutionNames.length > 0){
                 const newInstitutions = createNewInstitutions(newInstitutionNames);
@@ -255,7 +255,7 @@ class InstitutionService {
         }
     }
 
-    async #getUserScope(userInfo, permission) {
+    async getUserScope(userInfo, permission) {
         const validScopes = await this.authorizationService.getPermissionScope(userInfo, permission);
         const userScope = UserScope.create(validScopes);
         // valid scopes; none, all, role/role:RoleScope

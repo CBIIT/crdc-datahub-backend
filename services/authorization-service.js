@@ -8,12 +8,12 @@ const {
 } = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 
 class AuthorizationService {
-    #allPermissionNamesSet = new Set([...Object.values(SUBMISSION_REQUEST), ...Object.values(DATA_SUBMISSION), ...Object.values(ADMIN)]);
-    #DEFAULT_OUTPUT = {
+    allPermissionNamesSet = new Set([...Object.values(SUBMISSION_REQUEST), ...Object.values(DATA_SUBMISSION), ...Object.values(ADMIN)]);
+    DEFAULT_OUTPUT = {
         scope: SCOPES.NONE,
         scopeValues: []
     };
-    #EVERY_SCOPE_VALUES = Object.values(SCOPES);
+    EVERY_SCOPE_VALUES = Object.values(SCOPES);
     constructor(configurationService) {
         this.configurationService = configurationService;
     }
@@ -29,7 +29,7 @@ class AuthorizationService {
      * scope values
      */
     async getPermissionScope(user, permission){
-        const defaultOutput = [this.#DEFAULT_OUTPUT];
+        const defaultOutput = [this.DEFAULT_OUTPUT];
         const userPermissions = user?.permissions;
         if (!userPermissions || !permission){
             return defaultOutput;
@@ -38,13 +38,13 @@ class AuthorizationService {
         for (const userPermission of userPermissions){
             const permissionAndScope = parsePermissionString(userPermission);
             if (permissionAndScope?.permission === permission) {
-                return await this.#getScopePermission(user, permissionAndScope, permission);
+                return await this.getScopePermission(user, permissionAndScope, permission);
             }
         }
         return defaultOutput;
     }
 
-    async #getScopePermission(user, permissionAndScope, permission) {
+    async getScopePermission(user, permissionAndScope, permission) {
         let scopes = permissionAndScope?.scopes || [];
         let scopeValues = permissionAndScope?.scopeValues || [];
         if (scopes.length === 0){
@@ -130,9 +130,9 @@ class AuthorizationService {
                 continue;
             }
             const { permission, scopes: inputScope, scopeValues: inputScopeValues } = parsePermissionString(p);
-            const outputScopes = await this.#getScopePermission(user, {scopes: inputScope, scopeValues: inputScopeValues}, permission);
-            const hasAnyScope = outputScopes?.some(scope => this.#EVERY_SCOPE_VALUES.includes(scope.scope));
-            if (this.#allPermissionNamesSet.has(permission) && (hasAnyScope) && inputScope?.length > 0) {
+            const outputScopes = await this.getScopePermission(user, {scopes: inputScope, scopeValues: inputScopeValues}, permission);
+            const hasAnyScope = outputScopes?.some(scope => this.EVERY_SCOPE_VALUES.includes(scope.scope));
+            if (this.allPermissionNamesSet.has(permission) && (hasAnyScope) && inputScope?.length > 0) {
                 filtered.push(p);
             }
         }

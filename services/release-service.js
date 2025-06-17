@@ -9,8 +9,8 @@ const {APPROVED_STUDIES_COLLECTION, DATA_COMMONS_COLLECTION} = require("../crdc-
 const {SORT, DIRECTION} = require("../crdc-datahub-database-drivers/constants/monogodb-constants");
 
 class ReleaseService {
-    #ALL_FILTER = "All";
-    #STUDY_NODE = "study";
+    ALL_FILTER = "All";
+    STUDY_NODE = "study";
     constructor(releaseCollection, authorizationService) {
         this.releaseCollection = releaseCollection;
         this.authorizationService = authorizationService;
@@ -19,7 +19,7 @@ class ReleaseService {
     async listReleasedStudies(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        const userScope = await this.getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
         if (userScope.isNoneScope()) {
             console.warn("Failed permission verification for listing release studies, returning empty list");
             return {total: 0, studies: []};
@@ -32,15 +32,15 @@ class ReleaseService {
 
         const filterConditions = [
             // default filter for listing released studies
-            this.#listConditions(params.name, params.dbGaPID, originalDataCommons, userScope),
+            this.listConditions(params.name, params.dbGaPID, originalDataCommons, userScope),
             // no filter for dataCommons aggregation
-            this.#listConditions(null, null, null, userScope),
+            this.listConditions(null, null, null, userScope),
         ];
 
         const [listConditions, dataCommonsCondition] = filterConditions;
         const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
         const combinedPipeline = [
-            {$match: {nodeType: this.#STUDY_NODE, studyID: {$exists: true}}},
+            {$match: {nodeType: this.STUDY_NODE, studyID: {$exists: true}}},
             {$group:{
                 _id: "$studyID",
                 dataCommons: { $addToSet: "$dataCommons" }
@@ -103,7 +103,7 @@ class ReleaseService {
 
         const [releaseStudies, dataCommons] = await Promise.all([
             this.releaseCollection.aggregate(combinedPipeline),
-            this.releaseCollection.distinct("dataCommons", {nodeType: this.#STUDY_NODE, studyID: {$exists: true}, ...dataCommonsCondition}),
+            this.releaseCollection.distinct("dataCommons", {nodeType: this.STUDY_NODE, studyID: {$exists: true}, ...dataCommonsCondition}),
         ]);
 
         return {
@@ -115,8 +115,8 @@ class ReleaseService {
         }
     }
 
-    #listConditions(studyName, dbGaPID, dataCommonsParams, userScope){
-        const dataCommonsCondition = dataCommonsParams && !dataCommonsParams?.includes(this.#ALL_FILTER) ?
+    listConditions(studyName, dbGaPID, dataCommonsParams, userScope){
+        const dataCommonsCondition = dataCommonsParams && !dataCommonsParams?.includes(this.ALL_FILTER) ?
             { dataCommons: { $in: dataCommonsParams || [] } } : {};
 
         const nameCondition = studyName
@@ -137,20 +137,20 @@ class ReleaseService {
             return baseConditions;
         } else if (userScope.isStudyScope()) {
             const studyScope = userScope.getStudyScope();
-            const isAllStudy = studyScope?.scopeValues?.includes(this.#ALL_FILTER);
+            const isAllStudy = studyScope?.scopeValues?.includes(this.ALL_FILTER);
             const studyQuery = isAllStudy ? {} : {studyID: {$in: studyScope?.scopeValues}};
             return {...baseConditions, ...studyQuery};
          } else if (userScope.isDCScope()) {
             const DCScopes = userScope.getDataCommonsScope();
             const filtered = dataCommonsParams?.filter((scope) => DCScopes.scopeValues.includes(scope));
-            const dataCommonsCondition = dataCommonsParams && !dataCommonsParams?.includes(this.#ALL_FILTER) ?
+            const dataCommonsCondition = dataCommonsParams && !dataCommonsParams?.includes(this.ALL_FILTER) ?
                 { dataCommons: { $in: filtered || [] } } : { dataCommons: { $in: DCScopes.scopeValues } };
             return {...baseConditions, ...dataCommonsCondition};
         }
         throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
     }
 
-    async #getUserScope(userInfo, aPermission) {
+    async getUserScope(userInfo, aPermission) {
         const validScopes = await this.authorizationService.getPermissionScope(userInfo, aPermission);
         const userScope = UserScope.create(validScopes);
 

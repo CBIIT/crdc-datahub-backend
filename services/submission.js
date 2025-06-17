@@ -52,7 +52,7 @@ Set.prototype.toArray = function() {
 };
 
 class Submission {
-    #NOT_ASSIGNED = "Not yet assigned";
+    NOT_ASSIGNED = "Not yet assigned";
     constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService,
                 dataRecordService, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList,
                 hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs, 
@@ -85,7 +85,7 @@ class Submission {
     async createSubmission(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
+        const userScope = await this.getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -94,10 +94,10 @@ class Submission {
         const dataType = [DATA_TYPE.METADATA_AND_DATA_FILES, DATA_TYPE.METADATA_ONLY].find((i) => i.toLowerCase() === params?.dataType.toLowerCase());
         validateCreateSubmissionParams(params, this.allowedDataCommons, this.hiddenDataCommons, intention, dataType, context?.userInfo);
         const [approvedStudies, modelVersion, program] = await Promise.all([
-            this.#findApprovedStudies([params.studyID]),
+            this.findApprovedStudies([params.studyID]),
             (async () => {
                 const latestDataModel = await this.fetchDataModelInfo();
-                return this.#getModelVersion(latestDataModel, params.dataCommons);
+                return this.getModelVersion(latestDataModel, params.dataCommons);
             })(),
             (async () => {
                 const programs = await this.organizationService.findOneByStudyID(params?.studyID);
@@ -122,10 +122,10 @@ class Submission {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
         }
 
-        await this.#remindPrimaryContactEmail(newSubmission, approvedStudy, program);
+        await this.remindPrimaryContactEmail(newSubmission, approvedStudy, program);
         return newSubmission;
     }
-    async #findApprovedStudies(studies) {
+    async findApprovedStudies(studies) {
         if (!studies || studies.length === 0) return [];
         const studiesIDs = (studies[0] instanceof Object) ? studies.map((study) => study?._id) : studies;
         const approvedStudies = await this.userService.approvedStudiesCollection.aggregate([{
@@ -139,7 +139,7 @@ class Submission {
     async listSubmissions(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        const userScope = await this.getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
         if (userScope.isNoneScope()) {
             console.warn("Failed permission verification for listSubmissions, returning empty list");
             return {submissions: [], total: 0};
@@ -148,15 +148,15 @@ class Submission {
 
         const filterConditions = [
             // default filter for listing submissions
-            this.#listConditions(context?.userInfo, params.status, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
+            this.listConditions(context?.userInfo, params.status, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
             // no filter for dataCommons aggregation
-            this.#listConditions(context?.userInfo, ALL_FILTER, ALL_FILTER, null, null, ALL_FILTER, ALL_FILTER, userScope),
+            this.listConditions(context?.userInfo, ALL_FILTER, ALL_FILTER, null, null, ALL_FILTER, ALL_FILTER, userScope),
             // note: Aggregation of Submitter name should not be filtered by a submitterName
-            this.#listConditions(context?.userInfo, params?.status, params.organization, params.name, params.dbGaPID, params.dataCommons, ALL_FILTER, userScope),
+            this.listConditions(context?.userInfo, params?.status, params.organization, params.name, params.dbGaPID, params.dataCommons, ALL_FILTER, userScope),
             // note: Aggregation of Organization name should not be filtered by a organization
-            this.#listConditions(context?.userInfo, params?.status, ALL_FILTER, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
+            this.listConditions(context?.userInfo, params?.status, ALL_FILTER, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
             // note: Aggregation of status name should not be filtered by a statues
-            this.#listConditions(context?.userInfo, ALL_FILTER, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
+            this.listConditions(context?.userInfo, ALL_FILTER, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
         ]
 
         const [listConditions, dataCommonsCondition, submitterNameCondition, organizationCondition, statusCondition] = filterConditions;
@@ -210,7 +210,7 @@ class Submission {
             .type([BATCH.TYPE.METADATA, BATCH.TYPE.DATA_FILE]);
         const aSubmission = await findByID(this.submissionCollection, params.submissionID);
 
-        this.#verifyBatchPermission(aSubmission, userInfo?._id);
+        this.verifyBatchPermission(aSubmission, userInfo?._id);
 
         // The submission status must be valid states
         if (![NEW, IN_PROGRESS ,WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
@@ -260,7 +260,7 @@ class Submission {
         }
 
         const aSubmission = await findByID(this.submissionCollection, aBatch.submissionID);
-        this.#verifyBatchPermission(aSubmission, userInfo?._id);
+        this.verifyBatchPermission(aSubmission, userInfo?._id);
 
         // check if it's a heartbeat call sent by CLI of uploading data file.
         // CLI uploader sends uploading heartbeat every 5 min by calling the API with a parameter, uploading: true
@@ -312,7 +312,7 @@ class Submission {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
 
-        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        const viewScope = await this.getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
         if (viewScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -329,7 +329,7 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
 
-        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        const viewScope = await this.getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
         const isNotPermitted = viewScope.isNoneScope();
         if (isNotPermitted) {
           throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
@@ -338,7 +338,7 @@ class Submission {
         await Promise.all([
             // Store data file size into submission document
             (async () => {
-                const dataFileSize = await this.#getS3DirectorySize(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/`);
+                const dataFileSize = await this.getS3DirectorySize(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/`);
                 const isDataFileChanged = aSubmission?.dataFileSize?.size !== dataFileSize.size || aSubmission?.dataFileSize?.formatted !== dataFileSize.formatted;
                 if (isDataFileChanged) {
                     const updatedSubmission = await this.submissionCollection.findOneAndUpdate({_id: aSubmission?._id}, {dataFileSize, updatedAt: getCurrentTime()}, {returnDocument: 'after', upsert: true});
@@ -394,7 +394,7 @@ class Submission {
         // Store the timestamp for the inactive submission purpose
         const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
         if (conditionSubmitter) {
-            const everyReminderDays = this.#getEveryReminderQuery(this.emailParams.remindSubmissionDay, false);
+            const everyReminderDays = this.getEveryReminderQuery(this.emailParams.remindSubmissionDay, false);
             const updateSubmission = await this.submissionCollection.findOneAndUpdate({_id: aSubmission?._id},
                 {accessedAt: getCurrentTime(), ...everyReminderDays},
                 {returnDocument: 'after'});
@@ -420,7 +420,7 @@ class Submission {
      * @param {string} prefix - The path (prefix) within the S3 bucket.
      * @returns {Promise<{formatted: string, size: number}>}
      */
-    async #getS3DirectorySize(bucketName, prefix){
+    async getS3DirectorySize(bucketName, prefix){
         const dataFiles = await this.s3Service.listFileInDir(bucketName, prefix);
         const fileSize = dataFiles.reduce((sum, file) => sum + file.Size, 0);
         return FileSize.createFileSize(fileSize);
@@ -447,21 +447,21 @@ class Submission {
         const collaboratorUserIDs = Collaborators.createCollaborators(submission?.collaborators).getEditableCollaboratorIDs();
         // User has valid permissions or collaborator, valid user scope, with the callback function
         if (!await verifier.isValidPermissions(action, userInfo, collaboratorUserIDs, async (...args) => {
-            return await this.#getUserScope(...args, submission);
+            return await this.getUserScope(...args, submission);
         })) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         const newStatus = verifier.getNewStatus();
         const [userScope, dataFileSize, orphanedErrorFiles, uploadingBatches] = await Promise.all([
-            this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.ADMIN_SUBMIT, submission),
-            this.#getS3DirectorySize(submission?.bucketName, `${submission?.rootPath}/${FILE}/`),
+            this.getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.ADMIN_SUBMIT, submission),
+            this.getS3DirectorySize(submission?.bucketName, `${submission?.rootPath}/${FILE}/`),
             this.qcResultsService.findBySubmissionErrorCodes(params.submissionID, ERRORS.CODES.F008_MISSING_DATA_NODE_FILE),
             this.batchService.findOneBatchByStatus(params.submissionID, BATCH.STATUSES.UPLOADING)
         ]);
 
         const submissionAttributes = SubmissionAttributes.create(!userScope.isNoneScope(), submission, dataFileSize?.size, orphanedErrorFiles?.length > 0, uploadingBatches.length > 0);
         verifier.isValidSubmitAction(!userScope.isNoneScope(), submission, params?.comment, submissionAttributes);
-        await this.#isValidReleaseAction(action, submission?._id, submission?.studyID, submission?.crossSubmissionStatus);
+        await this.isValidReleaseAction(action, submission?._id, submission?.studyID, submission?.crossSubmissionStatus);
         //update submission
         let events = submission.history || [];
         // admin permission and submit action only can leave a comment
@@ -487,14 +487,14 @@ class Submission {
         // Send complete action
         const completePromise = [];
         if (action === ACTIONS.COMPLETE) {
-            completePromise.push(this.#sendCompleteMessage({type: COMPLETE_SUBMISSION, submissionID}, submissionID));
+            completePromise.push(this.sendCompleteMessage({type: COMPLETE_SUBMISSION, submissionID}, submissionID));
         }
         if (action === ACTIONS.RELEASE) {
             completePromise.push(this.dataRecordService.exportMetadata(submissionID));
         }
         if (action === ACTIONS.REJECT && submission?.intention === INTENTION.DELETE && oldStatus === RELEASED) {
             //based on CRDCDH-2338 to send a restoring deleted data file SQS message so validator can execute the restoration.
-            completePromise.push(this.#sendCompleteMessage({type: RESTORE_DELETED_DATA_FILES, submissionID}, submissionID));
+            completePromise.push(this.sendCompleteMessage({type: RESTORE_DELETED_DATA_FILES, submissionID}, submissionID));
         }
 
         //log event and send notification
@@ -502,15 +502,15 @@ class Submission {
         await Promise.all([
             this.logCollection.insert(logEvent),
             submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService, this.emailParams, this.dataCommonsBucketMap),
-            this.#archiveCancelSubmission(action, submissionID, submission?.bucketName, submission?.rootPath)
+            this.archiveCancelSubmission(action, submissionID, submission?.bucketName, submission?.rootPath)
         ].concat(completePromise));
         return submission;
     }
 
-    async #archiveCancelSubmission(action, submissionID, bucketName, rootPath) {
+    async archiveCancelSubmission(action, submissionID, bucketName, rootPath) {
         if (action === ACTIONS.CANCEL) {
             try {
-                await this.#archiveSubmission(submissionID, bucketName, rootPath);
+                await this.archiveSubmission(submissionID, bucketName, rootPath);
                 console.debug(`Successfully archive canceled submissions: ${submissionID}.`);
             } catch (e) {
                 console.error(`Failed to delete files under archived canceled submission: ${submissionID} with error: ${e.message}.`);
@@ -520,7 +520,7 @@ class Submission {
 
     async remindInactiveSubmission() {
         // The system sends an email reminder a day before the data submission expires
-        const finalInactiveSubmissions = await this.#getInactiveSubmissions(this.emailParams.finalRemindSubmissionDay - 1, FINAL_INACTIVE_REMINDER)
+        const finalInactiveSubmissions = await this.getInactiveSubmissions(this.emailParams.finalRemindSubmissionDay - 1, FINAL_INACTIVE_REMINDER)
         if (finalInactiveSubmissions?.length > 0) {
             await Promise.all(finalInactiveSubmissions.map(async (aSubmission) => {
                 await sendEmails.finalRemindInactiveSubmission(this.emailParams, aSubmission, this.userService, this.organizationService, this.notificationService);
@@ -529,7 +529,7 @@ class Submission {
                 .map(submission => submission._id);
             const query = {_id: {$in: submissionIDs}};
             // Disable all reminders to ensure no notifications are sent.
-            const everyReminderDays = this.#getEveryReminderQuery(this.emailParams.remindSubmissionDay, true);
+            const everyReminderDays = this.getEveryReminderQuery(this.emailParams.remindSubmissionDay, true);
             const updatedReminder = await this.submissionCollection.updateMany(query, everyReminderDays);
             if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
                 console.error("The email reminder flag intended to notify the inactive submission user (FINAL) is not being stored", `submissionIDs: ${submissionIDs.join(', ')}`);
@@ -539,7 +539,7 @@ class Submission {
         const inactiveSubmissionPromises = [];
         for (const day of this.emailParams.remindSubmissionDay) {
             const pastInactiveDays = this.emailParams.finalRemindSubmissionDay - day;
-            inactiveSubmissionPromises.push([pastInactiveDays, await this.#getInactiveSubmissions(pastInactiveDays, `${INACTIVE_REMINDER}_${day}`)]);
+            inactiveSubmissionPromises.push([pastInactiveDays, await this.getInactiveSubmissions(pastInactiveDays, `${INACTIVE_REMINDER}_${day}`)]);
         }
         const inactiveSubmissionResult = await Promise.all(inactiveSubmissionPromises);
         const inactiveSubmissionMapByDays = inactiveSubmissionResult.reduce((acc, [key, value]) => {
@@ -596,7 +596,7 @@ class Submission {
 
     }
 
-    async #getInactiveSubmissions(inactiveDays, inactiveFlagField) {
+    async getInactiveSubmissions(inactiveDays, inactiveFlagField) {
         const remindCondition = {
             accessedAt: {
                 $lt: subtractDaysFromNow(inactiveDays),
@@ -610,7 +610,7 @@ class Submission {
         return await this.submissionCollection.aggregate([{$match: remindCondition}]);
     }
 
-    async #isValidReleaseAction(action, submissionID, studyID, crossSubmissionStatus) {
+    async isValidReleaseAction(action, submissionID, studyID, crossSubmissionStatus) {
         if (action?.toLowerCase() === ACTIONS.RELEASE.toLowerCase()) {
             const submissions = await this.submissionCollection.aggregate([{"$match": {_id: {"$ne": submissionID}, studyID: studyID}}]);
             // Throw error if other submissions associated with the same study
@@ -621,7 +621,7 @@ class Submission {
         }
     }
 
-    async #sendCompleteMessage(msg, submissionID) {
+    async sendCompleteMessage(msg, submissionID) {
         try {
             await this.awsService.sendSQSMessage(msg, submissionID, submissionID, this.metadataQueueName);
         } catch (e) {
@@ -638,7 +638,7 @@ class Submission {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
 
-        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        const viewScope = await this.getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
         if (viewScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -660,9 +660,9 @@ class Submission {
         }
         const userInfo = context.userInfo;
 
-        const createScope = await this.#getUserScope(userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, aSubmission);
-        const reviewScope = await this.#getUserScope(userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW, aSubmission);
-        const isNotPermitted = !this.#isCollaborator(userInfo, aSubmission) && createScope.isNoneScope() && reviewScope.isNoneScope();
+        const createScope = await this.getUserScope(userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, aSubmission);
+        const reviewScope = await this.getUserScope(userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW, aSubmission);
+        const isNotPermitted = !this.isCollaborator(userInfo, aSubmission) && createScope.isNoneScope() && reviewScope.isNoneScope();
         if (isNotPermitted) {
             throw new Error(ERROR.INVALID_VALIDATE_METADATA)
         }
@@ -670,38 +670,38 @@ class Submission {
         const [prevMetadataValidationStatus, prevFileValidationStatus, prevCrossSubmissionStatus, prevTime] =
             [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus, aSubmission?.crossSubmissionStatus, aSubmission?.updatedAt];
 
-        await this.#updateValidationStatus(params?.types, aSubmission, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING, getCurrentTime());
+        await this.updateValidationStatus(params?.types, aSubmission, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING, getCurrentTime());
         const validationRecord = ValidationRecord.createValidation(aSubmission?._id, params?.types, params?.scope, VALIDATION_STATUS.VALIDATING);
         const res = await this.validationCollection.insert(validationRecord);
         if (!res?.acknowledged) {
             throw new Error(ERROR.FAILED_INSERT_VALIDATION_OBJECT);
         }
         const result = await this.dataRecordService.validateMetadata(params._id, params?.types, params?.scope, validationRecord._id);
-        const updatedSubmission = await this.#recordSubmissionValidation(params._id, validationRecord, params?.types, aSubmission);
+        const updatedSubmission = await this.recordSubmissionValidation(params._id, validationRecord, params?.types, aSubmission);
         // roll back validation if service failed
         if (!result.success) {
             if (result.message && result.message.includes(ERROR.NO_VALIDATION_METADATA)) {
                 if (result.message.includes(ERROR.FAILED_VALIDATE_FILE)) 
-                    await this.#updateValidationStatus(params?.types, updatedSubmission, null, prevFileValidationStatus, null, getCurrentTime(), validationRecord);
+                    await this.updateValidationStatus(params?.types, updatedSubmission, null, prevFileValidationStatus, null, getCurrentTime(), validationRecord);
                 else {
-                    await this.#updateValidationStatus(params?.types, updatedSubmission, null, "NA", null, getCurrentTime(), validationRecord);
+                    await this.updateValidationStatus(params?.types, updatedSubmission, null, "NA", null, getCurrentTime(), validationRecord);
                     result.success = true;
                 }
             } 
             else if (result.message && result.message.includes(ERROR.NO_NEW_VALIDATION_METADATA)){
                 if (result.message.includes(ERROR.FAILED_VALIDATE_FILE))
-                    await this.#updateValidationStatus(params?.types, updatedSubmission, prevMetadataValidationStatus, prevFileValidationStatus, null, prevTime, validationRecord);
+                    await this.updateValidationStatus(params?.types, updatedSubmission, prevMetadataValidationStatus, prevFileValidationStatus, null, prevTime, validationRecord);
                 else {
-                    await this.#updateValidationStatus(params?.types, updatedSubmission, prevMetadataValidationStatus, "NA", null, prevTime, validationRecord);
+                    await this.updateValidationStatus(params?.types, updatedSubmission, prevMetadataValidationStatus, "NA", null, prevTime, validationRecord);
                     result.success = true;
                 }
             } else if (result.message && result.message.includes(ERROR.FAILED_VALIDATE_CROSS_SUBMISSION)) {
-                await this.#updateValidationStatus(params?.types, updatedSubmission, null, null, prevCrossSubmissionStatus, prevTime, validationRecord);
+                await this.updateValidationStatus(params?.types, updatedSubmission, null, null, prevCrossSubmissionStatus, prevTime, validationRecord);
             } else {
                 const metadataValidationStatus = result.message.includes(ERROR.FAILED_VALIDATE_METADATA) ? prevMetadataValidationStatus : "NA";
                 const fileValidationStatus = (result.message.includes(ERROR.FAILED_VALIDATE_FILE)) ? prevFileValidationStatus : "NA";
                 const crossSubmissionStatus = result.message.includes(ERROR.FAILED_VALIDATE_CROSS_SUBMISSION) ? prevCrossSubmissionStatus : "NA";
-                await this.#updateValidationStatus(params?.types, updatedSubmission, metadataValidationStatus, fileValidationStatus, crossSubmissionStatus, prevTime, validationRecord);
+                await this.updateValidationStatus(params?.types, updatedSubmission, metadataValidationStatus, fileValidationStatus, crossSubmissionStatus, prevTime, validationRecord);
             }
         }
         return result;
@@ -716,7 +716,7 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        const reviewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW, aSubmission);
+        const reviewScope = await this.getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW, aSubmission);
         if (reviewScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION)
         }
@@ -733,7 +733,7 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        const viewScope = await this.getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
         if (viewScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -763,7 +763,7 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        const viewScope = await this.getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
         if (viewScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -778,7 +778,7 @@ class Submission {
             if (nodeID) query.nodeID = new RegExp(nodeID, 'i');
             const result = await this.dataRecordService.submissionNodes(submissionID, nodeType, 
                 first, offset, orderBy, sortDirection, query);
-            return this.#ProcessSubmissionNodes(result);
+            return this.ProcessSubmissionNodes(result);
         }
         else {
              //1) cal s3 listObjectV2
@@ -786,7 +786,7 @@ class Submission {
                 .then(result => 
                 {
                     //process the file info and return the submission file list
-                    return this.#listSubmissionDataFiles(params, result);
+                    return this.listSubmissionDataFiles(params, result);
                 })
                 .catch(err => {
                     console.log(err);
@@ -795,7 +795,7 @@ class Submission {
         }
         
     }
-    #ProcessSubmissionNodes(result, IDPropName=null) {
+    ProcessSubmissionNodes(result, IDPropName=null) {
         let returnVal = {
             total: 0,
             IDPropName: IDPropName,
@@ -830,7 +830,7 @@ class Submission {
         return returnVal;
     }
 
-    async #listSubmissionDataFiles(params, listedObjects) {
+    async listSubmissionDataFiles(params, listedObjects) {
         let s3Files = [];
         let returnVal = {
             total: 0,
@@ -927,7 +927,7 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        const viewScope = await this.getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
         if (viewScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -949,7 +949,7 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        const viewScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        const viewScope = await this.getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
         if (viewScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -958,7 +958,7 @@ class Submission {
             throw new Error(ERROR.INVALID_NODE_RELATIONSHIP);
         }
         const result = await this.dataRecordService.RelatedNodes(params);
-        return this.#ProcessSubmissionNodes(result[0], result[1]);
+        return this.ProcessSubmissionNodes(result[0], result[1]);
     }
 
     /**
@@ -974,7 +974,7 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        this.#verifyBatchPermission(aSubmission, context?.userInfo?._id);
+        this.verifyBatchPermission(aSubmission, context?.userInfo?._id);
         //set parameters
         const parameters = {submissionID: params.submissionID, apiURL: params.apiURL, 
             dataFolder: (params.dataFolder)?  params.dataFolder : "/Users/my_name/my_files",
@@ -987,7 +987,7 @@ class Submission {
         //insert data model file node properties into the string
         const latestDataModel = await this.fetchDataModelInfo();
         //insert token into the string
-        configString = await this.#replaceToken(context, configString);
+        configString = await this.replaceToken(context, configString);
         /** test code: write yaml string to file for verification of output **/
         // write2file(configString, "logs/userUploaderConfig.yaml")
         /** end test code **/
@@ -1007,11 +1007,11 @@ class Submission {
         if (!aSubmission) {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        this.#verifyBatchPermission(aSubmission, context?.userInfo?._id);
+        this.verifyBatchPermission(aSubmission, context?.userInfo?._id);
 
         // data model file node properties into the string
         const latestDataModel = await this.fetchDataModelInfo();
-        const fileConfig = this.#getModelFileNodeInfo(aSubmission, latestDataModel);
+        const fileConfig = this.getModelFileNodeInfo(aSubmission, latestDataModel);
         const uploadingHeartbeatConfig = await this.configurationService.findByType(UPLOADING_HEARTBEAT_CONFIG_TYPE);
         return {id_field: fileConfig["id-field"],
             name_field: fileConfig["name-field"],
@@ -1067,7 +1067,7 @@ class Submission {
                     throw new Error(ERROR.INVALID_COLLABORATOR_ROLE_SUBMITTER);
                 }
                 //check if user has the study the submission.
-                if (!this.#verifyStudyInUserStudies(user, aSubmission.studyID))
+                if (!this.verifyStudyInUserStudies(user, aSubmission.studyID))
                     throw new Error(ERROR.INVALID_COLLABORATOR_STUDY);
                 // validate collaborator permission
                 if (!Object.values(COLLABORATOR_PERMISSIONS).includes(collaborator.permission)) {
@@ -1089,7 +1089,7 @@ class Submission {
             throw new Error(ERROR.FAILED_ADD_SUBMISSION_COLLABORATOR);
     }
 
-    #verifyStudyInUserStudies(user, studyId){
+    verifyStudyInUserStudies(user, studyId){
         if(!user?.studies || user.studies.length === 0 )
             return false;
         const userStudy = (user.studies[0] instanceof Object)? user.studies.find(s=>s._id === studyId || s._id === "All"):
@@ -1097,7 +1097,7 @@ class Submission {
         return (userStudy)? true: false;
     }
 
-    #getModelFileNodeInfo(aSubmission, dataModelInfo){
+    getModelFileNodeInfo(aSubmission, dataModelInfo){
         const modelFileNodeInfos = Object.values(dataModelInfo?.[aSubmission.dataCommons]?.[DATA_MODEL_SEMANTICS]?.[DATA_MODEL_FILE_NODES]);
         const omit_DCF_prefix = dataModelInfo?.[aSubmission.dataCommons]?.['omit-DCF-prefix'];
         if (modelFileNodeInfos.length > 0) {
@@ -1110,7 +1110,7 @@ class Submission {
         }
     }
 
-    async #replaceToken(context, configString){
+    async replaceToken(context, configString){
         //check user's token
         const tokens = context.userInfo?.tokens;
         if (tokens && tokens.length > 0 && verifyToken(tokens[tokens.length-1], config.token_secret)) {
@@ -1123,7 +1123,7 @@ class Submission {
         return configString.format({token: tokenDict.tokens[0]})
     }
 
-    async #getExistingDataFiles(fileNames, aSubmission) {
+    async getExistingDataFiles(fileNames, aSubmission) {
         const filePromises = fileNames
             .map(fileName =>
                 this.s3Service.listFile(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}/${fileName}`)
@@ -1141,14 +1141,14 @@ class Submission {
         return existingFiles;
     }
 
-    async #getAllSubmissionDataFiles(bucketName, rootPath) {
+    async getAllSubmissionDataFiles(bucketName, rootPath) {
         const AllDataFiles = await this.s3Service.listFileInDir(bucketName, `${rootPath}/${FILE}/`);
         return AllDataFiles
             ?.filter((f) => f.Key !== `${rootPath}/${FILE}/`)
             ?.map((f)=> f.Key.replace(`${rootPath}/${FILE}/`, ''));
     }
 
-    async #deleteDataFiles(existingFiles, aSubmission) {
+    async deleteDataFiles(existingFiles, aSubmission) {
         // Set a flag when initiating the deletion of S3 files.
         await this.submissionCollection.update({_id: aSubmission?._id, updatedAt: getCurrentTime(), deletingData: true});
         const existingFilesArr = Array.from(existingFiles.values());
@@ -1200,7 +1200,7 @@ class Submission {
             //archive related data and delete files in s3
             for (const sub of archiveSubs) {
                 try {
-                    await this.#archiveSubmission(sub._id, sub.bucketName, sub.rootPath);
+                    await this.archiveSubmission(sub._id, sub.bucketName, sub.rootPath);
                     console.debug(`Successfully archive completed submissions: ${sub._id}.`);
                 } catch (e) {
                     console.error(`Failed to delete files under archived completed submission: ${sub._id} with error: ${e.message}.`);
@@ -1215,7 +1215,7 @@ class Submission {
         }
     }
 
-    async #archiveSubmission(submissionID, bucketName, rootPath) {
+    async archiveSubmission(submissionID, bucketName, rootPath) {
         const result = await this.s3Service.deleteDirectory(bucketName, rootPath);
         if (result === true) {
             await this.dataRecordService.archiveMetadataByFilter({"submissionID": submissionID});
@@ -1260,7 +1260,7 @@ class Submission {
             }
 
             await Promise.all(deletedSubmissions.map(async (aSubmission) => {
-                await this.#sendEmailsDeletedSubmissions(aSubmission);
+                await this.sendEmailsDeletedSubmissions(aSubmission);
             }));
             return (failedDeleteSubs.length === 0 )? "successful!" : `Failed to delete files under submissions: ${failedDeleteSubs.toString()}.  please contact admin.`;
         }
@@ -1270,7 +1270,7 @@ class Submission {
         }
     }
 
-    async #remindPrimaryContactEmail(aSubmission, approvedStudy, aProgram) {
+    async remindPrimaryContactEmail(aSubmission, approvedStudy, aProgram) {
         const [dcpUsers, CCUsers] = await Promise.all([
             this.userService.userCollection.aggregate([{"$match": {
                     "userStatus": USER.STATUSES.ACTIVE,
@@ -1296,12 +1296,12 @@ class Submission {
                 submissionName: `${aSubmission?.name}`,
                 studyFullName: studyFullName || NA,
                 programName: aProgram?.name || NA,
-                primaryContactName: primaryContactName?.length > 0 ? primaryContactName : this.#NOT_ASSIGNED
+                primaryContactName: primaryContactName?.length > 0 ? primaryContactName : this.NOT_ASSIGNED
             });
         }
     }
 
-    async #sendEmailsDeletedSubmissions(aSubmission) {
+    async sendEmailsDeletedSubmissions(aSubmission) {
          const [aSubmitter, BCCUsers, approvedStudy] = await Promise.all([
             this.userService.getUserByID(aSubmission?.submitterID),
             this.userService.getUsersByNotifications([EN.DATA_SUBMISSION.DELETE],
@@ -1362,29 +1362,29 @@ class Submission {
             throw new Error(ERROR.INVALID_DELETE_SUBMISSION_STATUS);
         }
 
-        const createScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, aSubmission);
-        const isNotPermitted = !this.#isCollaborator(context?.userInfo, aSubmission) && createScope.isNoneScope();
+        const createScope = await this.getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, aSubmission);
+        const isNotPermitted = !this.isCollaborator(context?.userInfo, aSubmission) && createScope.isNoneScope();
         if (isNotPermitted) {
             throw new Error(ERROR.INVALID_DELETE_DATA_RECORDS_PERMISSION)
         }
 
         if (params?.nodeType === VALIDATION.TYPES.DATA_FILE) {
-            const existingFiles = await this.#getExistingDataFiles(params.nodeIDs, aSubmission);
+            const existingFiles = await this.getExistingDataFiles(params.nodeIDs, aSubmission);
             // note: file not existing in the s3 bucket should be deleted
             const notExistingFileNames = params.nodeIDs.filter(item => !existingFiles.has(item));
             await this.qcResultsService.deleteQCResultBySubmissionID(aSubmission._id, VALIDATION.TYPES.DATA_FILE, notExistingFileNames);
             if (existingFiles.size === 0) {
                 return ValidationHandler.handle(ERROR.DELETE_NO_DATA_FILE_EXISTS);
             }
-            const deletedFiles = await this.#deleteDataFiles(existingFiles, aSubmission);
+            const deletedFiles = await this.deleteDataFiles(existingFiles, aSubmission);
             if (deletedFiles.length > 0) {
                 const [submissionDataFiles, dataFileSize] = await Promise.all([
                     // note: file deleted in s3 bucket should be deleted
-                    this.#getAllSubmissionDataFiles(aSubmission?.bucketName, aSubmission?.rootPath),
-                    this.#getS3DirectorySize(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/`),
+                    this.getAllSubmissionDataFiles(aSubmission?.bucketName, aSubmission?.rootPath),
+                    this.getS3DirectorySize(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/`),
                     // note: file deleted in s3 bucket should be deleted
                     this.qcResultsService.deleteQCResultBySubmissionID(aSubmission._id, VALIDATION.TYPES.DATA_FILE, deletedFiles),
-                    this.#logDataRecord(context?.userInfo, aSubmission._id, VALIDATION.TYPES.DATA_FILE, deletedFiles),
+                    this.logDataRecord(context?.userInfo, aSubmission._id, VALIDATION.TYPES.DATA_FILE, deletedFiles),
                 ]);
                 // note: reset fileValidationStatus if the number of data files changed. No data files exists if null
                 const fileValidationStatus = submissionDataFiles.length > 0 ? VALIDATION_STATUS.NEW : null;
@@ -1394,7 +1394,7 @@ class Submission {
         }
 
         const msg = {type: DELETE_METADATA, submissionID: params.submissionID, nodeType: params.nodeType, nodeIDs: params.nodeIDs}
-        const success = await this.#requestDeleteDataRecords(msg, this.sqsLoaderQueue, params.submissionID, params.submissionID);
+        const success = await this.requestDeleteDataRecords(msg, this.sqsLoaderQueue, params.submissionID, params.submissionID);
         const updated = await this.submissionCollection.updateOne({_id: aSubmission?._id}, {deletingData: isTrue(success?.success), updatedAt: getCurrentTime()});
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
             console.error(ERROR.FAILED_UPDATE_DELETE_STATUS, aSubmission?._id);
@@ -1402,7 +1402,7 @@ class Submission {
         }
 
         if (isTrue(success?.success)) {
-            await this.#logDataRecord(context?.userInfo, aSubmission._id, params.nodeType, params.nodeIDs);
+            await this.logDataRecord(context?.userInfo, aSubmission._id, params.nodeType, params.nodeIDs);
         }
         return success;
     }
@@ -1442,13 +1442,13 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW, aSubmission);
+        const userScope = await this.getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW, aSubmission);
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
         const dataModels = await this.fetchDataModelInfo();
-        const validVersions = this.#getAllModelVersions(dataModels, aSubmission?.dataCommons);
+        const validVersions = this.getAllModelVersions(dataModels, aSubmission?.dataCommons);
 
         if (!validVersions.includes(version)) {
             throw new Error(replaceErrorString(ERROR.INVALID_MODEL_VERSION, `${version || " "}`));
@@ -1474,11 +1474,11 @@ class Submission {
                 updatedAt: getCurrentTime()},
             {returnDocument: 'after'}
         );
-        await this.#resetValidation(aSubmission?._id);
+        await this.resetValidation(aSubmission?._id);
         return updatedSubmission?.value;
     }
 
-    async #resetValidation(aSubmissionID){
+    async resetValidation(aSubmissionID){
         const [resetSubmission, resetDataRecords, resetQCResult] = await Promise.all([
             this.submissionCollection.findOneAndUpdate(
                 {_id: aSubmissionID}, { // update condition
@@ -1533,7 +1533,7 @@ class Submission {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
 
-        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, submission);
+        const userScope = await this.getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, submission);
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -1563,20 +1563,20 @@ class Submission {
         const submitterCollaborator = (aSubmission?.collaborators || []).map(u => u.collaboratorID);
         const isCollaborator = submitterCollaborator.includes(userInfo?._id);
 
-        const userScope = await this.#getUserScope(userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, aSubmission);
+        const userScope = await this.getUserScope(userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, aSubmission);
         if (userScope.isNoneScope() && !isCollaborator) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         return aSubmission;
     }
 
-    async #logDataRecord(userInfo, submissionID, nodeType, nodeIDs) {
+    async logDataRecord(userInfo, submissionID, nodeType, nodeIDs) {
         const userName = `${userInfo?.lastName ? userInfo?.lastName + ',' : ''} ${userInfo?.firstName || NA}`;
         const logEvent = DeleteRecordEvent.create(userInfo._id, userInfo.email, userName, submissionID, nodeType, nodeIDs);
         await this.logCollection.insert(logEvent);
     }
 
-    async #requestDeleteDataRecords(message, queueName, deDuplicationId, submissionID) {
+    async requestDeleteDataRecords(message, queueName, deDuplicationId, submissionID) {
         try {
             await this.awsService.sendSQSMessage(message, deDuplicationId, deDuplicationId, queueName);
             return ValidationHandler.success();
@@ -1587,7 +1587,7 @@ class Submission {
     }
 
     // private function
-    async #updateValidationStatus(types, aSubmission, metaStatus, fileStatus, crossSubmissionStatus, updatedTime, validationRecord = null) {
+    async updateValidationStatus(types, aSubmission, metaStatus, fileStatus, crossSubmissionStatus, updatedTime, validationRecord = null) {
         const typesToUpdate = {};
         if (crossSubmissionStatus && crossSubmissionStatus !== "NA" && types.includes(VALIDATION.TYPES.CROSS_SUBMISSION)) {
             typesToUpdate.crossSubmissionStatus = crossSubmissionStatus;
@@ -1618,12 +1618,12 @@ class Submission {
     }
 
     // Get all data-model version from the given url.
-    #getAllModelVersions(dataModels, dataCommonType) {
+    getAllModelVersions(dataModels, dataCommonType) {
         return dataModels?.[dataCommonType]?.["versions"] || [];
     }
 
 
-    #getModelVersion(dataModelInfo, dataCommonType) {
+    getModelVersion(dataModelInfo, dataCommonType) {
         const modelVersion = dataModelInfo?.[dataCommonType]?.["current-version"];
         if (modelVersion) {
             return modelVersion;
@@ -1631,7 +1631,7 @@ class Submission {
         throw new Error(ERROR.INVALID_DATA_MODEL_VERSION);
     }
 
-    async #recordSubmissionValidation(submissionID, validationRecord, dataTypes, submission) {
+    async recordSubmissionValidation(submissionID, validationRecord, dataTypes, submission) {
         // The file/metadata only allowed for recording validation
         const metadataTypes = validationRecord.type?.filter((i) => i === VALIDATION.TYPES.METADATA || i === VALIDATION.TYPES.FILE);
         if (metadataTypes.length === 0) {
@@ -1646,19 +1646,19 @@ class Submission {
     }
 
     // Generates a query for the status of all email notification reminder.
-    #getEveryReminderQuery(remindSubmissionDay, status) {
+    getEveryReminderQuery(remindSubmissionDay, status) {
         return remindSubmissionDay.reduce((acc, day) => {
             acc[`${INACTIVE_REMINDER}_${day}`] = status;
             return acc;
         }, {[`${FINAL_INACTIVE_REMINDER}`]: status});
     }
 
-    #isCollaborator(userInfo, aSubmission) {
+    isCollaborator(userInfo, aSubmission) {
         const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
         return collaboratorUserIDs.includes(userInfo?._id);
     }
 
-    #listConditions(userInfo, status, organizationID, submissionName, dbGaPID, dataCommonsParams, submitterName, userScope){
+    listConditions(userInfo, status, organizationID, submissionName, dbGaPID, dataCommonsParams, submitterName, userScope){
         const {_id, dataCommons, studies} = userInfo;
         const validSubmissionStatus = [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
             REJECTED, WITHDRAWN, DELETED];
@@ -1727,7 +1727,7 @@ class Submission {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
 
-        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        const userScope = await this.getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -1755,14 +1755,14 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
 
-        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        const userScope = await this.getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
         const [adminSubmitUserScope, dataFileSize, orphanedErrorFiles, uploadingBatches] = await Promise.all([
-            this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.ADMIN_SUBMIT, aSubmission),
-            this.#getS3DirectorySize(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/`),
+            this.getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.ADMIN_SUBMIT, aSubmission),
+            this.getS3DirectorySize(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/`),
             this.qcResultsService.findBySubmissionErrorCodes(params.submissionID, ERRORS.CODES.F008_MISSING_DATA_NODE_FILE),
             this.batchService.findOneBatchByStatus(params.submissionID, BATCH.STATUSES.UPLOADING)
         ]);
@@ -1774,7 +1774,7 @@ class Submission {
         }
     }
 
-    #verifyBatchPermission(aSubmission, userID) {
+    verifyBatchPermission(aSubmission, userID) {
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
@@ -1786,7 +1786,7 @@ class Submission {
         }
     }
 
-    async #getUserScope(userInfo, aPermission, aSubmission = null) {
+    async getUserScope(userInfo, aPermission, aSubmission = null) {
         const validScopes = await this.authorizationService.getPermissionScope(userInfo, aPermission);
         const userScope = UserScope.create(validScopes);
         const isRoleScope = userScope.isRoleScope();
@@ -1795,7 +1795,7 @@ class Submission {
         const isStudyScope = userScope.isStudyScope();
         const isDCScope = userScope.isDCScope();
         // DC scope, study scope, own scope including collaborator, and role scope is missing valid scope values
-        if (aSubmission && ((isOwnScope && (userInfo?._id !== aSubmission?.submitterID && !this.#isCollaborator(userInfo, aSubmission))) ||
+        if (aSubmission && ((isOwnScope && (userInfo?._id !== aSubmission?.submitterID && !this.isCollaborator(userInfo, aSubmission))) ||
             isStudyScope && !userScope.hasStudyValue(aSubmission?.studyID) ||
             isDCScope && !userScope.hasDCValue(aSubmission?.dataCommons) ||
             isRoleScope && !userScope.getRoleScope()?.scopeValues?.length === 0
@@ -2220,7 +2220,7 @@ class DataValidation {
 }
 
 class DataSubmission {
-    #SUBMISSIONS = "submissions";
+    SUBMISSIONS = "submissions";
     constructor(name, userInfo, dataCommons, dbGaPID, aProgram, modelVersion, intention, dataType, approvedStudy, submissionBucketName) {
         this._id = v4();
         this.name = name;
@@ -2239,9 +2239,9 @@ class DataSubmission {
             abbreviation: (aProgram && aProgram?.abbreviation) ? aProgram?.abbreviation : null
         };
         this.bucketName = submissionBucketName;
-        this.rootPath = `${this.#SUBMISSIONS}/${this._id}`;
-        this.conciergeName = this.#getConciergeName(approvedStudy, aProgram);
-        this.conciergeEmail = this.#getConciergeEmail(approvedStudy, aProgram);
+        this.rootPath = `${this.SUBMISSIONS}/${this._id}`;
+        this.conciergeName = this.getConciergeName(approvedStudy, aProgram);
+        this.conciergeEmail = this.getConciergeEmail(approvedStudy, aProgram);
         this.createdAt = this.updatedAt = getCurrentTime();
         // no metadata to be validated
         this.metadataValidationStatus = this.fileValidationStatus = this.crossSubmissionStatus = null;
@@ -2263,7 +2263,7 @@ class DataSubmission {
         return new DataSubmission(name, userInfo, dataCommons, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization, submissionBucketName);
     }
 
-    #getConciergeName(approvedStudy, aProgram){
+    getConciergeName(approvedStudy, aProgram){
         if (approvedStudy?.primaryContact) {
             const conciergeName = `${approvedStudy.primaryContact?.firstName} ${approvedStudy.primaryContact?.lastName || ''}`;
             return conciergeName?.trim();
@@ -2273,7 +2273,7 @@ class DataSubmission {
             return null;
         }
     }
-    #getConciergeEmail(approvedStudy, aProgram){
+    getConciergeEmail(approvedStudy, aProgram){
         if (approvedStudy?.primaryContact) {
             return approvedStudy.primaryContact.email;
         } else if (aProgram) {
@@ -2315,18 +2315,18 @@ class Collaborators {
     }
 
     getEditableCollaboratorIDs() {
-        return this.#getEditableCollaborators(this.collaborators)
+        return this.getEditableCollaborators(this.collaborators)
             .map(i => i?.collaboratorID) || [];
     }
 
-    #getEditableCollaborators(collaborators) {
+    getEditableCollaborators(collaborators) {
         return collaborators
             .filter(i => i?.permission === COLLABORATOR_PERMISSIONS.CAN_EDIT);
     }
 }
 
 class SubmissionAttributes {
-    #validationStatuses = [VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING];
+    validationStatuses = [VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING];
     constructor(isAdminAction, aSubmission, dataFileSize, hasOrphanFile, isBatchUploading) {
         this.isSubmissionStatusNew = aSubmission?.status === NEW;
         // 1. The metadataValidationStatus and fileValidationStatus should not be Validating.
@@ -2341,9 +2341,9 @@ class SubmissionAttributes {
         const ignoreErrorValidation = isAdminAction && (this.isMetadataValidationError || this.isDatafileValidationError);
 
         this.isReadyMetadataOnly = aSubmission?.dataType === DATA_TYPE.METADATA_ONLY &&
-            (ignoreErrorValidation || this.#validationStatuses.includes(aSubmission?.metadataValidationStatus));
+            (ignoreErrorValidation || this.validationStatuses.includes(aSubmission?.metadataValidationStatus));
         this.isReadyMetadataDataFile = aSubmission?.dataType === DATA_TYPE.METADATA_AND_DATA_FILES &&
-            (ignoreErrorValidation || (this.#validationStatuses.includes(aSubmission?.metadataValidationStatus) && this.#validationStatuses.includes(aSubmission?.fileValidationStatus)));
+            (ignoreErrorValidation || (this.validationStatuses.includes(aSubmission?.metadataValidationStatus) && this.validationStatuses.includes(aSubmission?.fileValidationStatus)));
 
         // 2. The dataFileSize.size property should be greater than 0 for submissions with the data type Metadata and Data Files.; ignore if metadata only && delete intention
         const ignoreDataFileValidation = aSubmission?.intention === INTENTION.DELETE || aSubmission?.dataType === DATA_TYPE.METADATA_ONLY;
@@ -2351,7 +2351,7 @@ class SubmissionAttributes {
         // 3. The metadataValidationStatus and fileValidationStatus should not be New
         this.isValidationNotNew = aSubmission?.metadataValidationStatus !== VALIDATION_STATUS.NEW && aSubmission?.fileValidationStatus !== VALIDATION_STATUS.NEW;
         // 4. Metadata validation should be initialized for submissions with the intention Delete.
-        this.isValidDeleteIntention = aSubmission?.intention === INTENTION.UPDATE || (aSubmission?.intention === INTENTION.DELETE && this.#validationStatuses.includes(aSubmission?.metadataValidationStatus));
+        this.isValidDeleteIntention = aSubmission?.intention === INTENTION.UPDATE || (aSubmission?.intention === INTENTION.DELETE && this.validationStatuses.includes(aSubmission?.metadataValidationStatus));
         this.hasOrphanError = hasOrphanFile;
         this.isAdminSubmit = isAdminAction;
     }
