@@ -65,7 +65,6 @@ class ApprovedStudiesService {
      * Get an Approved Study by ID API Interface.
      * 
      * @api
-     * @note This is an ADMIN only operation.
      * @param {{ _id: string }} params Endpoint parameters
      * @param {{ cookie: Object, userInfo: Object }} context the request context
      * @returns {Promise<Object>} The requested ApprovedStudy
@@ -74,10 +73,6 @@ class ApprovedStudiesService {
     async getApprovedStudyAPI(params, context) {
         verifySession(context)
           .verifyInitialized();
-        const userScope = await this.#getUserScope(context?.userInfo, ADMIN.MANAGE_STUDIES);
-        if (userScope.isNoneScope()) {
-            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
-        }
         return getDataCommonsDisplayNamesForApprovedStudy(await this.getApprovedStudy(params));
     }
 

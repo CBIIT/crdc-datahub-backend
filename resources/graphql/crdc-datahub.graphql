@@ -1,5 +1,6 @@
 directive @public on FIELD_DEFINITION|QUERY
 scalar Date
+scalar JSON
 
 type Application {
     # backend managed fields
@@ -77,6 +78,22 @@ type ListReleasedStudies {
     total: Int
     dataCommonsDisplayNames: [String]
     studies: [ReleasedStudy]
+}
+
+type ListNodeTypes {
+    total: Int
+    nodes: [NodeType]
+}
+
+type NodeType {
+    count: Int
+    name: String
+}
+
+type ListReleasedNodes {
+    total: Int
+    properties: [String], #all properties of a node including parents
+    nodes: [JSON]
 }
 
 type ListSubmissions {
@@ -822,6 +839,17 @@ type Query {
         orderBy: String = "studyAbbreviation",
         sortDirection: String = "ASC"): ListReleasedStudies
     getSubmissionAttributes(submissionID: ID!): SubmissionAttributesResult
+    listReleasedDataRecords(
+        studyID: String!
+        nodeType: String!
+        properties: [String]
+        first: Int = 20
+        offset: Int = 0
+        orderBy: String,
+        sortDirection: String = "ASC"
+    ): ListReleasedNodes
+    getReleaseNodeTypes(studyID: String!): ListNodeTypes
+
 }
 type Mutation {
     "User initiated operations"

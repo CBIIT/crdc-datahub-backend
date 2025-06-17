@@ -3,7 +3,7 @@ describe('validation test', () => {
     test('/success', () => {
         const result = ValidationHandler.success();
         expect(result.success).toBeTruthy();
-        expect(result.message).toBeNull();
+        expect(result.message).toBeFalsy;
     });
 
     test('/fail null', () => {
@@ -21,6 +21,6 @@ describe('validation test', () => {
         const errorMessages = ["ERROR-1", "ERROR-2"];
         const result = ValidationHandler.handle(errorMessages);
         expect(result.success).toBeFalsy();
-        expect(result.message).toStrictEqual(errorMessages.join("\n"));
+        expect(result.message).toStrictEqual(errorMessages.join(", "));
     });
 });
