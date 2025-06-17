@@ -1,8 +1,9 @@
 const prisma = require("../prisma");
 const GenericDAO = require("./generic");
+const { MODEL_NAME } = require('../constants/db-constants');
 class UserDAO extends GenericDAO {
     constructor() {
-        super("user");
+        super(MODEL_NAME.USER);
     }
     async findByIdAndStatus(id, userStatus) {
          const user = await prisma.user.findUnique({where: {id: id, userStatus: userStatus}})

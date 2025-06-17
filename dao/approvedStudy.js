@@ -1,9 +1,10 @@
 const prisma = require("../prisma");
 const GenericDAO = require("./generic");
+const { MODEL_NAME } = require('../constants/db-constants');
 
 class ApprovedStudyDAO extends GenericDAO  {
     constructor() {
-        super("approvedStudy");
+        super(MODEL_NAME.APPROVED_STUDY);
     }
 
     async getApprovedStudyByID(studyID) {
