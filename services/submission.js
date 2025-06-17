@@ -33,6 +33,7 @@ const {getDataCommonsDisplayNamesForSubmission, getDataCommonsDisplayNamesForLis
     getDataCommonsDisplayNamesForUser, getDataCommonsDisplayNamesForReleasedNode
 } = require("../utility/data-commons-remapper");
 const {UserScope} = require("../domain/user-scope");
+const {ORGANIZATION_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -148,15 +149,15 @@ class Submission {
 
         const filterConditions = [
             // default filter for listing submissions
-            this.#listConditions(context?.userInfo, params.status, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
+            this.#listConditions(context?.userInfo, params.status, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
             // no filter for dataCommons aggregation
-            this.#listConditions(context?.userInfo, ALL_FILTER, ALL_FILTER, null, null, ALL_FILTER, ALL_FILTER, userScope),
+            this.#listConditions(context?.userInfo, ALL_FILTER, null, null, ALL_FILTER, ALL_FILTER, userScope),
             // note: Aggregation of Submitter name should not be filtered by a submitterName
-            this.#listConditions(context?.userInfo, params?.status, params.organization, params.name, params.dbGaPID, params.dataCommons, ALL_FILTER, userScope),
-            // note: Aggregation of Organization name should not be filtered by a organization
-            this.#listConditions(context?.userInfo, params?.status, ALL_FILTER, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
-            // note: Aggregation of status name should not be filtered by a statues
-            this.#listConditions(context?.userInfo, ALL_FILTER, params.organization, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
+            this.#listConditions(context?.userInfo, params?.status, params.name, params.dbGaPID, params.dataCommons, ALL_FILTER, userScope),
+            // Organization filter condition before joining an approved-studies collection
+            this.#listConditions(context?.userInfo, params?.status, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
+            // note: Aggregation of status name should not be filtered by statues
+            this.#listConditions(context?.userInfo, ALL_FILTER, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
         ]
 
         const [listConditions, dataCommonsCondition, submitterNameCondition, organizationCondition, statusCondition] = filterConditions;
@@ -169,22 +170,70 @@ class Submission {
                         else: "$dataFileSize"
                     }
                 }
-            }
-        }];
+            }},
+            {
+                $lookup: {
+                    from: ORGANIZATION_COLLECTION,
+                    let: { studyId: "$studyID" },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    "$and": [
+                                        {"$in": ["$$studyId", "$studies._id"]},
+
+
+                                    ]
+                                },
+
+                            }
+                        },
+                        { $sort: { name: -1 } },
+                        { $limit: 1 },
+                        {
+                            $project: {
+                                _id: 1,
+                                name: 1,
+                                abbreviation: 1
+                            }
+                        }
+                    ],
+                    as: "organization"
+                }
+            },
+            {
+                $unwind: {
+                    path: "$organization",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            ...(params?.organization && params?.organization !== ALL_FILTER
+                ? [{ $match: {
+                        "organization._id": params?.organization
+                    } }]
+                : [])
+        ];
         const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
         const noPaginationPipeline = pipeline.concat(paginationPipe.getNoLimitPipeline());
+        const submissionStudyIDs = await this.submissionCollection.distinct("studyID", organizationCondition);
         const promises = [
-            await this.submissionCollection.aggregate(pipeline.concat(paginationPipe.getPaginationPipeline())),
-            await this.submissionCollection.aggregate(noPaginationPipeline.concat([{ $group: { _id: "$_id" } }, { $count: "count" }])),
-            await this.submissionCollection.distinct("dataCommons", dataCommonsCondition),
+            this.submissionCollection.aggregate(pipeline.concat(paginationPipe.getPaginationPipeline())),
+            this.submissionCollection.aggregate(noPaginationPipeline.concat([{ $group: { _id: "$_id" } }, { $count: "count" }])),
+            this.submissionCollection.distinct("dataCommons", dataCommonsCondition),
             // note: Submitter name filter is omitted
-            await this.submissionCollection.distinct("submitterName", submitterNameCondition),
+            this.submissionCollection.distinct("submitterName", submitterNameCondition),
             // note: Organization ID filter is omitted
-            await this.submissionCollection.distinct("organization", organizationCondition),
+            this.organizationService.organizationCollection.aggregate([{
+                $match: {
+                        "studies._id": {$in: submissionStudyIDs}
+                    }
+            }, {
+                $project: {_id: 1, name: 1, abbreviation: 1}
+            }]),
             // note: Status name filter is omitted
-            await this.submissionCollection.distinct("status", statusCondition)
+            this.submissionCollection.distinct("status", statusCondition)
         ];
-        let listSubmissions = await Promise.all(promises).then(function(results) {
+        let listSubmissions = await Promise.all(promises).then(function (results) {
             return {
                 submissions: results[0] || [],
                 total: results[1]?.length > 0 ? results[1][0]?.count : 0,
@@ -400,17 +449,7 @@ class Submission {
                 {returnDocument: 'after'});
             aSubmission = updateSubmission.value;
         }
-
-        const programs = await this.organizationService.organizationCollection.aggregate([{ "$match": { "studies._id": aSubmission.studyID } }, { "$limit": 1 }]);
-        const aProgram = programs?.length > 0 ? programs?.pop() : {};
-        // The data concierge in the listing submission API only applies if the getSubmission is triggered.
-        if (aProgram?._id !== aSubmission?.organization?._id || aProgram?.name !== aSubmission?.organization?.name) {
-            const updatedSubmission = await this.submissionCollection.updateOne({"_id": aSubmission?._id}, {organization: {_id: aProgram?._id, name: aProgram?.name, abbreviation: aProgram?.abbreviation}, updatedAt: getCurrentTime()});
-            if (!updatedSubmission.acknowledged) {
-                console.error(`Failed to update the program in the submission: ${aSubmission?._id}`);
-            }
-        }
-        let submission = {...aSubmission, organization: {_id: aProgram?._id, name: aProgram?.name, abbreviation: aProgram?.abbreviation}}
+        let submission = {...aSubmission}
         return getDataCommonsDisplayNamesForSubmission(submission);
     }
 
@@ -1657,22 +1696,19 @@ class Submission {
         return collaboratorUserIDs.includes(userInfo?._id);
     }
 
-    #listConditions(userInfo, status, organizationID, submissionName, dbGaPID, dataCommonsParams, submitterName, userScope){
+    #listConditions(userInfo, status, submissionName, dbGaPID, dataCommonsParams, submitterName, userScope){
         const {_id, dataCommons, studies} = userInfo;
         const validSubmissionStatus = [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
             REJECTED, WITHDRAWN, DELETED];
         const statusCondition = status && !status?.includes(ALL_FILTER) ?
             { status: { $in: status || [] } } : { status: { $in: validSubmissionStatus } };
 
-        const organizationCondition = organizationID && organizationID !== ALL_FILTER ?
-            { "organization._id": organizationID } : {};
-
         const nameCondition = submissionName ? {name: { $regex: submissionName?.trim().replace(/\\/g, "\\\\"), $options: "i" }} : {};
         const dbGaPIDCondition = dbGaPID ? {dbGaPID: { $regex: dbGaPID?.trim().replace(/\\/g, "\\\\"), $options: "i" }} : {};
         const dataCommonsCondition = (dataCommonsParams && dataCommonsParams !== ALL_FILTER) ? {dataCommons: dataCommonsParams?.trim()} : {};
         const submitterNameCondition = (submitterName && submitterName !== ALL_FILTER) ? {submitterName: submitterName?.trim()} : {};
 
-        const baseConditions = { ...statusCondition, ...organizationCondition, ...nameCondition,
+        const baseConditions = { ...statusCondition, ...nameCondition,
             ...dbGaPIDCondition, ...dataCommonsCondition, ...submitterNameCondition };
 
         if (userScope.isAllScope()) {
@@ -2115,8 +2151,45 @@ const getUserEmails = (users) => {
 
 
 const findByID = async (submissionCollection, id) => {
-    const aSubmission = await submissionCollection.find(id);
-    return (aSubmission?.length > 0) ? aSubmission[0] : null;
+    const submissions = await submissionCollection.aggregate([
+        {"$match": {_id: id}},
+        {"$lookup": {
+                from: ORGANIZATION_COLLECTION,
+                let: {studyId: "$studyID"},
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: {
+                                $in: ["$$studyId", "$studies._id"]
+                            }
+                        }
+                    },
+                    {
+                        $sort: {
+                            name: -1 // THIS MUST BE DESC TO LIST SUBMISSIONS PROPERLY
+                        }
+                    },
+                    {
+                        $limit: 1
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            name: 1,
+                            abbreviation: 1
+                        }
+                    }
+                ],
+                as: "organization"
+            }
+        },
+        {$unwind: {
+                path: "$organization",
+                preserveNullAndEmptyArrays: true
+            }
+        }
+    ]);
+    return (submissions?.length > 0) ? submissions[0] : null;
 }
 
 function validateCreateSubmissionParams (params, allowedDataCommons, hiddenDataCommons, intention, dataType) {
