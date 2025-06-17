@@ -4,14 +4,14 @@ const {UserScope} = require("../domain/user-scope");
 const {replaceErrorString} = require("../utility/string-util");
 const ERROR = require("../constants/error-constants");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
-const {getDataCommonsDisplayNamesForReleasedNode, getDataCommonsDisplayName, getDataCommonsOrigin} = require("../utility/data-commons-remapper");
+const {getDataCommonsDisplayName, getDataCommonsOrigin} = require("../utility/data-commons-remapper");
 const {APPROVED_STUDIES_COLLECTION, DATA_COMMONS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {SORT, DIRECTION} = require("../crdc-datahub-database-drivers/constants/monogodb-constants");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 
 class ReleaseService {
-    #ALL_FILTER = "All";
-    #STUDY_NODE = "study";
+    _ALL_FILTER = "All";
+    _STUDY_NODE = "study";
     constructor(releaseCollection, authorizationService) {
         this.releaseCollection = releaseCollection;
         this.authorizationService = authorizationService;
@@ -20,7 +20,7 @@ class ReleaseService {
     async listReleasedStudies(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        const userScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
         if (userScope.isNoneScope()) {
             console.warn("Failed permission verification for listing release studies, returning empty list");
             return {total: 0, studies: []};
@@ -33,15 +33,15 @@ class ReleaseService {
 
         const filterConditions = [
             // default filter for listing released studies
-            this.#listStudyConditions(params.name, params.dbGaPID, originalDataCommons, userScope),
+            this._listStudyConditions(params.name, params.dbGaPID, originalDataCommons, userScope),
             // no filter for dataCommons aggregation
-            this.#listStudyConditions(null, null, null, userScope),
+            this._listStudyConditions(null, null, null, userScope),
         ];
 
         const [listConditions, dataCommonsCondition] = filterConditions;
         const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
         const combinedPipeline = [
-            {$match: {nodeType: this.#STUDY_NODE, studyID: {$exists: true}}},
+            {$match: {nodeType: this._STUDY_NODE, studyID: {$exists: true}}},
             {$group:{
                 _id: "$studyID",
                 dataCommons: { $addToSet: "$dataCommons" }
@@ -104,7 +104,7 @@ class ReleaseService {
 
         const [releaseStudies, dataCommons] = await Promise.all([
             this.releaseCollection.aggregate(combinedPipeline),
-            this.releaseCollection.distinct("dataCommons", {nodeType: this.#STUDY_NODE, studyID: {$exists: true}, ...dataCommonsCondition}),
+            this.releaseCollection.distinct("dataCommons", {nodeType: this._STUDY_NODE, studyID: {$exists: true}, ...dataCommonsCondition}),
         ]);
 
         return {
@@ -124,38 +124,37 @@ class ReleaseService {
     async getReleaseNodeTypes(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        const userScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
         if (userScope.isNoneScope()) {
             console.warn("Failed permission verification for get list node types, returning empty list");
             return {total: 0, properties: [], nodes: []};
         }
-        const userConditions = this.#listNodesConditions(null, userScope);
+        const userConditions = this._listNodesConditions(null, userScope);
         const nodeTypesPipeline = [
             {$match: {studyID: params?.studyID, ...userConditions}},
             {$group: {
                     _id: "$nodeType",
                     count: { $sum: 1 }
-                }},
+            }},
             {$project: {
                     name: "$_id",
                     count: 1,
                     _id: 0
-                }},
+            }},
             {$sort: {
                     count: 1
-                }},
+            }},
             {$facet: {
                     nodes: [],
                     total: [
                         {$group: {_id: null, total: { $sum: "$count" }}},
                         {$project: { _id: 0, total: 1 }}
                     ]
-                }},
+            }},
             {$project: {
                     nodes: "$nodes",
                     total: { $arrayElemAt: ["$total.total", 0] }
-                }},
-            {$sort: { count: -1 }}
+            }}
         ];
 
         const groupByNodes = await this.releaseCollection.aggregate(nodeTypesPipeline)
@@ -173,14 +172,14 @@ class ReleaseService {
     async listReleasedDataRecords(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        const userScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
         if (userScope.isNoneScope()) {
             console.warn("Failed permission verification for listing release metadata nodes, returning empty list");
             return {total: 0, properties: [], nodes: []};
         }
 
         const {studyID, nodeType, first, offset, orderBy, sortDirection, properties} = params;
-        const listConditions = this.#listNodesConditions(nodeType, userScope);
+        const listConditions = this._listNodesConditions(nodeType, userScope);
         const paginationPipe = new MongoPagination(first, offset, orderBy, sortDirection);
         //
         const [rootKeys, parentKeys] = [[], []];
@@ -292,7 +291,7 @@ class ReleaseService {
                     {
                         $project: {
                             _tmp: {
-                                $arrayToObject: [this.#buildKvPairsDotSafe(properties)]
+                                $arrayToObject: [this._buildKvPairsDotSafe(properties)]
                             }
                         },
                     },
@@ -303,13 +302,13 @@ class ReleaseService {
                     },
                     {
                         $sort: {
-                            [this.#dotToSafe(orderBy)]: getSortDirection(sortDirection),
+                            [this._dotToSafe(orderBy)]: getSortDirection(sortDirection),
                         },
                     },
 
                     {$project: {
                             _tmp2: {
-                                $arrayToObject: [this.#buildKvPairsRestore(properties)]
+                                $arrayToObject: [this._buildKvPairsRestore(properties)]
                             }
                         }
                     },
@@ -319,7 +318,7 @@ class ReleaseService {
                     },
                 ]
                 : []),
-            ...(orderBy.includes(".") ?
+            ...(orderBy?.includes(".") ?
                 [{
                     $addFields: {
                         _sortKey: {
@@ -393,13 +392,13 @@ class ReleaseService {
         }
     }
 
-    #listNodesConditions(nodesParam, userScope){
+    _listNodesConditions(nodesParam, userScope){
         const baseConditions = (nodesParam) ? { nodeType: { $in: [nodesParam] || [] } } : {};
         if (userScope.isAllScope()) {
             return baseConditions;
         } else if (userScope.isStudyScope()) {
             const studyScope = userScope.getStudyScope();
-            const isAllStudy = studyScope?.scopeValues?.includes(this.#ALL_FILTER);
+            const isAllStudy = studyScope?.scopeValues?.includes(this._ALL_FILTER);
             const studyQuery = isAllStudy ? {} : {studyID: {$in: studyScope?.scopeValues}};
             return {...baseConditions, ...studyQuery};
         } else if (userScope.isDCScope()) {
@@ -411,8 +410,8 @@ class ReleaseService {
     }
 
 
-    #listStudyConditions(studyName, dbGaPID, dataCommonsParams, userScope){
-        const dataCommonsCondition = dataCommonsParams && !dataCommonsParams?.includes(this.#ALL_FILTER) ?
+    _listStudyConditions(studyName, dbGaPID, dataCommonsParams, userScope){
+        const dataCommonsCondition = dataCommonsParams && !dataCommonsParams?.includes(this._ALL_FILTER) ?
             { dataCommons: { $in: dataCommonsParams || [] } } : {};
 
         const nameCondition = studyName
@@ -433,20 +432,20 @@ class ReleaseService {
             return baseConditions;
         } else if (userScope.isStudyScope()) {
             const studyScope = userScope.getStudyScope();
-            const isAllStudy = studyScope?.scopeValues?.includes(this.#ALL_FILTER);
+            const isAllStudy = studyScope?.scopeValues?.includes(this._ALL_FILTER);
             const studyQuery = isAllStudy ? {} : {studyID: {$in: studyScope?.scopeValues}};
             return {...baseConditions, ...studyQuery};
          } else if (userScope.isDCScope()) {
             const DCScopes = userScope.getDataCommonsScope();
             const filtered = dataCommonsParams?.filter((scope) => DCScopes.scopeValues.includes(scope));
-            const dataCommonsCondition = dataCommonsParams && !dataCommonsParams?.includes(this.#ALL_FILTER) ?
+            const dataCommonsCondition = dataCommonsParams && !dataCommonsParams?.includes(this._ALL_FILTER) ?
                 { dataCommons: { $in: filtered || [] } } : { dataCommons: { $in: DCScopes.scopeValues } };
             return {...baseConditions, ...dataCommonsCondition};
         }
         throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
     }
 
-    async #getUserScope(userInfo, aPermission) {
+    async _getUserScope(userInfo, aPermission) {
         const validScopes = await this.authorizationService.getPermissionScope(userInfo, aPermission);
         const userScope = UserScope.create(validScopes);
 
@@ -461,23 +460,23 @@ class ReleaseService {
     }
 
     // Convert a field name to a DOT-safe version (e.g., "a.b" → "a_DOT_b")
-    #dotToSafe(field) {
+    _dotToSafe(field) {
         return field.replace(/\./g, "_DOT_");
     }
 
     // Build key-value pairs for use with $getField, using DOT-safe keys
-    #buildKvPairsDotSafe(properties) {
+    _buildKvPairsDotSafe(properties) {
         return properties.map(field => ({
-            k: this.#dotToSafe(field),
+            k: this._dotToSafe(field),
             v: { $getField: { field, input: "$$ROOT" } }
         }));
     }
 
     // Build key-value pairs to restore original field names from DOT-safe ones
-    #buildKvPairsRestore(properties) {
+    _buildKvPairsRestore(properties) {
         return properties.map(field => ({
             k: field,
-            v: "$" + this.#dotToSafe(field)
+            v: "$" + this._dotToSafe(field)
         }));
     }
 
