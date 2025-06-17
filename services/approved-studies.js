@@ -81,7 +81,6 @@ class ApprovedStudiesService {
         return getDataCommonsDisplayNamesForApprovedStudy(await this.getApprovedStudy(params));
     }
 
-
     /**
      * Fetch an approved study by ID.
      * 
