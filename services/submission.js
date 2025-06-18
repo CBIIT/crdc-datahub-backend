@@ -156,7 +156,7 @@ class Submission {
             this.#listConditions(context?.userInfo, params?.status, params.name, params.dbGaPID, params.dataCommons, ALL_FILTER, userScope),
             // Organization filter condition before joining an approved-studies collection
             this.#listConditions(context?.userInfo, params?.status, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
-            // note: Aggregation of status name should not be filtered by statues
+            // note: Aggregation of status name should not be filtered by statuses
             this.#listConditions(context?.userInfo, ALL_FILTER, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
         ]
 
