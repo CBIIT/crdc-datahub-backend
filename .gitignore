@@ -8,3 +8,5 @@ node_modules
 *.vscode*
 local-files
 coverage
+dist/
+generated/prisma/

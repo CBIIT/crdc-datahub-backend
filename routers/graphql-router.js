@@ -46,6 +46,7 @@ const {AuthorizationService} = require("../services/authorization-service");
 const {UserScope} = require("../domain/user-scope");
 const {replaceErrorString} = require("../utility/string-util");
 const {ADMIN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+const {Release} = require("../services/release-service");
 
 // Create schema with constraint directive
 const schema = constraintDirective()(
@@ -119,6 +120,7 @@ dbConnector.connect().then(async () => {
     const cdeCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CDE_COLLECTION);
     const cdeService = new CDE(cdeCollection);
 
+    const releaseService = new Release(releaseCollection, authorizationService);
     root = {
         version: () => {return config.version},
         saveApplication: dataInterface.saveApplication.bind(dataInterface),
@@ -235,7 +237,11 @@ dbConnector.connect().then(async () => {
         downloadMetadataFile: submissionService.getMetadataFile.bind(submissionService),
         retrieveCLIUploaderVersion: configurationService.retrieveCLIUploaderVersion.bind(configurationService),
         userIsPrimaryContact: userService.isUserPrimaryContact.bind(userService),
-        isMaintenanceMode: configurationService.isMaintenanceMode.bind(configurationService)
+        isMaintenanceMode: configurationService.isMaintenanceMode.bind(configurationService),
+        getSubmissionAttributes: submissionService.getSubmissionAttributes.bind(submissionService),
+        listReleasedStudies: releaseService.listReleasedStudies.bind(releaseService),
+        getReleaseNodeTypes: releaseService.getReleaseNodeTypes.bind(releaseService),
+        listReleasedDataRecords: releaseService.listReleasedDataRecords.bind(releaseService)
     };
 });
 

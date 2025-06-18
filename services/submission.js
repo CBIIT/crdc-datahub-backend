@@ -498,7 +498,8 @@ class Submission {
             this.batchService.findOneBatchByStatus(params.submissionID, BATCH.STATUSES.UPLOADING)
         ]);
 
-        verifier.isValidSubmitAction(!userScope.isNoneScope(), submission, params?.comment, dataFileSize?.size, orphanedErrorFiles?.length > 0, uploadingBatches.length > 0);
+        const submissionAttributes = SubmissionAttributes.create(!userScope.isNoneScope(), submission, dataFileSize?.size, orphanedErrorFiles?.length > 0, uploadingBatches.length > 0);
+        verifier.isValidSubmitAction(!userScope.isNoneScope(), submission, params?.comment, submissionAttributes);
         await this.#isValidReleaseAction(action, submission?._id, submission?.studyID, submission?.crossSubmissionStatus);
         //update submission
         let events = submission.history || [];
@@ -1775,6 +1776,40 @@ class Submission {
         }
     }
 
+    /**
+     * API: getSubmissionAttributes; Return the validation attribute to check if the data submission can be submitted.
+     * @param {*} params
+     * @param {*} context
+     * @returns Object {SubmissionAttributes, isValidationPassed, isAdminSubmit}
+     */
+    async getSubmissionAttributes(params, context) {
+        verifySession(context)
+            .verifyInitialized();
+
+        let aSubmission = await findByID(this.submissionCollection, params?.submissionID);
+        if(!aSubmission){
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
+        }
+
+        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
+        const [adminSubmitUserScope, dataFileSize, orphanedErrorFiles, uploadingBatches] = await Promise.all([
+            this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.ADMIN_SUBMIT, aSubmission),
+            this.#getS3DirectorySize(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/`),
+            this.qcResultsService.findBySubmissionErrorCodes(params.submissionID, ERRORS.CODES.F008_MISSING_DATA_NODE_FILE),
+            this.batchService.findOneBatchByStatus(params.submissionID, BATCH.STATUSES.UPLOADING)
+        ]);
+
+        const submissionAttributes = SubmissionAttributes.create(!adminSubmitUserScope.isNoneScope(), aSubmission, dataFileSize?.size, orphanedErrorFiles?.length > 0, uploadingBatches.length > 0);
+        return {
+            submissionAttributes: submissionAttributes,
+            isValidationPassed: !submissionAttributes.isValidationNotPassed(),
+        }
+    }
+
     #verifyBatchPermission(aSubmission, userID) {
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
@@ -2360,6 +2395,48 @@ class Collaborators {
     #getEditableCollaborators(collaborators) {
         return collaborators
             .filter(i => i?.permission === COLLABORATOR_PERMISSIONS.CAN_EDIT);
+    }
+}
+
+class SubmissionAttributes {
+    #validationStatuses = [VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING];
+    constructor(isAdminAction, aSubmission, dataFileSize, hasOrphanFile, isBatchUploading) {
+        this.isSubmissionStatusNew = aSubmission?.status === NEW;
+        // 1. The metadataValidationStatus and fileValidationStatus should not be Validating.
+        this.isValidating = (aSubmission?.dataType === DATA_TYPE.METADATA_ONLY && aSubmission.metadataValidationStatus === VALIDATION_STATUS.VALIDATING) ||
+            (aSubmission?.dataType === DATA_TYPE.METADATA_AND_DATA_FILES && aSubmission.fileValidationStatus === VALIDATION_STATUS.VALIDATING);
+        this.isBatchUploading = isBatchUploading;
+        this.isValidSubmissionStatus = [IN_PROGRESS, WITHDRAWN, REJECTED]?.includes(aSubmission?.status);
+        // Admin can skip the requirement; The metadataValidationStatus and fileValidationStatus should not be Error.
+
+        this.isMetadataValidationError = aSubmission?.metadataValidationStatus === VALIDATION_STATUS.ERROR;
+        this.isDatafileValidationError = aSubmission?.fileValidationStatus === VALIDATION_STATUS.ERROR;
+        const ignoreErrorValidation = isAdminAction && (this.isMetadataValidationError || this.isDatafileValidationError);
+
+        this.isReadyMetadataOnly = aSubmission?.dataType === DATA_TYPE.METADATA_ONLY &&
+            (ignoreErrorValidation || this.#validationStatuses.includes(aSubmission?.metadataValidationStatus));
+        this.isReadyMetadataDataFile = aSubmission?.dataType === DATA_TYPE.METADATA_AND_DATA_FILES &&
+            (ignoreErrorValidation || (this.#validationStatuses.includes(aSubmission?.metadataValidationStatus) && this.#validationStatuses.includes(aSubmission?.fileValidationStatus)));
+
+        // 2. The dataFileSize.size property should be greater than 0 for submissions with the data type Metadata and Data Files.; ignore if metadata only && delete intention
+        const ignoreDataFileValidation = aSubmission?.intention === INTENTION.DELETE || aSubmission?.dataType === DATA_TYPE.METADATA_ONLY;
+        this.isValidDataFileSize = ignoreDataFileValidation || (aSubmission?.dataType === DATA_TYPE.METADATA_AND_DATA_FILES && dataFileSize > 0);
+        // 3. The metadataValidationStatus and fileValidationStatus should not be New
+        this.isValidationNotNew = aSubmission?.metadataValidationStatus !== VALIDATION_STATUS.NEW && aSubmission?.fileValidationStatus !== VALIDATION_STATUS.NEW;
+        // 4. Metadata validation should be initialized for submissions with the intention Delete.
+        this.isValidDeleteIntention = aSubmission?.intention === INTENTION.UPDATE || (aSubmission?.intention === INTENTION.DELETE && this.#validationStatuses.includes(aSubmission?.metadataValidationStatus));
+        this.hasOrphanError = hasOrphanFile;
+        this.isAdminSubmit = isAdminAction;
+    }
+
+
+    static create(isAdminAction, aSubmission, dataFileSize, hasOrphanFile, isBatchUploading) {
+        return new SubmissionAttributes(isAdminAction, aSubmission, dataFileSize, hasOrphanFile, isBatchUploading);
+    }
+
+    isValidationNotPassed() {
+        return this.isValidating || this.isBatchUploading || !this.isValidDeleteIntention || !this.isValidSubmissionStatus ||
+            !(this.isReadyMetadataOnly || this.isReadyMetadataDataFile) || !this.isValidDataFileSize || this.isSubmissionStatusNew || !this.isValidationNotNew || this.hasOrphanError;
     }
 }
 
