@@ -194,7 +194,9 @@ model ApprovedStudy {
   useProgramPC      Boolean?
   createdAt         DateTime @default(now()) @db.Date
   updatedAt         DateTime @updatedAt @db.Date
+  programIDs        String[]
 
+  study Program[] @relation(fields: [programIDs], references: [id])
   Concierge User? @relation(fields: [primaryContactID], references: [id])
 
   @@map("approvedStudies")
@@ -390,10 +392,11 @@ model Program {
   name           String
   rootPath       String?
   status         String
-  studies        StudyByID[]
   createdAt      DateTime    @default(now()) @db.Date
   updateAt       DateTime    @updatedAt @db.Date // this is a typo, but it's been like this for a while
+  studyIDs       String[]
 
+  studies ApprovedStudy[] @relation(fields: [studyIDs], references: [id])
   Concierge User? @relation(fields: [conciergeID], references: [id])
 
   @@map("organization")
