@@ -13,14 +13,6 @@ function updateSubmission() {
                 updates.studyName = study.studyName;
             }
         }
-
-        if (submission?.organization && submission?.organization?._id && !submission?.organization?.abbreviation) {
-            const org = db.organization.findOne({ _id: submission.organization._id });
-            if (org && org.abbreviation && org.abbreviation !== submission.organization.abbreviation) {
-                updates['organization.abbreviation'] = org.abbreviation;
-            }
-        }
-
         // Apply update if needed
         if (Object.keys(updates).length > 0) {
             const res = db.submissions.updateOne(
@@ -38,20 +30,29 @@ function updateSubmission() {
 }
 
 function updateNonAssignedProgram(NAProgramID) {
-    const aProgram = db.organization.findOne({ _id: NAProgramID });
-    const res = db.submissions.updateMany(
-        {$or: [{"organization._id":  {$eq: null}}, {organization: {"$exists": false}}]},
-        { $set: {
-                "organization._id": aProgram?._id,
-                "organization.name": aProgram?.name,
-                "organization.abbreviation": aProgram?.abbreviation,
-        } }
-    );
+    const approvedStudies = db.approvedStudies.find().toArray();
+    let updatedCount = 0;
+    approvedStudies.forEach(study => {
+        const studyID = study._id;
 
-    console.log(`Matched Records: ${res.matchedCount || 0}`);
-    console.log(`Updated Records: ${res.modifiedCount || 0}`);
+        const found = db.organization.findOne({
+            "studies._id": { $in: [studyID] }
+        });
+
+        if (!found) {
+            print(`Linking missing study ${studyID} to NA program...`);
+            const result = db.organization.updateOne(
+                { _id: NAProgramID },
+                { $addToSet: { studies: { _id: studyID } } }
+            );
+            if (result.modifiedCount > 0) {
+                updatedCount++;
+            }
+        }
+    });
+    console.log(`Updated Records: ${updatedCount}`);
 }
-
 updateSubmission();
 // NA program, must be created in the organization collection before running the script
+// NOTE: initializeNAProgram.js script must be run before this.
 updateNonAssignedProgram("437e864a-621b-40f5-b214-3dc368137081");
