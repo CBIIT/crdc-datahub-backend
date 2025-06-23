@@ -1,6 +1,6 @@
 const SCOPES = require("../constants/permission-scope-constants");
 class UserScope {
-    #ALL_STUDIES = "All";
+    _ALL_STUDIES = "All";
     constructor(validScopes) {
         this.scopes = validScopes || [];
     }
@@ -55,7 +55,7 @@ class UserScope {
     }
 
     hasStudyValue(studyID) {
-        return this.scopes?.some(scope => scope?.scope === SCOPES.STUDY && (scope?.scopeValues.includes(studyID) || scope?.scopeValues?.includes(this.#ALL_STUDIES)));
+        return this.scopes?.some(scope => scope?.scope === SCOPES.STUDY && (scope?.scopeValues.includes(studyID) || scope?.scopeValues?.includes(this._ALL_STUDIES)));
     }
 
     isDCScope() {

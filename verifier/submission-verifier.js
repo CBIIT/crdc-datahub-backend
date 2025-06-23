@@ -37,28 +37,28 @@ function verifySubmissionAction(action, submissionStatus, comment){
 
 class SubmissionActionVerifier {
     // Private variable
-    #actionName;
-    #permissions;
-    #fromStatus;
-    #toStatus;
+    _actionName;
+    _permissions;
+    _fromStatus;
+    _toStatus;
     constructor(actionName, permissions, fromStatus, toStatus){
-        this.#actionName = actionName;
-        this.#permissions = permissions;
-        this.#fromStatus = fromStatus;
-        this.#toStatus = toStatus;
+        this._actionName = actionName;
+        this._permissions = permissions;
+        this._fromStatus = fromStatus;
+        this._toStatus = toStatus;
     }
 
     getNewStatus() {
-        return this.#toStatus;
+        return this._toStatus;
     }
 
     getPrevStatus() {
-        return this.#fromStatus;
+        return this._fromStatus;
     }
 
 
     isValidSubmitAction(isAdminAction, aSubmission, comment, submissionAttributes) {
-        if (this.#actionName === ACTIONS.SUBMIT) {
+        if (this._actionName === ACTIONS.SUBMIT) {
             if (submissionAttributes.isValidationNotPassed()) {
                 console.error(ERROR.VERIFY.INVALID_SUBMIT_ACTION, `SubmissionID:${aSubmission?._id}`);
                 throw new Error(ERROR.VERIFY.INVALID_SUBMIT_ACTION);
@@ -72,14 +72,14 @@ class SubmissionActionVerifier {
 
     isSubmitActionCommentRequired(aSubmission, isAdminAction, comment) {
             const isError = [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus].includes(VALIDATION_STATUS.ERROR);
-            return this.#actionName === ACTIONS.SUBMIT && isAdminAction && isError && (!comment || comment?.trim()?.length === 0);
+            return this._actionName === ACTIONS.SUBMIT && isAdminAction && isError && (!comment || comment?.trim()?.length === 0);
     }
 
     async isValidPermissions(action, userInfo, collaboratorUserIDs = [], authorizationCallback) {
         const collaboratorCondition = [ACTIONS.SUBMIT, ACTIONS.WITHDRAW, ACTIONS.CANCEL].includes(action) && collaboratorUserIDs.includes(userInfo?._id);
 
         const multiUserScopes = await Promise.all(
-            this.#permissions.map(aPermission => authorizationCallback(userInfo, aPermission))
+            this._permissions.map(aPermission => authorizationCallback(userInfo, aPermission))
         );
 
         const isNotPermitted = multiUserScopes?.every(userScope => userScope.isNoneScope());

@@ -25,15 +25,15 @@ class UserInitializationService {
             // required user information is missing from userInfo
             throw new Error(ERROR.NOT_LOGGED_IN)
         }
-        let user = await this.#getUserByEmailAndIDP(email, IDP);
+        let user = await this._getUserByEmailAndIDP(email, IDP);
         let orgID = user?.organization?.orgID;
         if (!user){
             // create an account for the user
-            user = await this.#createNewUser(userInfo);
+            user = await this._createNewUser(userInfo);
         }
         if(orgID){
             // add full organization info to user info
-            user.organization = await this.#getUserOrganization(orgID);
+            user.organization = await this._getUserOrganization(orgID);
         }
 
         const isMaintenanceMode = await this.configurationService.isMaintenanceMode();
@@ -45,7 +45,7 @@ class UserInitializationService {
         return user;
     }
 
-    async #getUserOrganization(orgID){
+    async _getUserOrganization(orgID){
         let result = await this.organizationCollection.find(orgID);
         if (!result) {
             console.error("Organization lookup by orgID failed");
@@ -58,7 +58,7 @@ class UserInitializationService {
         return orgToUserOrg(result[0]);
     }
 
-    async #getUserByEmailAndIDP(email, IDP) {
+    async _getUserByEmailAndIDP(email, IDP) {
         let result = await this.userCollection.aggregate([
             {
                 "$match": {
@@ -96,7 +96,7 @@ class UserInitializationService {
         return result.length > 0 ? result[0] : null;
     }
 
-    async #createNewUser(userInfo) {
+    async _createNewUser(userInfo) {
         const email = userInfo?.email;
         const IDP = userInfo?.IDP;
         if (!email || !IDP){
