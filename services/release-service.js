@@ -135,18 +135,22 @@ class ReleaseService {
             {$match: {studyID: params?.studyID, ...userConditions}},
             {$addFields: {
                 IDPropName: {
-                    $function: {
-                        body: `
-                          function(props, nodeID) {
-                            for (const key in props) {
-                              if (props[key] === nodeID) return key;
+                    $arrayElemAt: [
+                        {
+                            $map: {
+                                input: {
+                                    $filter: {
+                                        input: { $objectToArray: "$props" },
+                                        as: "kv",
+                                        cond: { $eq: ["$$kv.v", "$nodeID"] }
+                                    }
+                                },
+                                as: "matched",
+                                in: "$$matched.k"
                             }
-                            return null;
-                          }
-                        `,
-                        args: ["$props", "$nodeID"],
-                        lang: "js"
-                    }
+                        },
+                        0
+                    ]
                 }
             }},
             {$group: {
