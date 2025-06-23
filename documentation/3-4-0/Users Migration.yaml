@@ -10,3 +10,8 @@ Commands:
           "dataCommons": "CDS",
           "dataCommonsDisplayName": "GC"
         });
+  - Set the default value of pendingModelChange to false in all approved studies CRDCDH-2926: |
+        db.approvedStudies.updateMany(
+          { pendingModelChange: { $exists: false } },
+          { $set: { pendingModelChange: false } }
+        );

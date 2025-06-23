@@ -31,6 +31,7 @@ const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN
 const NA_PROGRAM = "NA";
 
 const getApprovedStudyByID = require("../dao/approvedStudy")
+const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
 
 class ApprovedStudiesService {
     #ALL = "All";
@@ -42,8 +43,8 @@ class ApprovedStudiesService {
         this.authorizationService = authorizationService;
     }
 
-    async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName) {
-        const approvedStudies = ApprovedStudies.createApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName);
+    async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID) {
+        const approvedStudies = ApprovedStudies.createApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID);
         const res = await this.approvedStudiesCollection.findOneAndUpdate({ studyName }, approvedStudies, {returnDocument: 'after', upsert: true});
         if (!res?.value) {
             console.error(ERROR.APPROVED_STUDIES_INSERTION + ` studyName: ${studyName}`);
@@ -340,9 +341,10 @@ class ApprovedStudiesService {
             ORCID, 
             PI,
             primaryContactID,
-            useProgramPC
+            useProgramPC,
+            pendingModelChange
         } = this.#verifyAndFormatStudyParams(params);
-        // check if name is unique
+        // check if the name is unique
         await this.#validateStudyName(name)
         // check primaryContactID 
         let primaryContact = null;
@@ -355,15 +357,11 @@ class ApprovedStudiesService {
                 throw new Error(ERROR.INVALID_PRIMARY_CONTACT_ROLE);
             }
         }
-        const current_date = new Date();
+
         if (!acronym){
             acronym = name;
         }
-        let newStudy = {_id: v4(), useProgramPC: useProgramPC, studyName: name, studyAbbreviation: acronym, controlledAccess: controlledAccess, openAccess: openAccess, dbGaPID: dbGaPID, ORCID: ORCID, PI: PI, primaryContactID: primaryContactID, createdAt: current_date, updatedAt: current_date};
-        const result = await this.approvedStudiesCollection.insert(newStudy);
-        if (!result?.acknowledged) {
-            throw new Error(ERROR.FAILED_APPROVED_STUDY_INSERTION);
-        }
+        let newStudy = await this.storeApprovedStudies(name, acronym, dbGaPID, null, controlledAccess, ORCID, PI, openAccess, null, useProgramPC, pendingModelChange, primaryContactID);
         // add new study to organization with name of "NA"
         const org = await this.organizationService.getOrganizationByName(NA_PROGRAM);
         if (org && org?._id) {
@@ -397,7 +395,8 @@ class ApprovedStudiesService {
             ORCID, 
             PI,
             primaryContactID,
-            useProgramPC
+            useProgramPC,
+            pendingModelChange
         } = this.#verifyAndFormatStudyParams(params);
         let updateStudy = await this.approvedStudiesCollection.find(studyID);
         if (!updateStudy || updateStudy.length === 0) {
@@ -424,6 +423,10 @@ class ApprovedStudiesService {
         }
         if (PI !== undefined) {
             updateStudy.PI = PI;
+        }
+
+        if (pendingModelChange !== undefined) {
+            updateStudy.pendingModelChange = isTrue(pendingModelChange);
         }
 
         if (useProgramPC && primaryContactID) {

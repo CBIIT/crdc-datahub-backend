@@ -192,6 +192,7 @@ model ApprovedStudy {
   studyAbbreviation String
   studyName         String
   useProgramPC      Boolean?
+  pendingModelChange Boolean?
   createdAt         DateTime @default(now()) @db.Date
   updatedAt         DateTime @updatedAt @db.Date
 

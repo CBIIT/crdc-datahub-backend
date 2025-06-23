@@ -113,6 +113,11 @@ class Submission {
         if (approvedStudy.controlledAccess && !approvedStudy?.dbGaPID) {
             throw new Error(ERROR.MISSING_CREATE_SUBMISSION_DBGAPID);
         }
+
+        if (isTrue(approvedStudy?.pendingModelChange)) {
+            throw new Error(ERROR.PENDING_APPROVED_STUDY);
+        }
+
         if (approvedStudy?.primaryContactID) {
             approvedStudy.primaryContact = await this.userService.getUserByID(approvedStudy.primaryContactID)
         }
