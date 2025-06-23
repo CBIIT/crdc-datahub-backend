@@ -129,17 +129,40 @@ class ReleaseService {
             console.warn("Failed permission verification for get list node types, returning empty list");
             return {total: 0, properties: [], nodes: []};
         }
-        const userConditions = this._listNodesConditions(null, userScope);
+        const originDataCommons = getDataCommonsOrigin(params?.dataCommonsDisplayName) || params?.dataCommonsDisplayName;
+        const userConditions = this._listNodesConditions(null, originDataCommons, userScope);
         const nodeTypesPipeline = [
             {$match: {studyID: params?.studyID, ...userConditions}},
+            {$addFields: {
+                IDPropName: {
+                    $arrayElemAt: [
+                        {
+                            $map: {
+                                input: {
+                                    $filter: {
+                                        input: { $objectToArray: "$props" },
+                                        as: "kv",
+                                        cond: { $eq: ["$$kv.v", "$nodeID"] }
+                                    }
+                                },
+                                as: "matched",
+                                in: "$$matched.k"
+                            }
+                        },
+                        0
+                    ]
+                }
+            }},
             {$group: {
                     _id: "$nodeType",
-                    count: { $sum: 1 }
-            }},
+                    count: { $sum: 1 },
+                    IDPropName: { $first: "$IDPropName" }
+                }},
             {$project: {
                     name: "$_id",
                     count: 1,
-                    _id: 0
+                    _id: 0,
+                    IDPropName: 1
             }},
             {$sort: {
                     count: 1
@@ -178,8 +201,9 @@ class ReleaseService {
             return {total: 0, properties: [], nodes: []};
         }
 
-        const {studyID, nodeType, first, offset, orderBy, sortDirection, properties} = params;
-        const listConditions = this._listNodesConditions(nodeType, userScope);
+        const {studyID, nodeType, first, offset, orderBy, sortDirection, properties, dataCommonsDisplayName} = params;
+        const originDataCommons = getDataCommonsOrigin(dataCommonsDisplayName) || dataCommonsDisplayName;
+        const listConditions = this._listNodesConditions(nodeType, originDataCommons, userScope);
         const paginationPipe = new MongoPagination(first, offset, orderBy, sortDirection);
         //
         const [rootKeys, parentKeys] = [[], []];
@@ -392,18 +416,19 @@ class ReleaseService {
         }
     }
 
-    _listNodesConditions(nodesParam, userScope){
+    _listNodesConditions(nodesParam, dataCommonsParam, userScope){
         const baseConditions = (nodesParam) ? { nodeType: { $in: [nodesParam] || [] } } : {};
         if (userScope.isAllScope()) {
-            return baseConditions;
+            return {...baseConditions, dataCommons: dataCommonsParam};
         } else if (userScope.isStudyScope()) {
             const studyScope = userScope.getStudyScope();
             const isAllStudy = studyScope?.scopeValues?.includes(this._ALL_FILTER);
             const studyQuery = isAllStudy ? {} : {studyID: {$in: studyScope?.scopeValues}};
-            return {...baseConditions, ...studyQuery};
+            return {...baseConditions, dataCommons: dataCommonsParam, ...studyQuery};
         } else if (userScope.isDCScope()) {
             const DCScopes = userScope.getDataCommonsScope();
-            const dataCommonsCondition = { dataCommons: { $in: DCScopes.scopeValues } };
+            const aFilteredDataCommon = (dataCommonsParam && DCScopes?.scopeValues?.includes(dataCommonsParam)) ? [dataCommonsParam] : []
+            const dataCommonsCondition = { dataCommons: { $in: aFilteredDataCommon } };
             return {...baseConditions, ...dataCommonsCondition};
         }
         throw new Error(ERROR.VERIFY.INVALID_PERMISSION);

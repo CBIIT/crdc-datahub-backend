@@ -87,6 +87,7 @@ type ListNodeTypes {
 
 type NodeType {
     count: Int
+    IDPropName: String
     name: String
 }
 
@@ -847,8 +848,9 @@ type Query {
         offset: Int = 0
         orderBy: String,
         sortDirection: String = "ASC"
+        dataCommonsDisplayName: String!
     ): ListReleasedNodes
-    getReleaseNodeTypes(studyID: String!): ListNodeTypes
+    getReleaseNodeTypes(studyID: String!, dataCommonsDisplayName: String!): ListNodeTypes
 
 }
 type Mutation {
