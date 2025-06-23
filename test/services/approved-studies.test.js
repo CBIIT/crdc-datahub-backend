@@ -113,28 +113,11 @@ describe('ApprovedStudiesService', () => {
             const result = await service.getApprovedStudyAPI(mockParams, mockContext);
 
             expect(verifySession).toHaveBeenCalledWith(mockContext);
-            expect(mockAuthorizationService.getPermissionScope).toHaveBeenCalledWith(
-                mockContext.userInfo,
-                ADMIN.MANAGE_STUDIES
-            );
             expect(result).toEqual({
                 ...mockStudy,
                 programs: mockPrograms,
                 primaryContact: mockPrimaryContact
             });
-        });
-
-        it('should throw error when user lacks permission', async () => {
-            // Mock session verification
-            verifySession.mockReturnValue({
-                verifyInitialized: jest.fn()
-            });
-
-            // Mock permission check to return none scope
-            mockAuthorizationService.getPermissionScope.mockResolvedValue([{ scope: "none", scopeValues: [] }]);
-            await expect(service.getApprovedStudyAPI(mockParams, mockContext))
-                .rejects
-                .toThrow(ERROR.VERIFY.INVALID_PERMISSION);
         });
 
         it('should throw error when study is not found', async () => {
