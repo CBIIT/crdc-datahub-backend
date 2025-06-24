@@ -265,6 +265,7 @@ type ApprovedStudy {
     programs: [UserOrganization] #retrieve dynamically by studyID
     primaryContact: User
     useProgramPC: Boolean
+    pendingModelChange: Boolean
 }
 
 type ProgramList {
@@ -935,7 +936,8 @@ type Mutation {
         ORCID: String, #optional in format of 0000-1234-2345-3456
         PI: String #optional
         primaryContactID: String #data concierge user ID
-        useProgramPC: Boolean!
+        useProgramPC: Boolean!,
+        pendingModelChange: Boolean
     ): ApprovedStudy
 
     updateApprovedStudy(
@@ -948,7 +950,8 @@ type Mutation {
         ORCID: String, #optional in format of 0000-1234-2345-3456
         PI: String #optional 
         primaryContactID: String, #data concierge user ID
-        useProgramPC: Boolean!
+        useProgramPC: Boolean!,
+        pendingModelChange: Boolean
     ): ApprovedStudy
 
     requestAccess(

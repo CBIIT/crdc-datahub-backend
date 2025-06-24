@@ -164,17 +164,22 @@ describe('ApprovedStudiesService', () => {
         const programName = 'Program1';
         const fakeStudy = { studyName, studyAbbreviation };
         const fakeResult = { value: fakeStudy };
+        const useProgramPC = false;
+        const primaryContactID = null;
+        const pendingModelChange = false;
 
         it('should store and return the approved study (success)', async () => {
             ApprovedStudies.createApprovedStudies.mockReturnValue(fakeStudy);
             mockApprovedStudiesCollection.findOneAndUpdate.mockResolvedValue(fakeResult);
 
             const result = await service.storeApprovedStudies(
-                studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName
+                studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName,
+                useProgramPC, pendingModelChange, primaryContactID
             );
 
             expect(ApprovedStudies.createApprovedStudies).toHaveBeenCalledWith(
-                studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName
+                studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName,
+                useProgramPC, pendingModelChange, primaryContactID
             );
             expect(mockApprovedStudiesCollection.findOneAndUpdate).toHaveBeenCalledWith(
                 { studyName }, fakeStudy, { returnDocument: 'after', upsert: true }

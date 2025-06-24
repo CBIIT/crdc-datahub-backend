@@ -1,9 +1,7 @@
-const {v4} = require("uuid");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ERROR = require("../constants/error-constants");
 const { verifySession } = require('../verifier/user-info-verifier');
 const {ApprovedStudies} = require("../crdc-datahub-database-drivers/domain/approved-studies");
-const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {ADMIN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {
     NEW,
@@ -31,6 +29,7 @@ const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN
 const NA_PROGRAM = "NA";
 
 const getApprovedStudyByID = require("../dao/approvedStudy")
+const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
 
 class ApprovedStudiesService {
     _ALL = "All";
@@ -42,8 +41,8 @@ class ApprovedStudiesService {
         this.authorizationService = authorizationService;
     }
 
-    async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName) {
-        const approvedStudies = ApprovedStudies.createApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName);
+    async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID) {
+        const approvedStudies = ApprovedStudies.createApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID);
         const res = await this.approvedStudiesCollection.findOneAndUpdate({ studyName }, approvedStudies, {returnDocument: 'after', upsert: true});
         if (!res?.value) {
             console.error(ERROR.APPROVED_STUDIES_INSERTION + ` studyName: ${studyName}`);
@@ -340,7 +339,8 @@ class ApprovedStudiesService {
             ORCID, 
             PI,
             primaryContactID,
-            useProgramPC
+            useProgramPC,
+            pendingModelChange
         } = this._verifyAndFormatStudyParams(params);
         // check if name is unique
         await this._validateStudyName(name)
@@ -355,15 +355,11 @@ class ApprovedStudiesService {
                 throw new Error(ERROR.INVALID_PRIMARY_CONTACT_ROLE);
             }
         }
-        const current_date = new Date();
+
         if (!acronym){
             acronym = name;
         }
-        let newStudy = {_id: v4(), useProgramPC: useProgramPC, studyName: name, studyAbbreviation: acronym, controlledAccess: controlledAccess, openAccess: openAccess, dbGaPID: dbGaPID, ORCID: ORCID, PI: PI, primaryContactID: primaryContactID, createdAt: current_date, updatedAt: current_date};
-        const result = await this.approvedStudiesCollection.insert(newStudy);
-        if (!result?.acknowledged) {
-            throw new Error(ERROR.FAILED_APPROVED_STUDY_INSERTION);
-        }
+        let newStudy = await this.storeApprovedStudies(name, acronym, dbGaPID, null, controlledAccess, ORCID, PI, openAccess, null, useProgramPC, pendingModelChange, primaryContactID);
         // add new study to organization with name of "NA"
         const org = await this.organizationService.getOrganizationByName(NA_PROGRAM);
         if (org && org?._id) {
@@ -397,7 +393,8 @@ class ApprovedStudiesService {
             ORCID, 
             PI,
             primaryContactID,
-            useProgramPC
+            useProgramPC,
+            pendingModelChange
         } = this._verifyAndFormatStudyParams(params);
         let updateStudy = await this.approvedStudiesCollection.find(studyID);
         if (!updateStudy || updateStudy.length === 0) {
@@ -424,6 +421,10 @@ class ApprovedStudiesService {
         }
         if (PI !== undefined) {
             updateStudy.PI = PI;
+        }
+
+        if (pendingModelChange !== undefined) {
+            updateStudy.pendingModelChange = isTrue(pendingModelChange);
         }
 
         if (useProgramPC && primaryContactID) {
