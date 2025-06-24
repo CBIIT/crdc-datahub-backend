@@ -249,7 +249,8 @@ class ReleaseService {
                     }
                 }},
             {$unwind: {
-                    path: "$parentPairs"
+                    path: "$parentPairs",
+                    preserveNullAndEmptyArrays: true
                 }},
             {$group: {
                     _id: "$_id",
