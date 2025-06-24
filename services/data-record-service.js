@@ -34,13 +34,26 @@ const NODE_RELATION_TYPE_CHILD="child";
 const NODE_RELATION_TYPES = [NODE_RELATION_TYPE_PARENT, NODE_RELATION_TYPE_CHILD];
 const FILE = "file";
 const DATA_SHEET = {
-    SUBJECT_ID: "SUBJECT_ID",
-    SAMPLE_ID: "SAMPLE_ID",
-    RACE: "RACE",
-    AGE_ONSET: "AGE_ONSET", 
-    BODY_SITE: "BODY_SITE",
-    ANALYTE_TYPE: "ANALYTE_TYPE",
-    IS_TUMOR: "IS_TUMOR"
+    SUBJECT_ID: "study_participant_id",
+    SAMPLE_ID: "sample_id",
+    RACE: "race",
+    AGE_ONSET: "age_at_diagnosis", 
+    BODY_SITE: "sample_anatomic_site",
+    ANALYTE_TYPE: "sample_type_category",
+    IS_TUMOR: "sample_tumor_status",
+    PHS_ACCESSION: "phs_accession",
+    LIBRARY_ID: "library_id",
+    LIBRARY_STRATEGY: "library_strategy",
+    LIBRARY_SELECTION: "library_selection",
+    LIBRARY_LAYOUT: "library_layout",
+    PLATFORM: "platform",
+    INSTRUMENT_MODEL: "instrument_model",
+    DESIGN_DESCRIPTION: "design_description",
+    REFERENCE_GENOME_ASSEMBLY: "reference_genome_assembly",
+    SEQUENCE_ALIGNMENT_SOFTWARE: "sequence_alignment_software",
+    FILE_TYPE: "file_type",
+    FILE_NAME: "file_name",
+    MD5SUM: "md5sum"
 };
 class DataRecordService {
     constructor(dataRecordsCollection, dataRecordArchiveCollection, releaseCollection, fileQueueName, metadataQueueName, awsService, s3Service, qcResultsService, exportQueue) {
@@ -760,7 +773,7 @@ class DataRecordService {
             participants.map(async (participant) => {
             const subjectID = participant.props?.dbGaP_subject_id? participant.props.dbGaP_subject_id : participant.nodeID;
             const race = participant.props?.race;
-            const ageAtDiagnosis = await this.#getAgeAtDiagnosisByParticipant(subjectID, aSubmission._id);
+            const ageAtDiagnosis = await this._getAgeAtDiagnosisByParticipant(subjectID, aSubmission._id);
             return {[DATA_SHEET.SUBJECT_ID]: subjectID, [DATA_SHEET.RACE]: race, [DATA_SHEET.AGE_ONSET]: ageAtDiagnosis};
         }));
         if (subjectPhenotypeArr.length > 0){
@@ -808,7 +821,7 @@ class DataRecordService {
                     const fileName = sampleFile.props?.file_name;
                     const fileMD5 = sampleFile.props?.md5sum;
                     const fileType = sampleFile.props?.file_type;
-                    const genomicInfoList = await this.#getGenomicInfoByFile(fileID, aSubmission._id);
+                    const genomicInfoList = await this._getGenomicInfoByFile(fileID, aSubmission._id);
                     if (genomicInfoList && genomicInfoList.length > 0){
                         genomicInfoList.map((genomicInfo) => {
                             const libraryID = genomicInfo.props?.library_id;
@@ -820,11 +833,14 @@ class DataRecordService {
                             const designDescription = genomicInfo.props?.design_description;
                             const reference_genome_assembly = genomicInfo.props?.reference_genome_assembly;
                             const alignemnt_software = genomicInfo.props?.sequence_alignment_software;
-                            genomicInfoArr.push({"phs_accession": aSubmission.dbGaPID, "sample_id": biosample_accession, 
-                                "library_id": libraryID, "library_strategy": libraryStrategy, "library_selection": librarySelection,
-                                "library_layout": libraryLayout, "platform": platform, "instrument_model": instrumentModel, "design_description": designDescription,
-                                "reference_genome_assembly": reference_genome_assembly, "sequence_alignment_software": alignemnt_software,
-                                "filetype": fileType, "filename": fileName, "MD5_checksum": fileMD5});
+                            genomicInfoArr.push({[DATA_SHEET.PHS_ACCESSION]: aSubmission.dbGaPID, [DATA_SHEET.SAMPLE_ID]: biosample_accession, 
+                                [DATA_SHEET.LIBRARY_ID]: libraryID, [DATA_SHEET.LIBRARY_STRATEGY]: libraryStrategy, 
+                                [DATA_SHEET.LIBRARY_SELECTION]: librarySelection, [DATA_SHEET.LIBRARY_LAYOUT]: libraryLayout, 
+                                [DATA_SHEET.PLATFORM]: platform,[DATA_SHEET.INSTRUMENT_MODEL]: instrumentModel, 
+                                [DATA_SHEET.DESIGN_DESCRIPTION]: designDescription,
+                                [DATA_SHEET.REFERENCE_GENOME_ASSEMBLY]: reference_genome_assembly,
+                                [DATA_SHEET.SEQUENCE_ALIGNMENT_SOFTWARE]: alignemnt_software,
+                                [DATA_SHEET.FILE_TYPE]: fileType, [DATA_SHEET.FILE_NAME]: fileName, [DATA_SHEET.MD5SUM]: fileMD5});
                         });
                     }
                     return true;
@@ -846,7 +862,7 @@ class DataRecordService {
      * @param {*} subjectID 
      * @returns int
      */
-    async #getAgeAtDiagnosisByParticipant(subjectID, submissionID){
+    async _getAgeAtDiagnosisByParticipant(subjectID, submissionID){
         const diagnosis = await this.dataRecordsCollection.aggregate([{
             $match: {
                 submissionID: submissionID,
@@ -855,14 +871,14 @@ class DataRecordService {
                 "parents.parentIDValue": subjectID
             }
         }, {$limit: 1}]);
-        return diagnosis? (diagnosis?.age_at_diagnosis??null) : null;
+        return diagnosis && diagnosis.length > 0 ? (diagnosis[0].props.age_at_diagnosis) : null;
     }
     /**
      * #getGenomicInfoByFile
      * @param {*} fileID 
      * @returns array
      */
-    async #getGenomicInfoByFile(fileID, submissionID){
+    async _getGenomicInfoByFile(fileID, submissionID){
         const genomicInfos = await this.dataRecordsCollection.aggregate([{
             $match: {
                 submissionID: submissionID,
