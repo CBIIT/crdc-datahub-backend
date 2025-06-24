@@ -1,9 +1,7 @@
-const {v4} = require("uuid");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const ERROR = require("../constants/error-constants");
 const { verifySession } = require('../verifier/user-info-verifier');
 const {ApprovedStudies} = require("../crdc-datahub-database-drivers/domain/approved-studies");
-const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {ADMIN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {
     NEW,
@@ -98,17 +96,17 @@ class ApprovedStudiesService {
             throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
         }
         // find program/organization by study ID
-        approvedStudy.programs = await this.#findOrganizationByStudyID(_id)
+        approvedStudy.programs = await this._findOrganizationByStudyID(_id)
         // find primaryContact
         if (approvedStudy?.primaryContactID)
         {
-            approvedStudy.primaryContact = await this.#findUserByID(approvedStudy.primaryContactID);
+            approvedStudy.primaryContact = await this._findUserByID(approvedStudy.primaryContactID);
         }
 
         return approvedStudy;
     }
 
-    async #findOrganizationByStudyID(studyID)
+    async _findOrganizationByStudyID(studyID)
     {
         const orgIds = await this.organizationService.findByStudyID(studyID);
         if (orgIds && orgIds.length > 0 ) {
@@ -244,7 +242,7 @@ class ApprovedStudiesService {
             matches.dbGaPID = {$regex: dbGaPID, $options: 'i'};
         }
 
-        if (programID && programID !== this.#ALL) {
+        if (programID && programID !== this._ALL) {
             matches["programs._id"] = programID;
         }
 
@@ -327,7 +325,7 @@ class ApprovedStudiesService {
     async addApprovedStudyAPI(params, context) {
         verifySession(context)
           .verifyInitialized();
-        const userScope = await this.#getUserScope(context?.userInfo, ADMIN.MANAGE_STUDIES);
+        const userScope = await this._getUserScope(context?.userInfo, ADMIN.MANAGE_STUDIES);
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
