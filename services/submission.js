@@ -36,8 +36,6 @@ const {getDataCommonsDisplayNamesForSubmission, getDataCommonsDisplayNamesForLis
 } = require("../utility/data-commons-remapper");
 const {UserScope} = require("../domain/user-scope");
 const {ORGANIZATION_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
-const SubmissionDAO = require("../dao/submission");
-const {zipFilesInDir} = require("../utility/io-util");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
