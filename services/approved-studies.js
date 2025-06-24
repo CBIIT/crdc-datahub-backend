@@ -22,6 +22,9 @@ const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo
 const {SORT, DIRECTION} = require("../crdc-datahub-database-drivers/constants/monogodb-constants");
 const {UserScope} = require("../domain/user-scope");
 const {replaceErrorString} = require("../utility/string-util");
+const ApprovedStudyDAO = require("../dao/approvedStudy");
+const UserDAO = require("../dao/user");
+
 const CONTROLLED_ACCESS_ALL = "All";
 const CONTROLLED_ACCESS_OPEN = "Open";
 const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
@@ -39,6 +42,8 @@ class ApprovedStudiesService {
         this.organizationService = organizationService;
         this.submissionCollection = submissionCollection;
         this.authorizationService = authorizationService;
+        this.approvedStudyDAO = new ApprovedStudyDAO();
+         this.userDAO = new UserDAO();
     }
 
     async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID) {
@@ -125,7 +130,7 @@ class ApprovedStudiesService {
      * @returns {Promise<Object[]>} An array of ApprovedStudies
      */
     async listApprovedStudies(filters = {}) {
-        return await this.approvedStudiesCollection.aggregate([{ "$match": filters }]);
+        return await this.approvedStudyDAO.getApprovedStudiesInStudies(studyIDs);
     }
 
     /**

@@ -68,7 +68,7 @@ class UserService {
         }
 
         const approvedStudies = params?.studies?.length > 0 ?
-            await this.approvedStudiesService.listApprovedStudies({_id: {$in: params?.studies}})
+            await this.approvedStudiesService.listApprovedStudiesByIDs(params?.studies)
             : []
         if (approvedStudies.length === 0) {
             return new Error(ERROR.INVALID_APPROVED_STUDIES_ACCESS_REQUEST);

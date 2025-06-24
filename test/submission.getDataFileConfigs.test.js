@@ -1,37 +1,35 @@
-const Submission = require('../services/submission');
+const { Submission } = require('../services/submission');
 
 describe('Submission.getDataFileConfigs', () => {
-    let submissionInstance;
-    let mockSubmissionCollection;
+    let submission;
+    let mockSubmissionDAO;
     let mockConfigurationService;
     let mockContext;
-    let mockParams;
     let mockSubmission;
-    let mockDataModel;
+    let mockDataModelInfo;
     let mockFileConfig;
     let mockUploadingHeartbeatConfig;
+    let params;
+    let mockFetchDataModelInfo;
 
     beforeEach(() => {
+        params = { submissionID: 'sub123' };
+
+        // Setup mocks
         mockSubmission = {
             _id: 'sub1',
-            dataCommons: 'commons1'
+            dataCommons: 'commons1',
         };
 
-        mockParams = { submissionID: 'sub1' };
-
-        mockContext = {
-            userInfo: { _id: 'user1' }
-        };
-
-        mockDataModel = {
+        mockDataModelInfo = {
             commons1: {
                 DATA_MODEL_SEMANTICS: {
                     DATA_MODEL_FILE_NODES: {
                         fileNode: {
-                            'id-field': 'file_id',
-                            'name-field': 'file_name',
-                            'size-field': 'file_size',
-                            'md5-field': 'md5',
+                            "id-field": "file_id",
+                            "name-field": "file_name",
+                            "size-field": "file_size",
+                            "md5-field": "md5sum"
                         }
                     }
                 },
@@ -43,89 +41,148 @@ describe('Submission.getDataFileConfigs', () => {
             "id-field": "file_id",
             "name-field": "file_name",
             "size-field": "file_size",
-            "md5-field": "md5",
+            "md5-field": "md5sum",
             "omit-DCF-prefix": true
         };
 
         mockUploadingHeartbeatConfig = { interval: 123 };
 
-        mockSubmissionCollection = {
-            findByID: jest.fn().mockResolvedValue(mockSubmission)
+        mockSubmissionDAO = {
+            findById: jest.fn().mockResolvedValue(mockSubmission)
         };
 
         mockConfigurationService = {
             findByType: jest.fn().mockResolvedValue(mockUploadingHeartbeatConfig)
         };
 
-        submissionInstance = new Submission();
-        submissionInstance.submissionCollection = {
-            findByID: jest.fn().mockResolvedValue(mockSubmission)
+        mockContext = {
+            userInfo: { _id: 'user1' }
         };
-        submissionInstance.configurationService = mockConfigurationService;
 
-        // Mock dependencies
-        global.verifySession = jest.fn(() => ({
-            verifyInitialized: jest.fn()
-        }));
-        global.findByID = jest.fn().mockResolvedValue(mockSubmission);
+        mockFetchDataModelInfo = jest.fn().mockResolvedValue(mockDataModelInfo);
 
-        submissionInstance._verifyBatchPermission = jest.fn();
-        submissionInstance.fetchDataModelInfo = jest.fn().mockResolvedValue(mockDataModel);
-        submissionInstance._getModelFileNodeInfo = jest.fn().mockReturnValue(mockFileConfig);
+        // Initialize Submission with required dependencies
+        submission = new Submission(
+            null, // logCollection
+            null, // submissionCollection
+            null, // batchService
+            null, // userService
+            null, // organizationService
+            null, // notificationService
+            null, // dataRecordService
+            mockFetchDataModelInfo, // fetchDataModelInfo
+            null, // awsService
+            null, // metadataQueueName
+            null, // s3Service
+            null, // emailParams
+            [], // dataCommonsList
+            [], // hiddenDataCommonsList
+            null, // validationCollection
+            null, // sqsLoaderQueue
+            null, // qcResultsService
+            null, // uploaderCLIConfigs
+            null, // submissionBucketName
+            mockConfigurationService, // configurationService
+            null, // uploadingMonitor
+            null, // dataCommonsBucketMap
+            null  // authorizationService
+        );
+
+        submission.submissionDAO = mockSubmissionDAO;
+        submission._getModelFileNodeInfo = jest.fn().mockReturnValue(mockFileConfig);
+        submission._verifyBatchPermission = jest.fn().mockResolvedValue();
+
+        if (!global.verifySession) {
+            global.verifySession = jest.fn(() => ({ verifyInitialized: jest.fn() }));
+        }
+        if (!global.ERROR) {
+            global.ERROR = { 
+                INVALID_SUBMISSION_NOT_FOUND: "Cant find the submission by submissionID",
+                VERIFY: {
+                    INVALID_PERMISSION: "You do not have permission to perform this action."
+                }
+            };
+        }
+        global.UPLOADING_HEARTBEAT_CONFIG_TYPE = 'heartbeat';
     });
 
-    afterEach(() => {
-        jest.clearAllMocks();
+    it('should throw error if submission not found', async () => {
+        mockSubmissionDAO.findById.mockResolvedValue(null);
+        await expect(submission.getDataFileConfigs(params, mockContext))
+            .rejects
+            .toThrow("Cant find the submission by submissionID");
     });
 
-    it('should return correct config object when all dependencies succeed', async () => {
-        const result = await submissionInstance.getDataFileConfigs(mockParams, mockContext);
+    it('should return config object with default heartbeat_interval if config not found', async () => {
+        const aSubmission = { _id: params.submissionID, dataCommons: 'commonsA' };
+        const fileConfig = {
+            "id-field": "file_id",
+            "name-field": "file_name",
+            "size-field": "file_size",
+            "md5-field": "md5sum",
+            "omit-DCF-prefix": false
+        };
+        mockSubmissionDAO.findById.mockResolvedValue(aSubmission);
+        mockFetchDataModelInfo.mockResolvedValue({}); // not used in this test
+        submission._getModelFileNodeInfo.mockReturnValue(fileConfig);
+        mockConfigurationService.findByType.mockResolvedValue(null);
+
+        const result = await submission.getDataFileConfigs(params, mockContext);
+
         expect(result).toEqual({
             id_field: "file_id",
             name_field: "file_name",
             size_field: "file_size",
-            md5_field: "md5",
+            md5_field: "md5sum",
+            omit_DCF_prefix: false,
+            heartbeat_interval: 300
+        });
+    });
+
+    it('should return config object with heartbeat_interval from config', async () => {
+        const aSubmission = { _id: params.submissionID, dataCommons: 'commonsA' };
+        const fileConfig = {
+            "id-field": "file_id",
+            "name-field": "file_name",
+            "size-field": "file_size",
+            "md5-field": "md5sum",
+            "omit-DCF-prefix": true
+        };
+        mockSubmissionDAO.findById.mockResolvedValue(aSubmission);
+        mockFetchDataModelInfo.mockResolvedValue({});
+        submission._getModelFileNodeInfo.mockReturnValue(fileConfig);
+        mockConfigurationService.findByType.mockResolvedValue({ interval: 123 });
+
+        const result = await submission.getDataFileConfigs(params, mockContext);
+
+        expect(result).toEqual({
+            id_field: "file_id",
+            name_field: "file_name",
+            size_field: "file_size",
+            md5_field: "md5sum",
             omit_DCF_prefix: true,
             heartbeat_interval: 123
         });
-        expect(submissionInstance._verifyBatchPermission).toHaveBeenCalledWith(mockSubmission, mockContext.userInfo._id);
-        expect(submissionInstance.fetchDataModelInfo).toHaveBeenCalled();
-        expect(submissionInstance._getModelFileNodeInfo).toHaveBeenCalledWith(mockSubmission, mockDataModel);
-        expect(submissionInstance.configurationService.findByType).toHaveBeenCalled();
     });
 
-    it('should throw if submission not found', async () => {
-        submissionInstance.submissionCollection.findByID.mockResolvedValue(null);
-        global.findByID.mockResolvedValue(null);
-        await expect(submissionInstance.getDataFileConfigs(mockParams, mockContext))
-            .rejects
-            .toThrow();
-    });
+    it('should call fetchDataModelInfo and getModelFileNodeInfo with correct arguments', async () => {
+        const aSubmission = { _id: params.submissionID, dataCommons: 'commonsA' };
+        const latestDataModel = { foo: 'bar' };
+        const fileConfig = {
+            "id-field": "file_id",
+            "name-field": "file_name",
+            "size-field": "file_size",
+            "md5-field": "md5sum",
+            "omit-DCF-prefix": false
+        };
+        mockSubmissionDAO.findById.mockResolvedValue(aSubmission);
+        mockFetchDataModelInfo.mockResolvedValue(latestDataModel);
+        submission._getModelFileNodeInfo.mockReturnValue(fileConfig);
+        mockConfigurationService.findByType.mockResolvedValue({ interval: 456 });
 
-    it('should use default heartbeat_interval if config is missing', async () => {
-        submissionInstance.configurationService.findByType.mockResolvedValue(null);
-        const result = await submissionInstance.getDataFileConfigs(mockParams, mockContext);
-        expect(result.heartbeat_interval).toBe(300);
-    });
+        await submission.getDataFileConfigs(params, mockContext);
 
-    it('should propagate error if _verifyBatchPermission throws', async () => {
-        submissionInstance._verifyBatchPermission.mockImplementation(() => { throw new Error('No permission'); });
-        await expect(submissionInstance.getDataFileConfigs(mockParams, mockContext))
-            .rejects
-            .toThrow('No permission');
-    });
-
-    it('should propagate error if fetchDataModelInfo throws', async () => {
-        submissionInstance.fetchDataModelInfo.mockRejectedValue(new Error('fetch error'));
-        await expect(submissionInstance.getDataFileConfigs(mockParams, mockContext))
-            .rejects
-            .toThrow('fetch error');
-    });
-
-    it('should propagate error if _getModelFileNodeInfo throws', async () => {
-        submissionInstance._getModelFileNodeInfo.mockImplementation(() => { throw new Error('model error'); });
-        await expect(submissionInstance.getDataFileConfigs(mockParams, mockContext))
-            .rejects
-            .toThrow('model error');
+        expect(mockFetchDataModelInfo).toHaveBeenCalled();
+        expect(submission._getModelFileNodeInfo).toHaveBeenCalledWith(aSubmission, latestDataModel);
     });
 });

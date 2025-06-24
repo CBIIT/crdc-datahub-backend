@@ -34,6 +34,7 @@ const {getDataCommonsDisplayNamesForSubmission, getDataCommonsDisplayNamesForLis
 } = require("../utility/data-commons-remapper");
 const {UserScope} = require("../domain/user-scope");
 const {ORGANIZATION_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
+const SubmissionDAO = require("../dao/submission");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -81,6 +82,7 @@ class Submission {
         this.uploadingMonitor = uploadingMonitor;
         this.dataCommonsBucketMap = dataCommonsBucketMap;
         this.authorizationService = authorizationService;
+        this.submissionDAO = new SubmissionDAO();
     }
 
     async createSubmission(params, context) {
@@ -1047,7 +1049,7 @@ class Submission {
     async getDataFileConfigs(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        const aSubmission = await this.submissionDAO.findById(params.submissionID);
         if (!aSubmission) {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
@@ -1057,12 +1059,13 @@ class Submission {
         const latestDataModel = await this.fetchDataModelInfo();
         const fileConfig = this._getModelFileNodeInfo(aSubmission, latestDataModel);
         const uploadingHeartbeatConfig = await this.configurationService.findByType(UPLOADING_HEARTBEAT_CONFIG_TYPE);
+        const heartbeat_interval = (uploadingHeartbeatConfig && uploadingHeartbeatConfig.interval) ? uploadingHeartbeatConfig.interval : 300;
         return {id_field: fileConfig["id-field"],
             name_field: fileConfig["name-field"],
             size_field: fileConfig["size-field"],
             md5_field: fileConfig["md5-field"],
             omit_DCF_prefix: fileConfig["omit-DCF-prefix"],
-            heartbeat_interval: uploadingHeartbeatConfig?.interval || 300
+            heartbeat_interval: heartbeat_interval
         };
     };
 
