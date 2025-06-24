@@ -1866,7 +1866,7 @@ class Submission {
         const {
             submissionID: submissionID
         } = params;
-        const aSubmission = await this.submissionDAO.findById(submissionID);
+        const aSubmission = await findByID(this.submissionCollection, submissionID);
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
