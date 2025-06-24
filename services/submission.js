@@ -3,6 +3,8 @@ const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
     CONSTRAINTS, COLLABORATOR_PERMISSIONS, UPLOADING_HEARTBEAT_CONFIG_TYPE
 } = require("../constants/submission-constants");
 const {v4} = require('uuid')
+const fs = require('fs');
+const path = require('path');
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifySession} = require("../verifier/user-info-verifier");
@@ -35,6 +37,7 @@ const {getDataCommonsDisplayNamesForSubmission, getDataCommonsDisplayNamesForLis
 const {UserScope} = require("../domain/user-scope");
 const {ORGANIZATION_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const SubmissionDAO = require("../dao/submission");
+const {zipFilesInDir} = require("../utility/io-util");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -1855,6 +1858,56 @@ class Submission {
             throw new Error(replaceErrorString(ERROR.INVALID_USER_SCOPE));
         }
         return userScope;
+    }
+     async downloadDBGaPLoadSheet(params, context) {
+        verifySession(context)
+            .verifyInitialized();
+        const {
+            submissionID: submissionID
+        } = params;
+        const aSubmission = await findByID(this.submissionCollection, submissionID);
+        if (!aSubmission) {
+            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+        }
+        const userScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+        // generate DD and DS files
+        const dataCommon = aSubmission.dataCommons.toUpperCase();
+        let zipDir = null;
+        let zipFile = null;
+        try {
+            switch(dataCommon){
+                case "CDS":
+                    zipDir = await this.dataRecordService.createDBGaPLoadSheetForCDS(aSubmission);
+                    break;
+                default:
+                    throw new Error(ERROR.NOT_SUPPORTED_DATA_COMMONS_FOR_LOAD_SHEET);
+            }
+            if (!zipDir && !fs.existsSync(zipDir)) {
+                throw new Error(ERROR.FAILED_CREATE_LOAD_SHEET);    
+            }
+            zipFile = zipDir + ".zip";
+            await zipFilesInDir(zipDir, zipFile);
+            if (!fs.existsSync(zipFile)) {
+                throw new Error(ERROR.FAILED_CREATE_LOAD_SHEET);
+            }
+            const zipFileName = path.basename(zipFile);
+            // upload the zip file into s3 and create pre-signed download link
+            await this.s3Service.uploadZipFile(aSubmission.bucketName, aSubmission.rootPath, zipFileName, zipFile);
+            return await this.s3Service.createDownloadSignedURL(aSubmission.bucketName, aSubmission.rootPath, zipFileName);  
+        }
+        catch (e) {
+            console.error(e);
+            throw e;
+        }
+        finally {
+            const downloadDir = path.dirname(zipFile);
+            if (downloadDir && fs.existsSync(downloadDir)) {
+                fs.rmSync(downloadDir, {recursive: true, force: true });
+            }
+        }
     }
 }
 

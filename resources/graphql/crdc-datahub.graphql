@@ -852,6 +852,7 @@ type Query {
         dataCommonsDisplayName: String!
     ): ListReleasedNodes
     getReleaseNodeTypes(studyID: String!, dataCommonsDisplayName: String!): ListNodeTypes
+    downloadDBGaPLoadSheet(submissionID:String!):String #presigned url of s3
 
 }
 type Mutation {
