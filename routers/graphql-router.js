@@ -67,14 +67,12 @@ dbConnector.connect().then(async () => {
     const notificationsService = new NotifyUser(emailService, config.tier);
 
     const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
-    const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
-    const configurationService = new ConfigurationService(configurationCollection)
+    const configurationService = new ConfigurationService()
     const authorizationService = new AuthorizationService(configurationService);
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
     const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
     const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection, approvedStudiesCollection, authorizationService);
     const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, userCollection, organizationService, submissionCollection, authorizationService);
-
 
     const institutionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, INSTITUTION_COLLECTION, userCollection);
     const institutionService = new InstitutionService(institutionCollection, userCollection, authorizationService);
@@ -117,8 +115,7 @@ dbConnector.connect().then(async () => {
     userInitializationService = new UserInitializationService(userCollection, organizationCollection, approvedStudiesCollection, configurationService);
     authenticationService = new AuthenticationService(userCollection);
     
-    const cdeCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CDE_COLLECTION);
-    const cdeService = new CDE(cdeCollection);
+    const cdeService = new CDE();
 
     const releaseService = new Release(releaseCollection, authorizationService);
     root = {

@@ -1,30 +1,52 @@
-const getApprovedStudyByID = require('../dao/approvedStudy');
+const ApprovedStudyDAO = require('../dao/approvedStudy');
+const GenericDAO = require('../dao/generic');
 
-jest.mock('../prisma', () => ({
-    approvedStudy: {
-        findUnique: jest.fn()
-    }
-}));
+jest.mock('../dao/generic');
 
-const prisma = require('../prisma');
+describe('ApprovedStudyDAO', () => {
+    let approvedStudyDAO;
+    let mockFindById;
 
-describe('getApprovedStudyByID', () => {
+    beforeEach(() => {
+        // Mock the findById method on the prototype
+        mockFindById = jest.fn();
+        GenericDAO.prototype.findById = mockFindById;
+        approvedStudyDAO = new ApprovedStudyDAO();
+    });
+
     afterEach(() => {
         jest.clearAllMocks();
     });
 
-    it('should return study with _id when found', async () => {
-        const fakeStudy = { id: '123', name: 'Test Study' };
-        prisma.approvedStudy.findUnique.mockResolvedValue(fakeStudy);
-        const result = await getApprovedStudyByID('123');
-        expect(result).toEqual({ ...fakeStudy, _id: fakeStudy.id });
-        expect(prisma.approvedStudy.findUnique).toHaveBeenCalledWith({ where: { id: '123' } });
-    });
+    describe('getApprovedStudyByID', () => {
+        it('should call findById with the correct studyID and return the result', async () => {
+            const studyID = '123';
+            const mockResult = { id: studyID, name: 'Test Study' };
+            mockFindById.mockResolvedValue(mockResult);
 
-    it('should return null when not found', async () => {
-        prisma.approvedStudy.findUnique.mockResolvedValue(null);
-        const result = await getApprovedStudyByID('notfound');
-        expect(result).toBeNull();
-        expect(prisma.approvedStudy.findUnique).toHaveBeenCalledWith({ where: { id: 'notfound' } });
+            const result = await approvedStudyDAO.getApprovedStudyByID(studyID);
+
+            expect(mockFindById).toHaveBeenCalledWith(studyID);
+            expect(result).toBe(mockResult);
+        });
+
+        it('should return null if findById returns null', async () => {
+            const studyID = 'notfound';
+            mockFindById.mockResolvedValue(null);
+
+            const result = await approvedStudyDAO.getApprovedStudyByID(studyID);
+
+            expect(mockFindById).toHaveBeenCalledWith(studyID);
+            expect(result).toBeNull();
+        });
+
+        it('should propagate errors from findById', async () => {
+            const studyID = 'error';
+            const error = new Error('Database error');
+            mockFindById.mockRejectedValue(error);
+
+            await expect(approvedStudyDAO.getApprovedStudyByID(studyID)).rejects.toThrow('Database error');
+            expect(mockFindById).toHaveBeenCalledWith(studyID);
+        });
     });
-}); 
+});
