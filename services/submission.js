@@ -1864,7 +1864,7 @@ class Submission {
         const {
             submissionID: submissionID
         } = params;
-        const aSubmission = await this.submissionDAO.findById(submissionID);
+        const aSubmission = await findByID(this.submissionCollection, submissionID);
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
@@ -1902,11 +1902,10 @@ class Submission {
             throw e;
         }
         finally {
-            if (zipFile && fs.existsSync(zipFile)) {
-                const downloadDir = path.dirname(zipFile);
-                if (downloadDir && fs.existsSync(downloadDir)) {
-                    fs.rmSync(downloadDir, {recursive: true, force: true });
-            }}
+            const downloadDir = path.dirname(zipFile);
+            if (downloadDir && fs.existsSync(downloadDir)) {
+                fs.rmSync(downloadDir, {recursive: true, force: true });
+            }
         }
     }
 }
