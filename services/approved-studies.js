@@ -34,7 +34,7 @@ const getApprovedStudyByID = require("../dao/approvedStudy")
 const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
 
 class ApprovedStudiesService {
-    #ALL = "All";
+    _ALL = "All";
     constructor(approvedStudiesCollection, userCollection, organizationService, submissionCollection, authorizationService) {
         this.approvedStudiesCollection = approvedStudiesCollection;
         this.userCollection = userCollection;
@@ -343,13 +343,13 @@ class ApprovedStudiesService {
             primaryContactID,
             useProgramPC,
             pendingModelChange
-        } = this.#verifyAndFormatStudyParams(params);
-        // check if the name is unique
-        await this.#validateStudyName(name)
+        } = this._verifyAndFormatStudyParams(params);
+        // check if name is unique
+        await this._validateStudyName(name)
         // check primaryContactID 
         let primaryContact = null;
         if (primaryContactID) {
-            primaryContact = await this.#findUserByID(primaryContactID);
+            primaryContact = await this._findUserByID(primaryContactID);
             if (!primaryContact) {  
                 throw new Error(ERROR.INVALID_PRIMARY_CONTACT);
             }
@@ -380,7 +380,7 @@ class ApprovedStudiesService {
     async editApprovedStudyAPI(params, context) {
         verifySession(context)
           .verifyInitialized();
-        const userScope = await this.#getUserScope(context?.userInfo, ADMIN.MANAGE_STUDIES);
+        const userScope = await this._getUserScope(context?.userInfo, ADMIN.MANAGE_STUDIES);
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -397,7 +397,7 @@ class ApprovedStudiesService {
             primaryContactID,
             useProgramPC,
             pendingModelChange
-        } = this.#verifyAndFormatStudyParams(params);
+        } = this._verifyAndFormatStudyParams(params);
         let updateStudy = await this.approvedStudiesCollection.find(studyID);
         if (!updateStudy || updateStudy.length === 0) {
             throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
@@ -405,7 +405,7 @@ class ApprovedStudiesService {
         updateStudy = updateStudy[0];
         // check if name is unique
         if (name !== updateStudy.studyName)
-            await this.#validateStudyName(name)
+            await this._validateStudyName(name)
         updateStudy.studyName = name;
         updateStudy.controlledAccess = controlledAccess;
         updateStudy.useProgramPC = useProgramPC;
@@ -435,7 +435,7 @@ class ApprovedStudiesService {
 
         let primaryContact = null;
         if(primaryContactID){
-            primaryContact = await this.#findUserByID(primaryContactID);
+            primaryContact = await this._findUserByID(primaryContactID);
             if (!primaryContact) {
                 throw new Error(ERROR.INVALID_PRIMARY_CONTACT);
             }
@@ -451,8 +451,8 @@ class ApprovedStudiesService {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_UPDATE);
         }
 
-        const programs = await this.#findOrganizationByStudyID(studyID);
-        const [conciergeName, conciergeEmail] = this.#getConcierge(programs, primaryContact, useProgramPC);
+        const programs = await this._findOrganizationByStudyID(studyID);
+        const [conciergeName, conciergeEmail] = this._getConcierge(programs, primaryContact, useProgramPC);
         const updatedSubmissions = await this.submissionCollection.updateMany({
             studyID: updateStudy._id,
             status: {$in: [NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, CANCELED, DELETED, ARCHIVED]},
@@ -468,7 +468,7 @@ class ApprovedStudiesService {
         return getDataCommonsDisplayNamesForApprovedStudy(approvedStudy);
     }
 
-    #getConcierge(programs, primaryContact, isProgramPrimaryContact) {
+    _getConcierge(programs, primaryContact, isProgramPrimaryContact) {
         // data concierge from the study
         const [conciergeName, conciergeEmail] = (primaryContact)? [`${primaryContact?.firstName || ""} ${primaryContact?.lastName || ''}`, primaryContact?.email || ""] :
             ["",""];
@@ -489,7 +489,7 @@ class ApprovedStudiesService {
      * @param {*} userID 
      * @returns 
      */
-    async #findUserByID(userID){
+    async _findUserByID(userID){
         const result = await this.userCollection.aggregate([{"$match": {"_id": userID, "userStatus": USER.STATUSES.ACTIVE}}]);
         return (result && result.length > 0)? result[0]: null;
     }
@@ -498,12 +498,12 @@ class ApprovedStudiesService {
      * @param {string} id
      * @returns {boolean}
      */
-    #validateIdentifier(id) {
+    _validateIdentifier(id) {
         const regex = /^(\d{4}-){3}\d{3}(\d|X)$/;
         return regex.test(id);
     }
 
-    async #validateStudyName(name) {
+    async _validateStudyName(name) {
         const existingStudy = await this.approvedStudiesCollection.aggregate([{ "$match": {studyName: name}}]);
         if (existingStudy.length > 0) {
             throw new Error(ERROR.DUPLICATE_STUDY_NAME);
@@ -511,7 +511,7 @@ class ApprovedStudiesService {
         return true;  
     }
 
-    #verifyAndFormatStudyParams(params) {
+    _verifyAndFormatStudyParams(params) {
         // trim name if it exists
         if (!!params.name && params.name.length > 0) {
             params.name = params.name.trim();
@@ -531,13 +531,13 @@ class ApprovedStudiesService {
             throw new Error(ERROR.MISSING_DB_GAP_ID);
         }
         // validate that ORCID if it exists
-        if (!!params.ORCID && !this.#validateIdentifier(params.ORCID)) {
+        if (!!params.ORCID && !this._validateIdentifier(params.ORCID)) {
             throw new Error(ERROR.INVALID_ORCID);
         }
         return params;
     }
 
-    async #getUserScope(userInfo, permission) {
+    async _getUserScope(userInfo, permission) {
         const validScopes = await this.authorizationService.getPermissionScope(userInfo, permission);
         const userScope = UserScope.create(validScopes);
         // valid scopes; none, all, role/role:RoleScope

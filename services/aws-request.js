@@ -98,7 +98,7 @@ class AWSService {
      * @throws {Error} - Throws an error if the username is missing or invalid.
      */
     async getQuickInsightURL(dashboardID, sessionTimeout) {
-        const accountID = await this.#getAccountID();
+        const accountID = await this._getAccountID();
         const params = {
             AwsAccountId: accountID,
             DashboardId: dashboardID,
@@ -124,7 +124,7 @@ class AWSService {
      * @returns {Promise<string>} - Resolves with the AWS account ID of the caller.
      * @throws {Error} - Throws an error if the request to retrieve the account ID fails.
      */
-    async #getAccountID() {
+    async _getAccountID() {
         const data = await this.sts.getCallerIdentity({}).promise();
         return data.Account;
     }
