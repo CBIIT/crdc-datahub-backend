@@ -752,7 +752,6 @@
             "checked": false,
             "disabled": false
           },
-          
           {
             "_id": "user:manage:all",
             "group": "Admin Permissions",
