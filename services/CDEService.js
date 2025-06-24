@@ -29,10 +29,10 @@ class CDE {
           })));
           
         const query = {"$or": conditions}
-        return await this.#find_cde_by_code_version(query); 
+        return await this._findCDEByCodeVersion(query);
     }
 
-    async #find_cde_by_code_version(query) {
+    async _findCDEByCodeVersion(query) {
         const pipelines = [{"$match": query}];
         pipelines.push({"$sort": {CDECode: 1, CDEVersion: -1}});
         pipelines.push({"$group": {"_id": "$CDECode", "latestDocument": {"$first": "$$ROOT"}}});

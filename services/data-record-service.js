@@ -46,7 +46,7 @@ class DataRecordService {
 
     async submissionStats(aSubmission) {
         const validNodeStatus = [VALIDATION_STATUS.NEW, VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING, VALIDATION_STATUS.ERROR];
-        const submissionQuery = this.#getSubmissionStatQuery(aSubmission?._id, validNodeStatus);
+        const submissionQuery = this._getSubmissionStatQuery(aSubmission?._id, validNodeStatus);
         const res = await Promise.all([
             this.dataRecordsCollection.aggregate(submissionQuery),
             this.dataRecordsCollection.aggregate([
@@ -66,7 +66,7 @@ class DataRecordService {
             ?.filter((f)=> f && f.Key !== `${aSubmission.rootPath}/${FILE}/`)
             ?.map((f)=> f.Key.replace(`${aSubmission.rootPath}/${FILE}/`, ''));
         // This dataFiles represents the intersection of the orphanedFiles.
-        const [orphanedFiles, dataFiles, missingErrorFileSet] = this.#dataFilesStats(uploadedFiles, fileRecords);
+        const [orphanedFiles, dataFiles, missingErrorFileSet] = this._dataFilesStats(uploadedFiles, fileRecords);
         const orphanedFileNameSet = new Set(submissionErrorFiles
             ?.map((f) => f?.submittedID));
 
@@ -79,11 +79,11 @@ class DataRecordService {
         );
 
         const filteredNotFoundErrors = notFoundErrorFiles.filter((f) => missingErrorFileSet.has(f?.submittedID));
-        this.#saveDataFileStats(submissionStats, validatedOrphanedFiles, nonValidatedOrphanedFiles, filteredNotFoundErrors, dataFiles);
+        this._saveDataFileStats(submissionStats, validatedOrphanedFiles, nonValidatedOrphanedFiles, filteredNotFoundErrors, dataFiles);
         return submissionStats;
     }
 
-    #dataFilesStats(s3SubmissionFiles, fileRecords) {
+    _dataFilesStats(s3SubmissionFiles, fileRecords) {
         const s3FileSet = new Set(s3SubmissionFiles);
         const fileDataRecordsMap = new Map(fileRecords.map(file => [file?.s3FileInfo?.fileName, file?.s3FileInfo]));
         const [orphanedFiles, missingErrorFileSet, dataFiles] = [[], new Set(), []];
@@ -104,7 +104,7 @@ class DataRecordService {
         return [orphanedFiles, dataFiles, missingErrorFileSet];
     }
 
-    #saveDataFileStats(submissionStats, validatedOrphanedFiles, nonValidatedOrphanedFiles, fileNotFoundErrors, dataFiles) {
+    _saveDataFileStats(submissionStats, validatedOrphanedFiles, nonValidatedOrphanedFiles, fileNotFoundErrors, dataFiles) {
         const stat = Stat.createStat(DATA_FILE);
         stat.countNodeType(VALIDATION_STATUS.NEW, nonValidatedOrphanedFiles.length);
         stat.countNodeType(VALIDATION_STATUS.ERROR, validatedOrphanedFiles.length + fileNotFoundErrors.length);
@@ -153,7 +153,7 @@ class DataRecordService {
         if (isFile) {
             const fileNodes = await getFileNodes(this.dataRecordsCollection, submissionID, scope);
             if (fileNodes && fileNodes.length > 0) {
-                const fileValidationErrors = await this.#sendBatchSQSMessage(fileNodes, validationID, submissionID);
+                const fileValidationErrors = await this._sendBatchSQSMessage(fileNodes, validationID, submissionID);
                 if (fileValidationErrors.length > 0)
                     errorMessages.push(ERRORS.FAILED_VALIDATE_FILE, ...fileValidationErrors)
             }
@@ -165,7 +165,7 @@ class DataRecordService {
         return (errorMessages.length > 0) ? ValidationHandler.handle(errorMessages) : ValidationHandler.success();
     }
 
-    async #sendBatchSQSMessage(fileNodes, validationID, submissionID) {
+    async _sendBatchSQSMessage(fileNodes, validationID, submissionID) {
         let fileValidationErrors = [];
         for (let i = 0; i < fileNodes.length; i += BATCH_SIZE) {
             const batch = fileNodes.slice(i, i + BATCH_SIZE);
@@ -340,7 +340,7 @@ class DataRecordService {
         }
         // Query page of results
         const pagedPipelineResult = await this.dataRecordsCollection.aggregate(pagedPipeline);
-        const dataRecords = this.#replaceNaN(pagedPipelineResult, null);
+        const dataRecords = this._replaceNaN(pagedPipelineResult, null);
         return {
             results: dataRecords || [],
             total: totalRecords || 0
@@ -444,18 +444,18 @@ class DataRecordService {
     }
 
     async NodeDetail(submissionID, nodeType, nodeID){
-        const aNode = await this.#GetNode(submissionID, nodeType, nodeID);
+        const aNode = await this._getNode(submissionID, nodeType, nodeID);
         let nodeDetail = {
             submissionID: aNode.submissionID,
             nodeID: aNode.nodeID,
             nodeType: aNode.nodeType,
             IDPropName: aNode.IDPropName,
-            parents: this.#ConvertParents(aNode.parents),
-            children: await this.#GetNodeChildren(submissionID, nodeType, nodeID)
+            parents: this._convertParents(aNode.parents),
+            children: await this._getNodeChildren(submissionID, nodeType, nodeID)
         };
         return nodeDetail
     }
-    async #GetNode(submissionID, nodeType, nodeID){
+    async _getNode(submissionID, nodeType, nodeID){
         const aNodes = await this.dataRecordsCollection.aggregate([{
             $match: {
                 nodeID: nodeID,
@@ -470,7 +470,7 @@ class DataRecordService {
         else 
             return aNodes[0];
     }
-    #ConvertParents(parents){
+    _convertParents(parents){
         let convertedParents = [];
         let parentTypes = new Set();
         for (let parent of parents){
@@ -482,7 +482,7 @@ class DataRecordService {
         return convertedParents ;
     }
 
-    async #GetNodeChildren(submissionID, nodeType, nodeID){
+    async _getNodeChildren(submissionID, nodeType, nodeID){
         let convertedChildren= [];
         // get children
         const children = await this.dataRecordsCollection.aggregate([{
@@ -514,7 +514,7 @@ class DataRecordService {
             orderBy,
             sortDirection} = param;
         
-        const aNode = await this.#GetNode(submissionID, nodeType, nodeID);
+        const aNode = await this._getNode(submissionID, nodeType, nodeID);
         let query = null;
         let IDPropName = null;
         switch (relationship) {
@@ -570,7 +570,7 @@ class DataRecordService {
     }
 
 
-    #getSubmissionStatQuery(submissionID, validNodeStatus) {
+    _getSubmissionStatQuery(submissionID, validNodeStatus) {
         return [
             {$match:{
                     submissionID: submissionID,
@@ -639,7 +639,7 @@ class DataRecordService {
         ]
     }
 
-    #replaceNaN(results, replacement){
+    _replaceNaN(results, replacement){
         results?.map((result) => {
             Object.keys(result).forEach((key) => {
                 if (Object.is(result[key], Number.NaN)){
@@ -668,7 +668,7 @@ class DataRecordService {
      */
     async getReleasedAndNewNode(submissionID, dataCommons, nodeType, nodeID, status){
         // get new node from DataRecords collection.
-        const newNode = await this.#GetNode(submissionID, nodeType, nodeID)
+        const newNode = await this._getNode(submissionID, nodeType, nodeID)
         if(!newNode){
             throw new Error(ERRORS.INVALID_NODE_NOT_FOUND);
         }
@@ -784,7 +784,7 @@ class Stat {
         return new Stat(nodeName, 0,0,0,0, 0);
     }
 
-    #addTotal(total) {
+    _addTotal(total) {
         this.total += total;
     }
 
@@ -805,7 +805,7 @@ class Stat {
             default:
                 return;
         }
-        this.#addTotal(count);
+        this._addTotal(count);
     }
 }
 

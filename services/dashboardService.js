@@ -17,7 +17,7 @@ class DashboardService {
     async getDashboardURL(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const userScope = await this.#getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.ADMIN.VIEW_DASHBOARD);
+        const userScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.ADMIN.VIEW_DASHBOARD);
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -35,7 +35,7 @@ class DashboardService {
         };
     }
 
-    async #getUserScope(userInfo, permission) {
+    async _getUserScope(userInfo, permission) {
         const validScopes = await this.authorizationService.getPermissionScope(userInfo, permission);
         const userScope = UserScope.create(validScopes);
         // valid scopes; none, all, role/role:RoleScope

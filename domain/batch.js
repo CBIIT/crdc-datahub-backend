@@ -25,15 +25,15 @@ class Batch {
     }
 
     addDataFile(name, url, studyID, isOmitPrefix){
-        const fileID = this.#generateDataFileUUID(name, url, studyID, isOmitPrefix);
-        this.#addFile(name, null, true, fileID);
+        const fileID = this._generateDataFileUUID(name, url, studyID, isOmitPrefix);
+        this._addFile(name, null, true, fileID);
     }
 
     addMetadataFile(name, signedURL){
-        this.#addFile(name, signedURL, false)
+        this._addFile(name, signedURL, false)
     }
 
-    #generateDataFileUUID(fileName, url, studyID, isOmitPrefix) {
+    _generateDataFileUUID(fileName, url, studyID, isOmitPrefix) {
         const urlUUID = v5(url, v5.URL, undefined, undefined);
         const studyUUID = v5(studyID, urlUUID, undefined, undefined);
         const fileNameUUID = `${v5(fileName, studyUUID, undefined, undefined)}`
@@ -41,7 +41,7 @@ class Batch {
     }
 
 
-    #addFile(name, signedURL, isDataFile, fileID) {
+    _addFile(name, signedURL, isDataFile, fileID) {
         const file = new BatchFile(name, signedURL, this.filePrefix, isDataFile, fileID);
         this.files.push(file);
         this.fileCount += 1;

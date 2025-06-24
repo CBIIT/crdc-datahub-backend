@@ -29,7 +29,7 @@ class BatchService {
 
     async createBatch(params, aSubmission, user) {
         const prefix = createPrefix(params, aSubmission?.rootPath);
-        const newDisplayID = await this.#getBatchDisplayID(params.submissionID);
+        const newDisplayID = await this._getBatchDisplayID(params.submissionID);
         const newBatch = Batch.createNewBatch(params.submissionID, newDisplayID, aSubmission?.bucketName, prefix, params.type.toLowerCase(), user._id, user.firstName + " " + user.lastName);
         if (BATCH.TYPE.METADATA === params.type.toLowerCase()) {
             await Promise.all(params.files.map(async (fileName) => {
@@ -171,7 +171,7 @@ class BatchService {
         return (aBatch?.length > 0) ? aBatch[0] : null;
     }
     // private function
-    async #getBatchDisplayID(submissionID) {
+    async _getBatchDisplayID(submissionID) {
         const pipeline = [{$match: {submissionID}}, {$count: "total"}];
         const batches = await this.batchCollection.aggregate(pipeline);
         const totalDocs = batches.pop();
@@ -295,7 +295,7 @@ class UploadingMonitor {
     static instance;
     constructor(batchCollection, configurationService) {
         this.batchCollection = batchCollection;
-        this.#initialize(configurationService);
+        this._initialize(configurationService);
     }
 
     /**
@@ -312,18 +312,18 @@ class UploadingMonitor {
     }
 
     /**
-     * private function:  #initialize
+     * private function:  _initialize
      * @param {*} configurationService 
      */
-    async #initialize(configurationService) {
+    async _initialize(configurationService) {
         const config = await configurationService.findByType(UPLOADING_HEARTBEAT_CONFIG_TYPE);
         this.interval = (config?.interval || 300) * 1000; // 5 min
         this.max_age = (config?.age || 900) * 1000; // 15 min
         this.uploading_batch_pool = readJsonFile2Object(UPLOADING_BATCH_POOL_FILE);
-        this.#startScheduler();
+        this._startScheduler();
     }
     
-    async #checkUploadingBatches() {
+    async _checkUploadingBatches() {
         if (Object.keys(this.uploading_batch_pool).length === 0) {
             return;
         }
@@ -351,9 +351,9 @@ class UploadingMonitor {
     }
 
     // start a scheduler to monitor uploading batches every 5 min.
-    #startScheduler() {
+    _startScheduler() {
         setInterval(async () => {
-            await this.#checkUploadingBatches();
+            await this._checkUploadingBatches();
     }, this.interval);
     }
     /**
@@ -362,7 +362,7 @@ class UploadingMonitor {
      */
     saveUploadingBatch(batchID) {
         this.uploading_batch_pool[batchID] = new Date();
-        this.#savePool2JsonFile();
+        this._savePool2JsonFile();
     } 
 
     /**
@@ -375,11 +375,11 @@ class UploadingMonitor {
             return;
         }
         delete this.uploading_batch_pool[batchID];
-        this.#savePool2JsonFile();
+        this._savePool2JsonFile();
     }
 
     // persistent save the pool to json file
-    #savePool2JsonFile() {
+    _savePool2JsonFile() {
         try{writeObject2JsonFile(this.uploading_batch_pool, UPLOADING_BATCH_POOL_FILE)
         }
         catch (e) {

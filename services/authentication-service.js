@@ -25,7 +25,7 @@ class AuthenticationService {
                 // token does not contain a user id
                 throw new Error(ERROR.INVALID_TOKEN_NO_USER_ID);
             }
-            const user = await this.#getUser(userID);
+            const user = await this._getUser(userID);
             if (!user){
                 // the user ID encoded in the token does not correspond to a user account
                 throw new Error(ERROR.INVALID_TOKEN_INVALID_USER_ID);
@@ -45,7 +45,7 @@ class AuthenticationService {
         return userInfo;
     }
 
-    async #getUser(userID){
+    async _getUser(userID){
         const response = await this.userCollection.find(userID);
         if (!response || response.length < 1) {
             return null;

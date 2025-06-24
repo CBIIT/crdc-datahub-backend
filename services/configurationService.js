@@ -107,27 +107,27 @@ class UserAccessControl {
     static get(permissions) {
         const accessControl = new UserAccessControl(permissions);
         return {
-            disabled: accessControl.#getDisabled(),
-            permitted: accessControl.#getPermitted(),
+            disabled: accessControl._getDisabled(),
+            permitted: accessControl._getPermitted(),
             getInherited: (permissions)=> {
-                return accessControl.#getInherited(permissions);
+                return accessControl._getInherited(permissions);
             }
         }
     }
 
-    #getDisabled() {
+    _getDisabled() {
         return this.permssions
             .filter((u) => u?.disabled)
             .map((u) => u?._id);
     }
 
-    #getPermitted() {
+    _getPermitted() {
         return this.permssions
             .filter((u) => u?.checked)
             .map((u) => u?._id);
     }
     // In PBAC settings, some permissions in the inherited property must be chosen.
-    #getInherited(parentPermissions) {
+    _getInherited(parentPermissions) {
         const inheritedArray = this.permssions
             .filter((p) => parentPermissions.includes(p?._id) && p?.inherited)
             .flatMap((p) => p?.inherited);
