@@ -241,7 +241,14 @@ dbConnector.connect().then(async () => {
         getSubmissionAttributes: submissionService.getSubmissionAttributes.bind(submissionService),
         listReleasedStudies: releaseService.listReleasedStudies.bind(releaseService),
         getReleaseNodeTypes: releaseService.getReleaseNodeTypes.bind(releaseService),
-        listReleasedDataRecords: releaseService.listReleasedDataRecords.bind(releaseService)
+        listReleasedDataRecords: releaseService.listReleasedDataRecords.bind(releaseService),
+        requestPV: async (params, context)=> {
+            const fieldsToSanitize = ['comment', 'node', 'property', 'value'];
+            const sanitized = Object.fromEntries(
+                fieldsToSanitize.map(field => [field, sanitizeHtml(params?.[field], { allowedTags: [], allowedAttributes: {} })])
+            );
+            return await submissionService.requestPV({...params, ...sanitized}, context);
+        },
     };
 });
 

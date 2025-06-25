@@ -1853,6 +1853,66 @@ class Submission {
         }
         return userScope;
     }
+
+
+    async requestPV(param, context) {
+        verifySession(context)
+            .verifyInitialized();
+        const aSubmission = await findByID(this.submissionCollection, param.submissionID);
+        if (!aSubmission) {
+            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+        }
+
+        const createScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, aSubmission);
+        const isNotPermitted = !this._isCollaborator(context?.userInfo, aSubmission) && createScope.isNoneScope();
+        if (isNotPermitted) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
+        const DCUsers = await this.userService.getUsersByNotifications([EN.USER_ACCOUNT.USER_REQUEST_ACCESS],
+            [ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN, ROLES.FEDERAL_LEAD]);
+
+        const { DCEmails, nonDCEmails } = (DCUsers || []).reduce(
+            (acc, u) => {
+                if (u?.email) {
+                    (u.role === ROLES.DATA_COMMONS_PERSONNEL ? acc.DCEmails : acc.nonDCEmails).push(u.email);
+                }
+                return acc;
+            },
+            { DCEmails: [], nonDCEmails: [] }
+        );
+
+        if (DCEmails.length === 0) {
+            console.error(ERROR.NO_RECIPIENT_PV_REQUEST);
+            return ValidationHandler.handle(ERROR.NO_RECIPIENT_PV_REQUEST);
+        }
+
+        const {property, node, value} = param;
+
+        if (property?.trim()?.length === 0 || node?.trim()?.length === 0 || value?.trim()?.length === 0) {
+
+        }
+
+
+        const userInfo = context?.userInfo;
+        const res = await this.notificationService.requestPVNotification(DCEmails, nonDCEmails,{
+            submitterName: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
+            submitterEmail: userInfo?.email,
+            studyName: aSubmission?.studyName,
+            studyAbbreviation: aSubmission?.studyAbbreviation,
+            submissionID: aSubmission?._id,
+            node: node?.trim(),
+            property : property?.trim(),
+            value : value?.trim()
+        });
+
+        if (res?.accepted?.length > 0) {
+            return ValidationHandler.success()
+        }
+        const error = replaceErrorString(ERROR.FAILED_TO_REQUEST_PV, `userID:${context?.userInfo?._id}`);
+        console.error(error);
+        return ValidationHandler.handle(error);
+    }
 }
 
 const updateSubmissionStatus = async (submissionCollection, aSubmission, userInfo, newStatus) => {

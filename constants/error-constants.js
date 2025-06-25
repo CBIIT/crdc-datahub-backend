@@ -100,6 +100,8 @@ const ERROR = {
     MISSING_SUBMISSION_FILE_ERRORS: "The file errors property is missing from the submission",
     INVALID_MODEL_VERSION: "The provided model version was not found in the data-commons: $item$",
     INVALID_SUBMISSION_STATUS_MODEL_VERSION: "Invalid submission status to update the model-version: $item$",
+    FAILED_TO_REQUEST_PV: "Failed to send notification for PV request; $item$",
+    NO_RECIPIENT_PV_REQUEST: "No Data Commons personnel found or no PBAC PV request notification is enabled. The PV request email cannot be sent.",
     INVALID_MODEL_VERSION_PERMISSION: "You do not have the correct permissions to update the model-version",
     FAILED_UPDATE_MODEL_VERSION: "Failed to update the model-version for the submission.",
     FAILED_RESET_SUBMISSION: "Failed to update the submission with the new status during model-version update.",
