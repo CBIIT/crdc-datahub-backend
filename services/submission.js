@@ -1019,7 +1019,7 @@ class Submission {
     async getUploaderCLIConfigs(params, context){
         verifySession(context)
             .verifyInitialized();
-        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        const aSubmission = await this.submissionDAO.findById(params.submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }

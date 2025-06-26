@@ -10,7 +10,7 @@ class GenericDAO {
     }
 
     async findById(id) {
-        const result = this.model.findUnique({ where: { id } });
+        const result = await this.model.findUnique({ where: { id } });
         if (!result) {
             return null;
         }
@@ -18,7 +18,7 @@ class GenericDAO {
     }
 
     async findAll() {
-        const result = this.model.findMany();
+        const result = await this.model.findMany();
         return result.map(item => ({ ...item, _id: item.id }));
     }
 
