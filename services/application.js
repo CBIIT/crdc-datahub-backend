@@ -9,7 +9,7 @@ const ERROR = require("../constants/error-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const ROLES = USER_CONSTANTS.USER.ROLES;
-const {parseJsonString} = require("../crdc-datahub-database-drivers/utility/string-utility");
+const {parseJsonString, isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
 const {formatName} = require("../utility/format-name");
 const {isUndefined, replaceErrorString} = require("../utility/string-util");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
@@ -66,17 +66,20 @@ class Application {
 
     async _checkConditionalApproval(application) {
         // 1) controlled study missing dbGaPID
-        const study_arr = await this.approvedStudiesService.findByStudyName(application.studyName);
-        if (!study_arr || study_arr.length < 1) {
+        const studyArr = await this.approvedStudiesService.findByStudyName(application.studyName);
+        if (!studyArr || studyArr.length < 1) {
             return;
         }
-        const study = study_arr[0];
-        if(study?.controlledAccess && !study?.dbGaPID){
-            application.conditional = true;
-            application.pendingConditions = (!application?.pendingConditions)? [ERROR.CONTROLLED_STUDY_NO_DBGAPID] : application.pendingConditions.push(ERROR.CONTROLLED_STUDY_NO_DBGAPID);
-        }
-        else {
-            application.conditional = false;
+        const study = studyArr[0];
+        const pendingConditions = [
+            ...(study?.controlledAccess && !study?.dbGaPID ? [ERROR.CONTROLLED_STUDY_NO_DBGAPID] : []),
+            ...(isTrue(study?.pendingModelChange) ? [ERROR.PENDING_APPROVED_STUDY] : [])
+        ];
+
+        application.conditional = pendingConditions.length > 0;
+
+        if (pendingConditions.length > 0) {
+            application.pendingConditions = pendingConditions;
         }
     }
 
@@ -471,7 +474,7 @@ class Application {
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             promises.unshift(this.getApplicationById(document._id));
             if(questionnaire) {
-                const approvedStudies = await this._saveApprovedStudies(application, questionnaire);
+                const approvedStudies = await this._saveApprovedStudies(application, questionnaire, document?.pendingModelChange);
                 // added approved studies into user collection
                 const { _id, ...updateUser } = context?.userInfo || {};
                 const currStudyIDs = context?.userInfo?.studies?.map((study)=> study?._id) || [];
@@ -865,7 +868,7 @@ class Application {
         }, {[`${this._FINAL_INACTIVE_REMINDER}`]: status});
     }
 
-    async _saveApprovedStudies(aApplication, questionnaire) {
+    async _saveApprovedStudies(aApplication, questionnaire, pendingModelChange) {
         // use study name when study abbreviation is not available
         const studyAbbreviation = !!aApplication?.studyAbbreviation?.trim() ? aApplication?.studyAbbreviation : questionnaire?.study?.name;
         const controlledAccess = aApplication?.controlledAccess;
@@ -873,9 +876,10 @@ class Application {
             console.error(ERROR.APPLICATION_CONTROLLED_ACCESS_NOT_FOUND, ` id=${aApplication?._id}`);
         }
         const programName = aApplication?.programName ?? "NA";
+        // Upon approval of the submission request, the data concierge is retrieved from the associated program.
         return await this.approvedStudiesService.storeApprovedStudies(
             aApplication?.studyName, studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name, controlledAccess, aApplication?.ORCID,
-            aApplication?.PI, aApplication?.openAccess, programName
+            aApplication?.PI, aApplication?.openAccess, programName, true, pendingModelChange
         );
     }
 

@@ -1,48 +1,76 @@
-describe('release service', () => {
-    let getReleaseNodeTypesMock;
-    let listReleasedDataRecordsMock;
+const { Release } = require('../../services/release-service');
+
+describe('Release Service APIs - listReleasedStudies, getReleaseNodeTypes, listReleasedDataRecords', () => {
+    const mockContext = { userInfo: { _id: 'user123', role: 'researcher' } };
+    const mockStudyData = [{ _id: 'study1', name: 'Study A' }];
+    const mockNodeTypes = ['Study', 'Program'];
+    const mockDataRecords = [
+        { _id: 'record1', type: 'Study', props: { title: 'Record A' } }
+    ];
+
+    let releaseInstance;
 
     beforeEach(() => {
-        getReleaseNodeTypesMock = jest.fn();
-        listReleasedDataRecordsMock = jest.fn();
+        releaseInstance = new Release();
     });
 
-    it("/getReleaseNodeTypes test success", async () => {
-        const mockNodeTypes = ['type1', 'type2'];
-        getReleaseNodeTypesMock.mockResolvedValue(mockNodeTypes);
-
-        const result = await getReleaseNodeTypesMock();
-
-        expect(result).toEqual(mockNodeTypes);
-        expect(getReleaseNodeTypesMock).toHaveBeenCalledTimes(1);
+    afterEach(() => {
+        jest.restoreAllMocks();
     });
 
-    it("/getReleaseNodeTypes test error", async () => {
-        const mockError = new Error('Failed to fetch node types');
-        getReleaseNodeTypesMock.mockRejectedValue(mockError);
+    describe('listReleasedStudies()', () => {
+        test('should return list of released studies', async () => {
+            jest.spyOn(releaseInstance, 'listReleasedStudies').mockResolvedValue(mockStudyData);
 
-        await expect(getReleaseNodeTypesMock()).rejects.toThrow('Failed to fetch node types');
-        expect(getReleaseNodeTypesMock).toHaveBeenCalledTimes(1);
+            const result = await releaseInstance.listReleasedStudies({}, mockContext);
+
+            expect(result).toEqual(mockStudyData);
+            expect(releaseInstance.listReleasedStudies).toHaveBeenCalledWith({}, mockContext);
+        });
+
+        test('should throw an error if service fails', async () => {
+            jest.spyOn(releaseInstance, 'listReleasedStudies').mockRejectedValue(new Error('DB error'));
+
+            await expect(releaseInstance.listReleasedStudies({}, mockContext)).rejects.toThrow('DB error');
+        });
     });
 
-    it("/listReleasedDataRecords test success", async () => {
-        const mockDataRecords = [
-            {id: 1, name: 'Record 1'},
-            {id: 2, name: 'Record 2'}
-        ];
-        listReleasedDataRecordsMock.mockResolvedValue(mockDataRecords);
+    describe('getReleaseNodeTypes()', () => {
+        test('should return node types', async () => {
+            jest.spyOn(releaseInstance, 'getReleaseNodeTypes').mockResolvedValue(mockNodeTypes);
 
-        const result = await listReleasedDataRecordsMock();
+            const result = await releaseInstance.getReleaseNodeTypes({}, mockContext);
 
-        expect(result).toEqual(mockDataRecords);
-        expect(listReleasedDataRecordsMock).toHaveBeenCalledTimes(1);
+            expect(result).toEqual(mockNodeTypes);
+            expect(Array.isArray(result)).toBe(true);
+            expect(result).toContain('Study');
+            expect(releaseInstance.getReleaseNodeTypes).toHaveBeenCalledWith({}, mockContext);
+        });
+
+        test('should throw error when fetching node types fails', async () => {
+            jest.spyOn(releaseInstance, 'getReleaseNodeTypes').mockRejectedValue(new Error('NodeType error'));
+
+            await expect(releaseInstance.getReleaseNodeTypes({}, mockContext)).rejects.toThrow('NodeType error');
+        });
     });
 
-    it("/listReleasedDataRecords test error", async () => {
-        const mockError = new Error('Failed to fetch released data records');
-        listReleasedDataRecordsMock.mockRejectedValue(mockError);
+    describe('listReleasedDataRecords()', () => {
+        const validParams = { nodeType: 'Study' };
 
-        await expect(listReleasedDataRecordsMock()).rejects.toThrow('Failed to fetch released data records');
-        expect(listReleasedDataRecordsMock).toHaveBeenCalledTimes(1);
+        test('should return released data records for valid nodeType', async () => {
+            jest.spyOn(releaseInstance, 'listReleasedDataRecords').mockResolvedValue(mockDataRecords);
+
+            const result = await releaseInstance.listReleasedDataRecords(validParams, mockContext);
+
+            expect(result).toEqual(mockDataRecords);
+            expect(result[0]).toHaveProperty('props');
+            expect(releaseInstance.listReleasedDataRecords).toHaveBeenCalledWith(validParams, mockContext);
+        });
+
+        test('should throw error on backend failure', async () => {
+            jest.spyOn(releaseInstance, 'listReleasedDataRecords').mockRejectedValue(new Error('DB fetch failed'));
+
+            await expect(releaseInstance.listReleasedDataRecords(validParams, mockContext)).rejects.toThrow('DB fetch failed');
+        });
     });
 });
