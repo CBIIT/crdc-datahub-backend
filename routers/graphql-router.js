@@ -242,7 +242,8 @@ dbConnector.connect().then(async () => {
         listReleasedStudies: releaseService.listReleasedStudies.bind(releaseService),
         getReleaseNodeTypes: releaseService.getReleaseNodeTypes.bind(releaseService),
         listReleasedDataRecords: releaseService.listReleasedDataRecords.bind(releaseService),
-        downloadDBGaPLoadSheet : submissionService.downloadDBGaPLoadSheet.bind(submissionService)
+        downloadDBGaPLoadSheet : submissionService.downloadDBGaPLoadSheet.bind(submissionService),
+        getPendingPVs: submissionService.getPendingPVs.bind(submissionService)
     };
 });
 

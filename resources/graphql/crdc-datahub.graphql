@@ -644,6 +644,17 @@ type SubmissionAttributes {
     isAdminSubmit: Boolean
 }
 
+type RequestedPV {
+    id: ID
+    submissionID: String
+    node: String
+    offendingProperty: String
+    offendingValue: String
+    value: String
+    createdAt: Date
+    updatedAt: Date
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -853,7 +864,7 @@ type Query {
     ): ListReleasedNodes
     getReleaseNodeTypes(studyID: String!, dataCommonsDisplayName: String!): ListNodeTypes
     downloadDBGaPLoadSheet(submissionID:String!):String #presigned url of s3
-
+    getPendingPVs(submissionID: String!): [RequestedPV]
 }
 type Mutation {
     "User initiated operations"
