@@ -644,12 +644,10 @@ type SubmissionAttributes {
     isAdminSubmit: Boolean
 }
 
-type RequestedPV {
+type PendingPV {
     id: ID
     submissionID: String
-    node: String
     offendingProperty: String
-    offendingValue: String
     value: String
     createdAt: Date
     updatedAt: Date
@@ -864,7 +862,7 @@ type Query {
     ): ListReleasedNodes
     getReleaseNodeTypes(studyID: String!, dataCommonsDisplayName: String!): ListNodeTypes
     downloadDBGaPLoadSheet(submissionID:String!):String #presigned url of s3
-    getPendingPVs(submissionID: String!): [RequestedPV]
+    getPendingPVs(submissionID: String!): [PendingPV]
 }
 type Mutation {
     "User initiated operations"
