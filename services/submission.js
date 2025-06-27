@@ -1903,7 +1903,11 @@ class Submission {
             if (zipFile && fs.existsSync(zipFile)) {
                 const downloadDir = path.dirname(zipFile);
                 if (downloadDir && fs.existsSync(downloadDir)) {
-                    fs.rmSync(downloadDir, {recursive: true, force: true });
+                    try {
+                        fs.rmSync(downloadDir, {recursive: true, force: true });
+                    } catch (error) {
+                        console.error("Error during cleanup:", error);
+                    }
                 }
             }
         }
