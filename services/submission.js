@@ -61,7 +61,7 @@ class Submission {
     constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService,
                 dataRecordService, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList,
                 hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs, 
-                submissionBucketName, configurationService, uploadingMonitor, dataCommonsBucketMap, authorizationService, pendingPVDAO) {
+                submissionBucketName, configurationService, uploadingMonitor, dataCommonsBucketMap, authorizationService) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -1872,7 +1872,7 @@ class Submission {
         const viewScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
         const isNotPermitted = !this._isCollaborator(context?.userInfo, aSubmission) && viewScope.isNoneScope();
         if (isNotPermitted) {
-            throw new Error(ERROR.INVALID_DELETE_DATA_RECORDS_PERMISSION)
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         return await this.pendingPVDAO.findBySubmissionID(submissionID)
     }
