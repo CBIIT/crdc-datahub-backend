@@ -62,20 +62,19 @@ const extractAndJoinFields = (data, fieldsToExtract, splitter = ",") => {
 }
 
 /**
- * Convert string to pascal case
+ * Convert string to camel case (e.g., "hello world" -> "helloWorld")
  * @param {*} string 
  * @returns 
  */
 const toPascalCase = (string) => {
-    return `${string}`
-      .toLowerCase()
-      .replace(new RegExp(/[-_]+/, 'g'), ' ')
-      .replace(new RegExp(/[^\w\s]/, 'g'), '')
-      .replace(
-        new RegExp(/\s+(.)(\w*)/, 'g'),
-        ($1, $2, $3) => `${$2.toUpperCase() + $3}`
-      )
-      .replace(new RegExp(/\w/), s => s.toUpperCase());
+    if (!string) return '';
+    return string
+        .replace(/[_\- ]+/g, ' ')                 // Normalize separators to spaces
+        .replace(/[^\w\s]/g, '')                  // Remove non-word characters
+        .split(' ')                               // Split into words
+        .filter(Boolean)                          // Remove empty strings
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1)) // Capitalize first letter only
+        .join('');
 }
 
 /**

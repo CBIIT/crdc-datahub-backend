@@ -1,7 +1,7 @@
-const ApprovedStudyDAO = require('../dao/approvedStudy');
-const GenericDAO = require('../dao/generic');
+const ApprovedStudyDAO = require('../../dao/approvedStudy');
+const GenericDAO = require('../../dao/generic');
 
-jest.mock('../dao/generic');
+jest.mock('../../dao/generic');
 
 describe('ApprovedStudyDAO', () => {
     let approvedStudyDAO;

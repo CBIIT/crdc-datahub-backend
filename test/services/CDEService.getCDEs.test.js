@@ -1,4 +1,4 @@
-const { CDE } = require('../services/CDEService');
+const { CDE } = require('../../services/CDEService');
 
 describe('CDE.getCDEs', () => {
     let cdeService;

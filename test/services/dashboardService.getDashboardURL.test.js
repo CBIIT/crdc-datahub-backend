@@ -1,9 +1,9 @@
-const { DashboardService } = require('../services/dashboardService');
-const ERROR = require('../constants/error-constants');
-const USER_PERMISSION_CONSTANTS = require('../crdc-datahub-database-drivers/constants/user-permission-constants');
-const { verifySession } = require('../verifier/user-info-verifier');
+const { DashboardService } = require('../../services/dashboardService');
+const ERROR = require('../../constants/error-constants');
+const USER_PERMISSION_CONSTANTS = require('../../crdc-datahub-database-drivers/constants/user-permission-constants');
+const { verifySession } = require('../../verifier/user-info-verifier');
 
-jest.mock('../verifier/user-info-verifier', () => ({
+jest.mock('../../verifier/user-info-verifier', () => ({
     verifySession: jest.fn()
 }));
 
@@ -49,7 +49,7 @@ describe('DashboardService.getDashboardURL', () => {
             isDCScope: jest.fn().mockReturnValue(false)
         };
         // Mock UserScope.create
-        jest.spyOn(require('../domain/user-scope').UserScope, 'create').mockReturnValue(userScope);
+        jest.spyOn(require('../../domain/user-scope').UserScope, 'create').mockReturnValue(userScope);
 
         mockAuthorizationService.getPermissionScope.mockResolvedValue(['all']);
         mockConfigurationService.findByType.mockResolvedValue({ dashboardID: 'DASH_ID' });
@@ -71,7 +71,7 @@ describe('DashboardService.getDashboardURL', () => {
             isStudyScope: jest.fn().mockReturnValue(false),
             isDCScope: jest.fn().mockReturnValue(false)
         };
-        jest.spyOn(require('../domain/user-scope').UserScope, 'create').mockReturnValue(userScope);
+        jest.spyOn(require('../../domain/user-scope').UserScope, 'create').mockReturnValue(userScope);
 
         mockAuthorizationService.getPermissionScope.mockResolvedValue([]);
         await expect(dashboardService.getDashboardURL(mockParams, mockContext))
@@ -86,7 +86,7 @@ describe('DashboardService.getDashboardURL', () => {
             isStudyScope: jest.fn().mockReturnValue(false),
             isDCScope: jest.fn().mockReturnValue(false)
         };
-        jest.spyOn(require('../domain/user-scope').UserScope, 'create').mockReturnValue(userScope);
+        jest.spyOn(require('../../domain/user-scope').UserScope, 'create').mockReturnValue(userScope);
 
         mockAuthorizationService.getPermissionScope.mockResolvedValue(['all']);
         mockConfigurationService.findByType.mockResolvedValue({}); // dashboardID missing
@@ -105,7 +105,7 @@ describe('DashboardService.getDashboardURL', () => {
             isStudyScope: jest.fn().mockReturnValue(false),
             isDCScope: jest.fn().mockReturnValue(false)
         };
-        jest.spyOn(require('../domain/user-scope').UserScope, 'create').mockReturnValue(userScope);
+        jest.spyOn(require('../../domain/user-scope').UserScope, 'create').mockReturnValue(userScope);
 
         mockAuthorizationService.getPermissionScope.mockResolvedValue(['all']);
         mockConfigurationService.findByType.mockResolvedValue({ dashboardID: 'DASH_ID' });

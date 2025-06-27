@@ -1,7 +1,7 @@
-const CdeDAO = require('../dao/cde');
-const prisma = require('../prisma');
+const CdeDAO = require('../../dao/cde');
+const prisma = require('../../prisma');
 
-jest.mock('../prisma', () => ({
+jest.mock('../../prisma', () => ({
     cDE: {
         findMany: jest.fn(),
     },

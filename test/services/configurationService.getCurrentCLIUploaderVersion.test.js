@@ -1,4 +1,4 @@
-const { ConfigurationService } = require('../services/configurationService');
+const { ConfigurationService } = require('../../services/configurationService');
 
 describe('ConfigurationService - retrieveCLIUploaderVersion', () => {
     let configurationService;

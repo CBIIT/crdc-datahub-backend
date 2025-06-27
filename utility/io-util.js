@@ -69,7 +69,7 @@ function makeDir(dirPath) {
  */
 function arrayOfObjectsToTSV(array, filename) {
   if (!Array.isArray(array) || array.length === 0) {
-    console.error('Input must be a non-empty array');
+    return console.error('Input must be a non-empty array');
   }
 
   // Extract headers from the first object

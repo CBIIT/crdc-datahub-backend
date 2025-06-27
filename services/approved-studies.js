@@ -43,7 +43,7 @@ class ApprovedStudiesService {
         this.submissionCollection = submissionCollection;
         this.authorizationService = authorizationService;
         this.approvedStudyDAO = new ApprovedStudyDAO();
-         this.userDAO = new UserDAO();
+        this.userDAO = new UserDAO();
     }
 
     async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID) {
@@ -129,7 +129,7 @@ class ApprovedStudiesService {
      * @param {Filters} [filters] Filters to apply to the query
      * @returns {Promise<Object[]>} An array of ApprovedStudies
      */
-    async listApprovedStudies(filters = {}) {
+    async listApprovedStudiesByIDs(studyIDs) {
         return await this.approvedStudyDAO.getApprovedStudiesInStudies(studyIDs);
     }
 

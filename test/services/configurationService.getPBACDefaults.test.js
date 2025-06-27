@@ -1,7 +1,7 @@
-const { ConfigurationService } = require('../services/configurationService');
-const { verifySession } = require('../verifier/user-info-verifier');
+const { ConfigurationService } = require('../../services/configurationService');
+const { verifySession } = require('../../verifier/user-info-verifier');
 
-jest.mock('../verifier/user-info-verifier');
+jest.mock('../../verifier/user-info-verifier');
 const mockVerifyInitialized = jest.fn();
 verifySession.mockImplementation(() => ({
     verifyInitialized: mockVerifyInitialized,

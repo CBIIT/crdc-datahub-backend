@@ -1,9 +1,9 @@
-const { AWSService } = require('../services/aws-request');
+const { AWSService } = require('../../services/aws-request');
 const AWS = require('aws-sdk');
-const config = require('../config');
+const config = require('../../config');
 
 jest.mock('aws-sdk');
-jest.mock('../config', () => ({
+jest.mock('../../config', () => ({
     role_arn: 'arn:aws:iam::123456789012:role/test-role'
 }));
 

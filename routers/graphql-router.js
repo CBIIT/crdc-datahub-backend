@@ -113,7 +113,7 @@ dbConnector.connect().then(async () => {
 
     const dashboardService = new DashboardService(userService, awsService, configurationService, {sessionTimeout: config.dashboardSessionTimeout}, authorizationService);
     userInitializationService = new UserInitializationService(userCollection, organizationCollection, approvedStudiesCollection, configurationService);
-    authenticationService = new AuthenticationService(userCollection);
+    authenticationService = new AuthenticationService();
     
     const cdeService = new CDE();
 

@@ -1,4 +1,4 @@
-const { Submission } = require('../services/submission');
+const { Submission } = require('../../services/submission');
 
 describe('Submission.getDataFileConfigs', () => {
     let submission;

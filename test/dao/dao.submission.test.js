@@ -1,7 +1,7 @@
-const SubmissionDAO = require('../dao/submission');
-const prisma = require('../prisma');
+const SubmissionDAO = require('../../dao/submission');
+const prisma = require('../../prisma');
 
-jest.mock('../prisma', () => ({
+jest.mock('../../prisma', () => ({
     submission: {
         findUnique: jest.fn(),
     },
