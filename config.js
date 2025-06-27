@@ -42,6 +42,8 @@ const SCHEDULED_JOBS = "SCHEDULED_JOBS";
 const LIST_OF_EMAIL_ADDRESS = "LIST_OF_EMAIL_ADDRESS";
 const LIST_OF_URLS = "LIST_OF_URLS";
 const TIMEOUT = "TIMEOUT";
+// set Database URL for MongoDB connection for Prisma
+process.env.DATABASE_URL =`mongodb://${process.env.MONGO_DB_USER}:${process.env.MONGO_DB_PASSWORD}@${process.env.MONGO_DB_HOST}:${process.env.MONGO_DB_PORT}/${process.env.DATABASE_NAME}?authSource=admin`;
 let config = {
     //info variables
     version: process.env.VERSION || 'Version not set',
@@ -61,8 +63,9 @@ let config = {
     uploading_check_interval: 5 * 60 * 1000,
     //aws sts assume role
     role_arn: process.env.ROLE_ARN,
-    updateConfig: async (dbConnector)=> {
+    mongo_db_connection_string: process.env.DATABASE_URL,
 
+    updateConfig: async (dbConnector)=> {
         const configurationService = new ConfigurationService();
         // SCHEDULED_JOBS
         const scheduledJobsConf = await configurationService.findByType(SCHEDULED_JOBS);
@@ -160,7 +163,6 @@ let config = {
     }
 }
 config.mongo_db_connection_string = `mongodb://${config.mongo_db_user}:${config.mongo_db_password}@${config.mongo_db_host}:${process.env.MONGO_DB_PORT}/${process.env.DATABASE_NAME}?authSource=admin`;
-process.env.DATABASE_URL=config.mongo_db_connection_string
 function parseHiddenModels(hiddenModels) {
     return hiddenModels.split(',')
         .filter(item => item?.trim().length > 0)

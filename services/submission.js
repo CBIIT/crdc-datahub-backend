@@ -16,7 +16,9 @@ const {SubmissionActionEvent, DeleteRecordEvent} = require("../crdc-datahub-data
 const {verifyBatch} = require("../verifier/batch-verifier");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
+const SubmissionDAO = require("../dao/submission");
 // const {write2file} = require("../utility/io-util") //keep the line for future testing.
+
 
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const ALL_FILTER = "All";
