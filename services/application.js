@@ -9,7 +9,7 @@ const ERROR = require("../constants/error-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const ROLES = USER_CONSTANTS.USER.ROLES;
-const {parseJsonString} = require("../crdc-datahub-database-drivers/utility/string-utility");
+const {parseJsonString, isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
 const {formatName} = require("../utility/format-name");
 const {isUndefined, replaceErrorString} = require("../utility/string-util");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
@@ -66,17 +66,20 @@ class Application {
 
     async _checkConditionalApproval(application) {
         // 1) controlled study missing dbGaPID
-        const study_arr = await this.approvedStudiesService.findByStudyName(application.studyName);
-        if (!study_arr || study_arr.length < 1) {
+        const studyArr = await this.approvedStudiesService.findByStudyName(application.studyName);
+        if (!studyArr || studyArr.length < 1) {
             return;
         }
-        const study = study_arr[0];
-        if(study?.controlledAccess && !study?.dbGaPID){
-            application.conditional = true;
-            application.pendingConditions = (!application?.pendingConditions)? [ERROR.CONTROLLED_STUDY_NO_DBGAPID] : application.pendingConditions.push(ERROR.CONTROLLED_STUDY_NO_DBGAPID);
-        }
-        else {
-            application.conditional = false;
+        const study = studyArr[0];
+        const pendingConditions = [
+            ...(study?.controlledAccess && !study?.dbGaPID ? [ERROR.CONTROLLED_STUDY_NO_DBGAPID] : []),
+            ...(isTrue(study?.pendingModelChange) ? [ERROR.PENDING_APPROVED_STUDY] : [])
+        ];
+
+        application.conditional = pendingConditions.length > 0;
+
+        if (pendingConditions.length > 0) {
+            application.pendingConditions = pendingConditions;
         }
     }
 
@@ -459,19 +462,19 @@ class Application {
 
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, APPROVED, document.comment);
         const questionnaire = getApplicationQuestionnaire(application);
-        const approvalConditional = (questionnaire?.accessTypes?.includes("Controlled Access") && !questionnaire?.study?.dbGaPPPHSNumber);
+
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime, version: application.version},
             $push: {history}
         });
-
+        const isDbGapMissing = (questionnaire?.accessTypes?.includes("Controlled Access") && !questionnaire?.study?.dbGaPPPHSNumber);
         let promises = [];
         promises.push(this.institutionService.addNewInstitutions(document?.institutions));
-        promises.push(this.sendEmailAfterApproveApplication(context, application, document?.comment, approvalConditional));
+        promises.push(this.sendEmailAfterApproveApplication(context, application, document?.comment, isDbGapMissing, isTrue(document?.pendingModelChange)));
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             promises.unshift(this.getApplicationById(document._id));
             if(questionnaire) {
-                const approvedStudies = await this._saveApprovedStudies(application, questionnaire);
+                const approvedStudies = await this._saveApprovedStudies(application, questionnaire, document?.pendingModelChange);
                 // added approved studies into user collection
                 const { _id, ...updateUser } = context?.userInfo || {};
                 const currStudyIDs = context?.userInfo?.studies?.map((study)=> study?._id) || [];
@@ -702,7 +705,7 @@ class Application {
             }}]);
     }
 
-    async sendEmailAfterApproveApplication(context, application, comment, conditional = false) {
+    async sendEmailAfterApproveApplication(context, application, comment, isDbGapMissing = false, isPendingModelChange) {
         const res = await Promise.all([
             this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
                 [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD, ROLES.ADMIN]),
@@ -715,7 +718,7 @@ class Application {
         const toBCCEmails = getUserEmails(toBCCUsers)
             ?.filter((email) => !CCEmails.includes(email) && applicantInfo?.email !== email);
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW)) {
-            if (!conditional) {
+            if (!isDbGapMissing && !isPendingModelChange) {
                 await this.notificationService.approveQuestionNotification(application?.applicant?.applicantEmail,
                     CCEmails,
                     toBCCEmails,
@@ -729,17 +732,50 @@ class Application {
                 });
                 return;
             }
-            await this.notificationService.conditionalApproveQuestionNotification(application?.applicant?.applicantEmail,
-                CCEmails,
-                toBCCEmails,
-                {
-                    firstName: application?.applicant?.applicantName,
-                    contactEmail: this.emailParams?.conditionalSubmissionContact,
-                    reviewComments: comment && comment?.trim()?.length > 0 ? comment?.trim() : "N/A",
-                    study: setDefaultIfNoName(application?.studyName),
-                    submissionGuideURL: this.emailParams?.submissionGuideURL
-                }
-            );
+
+            if (isDbGapMissing && isPendingModelChange) {
+                await this.notificationService.multipleChangesApproveQuestionNotification(application?.applicant?.applicantEmail,
+                    CCEmails,
+                    toBCCEmails,
+                    {
+                        firstName: application?.applicant?.applicantName,
+                        contactEmail: this.emailParams?.conditionalSubmissionContact,
+                        reviewComments: comment && comment?.trim()?.length > 0 ? comment?.trim() : "N/A",
+                        study: setDefaultIfNoName(application?.studyName),
+                        submissionGuideURL: this.emailParams?.submissionGuideURL
+                    }
+                );
+                return;
+            }
+
+            if (isDbGapMissing) {
+                await this.notificationService.dbGapMissingApproveQuestionNotification(application?.applicant?.applicantEmail,
+                    CCEmails,
+                    toBCCEmails,
+                    {
+                        firstName: application?.applicant?.applicantName,
+                        contactEmail: this.emailParams?.conditionalSubmissionContact,
+                        reviewComments: comment && comment?.trim()?.length > 0 ? comment?.trim() : "N/A",
+                        study: setDefaultIfNoName(application?.studyName),
+                        submissionGuideURL: this.emailParams?.submissionGuideURL
+                    }
+                );
+                return;
+            }
+
+            if (isPendingModelChange) {
+                await this.notificationService.dataModelChangeApproveQuestionNotification(application?.applicant?.applicantEmail,
+                    CCEmails,
+                    toBCCEmails,
+                    {
+                        firstName: application?.applicant?.applicantName,
+                        contactEmail: this.emailParams?.conditionalSubmissionContact,
+                        reviewComments: comment && comment?.trim()?.length > 0 ? comment?.trim() : "N/A",
+                        study: setDefaultIfNoName(application?.studyName),
+                        submissionGuideURL: this.emailParams?.submissionGuideURL
+                    }
+                );
+            }
         }
     }
 
@@ -865,7 +901,7 @@ class Application {
         }, {[`${this._FINAL_INACTIVE_REMINDER}`]: status});
     }
 
-    async _saveApprovedStudies(aApplication, questionnaire) {
+    async _saveApprovedStudies(aApplication, questionnaire, pendingModelChange) {
         // use study name when study abbreviation is not available
         const studyAbbreviation = !!aApplication?.studyAbbreviation?.trim() ? aApplication?.studyAbbreviation : questionnaire?.study?.name;
         const controlledAccess = aApplication?.controlledAccess;
@@ -873,9 +909,10 @@ class Application {
             console.error(ERROR.APPLICATION_CONTROLLED_ACCESS_NOT_FOUND, ` id=${aApplication?._id}`);
         }
         const programName = aApplication?.programName ?? "NA";
+        // Upon approval of the submission request, the data concierge is retrieved from the associated program.
         return await this.approvedStudiesService.storeApprovedStudies(
             aApplication?.studyName, studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name, controlledAccess, aApplication?.ORCID,
-            aApplication?.PI, aApplication?.openAccess, programName
+            aApplication?.PI, aApplication?.openAccess, programName, true, pendingModelChange
         );
     }
 

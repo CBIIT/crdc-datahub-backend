@@ -644,6 +644,15 @@ type SubmissionAttributes {
     isAdminSubmit: Boolean
 }
 
+type PendingPV {
+    id: ID
+    submissionID: String
+    offendingProperty: String
+    value: String
+    createdAt: Date
+    updatedAt: Date
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -852,7 +861,8 @@ type Query {
         dataCommonsDisplayName: String!
     ): ListReleasedNodes
     getReleaseNodeTypes(studyID: String!, dataCommonsDisplayName: String!): ListNodeTypes
-
+    downloadDBGaPLoadSheet(submissionID:String!):String #presigned url of s3
+    getPendingPVs(submissionID: String!): [PendingPV]
 }
 type Mutation {
     "User initiated operations"
@@ -862,7 +872,12 @@ type Mutation {
 
     "Fed lead initiated operations"
     reviewApplication (_id: ID!): Application # same as getApplication but will set Application to "In Review" state
-    approveApplication (_id: ID!, wholeProgram: Boolean, comment: String, institutions: [String]): Application
+    approveApplication (
+        _id: ID!, wholeProgram: Boolean,
+        comment: String,
+        institutions: [String],
+        pendingModelChange: Boolean = false
+    ): Application
     rejectApplication (_id: ID!, comment: String!): Application
     inquireApplication (_id: ID!, comment: String!): Application
 

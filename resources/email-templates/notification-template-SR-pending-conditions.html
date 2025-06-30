@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body,
+    pre {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <p>Dear {{ firstName }},</p>
+  <p>
+    {{ topMessage }}
+  </p>
+  <p>
+    <span>[Review Comments]:</span>
+  </p>
+  <p>
+    <span>{{ reviewComments }}</span>
+  </p>
+  {{#if pendingConditions}}
+  <p>
+    <span>[Pending Condition]:</span>
+      <br>
+      {{#each pendingConditions}}
+      <br>&nbsp;&nbsp;&nbsp;<span>■ {{{ this }}}</span>
+      {{/each}}
+  </p>
+  {{/if}}
+  <p>
+    You will be notified once the pending condition has been cleared. At that time, you may begin your data submission. For guidance, please refer to the <a href="{{submissionGuideURL}}">Data Submission Instructions</a> for guidance.
+  </p>
+  <p>
+    If you have any questions, feel free to contact the CRDC Helpdesk at {{ contactEmail }}.
+  </p>
+  <p>Thank you for your submission, and we look forward to supporting your study.</p>
+  <p>Sincerely,</p>
+  <p>CRDC Submission Portal</p>
+</body>
+</html>
