@@ -7,10 +7,11 @@ class CdeDAO extends GenericDAO {
     constructor() {
         super(MODEL_NAME.CDE);
     }
-    async getCdeByCodeAndVersion(query) {
+    // CDEInfoArray: [{ CDECode: cde.CDECode, CDEVersion: cde.CDEVersion}...]
+    async getCdeByCodeAndVersion(CDEInfoArray) {
         const matchedDocuments = await this.findMany({
             where: {
-                OR: query
+                OR: CDEInfoArray
             },
             orderBy: [
                 { CDECode: SORT.ASC },
