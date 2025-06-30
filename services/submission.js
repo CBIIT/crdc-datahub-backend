@@ -37,6 +37,7 @@ const {getDataCommonsDisplayNamesForSubmission, getDataCommonsDisplayNamesForLis
 const {UserScope} = require("../domain/user-scope");
 const {ORGANIZATION_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {zipFilesInDir} = require("../utility/io-util");
+const PendingPVDAO = require("../dao/pendingPV");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -84,6 +85,7 @@ class Submission {
         this.uploadingMonitor = uploadingMonitor;
         this.dataCommonsBucketMap = dataCommonsBucketMap;
         this.authorizationService = authorizationService;
+        this.pendingPVDAO = new PendingPVDAO();
     }
 
     async createSubmission(params, context) {
@@ -1856,6 +1858,26 @@ class Submission {
         }
         return userScope;
     }
+
+    async getPendingPVs(params, context) {
+        verifySession(context)
+            .verifyInitialized();
+
+        const {submissionID} = params;
+        const aSubmission = await findByID(this.submissionCollection, submissionID);
+        if (!aSubmission) {
+            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+        }
+
+        const viewScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        const isNotPermitted = !this._isCollaborator(context?.userInfo, aSubmission) && viewScope.isNoneScope();
+        if (isNotPermitted) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+        return await this.pendingPVDAO.findBySubmissionID(submissionID)
+    }
+
+
      async downloadDBGaPLoadSheet(params, context) {
         verifySession(context)
             .verifyInitialized();

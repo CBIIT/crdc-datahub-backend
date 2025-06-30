@@ -15,3 +15,5 @@ Commands:
           { pendingModelChange: { $exists: false } },
           { $set: { pendingModelChange: false } }
         );
+  - create a collection called pendingPVs CRDCDH-2974: |
+        db.createCollection("pendingPVs");:

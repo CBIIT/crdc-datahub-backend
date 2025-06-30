@@ -348,6 +348,16 @@ model FileMD5 {
   @@map("fileMD5")
 }
 
+model PendingPVs {
+  id                String    @id @default(uuid()) @map("_id")
+  submissionID      String
+  offendingProperty String
+  value             String
+  createdAt         DateTime? @default(now()) @db.Date
+  updatedAt         DateTime? @updatedAt @db.Date
+  @@map("pendingPVs")
+}
+
 model Institution {
   id             String    @id @default(uuid()) @map("_id")
   name           String
