@@ -8,5 +8,6 @@ module.exports = Object.freeze({
         APPROVED_STUDY: "approvedStudy",
         SUBMISSION: "submission",
         CDE: "cDE",
+        CONFIGURATION: "configuration"
     }
 });

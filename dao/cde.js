@@ -1,9 +1,14 @@
 const prisma = require("../prisma");
 const { SORT } = require('../constants/db-constants');
+const GenericDAO = require("./generic");
+const { MODEL_NAME } = require('../constants/db-constants');
 
-class CdeDAO{
-    async getCdeByCodeAndVersion(query){
-        const matchedDocuments = await prisma.cDE.findMany({
+class CdeDAO extends GenericDAO {
+    constructor() {
+        super(MODEL_NAME.CDE);
+    }
+    async getCdeByCodeAndVersion(query) {
+        const matchedDocuments = await this.findMany({
             where: {
                 OR: query
             },

@@ -22,6 +22,18 @@ class GenericDAO {
         return result.map(item => ({ ...item, _id: item.id }));
     }
 
+    async findFirst(where) {
+        const result = await this.model.findFirst({ where });
+        if (!result) {
+            return null;
+        }
+        return { ...result, _id: result.id };
+    }
+    async findMany(where) {
+        const result = await this.model.findMany({ where });
+        return result.map(item => ({ ...item, _id: item.id }));
+    }
+
     async update(id, data) {
         return await this.model.update({ where: { id }, data });
     }
