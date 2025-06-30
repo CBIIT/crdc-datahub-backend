@@ -9,6 +9,7 @@ const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-consta
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {getFormatDateStr} = require("../utility/string-util.js")
 const {arrayOfObjectsToTSV} = require("../utility/io-util.js")
+const DataModelService = require('./dataModelService');
 const BATCH_SIZE = 300;
 const ERROR = "Error";
 const WARNING = "Warning";
@@ -888,6 +889,31 @@ class DataRecordService {
             }
         }]);
         return genomicInfos.length > 0 ?  genomicInfos : [];
+    }
+
+    async getPropsForSubmissionAndType(submission, type, modelDefinition) {
+        let nodeProps = [];
+        const {
+            dataCommons,
+            modelVersion
+        } = submission;
+        // 1) get defined properties
+        const modelProps = await new DataModelService(modelDefinition).
+            getDefinedPropsByDataCommonAndType(dataCommons, modelVersion, type);
+        // 2) find properties names from the first record of the submissionID and nodeType
+        const dataRecords = await this.dataRecordsCollection.aggregate([{
+            $match: {
+                submissionID: submission._id,
+                nodeType: type
+            }
+        }, {$limit: 1}]);
+        if (dataRecords.length > 0) {
+            nodeProps = Object.keys(dataRecords[0].props);
+        }
+        // 3) find node properties that are defined in the model
+        nodeProps = nodeProps.filter(prop => modelProps.includes(prop));
+
+        return nodeProps.length > 0 ? nodeProps : null;
     }
 }
 

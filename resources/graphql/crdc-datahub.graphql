@@ -644,6 +644,11 @@ type SubmissionAttributes {
     isAdminSubmit: Boolean
 }
 
+type nodeProp {
+    name: String!
+    group: String!
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -853,6 +858,7 @@ type Query {
     ): ListReleasedNodes
     getReleaseNodeTypes(studyID: String!, dataCommonsDisplayName: String!): ListNodeTypes
     downloadDBGaPLoadSheet(submissionID:String!):String #presigned url of s3
+    retrievePropsForType(submissionID: String!, type: String!): [nodeProp]
 
 }
 type Mutation {
