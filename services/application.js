@@ -462,15 +462,15 @@ class Application {
 
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, APPROVED, document.comment);
         const questionnaire = getApplicationQuestionnaire(application);
-        const approvalConditional = (questionnaire?.accessTypes?.includes("Controlled Access") && !questionnaire?.study?.dbGaPPPHSNumber);
+
         const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
             $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime, version: application.version},
             $push: {history}
         });
-
+        const isDbGapMissing = (questionnaire?.accessTypes?.includes("Controlled Access") && !questionnaire?.study?.dbGaPPPHSNumber);
         let promises = [];
         promises.push(this.institutionService.addNewInstitutions(document?.institutions));
-        promises.push(this.sendEmailAfterApproveApplication(context, application, document?.comment, approvalConditional));
+        promises.push(this.sendEmailAfterApproveApplication(context, application, document?.comment, isDbGapMissing, isTrue(document?.pendingModelChange)));
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
             promises.unshift(this.getApplicationById(document._id));
             if(questionnaire) {
@@ -705,7 +705,7 @@ class Application {
             }}]);
     }
 
-    async sendEmailAfterApproveApplication(context, application, comment, conditional = false) {
+    async sendEmailAfterApproveApplication(context, application, comment, isDbGapMissing = false, isPendingModelChange) {
         const res = await Promise.all([
             this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
                 [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD, ROLES.ADMIN]),
@@ -718,7 +718,7 @@ class Application {
         const toBCCEmails = getUserEmails(toBCCUsers)
             ?.filter((email) => !CCEmails.includes(email) && applicantInfo?.email !== email);
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW)) {
-            if (!conditional) {
+            if (!isDbGapMissing && !isPendingModelChange) {
                 await this.notificationService.approveQuestionNotification(application?.applicant?.applicantEmail,
                     CCEmails,
                     toBCCEmails,
@@ -732,17 +732,50 @@ class Application {
                 });
                 return;
             }
-            await this.notificationService.conditionalApproveQuestionNotification(application?.applicant?.applicantEmail,
-                CCEmails,
-                toBCCEmails,
-                {
-                    firstName: application?.applicant?.applicantName,
-                    contactEmail: this.emailParams?.conditionalSubmissionContact,
-                    reviewComments: comment && comment?.trim()?.length > 0 ? comment?.trim() : "N/A",
-                    study: setDefaultIfNoName(application?.studyName),
-                    submissionGuideURL: this.emailParams?.submissionGuideURL
-                }
-            );
+
+            if (isDbGapMissing && isPendingModelChange) {
+                await this.notificationService.multipleChangesApproveQuestionNotification(application?.applicant?.applicantEmail,
+                    CCEmails,
+                    toBCCEmails,
+                    {
+                        firstName: application?.applicant?.applicantName,
+                        contactEmail: this.emailParams?.conditionalSubmissionContact,
+                        reviewComments: comment && comment?.trim()?.length > 0 ? comment?.trim() : "N/A",
+                        study: setDefaultIfNoName(application?.studyName),
+                        submissionGuideURL: this.emailParams?.submissionGuideURL
+                    }
+                );
+                return;
+            }
+
+            if (isDbGapMissing) {
+                await this.notificationService.dbGapMissingApproveQuestionNotification(application?.applicant?.applicantEmail,
+                    CCEmails,
+                    toBCCEmails,
+                    {
+                        firstName: application?.applicant?.applicantName,
+                        contactEmail: this.emailParams?.conditionalSubmissionContact,
+                        reviewComments: comment && comment?.trim()?.length > 0 ? comment?.trim() : "N/A",
+                        study: setDefaultIfNoName(application?.studyName),
+                        submissionGuideURL: this.emailParams?.submissionGuideURL
+                    }
+                );
+                return;
+            }
+
+            if (isPendingModelChange) {
+                await this.notificationService.dataModelChangeApproveQuestionNotification(application?.applicant?.applicantEmail,
+                    CCEmails,
+                    toBCCEmails,
+                    {
+                        firstName: application?.applicant?.applicantName,
+                        contactEmail: this.emailParams?.conditionalSubmissionContact,
+                        reviewComments: comment && comment?.trim()?.length > 0 ? comment?.trim() : "N/A",
+                        study: setDefaultIfNoName(application?.studyName),
+                        submissionGuideURL: this.emailParams?.submissionGuideURL
+                    }
+                );
+            }
         }
     }
 
