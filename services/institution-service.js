@@ -271,7 +271,7 @@ class InstitutionService {
 function createNewInstitutions(institutionNames){
     let newInstitutions = [];
     institutionNames.forEach(name => {
-        newInstitutions.push(Institution.createInstitution(name));
+        newInstitutions.push(Institution.createInstitution(name, INSTITUTION.STATUSES.ACTIVE));
     });
     return newInstitutions;
 }
