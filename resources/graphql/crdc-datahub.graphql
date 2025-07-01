@@ -979,5 +979,5 @@ type Mutation {
     updateSubmissionModelVersion(_id: String!, version: String!): Submission
     updateInstitution(_id: ID!, name: String, status: String): Institution
     createInstitution(name: String!, status: String!): Institution
-    requestPV(submissionID: String!, value: String!, node: String, property: String, comment: String): AsyncProcessResult
+    requestPV(submissionID: String!, value: String!, nodeName: String!, CDEId: String, property: String!, comment: String): AsyncProcessResult
 }

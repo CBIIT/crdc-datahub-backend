@@ -15,7 +15,8 @@ const {DATABASE_NAME, APPLICATION_COLLECTION, SUBMISSIONS_COLLECTION, USER_COLLE
     CDE_COLLECTION,
     DATA_RECORDS_ARCHIVE_COLLECTION,
     QC_RESULTS_COLLECTION,
-    RELEASE_DATA_RECORDS_COLLECTION
+    RELEASE_DATA_RECORDS_COLLECTION,
+    PENDING_PVS_COLLECTION
 } = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoDBCollection} = require("../crdc-datahub-database-drivers/mongodb-collection");
 const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-connector");
@@ -107,10 +108,11 @@ dbConnector.connect().then(async () => {
         inactiveApplicationNotifyDays: config.inactiveApplicationNotifyDays};
         
     const uploadingMonitor = UploadingMonitor.getInstance(batchCollection, configurationService);
+    const pendingPVCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, PENDING_PVS_COLLECTION);
     const submissionService = new Submission(logCollection, submissionCollection, batchService, userService,
         organizationService, notificationsService, dataRecordService, fetchDataModelInfo, awsService, config.export_queue,
         s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService, config.uploaderCLIConfigs,
-        config.submission_bucket, configurationService, uploadingMonitor, config.dataCommonsBucketMap, authorizationService);
+        config.submission_bucket, configurationService, uploadingMonitor, config.dataCommonsBucketMap, authorizationService, pendingPVCollection);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService, configurationService, authorizationService);
 
     const dashboardService = new DashboardService(userService, awsService, configurationService, {sessionTimeout: config.dashboardSessionTimeout}, authorizationService);
@@ -245,7 +247,7 @@ dbConnector.connect().then(async () => {
         getPendingPVs: submissionService.getPendingPVs.bind(submissionService),
         listReleasedDataRecords: releaseService.listReleasedDataRecords.bind(releaseService),
         requestPV: async (params, context)=> {
-            const fieldsToSanitize = ['comment', 'node', 'property', 'value'];
+            const fieldsToSanitize = ['comment', 'node', 'property', 'value', 'CDEId'];
             const sanitized = Object.fromEntries(
                 fieldsToSanitize.map(field => [field, sanitizeHtml(params?.[field], { allowedTags: [], allowedAttributes: {} })])
             );
