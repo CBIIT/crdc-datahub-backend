@@ -223,8 +223,8 @@ const ERROR = {
     INVALID_SCOPE_VALUES: "You have the required permission $item$, but no values are assigned to it.",
     // Maintenance Mode
     MAINTENANCE_MODE: "The CRDC Submission Portal site is currently undergoing scheduled maintenance. Please check back soon. We appreciate your patience.",
-    INVALID_PARTICIPANT_NOT_FOUND: "The specified participant was not found.",
-    INVALID_SAMPLE_NOT_FOUND: "The specified sample was not found.",
+    PARTICIPANT_NOT_FOUND: "The specified participant was not found.",
+    SAMPLE_NOT_FOUND: "The specified sample was not found.",
 }
 
 module.exports = ERROR;

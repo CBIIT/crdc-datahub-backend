@@ -736,7 +736,7 @@ class DataRecordService {
                 nodeType: "participant"
             }
         }]);
-        if (!participants || participants.length === 0) throw new Error(ERRORS.INVALID_PARTICIPANT_NOT_FOUND);
+        if (!participants || participants.length === 0) throw new Error(ERRORS.PARTICIPANT_NOT_FOUND);
         // create subject sample mapping by sample nodes
         const sampleNodes = await this.dataRecordsCollection.aggregate([{
             $match: {
@@ -744,7 +744,7 @@ class DataRecordService {
                 nodeType: "sample"
             }
         }]);
-        if (!sampleNodes || sampleNodes.length === 0) throw new Error(ERRORS.INVALID_SAMPLE_NOT_FOUND);
+        if (!sampleNodes || sampleNodes.length === 0) throw new Error(ERRORS.SAMPLE_NOT_FOUND);
         let subjectSampleMapArr = sampleNodes.map((sampleNode) => {
             const subject = sampleNode.parents.find(p=>p.parentType === "participant");
             const subjectID = subject? subject?.parentIDValue : "";
