@@ -25,8 +25,8 @@ describe('institution service test', () => {
         expect(newInstitutions.length).toBe(2);
         for (let i = 0; i < newInstitutions.length; i++) {
             const institution = newInstitutions[i];
-            expect(!!institution).toBe(true);
-            expect(!!institution._id).toBe(true);
+            expect(institution).toBeTruthy();
+            expect(institution._id).toBeDefined();
             expect(institution.name).toStrictEqual(newInstitutionNames[i]);
             expect(institution.status).not.toBeNull();
             expect(institution.status).not.toBeUndefined();
