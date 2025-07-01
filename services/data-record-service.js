@@ -57,7 +57,7 @@ const DATA_SHEET = {
     MD5SUM: "md5sum"
 };
 class DataRecordService {
-    constructor(dataRecordsCollection, dataRecordArchiveCollection, releaseCollection, fileQueueName, metadataQueueName, awsService, s3Service, qcResultsService, exportQueue) {
+    constructor(dataRecordsCollection, dataRecordArchiveCollection, releaseCollection, fileQueueName, metadataQueueName, awsService, s3Service, qcResultsService, exportQueue, dataModelService) {
         this.dataRecordsCollection = dataRecordsCollection;
         this.fileQueueName = fileQueueName;
         this.metadataQueueName = metadataQueueName;
@@ -67,7 +67,7 @@ class DataRecordService {
         this.qcResultsService = qcResultsService;
         this.exportQueue = exportQueue;
         this.releaseCollection = releaseCollection;
-
+        this.dataModelService = dataModelService;
     }
 
     async submissionStats(aSubmission) {
@@ -892,14 +892,19 @@ class DataRecordService {
     }
 
     async getPropsForSubmissionAndType(submission, type, modelDefinition) {
-        let nodeProps = [];
+        const properties = []
+        
         const {
             dataCommons,
             modelVersion
         } = submission;
         // 1) get defined properties
-        const modelProps = await new DataModelService(modelDefinition).
+        const modelProps = await this.dataModelService.
             getDefinedPropsByDataCommonAndType(dataCommons, modelVersion, type);
+        if (!modelProps || modelProps.length === 0) {
+            return null;
+        }
+        const modelPropNames = modelProps.map(prop => prop.handle);
         // 2) find properties names from the first record of the submissionID and nodeType
         const dataRecords = await this.dataRecordsCollection.aggregate([{
             $match: {
@@ -907,13 +912,44 @@ class DataRecordService {
                 nodeType: type
             }
         }, {$limit: 1}]);
+        let nodeProps = [];
         if (dataRecords.length > 0) {
             nodeProps = Object.keys(dataRecords[0].props);
         }
         // 3) find node properties that are defined in the model
-        nodeProps = nodeProps.filter(prop => modelProps.includes(prop));
-
-        return nodeProps.length > 0 ? nodeProps : null;
+        const dataModelDefinedGroup = nodeProps.filter(prop => modelPropNames.includes(prop)).map(prop => {
+            return {
+                "name": prop,
+                "group": "Data Model Defined"
+            };
+        });
+        properties.push(...dataModelDefinedGroup);
+        // 4) find node properties that are not defined in the model
+        const dataModelNotDefinedGroup = nodeProps.filter(prop => !modelPropNames.includes(prop));
+        const otherPropsGroup = dataModelNotDefinedGroup.filter(prop => prop.toLowerCase() !== "crdc_id").map(prop => {
+            return {
+                "name": prop,
+                "group": "Others"
+            };
+        });
+        properties.push(...otherPropsGroup);
+        // 5) get generated properties
+        if(dataModelNotDefinedGroup.find(prop => prop.toLowerCase() === "crdc_id")){
+            properties.push({
+                "name": "crdc_id",
+                "group": "Internal"
+            });
+        }
+        const generatedPropsArray = dataRecords[0]?.generatedProps;
+        const generatedPropNames = Object.keys(generatedPropsArray || {});
+        if (generatedPropNames.length > 0) {
+            const generatedProps = generatedPropNames.map(p => ({
+                "name": p,
+                "group": "Internal"
+            }));
+            properties.push(...generatedProps);
+        }
+        return properties.length > 0 ? properties : null;
     }
 }
 

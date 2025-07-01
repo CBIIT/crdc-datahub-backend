@@ -1,17 +1,15 @@
 const fs = require('fs');
 const path = require('path');  
-const yaml = require('js-yaml');
 const https = require("https");
 const { MDFReader } = require('mdf-reader');
-const config = require('../config');
 
 const CURRENT_DEF_VERSION = 'current-version';
 const DEF_MODEL_FILES = 'model-files';
 
 class DataModelService {
-    constructor(dataModelInfo) {
+    constructor(dataModelInfo, modelUrl) {
         this.dataModelManifestInfo = dataModelInfo;
-        this.modelDir = path.dirname(config.model_url);
+        this.modelDir = path.dirname(modelUrl);
     }
 
     /**
@@ -30,7 +28,7 @@ class DataModelService {
         if (!nodes || nodes.length === 0) {
             return null;
         }
-        const definedProps = nodes[0]?.props();
+        const definedProps = nodes?.props();
         return definedProps && definedProps.length > 0 ? definedProps : null;
     }
     /**
@@ -45,10 +43,11 @@ class DataModelService {
         if (!dataCommon) {
             return null;
         }
-        this.modelDefinition = this.dataModelManifestInfo[dataCommon];
-        if (!this.modelDefinition) {
+        const contents = await this.dataModelManifestInfo();
+        if (!contents) {
             return null;
         }
+        this.modelDefinition = contents[dataCommon];
         if (!version) {
             version = this.modelDefinition[CURRENT_DEF_VERSION];
         }
