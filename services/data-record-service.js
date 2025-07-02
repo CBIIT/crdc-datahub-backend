@@ -891,7 +891,7 @@ class DataRecordService {
         return genomicInfos.length > 0 ?  genomicInfos : [];
     }
 
-    async getPropsForSubmissionAndType(submission, type, modelDefinition) {
+    async getPropsForSubmissionAndType(submission, type) {
         const properties = []
         
         const {

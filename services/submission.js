@@ -1922,7 +1922,7 @@ class Submission {
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
-        return await this.dataRecordService.getPropsForSubmissionAndType(aSubmission, type, this.fetchDataModelInfo);
+        return await this.dataRecordService.getPropsForSubmissionAndType(aSubmission, type);
     }
 }
 
