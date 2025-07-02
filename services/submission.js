@@ -1922,8 +1922,11 @@ class Submission {
             return ValidationHandler.handle(ERROR.NO_RECIPIENT_PV_REQUEST);
         }
 
-
-        // TODO If the given offending property, value alreaedy inserted, throw an error.
+        const pendingPVs = await this.pendingPVDAO.findBySubmissionID(submissionID);
+        const filteredPendingPVs = pendingPVs?.filter(pv => pv?.value === value && pv?.offendingProperty === property);
+        if (filteredPendingPVs?.length > 0) {
+            throw new Error(replaceErrorString(ERROR.DUPLICATE_REQUEST_PV, `submissionID: ${submissionID}, property: ${property}, value: ${value}`));
+        }
 
         const insertedPendingPV = await this.pendingPVDAO.insertOne(submissionID, property, value);
         if (!insertedPendingPV) {
