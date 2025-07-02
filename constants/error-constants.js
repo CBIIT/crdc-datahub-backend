@@ -101,7 +101,7 @@ const ERROR = {
     INVALID_MODEL_VERSION: "The provided model version was not found in the data-commons: $item$",
     INVALID_SUBMISSION_STATUS_MODEL_VERSION: "Invalid submission status to update the model-version: $item$",
     FAILED_TO_REQUEST_PV: "Failed to send notification for PV request; $item$",
-    FAILED_TO_INSERT_REQUEST_PV: "Failed to invert PV request; $item$",
+    FAILED_TO_INSERT_REQUEST_PV: "Failed to insert PV request; $item$",
     DUPLICATE_REQUEST_PV: "Duplicate PV found: $item$",
     EMPTY_NODE_REQUEST_PV: "node name can not be empty when requesting PV.",
     EMPTY_PROPERTY_REQUEST_PV: "property can not be empty when requesting PV.",
