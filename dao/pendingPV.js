@@ -19,6 +19,10 @@ class PendingPVDAO {
     async insertOne(submissionID, offendingProperty, value) {
         try {
             const newPendingPV = PendingPVData.createPendingPV(submissionID, offendingProperty, value);
+            // TODO switch to prisma
+            // const res = await prisma.pendingPVs.create({
+            //     data: newPendingPV,
+            // });
             return await this.pendingPVCollection.insert(newPendingPV);
         } catch (error) {
             console.error(`Error inserting pending PV: ${submissionID}`, error);
@@ -29,6 +33,7 @@ class PendingPVDAO {
 
 class PendingPVData {
     constructor(submissionID, offendingProperty, value) {
+        // TODO prisma does not need the UUID
         this._id = v4();
         this.submissionID = submissionID;
         this.offendingProperty = offendingProperty;

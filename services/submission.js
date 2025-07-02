@@ -1904,7 +1904,7 @@ class Submission {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
-        const DCUsers = await this.userService.getUsersByNotifications([EN.USER_ACCOUNT.USER_REQUEST_ACCESS],
+        const DCUsers = await this.userService.getUsersByNotifications([EN.DATA_SUBMISSION.PENDING_PV],
             [ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN, ROLES.FEDERAL_LEAD]);
 
         const { DCEmails, nonDCEmails } = (DCUsers || []).reduce(
