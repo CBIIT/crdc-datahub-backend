@@ -74,3 +74,6 @@ USER_ROLE_CHANGE_CONTENT_BOTTOM: "Please log in to $url to confirm your updated 
 USER_REQUEST_ACCESS_RECIPIENT_NAME: "Admins"
 USER_REQUEST_ACCESS_SUBJECT: "USER Request CRDC Data Submission Portal Access"
 USER_REQUEST_ACCESS_CONTENT: "A user has initiated an access request on the CRDC Submission Portal. Please review the details below and take the appropriate actions."
+PV_REQUEST_SUBJECT: "Inquiry: New Permissive Value Request Submitted via CRDC Submission Portal"
+PV_REQUEST_SUBJECT_CONTENT: "A new permissive value (PV) request has been submitted by a submitter through the CRDC Data Submission Portal. Below are the details:"
+PV_REQUEST_SUBJECT_SECOND_CONTENT: "Please review this request and take appropriate action. It is the responsibility of the Data Commons team to communicate with the submitter once a decision has been made regarding the inclusion of the new permissible value."

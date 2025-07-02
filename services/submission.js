@@ -61,7 +61,7 @@ class Submission {
     constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService,
                 dataRecordService, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList,
                 hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs, 
-                submissionBucketName, configurationService, uploadingMonitor, dataCommonsBucketMap, authorizationService) {
+                submissionBucketName, configurationService, uploadingMonitor, dataCommonsBucketMap, authorizationService, pendingPVCollection) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -85,7 +85,7 @@ class Submission {
         this.uploadingMonitor = uploadingMonitor;
         this.dataCommonsBucketMap = dataCommonsBucketMap;
         this.authorizationService = authorizationService;
-        this.pendingPVDAO = new PendingPVDAO();
+        this.pendingPVDAO = new PendingPVDAO(pendingPVCollection);
     }
 
     async createSubmission(params, context) {
@@ -1877,7 +1877,83 @@ class Submission {
         return await this.pendingPVDAO.findBySubmissionID(submissionID)
     }
 
+    async requestPV(param, context) {
+        verifySession(context)
+            .verifyInitialized();
+        const {submissionID, property, value, nodeName, CDEId, comment} = param;
+        if (nodeName?.trim()?.length === 0) {
+            throw new Error(ERROR.EMPTY_NODE_REQUEST_PV);
+        }
 
+        if (property?.trim()?.length === 0) {
+            throw new Error(ERROR.EMPTY_PROPERTY_REQUEST_PV);
+        }
+
+        if (value?.trim()?.length === 0) {
+            throw new Error(ERROR.EMPTY_PV_REQUEST_PV);
+        }
+
+        const aSubmission = await findByID(this.submissionCollection, param.submissionID);
+        if (!aSubmission) {
+            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+        }
+
+        const createScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, aSubmission);
+        const isNotPermitted = !this._isCollaborator(context?.userInfo, aSubmission) && createScope.isNoneScope();
+        if (isNotPermitted) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
+        const DCUsers = await this.userService.getUsersByNotifications([EN.USER_ACCOUNT.USER_REQUEST_ACCESS],
+            [ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN, ROLES.FEDERAL_LEAD]);
+
+        const { DCEmails, nonDCEmails } = (DCUsers || []).reduce(
+            (acc, u) => {
+                if (u?.email) {
+                    (u.role === ROLES.DATA_COMMONS_PERSONNEL ? acc.DCEmails : acc.nonDCEmails).push(u.email);
+                }
+                return acc;
+            },
+            { DCEmails: [], nonDCEmails: [] }
+        );
+
+        if (DCEmails.length === 0) {
+            console.error(ERROR.NO_RECIPIENT_PV_REQUEST);
+            return ValidationHandler.handle(ERROR.NO_RECIPIENT_PV_REQUEST);
+        }
+
+        const pendingPVs = await this.pendingPVDAO.findBySubmissionID(submissionID);
+        const filteredPendingPVs = pendingPVs?.filter(pv => pv?.value === value && pv?.offendingProperty === property);
+        if (filteredPendingPVs?.length > 0) {
+            throw new Error(replaceErrorString(ERROR.DUPLICATE_REQUEST_PV, `submissionID: ${submissionID}, property: ${property}, value: ${value}`));
+        }
+
+        const insertedPendingPV = await this.pendingPVDAO.insertOne(submissionID, property, value);
+        if (!insertedPendingPV) {
+            throw new Error(replaceErrorString(ERROR.FAILED_TO_INSERT_REQUEST_PV, `submissionID: ${submissionID}, property: ${property}, value: ${value}`));
+        }
+
+        const userInfo = context?.userInfo;
+        const res = await this.notificationService.requestPVNotification(DCEmails, nonDCEmails, aSubmission?.dataCommons ,{
+            submitterName: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
+            submitterEmail: userInfo?.email,
+            studyName: aSubmission?.studyName,
+            nodeName: nodeName,
+            studyAbbreviation: aSubmission?.studyAbbreviation,
+            submissionID: aSubmission?._id,
+            CDEId: CDEId?.trim() || "NA",
+            property : property?.trim(),
+            value : value?.trim(),
+            comment: comment?.trim()
+        });
+
+        if (res?.accepted?.length > 0) {
+            return ValidationHandler.success()
+        }
+        const error = replaceErrorString(ERROR.FAILED_TO_REQUEST_PV, `userID:${context?.userInfo?._id}`);
+        console.error(error);
+        return ValidationHandler.handle(error);
+    }
      async downloadDBGaPLoadSheet(params, context) {
         verifySession(context)
             .verifyInitialized();
@@ -1905,7 +1981,7 @@ class Submission {
                     throw new Error(ERROR.NOT_SUPPORTED_DATA_COMMONS_FOR_LOAD_SHEET);
             }
             if (!zipDir && !fs.existsSync(zipDir)) {
-                throw new Error(ERROR.FAILED_CREATE_LOAD_SHEET);    
+                throw new Error(ERROR.FAILED_CREATE_LOAD_SHEET);
             }
             zipFile = zipDir + ".zip";
             await zipFilesInDir(zipDir, zipFile);
@@ -1915,7 +1991,7 @@ class Submission {
             const zipFileName = path.basename(zipFile);
             // upload the zip file into s3 and create pre-signed download link
             await this.s3Service.uploadZipFile(aSubmission.bucketName, aSubmission.rootPath, zipFileName, zipFile);
-            return await this.s3Service.createDownloadSignedURL(aSubmission.bucketName, aSubmission.rootPath, zipFileName);  
+            return await this.s3Service.createDownloadSignedURL(aSubmission.bucketName, aSubmission.rootPath, zipFileName);
         }
         catch (e) {
             console.error(e);

@@ -16,6 +16,18 @@ const ACCOUNT_EMAIL = "Account Email";
 const REQUESTED_ROLE = "Requested Role";
 const ADDITIONAL_INFO = "Additional Info";
 const AFFILIATED_INSTITUTION = "Affiliated Institution";
+
+const SUBMITTER_NAME = "Submitter Name";
+const SUBMITTER_EMAIL = "Submitter Email";
+const STUDY_NAME = "Study Name";
+const STUDY_ABBREVIATION = "Study Abbreviation";
+const DATA_SUBMISSION_ID = "Data Submission ID";
+const NODE = "Node";
+const PROPERTY = "Property";
+const CDE_ID = "CDE ID";
+const REQUESTED_PERMISSIVE_VALUE = "Requested Permissive Value";
+const JUSTIFICATION = "Justification";
+
 class NotifyUser {
 
     constructor(emailService, tier) {
@@ -537,6 +549,40 @@ class NotifyUser {
                 }),
                 email,
                 []
+            );
+        });
+    }
+
+    async requestPVNotification(email, CCEmails, dataCommonsName, templateParams) {
+        const topMessage = replaceMessageVariables(this.email_constants.PV_REQUEST_SUBJECT_CONTENT, {});
+        const bottomMessage = replaceMessageVariables(this.email_constants.PV_REQUEST_SUBJECT_SECOND_CONTENT, {});
+        const subject = this.email_constants.PV_REQUEST_SUBJECT;
+        const pendingPV = [
+            [SUBMITTER_NAME, templateParams?.submitterName],
+            [SUBMITTER_EMAIL, templateParams?.submitterEmail],
+            [STUDY_NAME, templateParams?.studyName],
+            [STUDY_ABBREVIATION, templateParams?.studyAbbreviation],
+            [DATA_SUBMISSION_ID, templateParams?.submissionID],
+            [NODE, templateParams?.nodeName],
+            [PROPERTY, templateParams?.property],
+            [CDE_ID, templateParams?.CDEId],
+            [REQUESTED_PERMISSIVE_VALUE, templateParams.value],
+            ...(templateParams.comment) ? [[JUSTIFICATION, templateParams.comment]] : []
+        ];
+        return await this.send(async () => {
+            return await this.emailService.sendNotification(
+                this.email_constants.NOTIFICATION_SENDER,
+                isTierAdded(this.tier) ? `${this.tier} ${subject}` : subject,
+                await createEmailTemplate(NOTIFICATION_USER_HTML_TEMPLATE, {
+                    topMessage,
+                    bottomMessage,
+                    ...{
+                        firstName: dataCommonsName,
+                        senderName: CRDC_SUBMISSION_PORTAL,
+                        ...templateParams, pendingPV},
+                }),
+                email,
+                CCEmails
             );
         });
     }

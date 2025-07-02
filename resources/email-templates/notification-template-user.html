@@ -30,6 +30,19 @@
     {{/each}}
     </p>
     {{/if}}
+    {{#if pendingPV}}
+    <p>
+      {{#each pendingPV}}
+      {{#if this.[0]}}
+      &nbsp;&nbsp;&nbsp;<strong><span>■ {{{this.[0]}}}:</span></strong>
+      {{/if}}
+      {{#if this.[1]}}
+      <span>{{{this.[1]}}}</span>
+      {{/if}}
+      <br>
+      {{/each}}
+    </p>
+    {{/if}}
     <p>{{ bottomMessage }}</p>
     <p>Sincerely,</p>
     <p>{{senderName}}</p>
