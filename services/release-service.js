@@ -8,13 +8,18 @@ const {getDataCommonsDisplayName, getDataCommonsOrigin} = require("../utility/da
 const {APPROVED_STUDIES_COLLECTION, DATA_COMMONS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {SORT, DIRECTION} = require("../crdc-datahub-database-drivers/constants/monogodb-constants");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
-
+const PROP_GROUPS = {
+    MODEL_DEFINED: "model_defined",
+    NOT_DEFINED: "not_defined",
+    INTERNAL: "internal"
+};
 class ReleaseService {
     _ALL_FILTER = "All";
     _STUDY_NODE = "study";
-    constructor(releaseCollection, authorizationService) {
+    constructor(releaseCollection, authorizationService, dataModelService) {
         this.releaseCollection = releaseCollection;
         this.authorizationService = authorizationService;
+        this.dataModelService = dataModelService;
     }
 
     async listReleasedStudies(params, context) {
@@ -440,56 +445,82 @@ class ReleaseService {
 
         // 1) get defined properties
         const modelProps = await this.dataModelService.
-            getDefinedPropsByDataCommonAndType(dataCommons, modelVersion, type);
+            getDefinedPropsByDataCommonAndType(dataCommons, null, type);
         if (!modelProps || modelProps.length === 0) {
             return [];
         }
-        const modelPropNames = modelProps.map(prop => prop.handle);
-        // 2) find properties names from the first record of the submissionID and nodeType
-        const dataRecords = await this.dataRecordsCollection.aggregate([{
-            $match: {
-                submissionID: submission._id,
-                nodeType: type
-            }
-        }, {$limit: 1}]);
-        let nodeProps = [];
-        if (dataRecords.length > 0) {
-            nodeProps = Object.keys(dataRecords[0].props);
-        }
-        // 3) find node properties that are defined in the model
-        const dataModelDefinedGroup = nodeProps.filter(prop => modelPropNames.includes(prop)).map(prop => {
-            return {
-                "name": prop,
-                "group": "Data Model Defined"
-            };
+        const modelPropNames = modelProps.map(prop => {
+            const required = prop?.Req && ["yes", "true"].includes(String(prop.Req).toLowerCase()) ? true : false;
+            return {"name": prop.handle, "required": required, "group": PROP_GROUPS.MODEL_DEFINED}
         });
-        properties.push(...dataModelDefinedGroup);
+        properties.push(...modelPropNames)
+        // 2) find properties names from release collection based on parameters
+        const [nodeProps, generatedProps] = await this._getUPropNamesByStudyDataCommonNodeType(studyID, originDataCommons, nodeType);
         // 4) find node properties that are not defined in the model
-        const dataModelNotDefinedGroup = nodeProps.filter(prop => !modelPropNames.includes(prop));
-        const otherPropsGroup = dataModelNotDefinedGroup.filter(prop => prop.toLowerCase() !== "crdc_id").map(prop => {
+        const dataModelNotDefined= nodeProps.filter(prop => !modelPropNames.map(mp => mp.name).includes(prop));
+        const otherPropsGroup = dataModelNotDefined.filter(prop => prop.toLowerCase() !== "crdc_id").map(prop => {
             return {
                 "name": prop,
+                "required": false,
                 "group": "Others"
             };
         });
         properties.push(...otherPropsGroup);
         // 5) get generated properties
-        if(dataModelNotDefinedGroup.find(prop => prop.toLowerCase() === "crdc_id")){
+        if(dataModelNotDefined.find(prop => prop.toLowerCase() === "crdc_id")){
             properties.push({
                 "name": "crdc_id",
+                "required": false,
                 "group": "Internal"
             });
         }
-        const generatedPropsArray = dataRecords[0]?.generatedProps;
-        const generatedPropNames = Object.keys(generatedPropsArray || {});
+
+        const generatedPropNames = Object.keys(generatedProps || {});
         if (generatedPropNames.length > 0) {
             const generatedProps = generatedPropNames.map(p => ({
                 "name": p,
+                "required": false,
                 "group": "Internal"
             }));
             properties.push(...generatedProps);
         }
         return properties.length > 0 ? properties : null;
+    }
+
+    async _getUPropNamesByStudyDataCommonNodeType(studyID, dataCommonsParam, nodeType) {
+        const uniquePropSet = new Set();
+        const uniqueGeneratedPropsSet = new Set();
+        // create mongodb query return unique props.keys in the release collection
+        const pipeline = [
+            {
+                $match: {
+                    studyID: studyID,
+                    dataCommons: dataCommonsParam,
+                    nodeType: nodeType
+                }
+            },
+            {
+                // only return props as a object
+                $project: {
+                    props:  "$props",
+                    generatedProps: "$generatedProps"
+                }
+            }
+        ];
+        const result = await this.releaseCollection.aggregate(pipeline).toArray();
+        // get unique props.keys
+        result.forEach(doc => {
+            Object.keys(doc.props).forEach(prop => {
+                uniquePropSet.add(prop);
+            });
+            Object.keys(doc.generatedProps).forEach(prop => {
+                uniqueGeneratedPropsSet.add(prop);
+            });
+        });
+        // convert set to array
+        const uniqueProps = Array.from(uniquePropSet);
+        const uniqueGeneratedProps = Array.from(uniqueGeneratedPropsSet);
+        return uniqueProps, uniqueGeneratedProps;
     }
 
     _listNodesConditions(nodesParam, dataCommonsParam, userScope){
