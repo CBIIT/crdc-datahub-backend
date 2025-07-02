@@ -1922,9 +1922,15 @@ class Submission {
             throw e;
         }
         finally {
-            const downloadDir = path.dirname(zipFile);
-            if (downloadDir && fs.existsSync(downloadDir)) {
-                fs.rmSync(downloadDir, {recursive: true, force: true });
+            if (zipFile && fs.existsSync(zipFile)) {
+                const downloadDir = path.dirname(zipFile);
+                if (downloadDir && fs.existsSync(downloadDir)) {
+                    try {
+                        fs.rmSync(downloadDir, {recursive: true, force: true });
+                    } catch (error) {
+                        console.error("Error during cleanup:", error);
+                    }
+                }
             }
         }
     }
