@@ -845,15 +845,15 @@ class DataRecordService {
                     }
                     return true;
                 }));
-                if (genomicInfoArr.length > 0){
-                    const sequenceMetadata = `${download_dir}/${dbGaPDir}_SequenceMetadata_DD`;
-                    const sequenceMetadataSourceFile = `${dataDefinitionSourceDir}/SequenceMetadata_DD.xlsx`;
-                    fs.copyFileSync(sequenceMetadataSourceFile, sequenceMetadata + ".xlsx");
-                    const sequencingMetadata_DS = `${download_dir}/${dbGaPDir}_sequencingMetadata_DS.txt`;
-                    // save Sequencing Metadata to tsv file
-                    arrayOfObjectsToTSV(genomicInfoArr, sequencingMetadata_DS);
-                }
             }
+        }
+        if (genomicInfoArr.length > 0){
+            const sequenceMetadata = `${download_dir}/${dbGaPDir}_SequenceMetadata_DD`;
+            const sequenceMetadataSourceFile = `${dataDefinitionSourceDir}/SequenceMetadata_DD.xlsx`;
+            fs.copyFileSync(sequenceMetadataSourceFile, sequenceMetadata + ".xlsx");
+            const sequencingMetadata_DS = `${download_dir}/${dbGaPDir}_sequencingMetadata_DS.txt`;
+            // save Sequencing Metadata to tsv file
+            arrayOfObjectsToTSV(genomicInfoArr, sequencingMetadata_DS);
         }
         return download_dir;
     }
