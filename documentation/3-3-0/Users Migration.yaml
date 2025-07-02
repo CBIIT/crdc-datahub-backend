@@ -117,3 +117,8 @@ Commands:
                 flag: false
             }
         });
+  - Getting rid of organization property from the submission collection - CRDCDH-2779: |
+        db.submissions.updateMany(
+          { organization: { $exists: true } },
+          { $unset: { organization: "" } }
+        );
