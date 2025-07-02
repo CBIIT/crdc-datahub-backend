@@ -97,8 +97,8 @@ dbConnector.connect().then(async () => {
     const releaseCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, RELEASE_DATA_RECORDS_COLLECTION);
     const dataRecordCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_COLLECTION);
     const dataRecordArchiveCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_ARCHIVE_COLLECTION);
-    const dataModelService = new DataModelService(fetchDataModelInfo, config.model_url);
-    const dataRecordService = new DataRecordService(dataRecordCollection, dataRecordArchiveCollection, releaseCollection, config.file_queue, config.metadata_queue, awsService, s3Service, qcResultsService, config.export_queue, dataModelService);
+    
+    const dataRecordService = new DataRecordService(dataRecordCollection, dataRecordArchiveCollection, releaseCollection, config.file_queue, config.metadata_queue, awsService, s3Service, qcResultsService, config.export_queue);
 
     const validationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, VALIDATION_COLLECTION);
 
@@ -121,8 +121,8 @@ dbConnector.connect().then(async () => {
     
     const cdeCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CDE_COLLECTION);
     const cdeService = new CDE(cdeCollection);
-
-    const releaseService = new Release(releaseCollection, authorizationService);
+    const dataModelService = new DataModelService(fetchDataModelInfo, config.model_url);
+    const releaseService = new Release(releaseCollection, authorizationService, dataModelService);
     root = {
         version: () => {return config.version},
         saveApplication: dataInterface.saveApplication.bind(dataInterface),
@@ -245,7 +245,7 @@ dbConnector.connect().then(async () => {
         getReleaseNodeTypes: releaseService.getReleaseNodeTypes.bind(releaseService),
         listReleasedDataRecords: releaseService.listReleasedDataRecords.bind(releaseService),
         downloadDBGaPLoadSheet : submissionService.downloadDBGaPLoadSheet.bind(submissionService),
-        retrievePropsForType: submissionService.getPropsForType.bind(submissionService)
+        retrievePropsForNodeType: releaseService.getPropsForNodeType.bind(releaseService)
     };
 });
 

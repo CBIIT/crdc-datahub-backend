@@ -646,7 +646,8 @@ type SubmissionAttributes {
 
 type nodeProp {
     name: String!
-    group: String!
+    required: Boolean = false
+    group: String! #value in ["model_defined", "not_defined", "internal"]
 }
 
 type Query {
@@ -858,8 +859,7 @@ type Query {
     ): ListReleasedNodes
     getReleaseNodeTypes(studyID: String!, dataCommonsDisplayName: String!): ListNodeTypes
     downloadDBGaPLoadSheet(submissionID:String!):String #presigned url of s3
-    retrievePropsForType(submissionID: String!, type: String!): [nodeProp]
-
+    retrievePropsForNodeType(studyID: String!, dataCommonsDisplayName: String!, nodeType: String!): [nodeProp]
 }
 type Mutation {
     "User initiated operations"

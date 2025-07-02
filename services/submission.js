@@ -1906,24 +1906,6 @@ class Submission {
             }
         }
     }
-
-    async getPropsForType(params, context) {
-        verifySession(context)
-            .verifyInitialized();
-        const {
-            submissionID: submissionID,
-            type: type
-        } = params;
-        const aSubmission = await findByID(this.submissionCollection, submissionID);
-        if (!aSubmission) {
-            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
-        }
-        const userScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
-        if (userScope.isNoneScope()) {
-            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
-        }
-        return await this.dataRecordService.getPropsForSubmissionAndType(aSubmission, type);
-    }
 }
 
 const updateSubmissionStatus = async (submissionCollection, aSubmission, userInfo, newStatus) => {

@@ -417,6 +417,81 @@ class ReleaseService {
         }
     }
 
+    async getPropsForNodeType(params, context) {
+        verifySession(context)
+            .verifyInitialized();
+        const userScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        if (userScope.isNoneScope()) {
+            console.warn("Failed permission verification for get properties by type");
+            return [];
+        }
+        const {
+            studyID, 
+            dataCommonsDisplayName, 
+            nodeType
+        } = params
+        const originDataCommons = getDataCommonsOrigin(dataCommonsDisplayName) || dataCommonsDisplayName;
+
+        return await this._getPropsByStudyDataCommonNodeType(studyID, originDataCommons, nodeType);
+    }
+
+    async _getPropsByStudyDataCommonNodeType(studyID, originDataCommons, nodeType) {
+        const properties = []
+
+        // 1) get defined properties
+        const modelProps = await this.dataModelService.
+            getDefinedPropsByDataCommonAndType(dataCommons, modelVersion, type);
+        if (!modelProps || modelProps.length === 0) {
+            return [];
+        }
+        const modelPropNames = modelProps.map(prop => prop.handle);
+        // 2) find properties names from the first record of the submissionID and nodeType
+        const dataRecords = await this.dataRecordsCollection.aggregate([{
+            $match: {
+                submissionID: submission._id,
+                nodeType: type
+            }
+        }, {$limit: 1}]);
+        let nodeProps = [];
+        if (dataRecords.length > 0) {
+            nodeProps = Object.keys(dataRecords[0].props);
+        }
+        // 3) find node properties that are defined in the model
+        const dataModelDefinedGroup = nodeProps.filter(prop => modelPropNames.includes(prop)).map(prop => {
+            return {
+                "name": prop,
+                "group": "Data Model Defined"
+            };
+        });
+        properties.push(...dataModelDefinedGroup);
+        // 4) find node properties that are not defined in the model
+        const dataModelNotDefinedGroup = nodeProps.filter(prop => !modelPropNames.includes(prop));
+        const otherPropsGroup = dataModelNotDefinedGroup.filter(prop => prop.toLowerCase() !== "crdc_id").map(prop => {
+            return {
+                "name": prop,
+                "group": "Others"
+            };
+        });
+        properties.push(...otherPropsGroup);
+        // 5) get generated properties
+        if(dataModelNotDefinedGroup.find(prop => prop.toLowerCase() === "crdc_id")){
+            properties.push({
+                "name": "crdc_id",
+                "group": "Internal"
+            });
+        }
+        const generatedPropsArray = dataRecords[0]?.generatedProps;
+        const generatedPropNames = Object.keys(generatedPropsArray || {});
+        if (generatedPropNames.length > 0) {
+            const generatedProps = generatedPropNames.map(p => ({
+                "name": p,
+                "group": "Internal"
+            }));
+            properties.push(...generatedProps);
+        }
+        return properties.length > 0 ? properties : null;
+    }
+
     _listNodesConditions(nodesParam, dataCommonsParam, userScope){
         const baseConditions = (nodesParam) ? { nodeType: { $in: [nodesParam] || [] } } : {};
         if (userScope.isAllScope()) {
