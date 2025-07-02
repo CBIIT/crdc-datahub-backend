@@ -29,6 +29,7 @@ describe('ApprovedStudiesService', () => {
     let mockOrganizationService;
     let mockSubmissionCollection;
     let mockAuthorizationService;
+    let mockApprovedStudyDAO;
 
     beforeEach(() => {
         // Initialize mock collections and services
@@ -55,6 +56,11 @@ describe('ApprovedStudiesService', () => {
             getPermissionScope: jest.fn()
         };
 
+        // Mock the DAO with getApprovedStudyByID
+        mockApprovedStudyDAO = {
+            getApprovedStudyByID: jest.fn()
+        };
+
         service = new ApprovedStudiesService(
             mockApprovedStudiesCollection,
             mockUserCollection,
@@ -62,6 +68,8 @@ describe('ApprovedStudiesService', () => {
             mockSubmissionCollection,
             mockAuthorizationService
         );
+        // Inject the mock DAO
+        service.approvedStudyDAO = mockApprovedStudyDAO;
 
         // Reset all mocks
         jest.clearAllMocks();
@@ -93,8 +101,8 @@ describe('ApprovedStudiesService', () => {
             // Mock permission check
             mockAuthorizationService.getPermissionScope.mockResolvedValue([{ scope: 'all' }]);
 
-            // Mock study retrieval
-            require('../../dao/approvedStudy').mockResolvedValue(mockStudy);
+            // Mock DAO to return the study
+            mockApprovedStudyDAO.getApprovedStudyByID.mockResolvedValue(mockStudy);
 
             // Mock organization lookup
             mockOrganizationService.findByStudyID.mockResolvedValue(['program123']);
@@ -129,8 +137,8 @@ describe('ApprovedStudiesService', () => {
             // Mock permission check
             mockAuthorizationService.getPermissionScope.mockResolvedValue([{ scope: 'all' }]);
 
-            // Mock study retrieval to return null
-            require('../../dao/approvedStudy').mockResolvedValue(null);
+            // Mock DAO to return null
+            mockApprovedStudyDAO.getApprovedStudyByID.mockResolvedValue(null);
 
             await expect(service.getApprovedStudyAPI(mockParams, mockContext))
                 .rejects
@@ -203,4 +211,4 @@ describe('ApprovedStudiesService', () => {
             consoleSpy.mockRestore();
         });
     });
-}); 
+});

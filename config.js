@@ -42,6 +42,9 @@ const SCHEDULED_JOBS = "SCHEDULED_JOBS";
 const LIST_OF_EMAIL_ADDRESS = "LIST_OF_EMAIL_ADDRESS";
 const LIST_OF_URLS = "LIST_OF_URLS";
 const TIMEOUT = "TIMEOUT";
+// set Database URL for MongoDB connection for Prisma
+process.env.DATABASE_URL =`mongodb://${process.env.MONGO_DB_USER}:${process.env.MONGO_DB_PASSWORD}@${process.env.MONGO_DB_HOST}:${process.env.MONGO_DB_PORT}/${process.env.DATABASE_NAME}?authSource=admin`;
+
 let config = {
     //info variables
     version: process.env.VERSION || 'Version not set',
@@ -62,8 +65,7 @@ let config = {
     //aws sts assume role
     role_arn: process.env.ROLE_ARN,
     updateConfig: async (dbConnector)=> {
-        const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
-        const configurationService = new ConfigurationService(configurationCollection);
+        const configurationService = new ConfigurationService();
         // SCHEDULED_JOBS
         const scheduledJobsConf = await configurationService.findByType(SCHEDULED_JOBS);
         const inactiveUserDaysConf = scheduledJobsConf?.[INACTIVE_USER_DAYS];

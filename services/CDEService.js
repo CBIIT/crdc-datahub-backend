@@ -1,3 +1,4 @@
+const CdeDAO = require("../dao/cde");
 const CDE_CODE = "CDECode";
 const CDE_VERSION = "CDEVersion";
 const CDE_FULL_NAME = "CDEFullName";
@@ -10,9 +11,9 @@ const DB_ID = "_id";
  * @class CDE
  */
 class CDE {
-    constructor(cdeCollection) {
+    constructor() {
         this.name = "CDE";
-        this.CDE_collection = cdeCollection;
+        this.cdeDAO = new CdeDAO();
     }
     /**
      * API: getCDEs
@@ -20,24 +21,14 @@ class CDE {
      * @returns [CDE]
      */
     async getCDEs(params) {
-        if (!params?.CDEInfo || !Array.isArray(params?.CDEInfo) || params?.CDEInfo.length === 0) return [];
-        const conditions = params?.CDEInfo.filter(c=>c?.CDEVersion).map(cde => ({
+         if (!params?.CDEInfo || !Array.isArray(params?.CDEInfo) || params?.CDEInfo.length === 0) return [];
+        const CDEInfoArray = params?.CDEInfo.filter(c=>c?.CDEVersion).map(cde => ({
             CDECode: cde.CDECode,
             CDEVersion: cde.CDEVersion
           })).concat(params?.CDEInfo.filter(c=>!c?.CDEVersion).map(cde => ({
             CDECode: cde.CDECode
           })));
-          
-        const query = {"$or": conditions}
-        return await this._findCDEByCodeVersion(query);
-    }
-
-    async _findCDEByCodeVersion(query) {
-        const pipelines = [{"$match": query}];
-        pipelines.push({"$sort": {CDECode: 1, CDEVersion: -1}});
-        pipelines.push({"$group": {"_id": "$CDECode", "latestDocument": {"$first": "$$ROOT"}}});
-        pipelines.push({"$replaceRoot": {"newRoot": "$latestDocument"}});
-        return this.CDE_collection.aggregate(pipelines);
+        return await this.cdeDAO.getCdeByCodeAndVersion(CDEInfoArray); 
     }
 }
 
