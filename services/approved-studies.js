@@ -27,10 +27,12 @@ const CONTROLLED_ACCESS_OPEN = "Open";
 const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
 const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN, CONTROLLED_ACCESS_CONTROLLED];
 const NA_PROGRAM = "NA";
-const NA_STUDY = "NA";
+const NA = "NA";
 const getApprovedStudyByID = require("../dao/approvedStudy")
 const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
+const ApplicationDAO = require("../dao/application");
+const UserDAO = require("../dao/user");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 class ApprovedStudiesService {
     _ALL = "All";
@@ -42,10 +44,12 @@ class ApprovedStudiesService {
         this.authorizationService = authorizationService;
         this.notificationsService = notificationsService;
         this.emailParams = emailParams;
+        this.applicationDAO = new ApplicationDAO();
+        this.userDAO = new UserDAO();
     }
 
-    async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID) {
-        const approvedStudies = ApprovedStudies.createApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID);
+    async storeApprovedStudies(applicationID, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID) {
+        const approvedStudies = ApprovedStudies.createApprovedStudies(applicationID, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID);
         const res = await this.approvedStudiesCollection.findOneAndUpdate({ studyName }, approvedStudies, {returnDocument: 'after', upsert: true});
         if (!res?.value) {
             console.error(ERROR.APPROVED_STUDIES_INSERTION + ` studyName: ${studyName}`);
@@ -453,22 +457,9 @@ class ApprovedStudiesService {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_UPDATE);
         }
 
-
-        const applicant = this.userService.userCollection.find(application?.applicant?.applicantID);
-        const CCUsers = this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
-            [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD, ROLES.ADMIN]);
-
-
-        if (currPendingModelChange !== updateStudy.pendingModelChange && updateStudy.pendingModelChange === false) {
-            await this.notificationsService.clearPendingModelState(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
-                firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`,
-                studyName: approvedStudy?.length > 0 ? (approvedStudy[0]?.studyName || NA_STUDY) : NA_STUDY,
-                portalURL: this.emailParams.url || NA_STUDY,
-                submissionGuideURL: this.emailParams?.submissionGuideURL
-            });
+        if (currPendingModelChange !== updateStudy.pendingModelChange && updateStudy.pendingModelChange === false && updateStudy.pendingApplicationID) {
+            await this._notifyClearPendingState(updateStudy);
         }
-
-
 
         const programs = await this._findOrganizationByStudyID(studyID);
         const [conciergeName, conciergeEmail] = this._getConcierge(programs, primaryContact, useProgramPC);
@@ -485,6 +476,32 @@ class ApprovedStudiesService {
 
         let approvedStudy = {...updateStudy, programs: programs, primaryContact: primaryContact};
         return getDataCommonsDisplayNamesForApprovedStudy(approvedStudy);
+    }
+
+    async _notifyClearPendingState(updateStudy) {
+        const application = await this.applicationDAO.findByID(updateStudy.pendingApplicationID);
+        const aSubmitter = await this.userDAO.findByID(application?.applicant?.applicantID);
+        const BCCUsers = await this.userDAO.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_PENDING_CLEARED],
+            [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD, ROLES.ADMIN]);
+        const filteredBCCUsers = BCCUsers.filter((u) => u?._id !== aSubmitter?._id);
+
+        const errorMsg = replaceErrorString(ERROR.FAILED_TO_NOTIFY_CLEAR_PENDING_STATE, `studyID: ${updateStudy?._id}`);
+        if (!aSubmitter?._id || !application?._id) {
+            console.error(errorMsg);
+            throw new Error(errorMsg);
+        }
+
+        const res = await this.notificationsService.clearPendingModelState(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
+            firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`,
+            studyName: updateStudy?.studyName || NA,
+            portalURL: this.emailParams.url || NA,
+            submissionGuideURL: this.emailParams?.submissionGuideURL,
+            contactEmail: this.emailParams.contactEmail || NA,
+        });
+        if (res?.accepted?.length === 0 || !res) {
+            console.error(errorMsg);
+            throw new Error(errorMsg);
+        }
     }
 
     _getConcierge(programs, primaryContact, isProgramPrimaryContact) {

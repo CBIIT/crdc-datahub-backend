@@ -17,3 +17,20 @@ Commands:
         );
   - create a collection called pendingPVs CRDCDH-2974: |
         db.createCollection("pendingPVs");:
+
+  - remove empty organization from the user & add the default notification for clearing pending state CRDCDH-2967: |
+        db.users.updateMany(
+          { organization: { $type: "object", $eq: {} } },
+          { $unset: { organization: "" } }
+        )
+      
+        db.users.updateMany(
+          {
+            role: {$in: ["User", "Submitter"]},
+          },
+          {
+            $addToSet: { notifications: "submission_request:pending_cleared" }
+          }
+        );
+      
+      
