@@ -5,75 +5,81 @@ jest.mock('../../config', () => ({
     model_url: mockConfig.model_url
 }));
 
-const path = require('path');
+const fs = require('fs');
 const https = require('https');
-const { MDFReader } = require('mdf-reader');
+const path = require('path');
 const DataModelService = require('../../services/dataModelService');
+const { MDFReader } = require('mdf-reader');
 
+jest.mock('fs');
 jest.mock('https');
-jest.mock('mdf-reader');
+jest.mock('mdf-reader', () => ({
+    MDFReader: jest.fn()
+}));
 
 
-const CURRENT_DEF_VERSION = 'current-version';
-const DEF_MODEL_FILES = 'model-files';
-
-describe('DataModelService', () => {
-    let dataModelManifestInfo;
+describe('DataModelService.getDataModelByDataCommonAndVersion', () => {
+    const mockManifest = {
+        testCommon: {
+            'current-version': 'v1',
+            'model-files': ['file1.mdf', 'file2.mdf']
+        }
+    };
+    const modelUrl = '/models/manifest.json';
     let service;
 
     beforeEach(() => {
-        dataModelManifestInfo = {
+        jest.clearAllMocks();
+        service = new DataModelService(
+            jest.fn().mockResolvedValue(mockManifest),
+            modelUrl
+        );
+    });
+
+    it('returns null if dataCommon is not provided', async () => {
+        const result = await service.getDataModelByDataCommonAndVersion(null, 'v1');
+        expect(result).toBeNull();
+    });
+
+    it('returns null if manifest info is not available', async () => {
+        service = new DataModelService(jest.fn().mockResolvedValue(null), modelUrl);
+        const result = await service.getDataModelByDataCommonAndVersion('testCommon', 'v1');
+        expect(result).toBeNull();
+    });
+
+    it('reads local files and returns MDFReader instance', async () => {
+        fs.readFileSync.mockImplementation((filePath, encoding) => {
+            expect(encoding).toBe('utf8');
+            return `content-of-${path.basename(filePath)}`;
+        });
+        MDFReader.mockImplementation((...args) => ({ args }));
+
+        const result = await service.getDataModelByDataCommonAndVersion('testCommon', 'v1');
+        expect(fs.readFileSync).toHaveBeenCalledTimes(2);
+        expect(MDFReader).toHaveBeenCalledWith('content-of-file1.mdf', 'content-of-file2.mdf');
+        expect(result.args).toEqual(['content-of-file1.mdf', 'content-of-file2.mdf']);
+    });
+
+    it('throws error if no model files are found', async () => {
+        const emptyManifest = {
             testCommon: {
-                [CURRENT_DEF_VERSION]: 'v1',
-                [DEF_MODEL_FILES]: ['file1.yaml', 'file2.yaml']
+                'current-version': 'v1',
+                'model-files': []
             }
         };
-        service = new DataModelService(dataModelManifestInfo);
-        MDFReader.mockClear();
+        service = new DataModelService(jest.fn().mockResolvedValue(emptyManifest), modelUrl);
+
+        await expect(
+            service.getDataModelByDataCommonAndVersion('testCommon', 'v1')
+        ).rejects.toThrow('Failed to find data model definition for testCommon version v1');
     });
 
-    it('should return null if dataCommon is not provided', () => {
-        expect(service.getDataModelByDataCommonAndVersion(null, 'v1')).toBeNull();
-        expect(service.getDataModelByDataCommonAndVersion(undefined, 'v1')).toBeNull();
-    });
+    it('uses current-version if version is not provided', async () => {
+        fs.readFileSync.mockReturnValue('file-content');
+        MDFReader.mockImplementation((...args) => ({ args }));
 
-    it('should return null if dataCommon is not found in manifest', () => {
-        expect(service.getDataModelByDataCommonAndVersion('notFound', 'v1')).toBeNull();
-    });
-
-    it('should create MDFReader with file contents from http', async () => {
-        // Arrange
-        const fileUrl = 'http://example.com/file1.yaml';
-        dataModelManifestInfo.testCommon[DEF_MODEL_FILES] = [fileUrl];
-        service.modelDir = '/mock/models';
-
-        // Mock https.get to simulate http file fetch
-        https.get.mockImplementation((url, cb) => {
-            const res = {
-                on: (event, handler) => {
-                    if (event === 'data') handler('mock file content');
-                    if (event === 'end') handler();
-                }
-            };
-            cb(res);
-            return { on: jest.fn() };
-        });
-
-        // Act
-        service.getDataModelByDataCommonAndVersion('testCommon', 'v1');
-
-        // Wait for all promises to resolve (simulate async)
-        await new Promise(setImmediate);
-
-        // Assert
-        expect(MDFReader).toHaveBeenCalled();
-    });
-
-    it('should not push fileContent if filePath is not http', () => {
-        dataModelManifestInfo.testCommon[DEF_MODEL_FILES] = ['file1.yaml'];
-        service.modelDir = '/mock/models';
-        service.getDataModelByDataCommonAndVersion('testCommon', 'v1');
-        // MDFReader should still be called, but with no http file promises
-        expect(MDFReader).toHaveBeenCalled();
+        await service.getDataModelByDataCommonAndVersion('testCommon');
+        // Should use 'v1' from manifest
+        expect(fs.readFileSync.mock.calls[0][0]).toContain(path.join('testCommon', 'v1', 'file1.mdf'));
     });
 });
