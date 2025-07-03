@@ -646,7 +646,7 @@ type SubmissionAttributes {
 
 type nodeProp {
     name: String!
-    required: Boolean = false
+    required: Boolean!
     group: String! #value in ["model_defined", "not_defined", "internal"]
 }
 
