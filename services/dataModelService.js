@@ -77,9 +77,9 @@ class DataModelService {
                 });
                 dataModelHold.push(fileContent);
             } else {
-                // read local file synchronously
-                const data = fs.readFileSync(filePath, 'utf8');
-                dataModelHold.push(Promise.resolve(data));
+                // read local file asynchronously
+                const data = fs.readFile(filePath, 'utf8');
+                dataModelHold.push(data);
             }
         }
 
