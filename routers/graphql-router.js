@@ -48,6 +48,7 @@ const {UserScope} = require("../domain/user-scope");
 const {replaceErrorString} = require("../utility/string-util");
 const {ADMIN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {Release} = require("../services/release-service");
+const DataModelService = require("../services/dataModelService");
 
 // Create schema with constraint directive
 const schema = constraintDirective()(
@@ -121,8 +122,8 @@ dbConnector.connect().then(async () => {
     
     const cdeCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CDE_COLLECTION);
     const cdeService = new CDE(cdeCollection);
-
-    const releaseService = new Release(releaseCollection, authorizationService);
+    const dataModelService = new DataModelService(fetchDataModelInfo, config.model_url);
+    const releaseService = new Release(releaseCollection, authorizationService, dataModelService);
     root = {
         version: () => {return config.version},
         saveApplication: dataInterface.saveApplication.bind(dataInterface),
@@ -246,6 +247,7 @@ dbConnector.connect().then(async () => {
         downloadDBGaPLoadSheet : submissionService.downloadDBGaPLoadSheet.bind(submissionService),
         getPendingPVs: submissionService.getPendingPVs.bind(submissionService),
         listReleasedDataRecords: releaseService.listReleasedDataRecords.bind(releaseService),
+        retrievePropsForNodeType: releaseService.getPropsForNodeType.bind(releaseService),
         requestPV: async (params, context)=> {
             const fieldsToSanitize = ['comment', 'node', 'property', 'value', 'CDEId'];
             const sanitized = Object.fromEntries(
