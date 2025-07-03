@@ -48,7 +48,7 @@ const {UserScope} = require("../domain/user-scope");
 const {replaceErrorString} = require("../utility/string-util");
 const {ADMIN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {Release} = require("../services/release-service");
-const DataModelService = require("../services/dataModelService");
+const DataModelService = require("../services/data-model-service");
 
 // Create schema with constraint directive
 const schema = constraintDirective()(

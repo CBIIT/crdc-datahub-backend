@@ -1,4 +1,4 @@
-const DataModelService = require('../../services/dataModelService');
+const DataModelService = require('../../services/data-model-service');
 const config = require('../../config');
 
 jest.mock('fs');
