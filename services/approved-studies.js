@@ -491,16 +491,18 @@ class ApprovedStudiesService {
             throw new Error(errorMsg);
         }
 
-        const res = await this.notificationsService.clearPendingModelState(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
-            firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`,
-            studyName: updateStudy?.studyName || NA,
-            portalURL: this.emailParams.url || NA,
-            submissionGuideURL: this.emailParams?.submissionGuideURL,
-            contactEmail: this.emailParams.contactEmail || NA,
-        });
-        if (res?.accepted?.length === 0 || !res) {
-            console.error(errorMsg);
-            throw new Error(errorMsg);
+        if (aSubmitter?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_PENDING_CLEARED)) {
+            const res = await this.notificationsService.clearPendingModelState(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
+                firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`,
+                studyName: updateStudy?.studyName || NA,
+                portalURL: this.emailParams.url || NA,
+                submissionGuideURL: this.emailParams?.submissionGuideURL,
+                contactEmail: this.emailParams.contactEmail || NA,
+            });
+            if (res?.accepted?.length === 0 || !res) {
+                console.error(errorMsg);
+                throw new Error(errorMsg);
+            }
         }
     }
 

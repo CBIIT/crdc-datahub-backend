@@ -612,7 +612,7 @@ class NotifyUser {
                 this.email_constants.NOTIFICATION_SENDER,
                 isTierAdded(this.tier) ? `${this.tier} ${subject}` : subject,
                 await createEmailTemplate("notification-template-pending-clear.html", {
-                    ...{...template_params}
+                    ...{...template_params, senderName: CRDC_SUBMISSION_PORTAL}
                 }),
                 email,
                 [],
