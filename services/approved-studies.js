@@ -2,7 +2,7 @@ const {USER} = require("../crdc-datahub-database-drivers/constants/user-constant
 const ERROR = require("../constants/error-constants");
 const { verifySession } = require('../verifier/user-info-verifier');
 const {ApprovedStudies} = require("../crdc-datahub-database-drivers/domain/approved-studies");
-const {ADMIN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+const {ADMIN, EMAIL_NOTIFICATIONS} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {
     NEW,
     IN_PROGRESS,
@@ -27,18 +27,21 @@ const CONTROLLED_ACCESS_OPEN = "Open";
 const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
 const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN, CONTROLLED_ACCESS_CONTROLLED];
 const NA_PROGRAM = "NA";
-
+const NA_STUDY = "NA";
 const getApprovedStudyByID = require("../dao/approvedStudy")
 const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
-
+const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
+const ROLES = USER_CONSTANTS.USER.ROLES;
 class ApprovedStudiesService {
     _ALL = "All";
-    constructor(approvedStudiesCollection, userCollection, organizationService, submissionCollection, authorizationService) {
+    constructor(approvedStudiesCollection, userCollection, organizationService, submissionCollection, authorizationService, notificationsService, emailParams) {
         this.approvedStudiesCollection = approvedStudiesCollection;
         this.userCollection = userCollection;
         this.organizationService = organizationService;
         this.submissionCollection = submissionCollection;
         this.authorizationService = authorizationService;
+        this.notificationsService = notificationsService;
+        this.emailParams = emailParams;
     }
 
     async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID) {
@@ -423,6 +426,7 @@ class ApprovedStudiesService {
             updateStudy.PI = PI;
         }
 
+        const currPendingModelChange = updateStudy.pendingModelChange;
         if (pendingModelChange !== undefined) {
             updateStudy.pendingModelChange = isTrue(pendingModelChange);
         }
@@ -448,6 +452,23 @@ class ApprovedStudiesService {
         if (!result?.acknowledged) {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_UPDATE);
         }
+
+
+        const applicant = this.userService.userCollection.find(application?.applicant?.applicantID);
+        const CCUsers = this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
+            [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD, ROLES.ADMIN]);
+
+
+        if (currPendingModelChange !== updateStudy.pendingModelChange && updateStudy.pendingModelChange === false) {
+            await this.notificationsService.clearPendingModelState(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
+                firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`,
+                studyName: approvedStudy?.length > 0 ? (approvedStudy[0]?.studyName || NA_STUDY) : NA_STUDY,
+                portalURL: this.emailParams.url || NA_STUDY,
+                submissionGuideURL: this.emailParams?.submissionGuideURL
+            });
+        }
+
+
 
         const programs = await this._findOrganizationByStudyID(studyID);
         const [conciergeName, conciergeEmail] = this._getConcierge(programs, primaryContact, useProgramPC);
@@ -546,6 +567,12 @@ class ApprovedStudiesService {
         }
         return userScope;
     }
+}
+
+const getUserEmails = (users) => {
+    return users
+        ?.filter((aUser) => aUser?.email)
+        ?.map((aUser)=> aUser.email);
 }
 
 module.exports = {

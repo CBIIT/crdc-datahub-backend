@@ -604,6 +604,22 @@ class NotifyUser {
             );
         });
     }
+
+    async clearPendingModelState(email, BCCEmails, template_params, messageVariables) {
+        const subject = replaceMessageVariables(this.email_constants.CLEAR_PENDING_STATE_SUBJECT, messageVariables);
+        return await this.send(async () => {
+            await this.emailService.sendNotification(
+                this.email_constants.NOTIFICATION_SENDER,
+                isTierAdded(this.tier) ? `${this.tier} ${subject}` : subject,
+                await createEmailTemplate("notification-template.html", {
+                    ...{...template_params}
+                }),
+                email,
+                [],
+                BCCEmails
+            );
+        });
+    }
 }
 
 const isTierAdded = (tier) => {
