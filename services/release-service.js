@@ -469,6 +469,9 @@ class ReleaseService {
 
         // 2) find properties names from release collection based on parameters
         const [nodeProps, generatedProps] = await this._getUPropNamesByStudyDataCommonNodeType(studyID, dataCommons, nodeType);
+        if (!nodeProps || nodeProps.length === 0) {
+            return null;
+        }
         // 4) find node properties that are not defined in the model
         const dataModelNotDefined= nodeProps.filter(prop => !modelPropNames.map(mp => mp.name).includes(prop));
         const otherPropsGroup = dataModelNotDefined.filter(prop => prop.toLowerCase() !== "crdc_id").map(prop => {
