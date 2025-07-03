@@ -500,7 +500,7 @@ class ReleaseService {
             }));
             properties.push(...generatedPropArray);
         }
-        return properties && properties.length > 0 ? properties : [];
+        return properties.length > 0 ? properties : [];
     }
     /**
      * _getUPropNamesByStudyDataCommonNodeType
