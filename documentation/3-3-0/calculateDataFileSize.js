@@ -50,13 +50,13 @@ const fileSizes = db.batch.aggregate([
   if (fileSizes.length > 0) {
     let count = 0;
     fileSizes.forEach(item => {
-        item.totalSize = fileSizeFormatter(item.totalSize);
+        item.formattedSize = fileSizeFormatter(item.totalSize);
         db.submissions.updateMany(
             {
                 _id: item._id,
                 status: { $in: ["Completed", "Released"] }
             },
-            { $set: { dataFileSize: item.totalSize, calculatedDataFileSize: true } }
+            { $set: { dataFileSize: {formatted: item.formattedSize, size: item.totalSize}, calculatedDataFileSize: true } }
         );
         count++;
     });
@@ -71,7 +71,7 @@ const fileSizes = db.batch.aggregate([
           dataFileSize: { $exists: false },
           status: { $in: ["Completed", "Released"] }
       },
-      { $set: { dataFileSize: "0 KB", calculatedDataFileSize: true } }
+      { $set: { dataFileSize: {formatted: "0 KB", size: 0}, calculatedDataFileSize: true } }
   );
 
 
