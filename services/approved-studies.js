@@ -3,6 +3,7 @@ const ERROR = require("../constants/error-constants");
 const { verifySession } = require('../verifier/user-info-verifier');
 const {ApprovedStudies} = require("../crdc-datahub-database-drivers/domain/approved-studies");
 const {ADMIN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+const ApprovedStudyDAO = require("../dao/approvedStudy");
 const {
     NEW,
     IN_PROGRESS,
@@ -27,8 +28,6 @@ const CONTROLLED_ACCESS_OPEN = "Open";
 const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
 const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN, CONTROLLED_ACCESS_CONTROLLED];
 const NA_PROGRAM = "NA";
-
-const getApprovedStudyByID = require("../dao/approvedStudy")
 const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
 
 class ApprovedStudiesService {
@@ -39,6 +38,7 @@ class ApprovedStudiesService {
         this.organizationService = organizationService;
         this.submissionCollection = submissionCollection;
         this.authorizationService = authorizationService;
+        this.approvedStudyDAO = new ApprovedStudyDAO();
     }
 
     async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID) {
@@ -90,13 +90,13 @@ class ApprovedStudiesService {
             throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
         }
 
-        const approvedStudy = await getApprovedStudyByID(_id)
+        const approvedStudy = await this.approvedStudyDAO.getApprovedStudyByID(_id);
 
         if (!approvedStudy) {
             throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
         }
         // find program/organization by study ID
-        approvedStudy.programs = await this._findOrganizationByStudyID(_id)
+        approvedStudy.programs = await this._findOrganizationByStudyID(_id);
         // find primaryContact
         if (approvedStudy?.primaryContactID)
         {
@@ -124,8 +124,8 @@ class ApprovedStudiesService {
      * @param {Filters} [filters] Filters to apply to the query
      * @returns {Promise<Object[]>} An array of ApprovedStudies
      */
-    async listApprovedStudies(filters = {}) {
-        return await this.approvedStudiesCollection.aggregate([{ "$match": filters }]);
+    async listApprovedStudies(studyIDs) {
+        return await this.approvedStudyDAO.getApprovedStudiesInStudies(studyIDs);
     }
 
     /**

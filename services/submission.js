@@ -16,6 +16,7 @@ const {SubmissionActionEvent, DeleteRecordEvent} = require("../crdc-datahub-data
 const {verifyBatch} = require("../verifier/batch-verifier");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
+const SubmissionDAO = require("../dao/submission");
 // const {write2file} = require("../utility/io-util") //keep the line for future testing.
 
 const ROLES = USER_CONSTANTS.USER.ROLES;
@@ -86,6 +87,7 @@ class Submission {
         this.dataCommonsBucketMap = dataCommonsBucketMap;
         this.authorizationService = authorizationService;
         this.pendingPVDAO = new PendingPVDAO(pendingPVCollection);
+        this.submissionDAO = new SubmissionDAO();
     }
 
     async createSubmission(params, context) {
@@ -1019,7 +1021,7 @@ class Submission {
     async getUploaderCLIConfigs(params, context){
         verifySession(context)
             .verifyInitialized();
-        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        const aSubmission = await this.submissionDAO.findById(params.submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
@@ -1052,7 +1054,7 @@ class Submission {
     async getDataFileConfigs(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        const aSubmission = await this.submissionDAO.findById(params.submissionID);
         if (!aSubmission) {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
