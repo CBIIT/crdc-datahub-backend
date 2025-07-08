@@ -2,6 +2,7 @@ const {USER} = require("../crdc-datahub-database-drivers/constants/user-constant
 const ERROR = require("../constants/error-constants");
 const { verifySession } = require('../verifier/user-info-verifier');
 const {ApprovedStudies} = require("../crdc-datahub-database-drivers/domain/approved-studies");
+const ApprovedStudyDAO = require("../dao/approvedStudy");
 const {ADMIN, EMAIL_NOTIFICATIONS} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {
     NEW,
@@ -43,6 +44,9 @@ class ApprovedStudiesService {
         this.submissionCollection = submissionCollection;
         this.authorizationService = authorizationService;
         this.notificationsService = notificationsService;
+        this.emailParams = emailParams;
+        this.approvedStudyDAO = new ApprovedStudyDAO();
+        this.userDAO = new UserDAO();
         this.emailParams = emailParams;
         this.applicationDAO = new ApplicationDAO();
         this.userDAO = new UserDAO();
@@ -97,13 +101,13 @@ class ApprovedStudiesService {
             throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
         }
 
-        const approvedStudy = await getApprovedStudyByID(_id)
+        const approvedStudy = await this.approvedStudyDAO.getApprovedStudyByID(_id);
 
         if (!approvedStudy) {
             throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
         }
         // find program/organization by study ID
-        approvedStudy.programs = await this._findOrganizationByStudyID(_id)
+        approvedStudy.programs = await this._findOrganizationByStudyID(_id);
         // find primaryContact
         if (approvedStudy?.primaryContactID)
         {
@@ -131,8 +135,8 @@ class ApprovedStudiesService {
      * @param {Filters} [filters] Filters to apply to the query
      * @returns {Promise<Object[]>} An array of ApprovedStudies
      */
-    async listApprovedStudies(filters = {}) {
-        return await this.approvedStudiesCollection.aggregate([{ "$match": filters }]);
+    async listApprovedStudies(studyIDs) {
+        return await this.approvedStudyDAO.getApprovedStudiesInStudies(studyIDs);
     }
 
     /**

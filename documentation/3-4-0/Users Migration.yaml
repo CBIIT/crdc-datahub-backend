@@ -17,7 +17,15 @@ Commands:
         );
   - create a collection called pendingPVs CRDCDH-2974: |
         db.createCollection("pendingPVs");:
-
+  - add the data_submission:pv_requested email notification to the data commons personnel CRDCDH-2930: |
+        db.users.updateMany(
+          {
+            role: {$in: ["Data Commons Personnel"]},
+          },
+          {
+            $addToSet: { notifications: "data_submission:pv_requested" }
+          }
+        );
   - remove empty organization from the user & add the default notification for clearing pending state CRDCDH-2967: |
         db.users.updateMany(
           { organization: { $type: "object", $eq: {} } },
