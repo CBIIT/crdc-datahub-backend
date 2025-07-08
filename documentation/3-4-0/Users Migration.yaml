@@ -26,4 +26,19 @@ Commands:
             $addToSet: { notifications: "data_submission:pv_requested" }
           }
         );
+  - remove empty organization from the user & add the default notification for clearing pending state CRDCDH-2967: |
+        db.users.updateMany(
+          { organization: { $type: "object", $eq: {} } },
+          { $unset: { organization: "" } }
+        )
+      
+        db.users.updateMany(
+          {
+            role: {$in: ["User", "Submitter"]},
+          },
+          {
+            $addToSet: { notifications: "submission_request:pending_cleared" }
+          }
+        );
+      
       

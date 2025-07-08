@@ -604,6 +604,22 @@ class NotifyUser {
             );
         });
     }
+
+    async clearPendingModelState(email, BCCEmails, template_params) {
+        const subject = replaceMessageVariables(this.email_constants.CLEAR_PENDING_STATE_SUBJECT, {});
+        return await this.send(async () => {
+            return await this.emailService.sendNotification(
+                this.email_constants.NOTIFICATION_SENDER,
+                isTierAdded(this.tier) ? `${this.tier} ${subject}` : subject,
+                await createEmailTemplate("notification-template-pending-clear.html", {
+                    ...{...template_params, senderName: CRDC_SUBMISSION_PORTAL}
+                }),
+                email,
+                [],
+                BCCEmails
+            );
+        });
+    }
 }
 
 const isTierAdded = (tier) => {

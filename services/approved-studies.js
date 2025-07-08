@@ -2,8 +2,8 @@ const {USER} = require("../crdc-datahub-database-drivers/constants/user-constant
 const ERROR = require("../constants/error-constants");
 const { verifySession } = require('../verifier/user-info-verifier');
 const {ApprovedStudies} = require("../crdc-datahub-database-drivers/domain/approved-studies");
-const {ADMIN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const ApprovedStudyDAO = require("../dao/approvedStudy");
+const {ADMIN, EMAIL_NOTIFICATIONS} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {
     NEW,
     IN_PROGRESS,
@@ -28,21 +28,32 @@ const CONTROLLED_ACCESS_OPEN = "Open";
 const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
 const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN, CONTROLLED_ACCESS_CONTROLLED];
 const NA_PROGRAM = "NA";
+const NA = "NA";
+const getApprovedStudyByID = require("../dao/approvedStudy")
 const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
-
+const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
+const ApplicationDAO = require("../dao/application");
+const UserDAO = require("../dao/user");
+const ROLES = USER_CONSTANTS.USER.ROLES;
 class ApprovedStudiesService {
     _ALL = "All";
-    constructor(approvedStudiesCollection, userCollection, organizationService, submissionCollection, authorizationService) {
+    constructor(approvedStudiesCollection, userCollection, organizationService, submissionCollection, authorizationService, notificationsService, emailParams) {
         this.approvedStudiesCollection = approvedStudiesCollection;
         this.userCollection = userCollection;
         this.organizationService = organizationService;
         this.submissionCollection = submissionCollection;
         this.authorizationService = authorizationService;
+        this.notificationsService = notificationsService;
+        this.emailParams = emailParams;
         this.approvedStudyDAO = new ApprovedStudyDAO();
+        this.userDAO = new UserDAO();
+        this.emailParams = emailParams;
+        this.applicationDAO = new ApplicationDAO();
+        this.userDAO = new UserDAO();
     }
 
-    async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID) {
-        const approvedStudies = ApprovedStudies.createApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID);
+    async storeApprovedStudies(applicationID, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID) {
+        const approvedStudies = ApprovedStudies.createApprovedStudies(applicationID, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID);
         const res = await this.approvedStudiesCollection.findOneAndUpdate({ studyName }, approvedStudies, {returnDocument: 'after', upsert: true});
         if (!res?.value) {
             console.error(ERROR.APPROVED_STUDIES_INSERTION + ` studyName: ${studyName}`);
@@ -423,6 +434,7 @@ class ApprovedStudiesService {
             updateStudy.PI = PI;
         }
 
+        const currPendingModelChange = updateStudy.pendingModelChange;
         if (pendingModelChange !== undefined) {
             updateStudy.pendingModelChange = isTrue(pendingModelChange);
         }
@@ -449,6 +461,10 @@ class ApprovedStudiesService {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_UPDATE);
         }
 
+        if (currPendingModelChange !== updateStudy.pendingModelChange && updateStudy.pendingModelChange === false && updateStudy.pendingApplicationID) {
+            await this._notifyClearPendingState(updateStudy);
+        }
+
         const programs = await this._findOrganizationByStudyID(studyID);
         const [conciergeName, conciergeEmail] = this._getConcierge(programs, primaryContact, useProgramPC);
         const updatedSubmissions = await this.submissionCollection.updateMany({
@@ -464,6 +480,34 @@ class ApprovedStudiesService {
 
         let approvedStudy = {...updateStudy, programs: programs, primaryContact: primaryContact};
         return getDataCommonsDisplayNamesForApprovedStudy(approvedStudy);
+    }
+
+    async _notifyClearPendingState(updateStudy) {
+        const application = await this.applicationDAO.findByID(updateStudy.pendingApplicationID);
+        const aSubmitter = await this.userDAO.findFirst({id: application?.applicant?.applicantID});
+        const BCCUsers = await this.userDAO.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_PENDING_CLEARED],
+            [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD, ROLES.ADMIN]);
+        const filteredBCCUsers = BCCUsers.filter((u) => u?._id !== aSubmitter?._id);
+
+        const errorMsg = replaceErrorString(ERROR.FAILED_TO_NOTIFY_CLEAR_PENDING_STATE, `studyID: ${updateStudy?._id}`);
+        if (!aSubmitter?._id || !application?._id) {
+            console.error(errorMsg);
+            throw new Error(errorMsg);
+        }
+
+        if (aSubmitter?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_PENDING_CLEARED)) {
+            const res = await this.notificationsService.clearPendingModelState(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
+                firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`,
+                studyName: updateStudy?.studyName || NA,
+                portalURL: this.emailParams.url || NA,
+                submissionGuideURL: this.emailParams?.submissionGuideURL,
+                contactEmail: this.emailParams.contactEmail || NA,
+            });
+            if (res?.accepted?.length === 0 || !res) {
+                console.error(errorMsg);
+                throw new Error(errorMsg);
+            }
+        }
     }
 
     _getConcierge(programs, primaryContact, isProgramPrimaryContact) {
@@ -546,6 +590,12 @@ class ApprovedStudiesService {
         }
         return userScope;
     }
+}
+
+const getUserEmails = (users) => {
+    return users
+        ?.filter((aUser) => aUser?.email)
+        ?.map((aUser)=> aUser.email);
 }
 
 module.exports = {
