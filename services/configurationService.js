@@ -58,17 +58,15 @@ class ConfigurationService {
      * @returns {Promise<{ permissions: {disabled: Array, permitted: Array}, notifications: {disabled: Array, permitted: Array} }> | null}
      */
     async getAccessControl(role) {
-         let result = await this.configurationDAO.findByType(PBAC_CONFIG_TYPE);
-        if (!result || !result?.Defaults || result?.Defaults.length === 0){
+        const usersPermissions = await this.getPBACByRoles([role]);
+        if (usersPermissions?.length === 0) {
             return null;
         }
-        let pbacArray = result.Defaults.map(role => {
-            const permissions = role.permissions.map(permission => ({...permission, _id: permission.id}));
-            const notifications = (role.notifications || []).map(n => ({...n, _id: n.id}));
-            return {...role, permissions: permissions, notifications: notifications}
-        });
-        result = {Defaults:pbacArray};
-        return (roles.includes("All"))? result.Defaults : result.Defaults.filter((item)=> roles.includes(item.role));
+        // Only one user
+        return {
+            permissions: UserAccessControl.get(usersPermissions[0]?.permissions),
+            notifications: UserAccessControl.get(usersPermissions[0]?.notifications)
+        };
     }
 
     /**
