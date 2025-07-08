@@ -34,7 +34,7 @@ const NODE_RELATION_TYPE_CHILD="child";
 const NODE_RELATION_TYPES = [NODE_RELATION_TYPE_PARENT, NODE_RELATION_TYPE_CHILD];
 const FILE = "file";
 const DATA_SHEET = {
-    SUBJECT_ID: "study_participant_id",
+    SUBJECT_ID: "participant_id",
     SAMPLE_ID: "sample_id",
     RACE: "race",
     AGE_ONSET: "age_at_diagnosis", 
@@ -771,8 +771,7 @@ class DataRecordService {
         // 3) create Subject Phenotype DD and DS
         const subjectPhenotypeArr = await Promise.all(
             participants.map(async (participant) => {
-            // const subjectID = participant.props?.dbGaP_subject_id? participant.props.dbGaP_subject_id : participant.nodeID;
-            const subjectID = participant.nodeID;
+            const subjectID = participant.props?.dbGaP_subject_id? participant.props.dbGaP_subject_id : participant.nodeID;
             const race = participant.props?.race;
             const ageAtDiagnosis = await this._getAgeAtDiagnosisByParticipant(subjectID, aSubmission._id);
             return {[DATA_SHEET.SUBJECT_ID]: subjectID, [DATA_SHEET.RACE]: race, [DATA_SHEET.AGE_ONSET]: ageAtDiagnosis};
@@ -787,8 +786,7 @@ class DataRecordService {
         }
         // 4) create sample attribute DD and DS
         const sampleAttributesArr = sampleNodes.map((sample) => {
-            // const sampleID = sample.props?.biosample_accession? sample.props.biosample_accession: sample.nodeID;
-            const sampleID = sample.nodeID;
+            const sampleID = sample.props?.biosample_accession? sample.props.biosample_accession: sample.nodeID;
             const sampleSite= sample.props?.sample_anatomic_site;
             const sampleTypeCategory = sample.props?.sample_type_category;
             const sampleTumorStatus = (sample.props?.sample_tumor_status === "Tumor") ? 1 : 0;
@@ -808,6 +806,7 @@ class DataRecordService {
         const uniqueSampleFileSet = new Set();
         for (const sample of sampleNodes){
             const sampleID = sample.nodeID;
+            const biosample_accession = sample.props?.biosample_accession? sample.props.biosample_accession: sample.nodeID;
             const sampleFiles = await this.dataRecordsCollection.aggregate([{
                 $match: {
                     submissionID: aSubmission._id,
@@ -817,12 +816,12 @@ class DataRecordService {
                 }
             }]);
             if (sampleFiles && sampleFiles.length > 0){
-
                const results = await Promise.all(
                   sampleFiles.map(async (sampleFile) => {
                     const fileID = sampleFile.nodeID;
-                    if (!uniqueSampleFileSet.has(fileID)){
-                        uniqueSampleFileSet.add(fileID);
+                    const uniqueFileID = `${sampleID}_${fileID}`;
+                    if (!uniqueSampleFileSet.has(uniqueFileID)){
+                        uniqueSampleFileSet.add(uniqueFileID);
                         const fileName = sampleFile.props?.file_name;
                         const fileMD5 = sampleFile.props?.md5sum;
                         const fileType = sampleFile.props?.file_type;
@@ -838,7 +837,7 @@ class DataRecordService {
                                 const designDescription = genomicInfo.props?.design_description;
                                 const reference_genome_assembly = genomicInfo.props?.reference_genome_assembly;
                                 const alignemnt_software = genomicInfo.props?.sequence_alignment_software;
-                                genomicInfoArr.push({[DATA_SHEET.PHS_ACCESSION]: aSubmission.dbGaPID, [DATA_SHEET.SAMPLE_ID]: sampleID, 
+                                genomicInfoArr.push({[DATA_SHEET.PHS_ACCESSION]: aSubmission.dbGaPID, [DATA_SHEET.SAMPLE_ID]: biosample_accession, 
                                     [DATA_SHEET.LIBRARY_ID]: libraryID, [DATA_SHEET.LIBRARY_STRATEGY]: libraryStrategy, 
                                     [DATA_SHEET.LIBRARY_SELECTION]: librarySelection, [DATA_SHEET.LIBRARY_LAYOUT]: libraryLayout, 
                                     [DATA_SHEET.PLATFORM]: platform,[DATA_SHEET.INSTRUMENT_MODEL]: instrumentModel, 
