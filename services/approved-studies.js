@@ -17,37 +17,37 @@ const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-
 const {getDataCommonsDisplayNamesForApprovedStudy, getDataCommonsDisplayNamesForUser,
     getDataCommonsDisplayNamesForApprovedStudyList
 } = require("../utility/data-commons-remapper");
-const {ORGANIZATION_COLLECTION, USER_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
-const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
-const {SORT, DIRECTION} = require("../crdc-datahub-database-drivers/constants/monogodb-constants");
+const {SORT: PRISMA_SORT} = require("../constants/db-constants");
 const {UserScope} = require("../domain/user-scope");
 const {replaceErrorString} = require("../utility/string-util");
-const CONTROLLED_ACCESS_ALL = "All";
-const CONTROLLED_ACCESS_OPEN = "Open";
-const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
-const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN, CONTROLLED_ACCESS_CONTROLLED];
 const NA_PROGRAM = "NA";
 
-const getApprovedStudyByID = require("../dao/approvedStudy")
+const {getApprovedStudyByID} = require("../dao/approvedStudy")
 const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
+const {ApprovedStudyDAO} = require("../dao/approvedStudy");
+const ProgramDAO = require("../dao/program");
+const UserDAO = require("../dao/user");
+const SubmissionDAO = require("../dao/submission");
 
 class ApprovedStudiesService {
     _ALL = "All";
     constructor(approvedStudiesCollection, userCollection, organizationService, submissionCollection, authorizationService) {
-        this.approvedStudiesCollection = approvedStudiesCollection;
-        this.userCollection = userCollection;
+        this.approvedStudyDAO = new ApprovedStudyDAO(approvedStudiesCollection);
         this.organizationService = organizationService;
-        this.submissionCollection = submissionCollection;
         this.authorizationService = authorizationService;
+        this.programDAO = new ProgramDAO(organizationService.organizationCollection);
+        this.userDAO = new UserDAO(userCollection);
+        this.submissionDAO = new SubmissionDAO(submissionCollection);
     }
 
     async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID) {
         const approvedStudies = ApprovedStudies.createApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID);
-        const res = await this.approvedStudiesCollection.findOneAndUpdate({ studyName }, approvedStudies, {returnDocument: 'after', upsert: true});
-        if (!res?.value) {
+        const res = await this.approvedStudyDAO.create(approvedStudies);
+
+        if (!res) {
             console.error(ERROR.APPROVED_STUDIES_INSERTION + ` studyName: ${studyName}`);
         }
-        return res.value;
+        return res;
     }
 
     /**
@@ -57,7 +57,7 @@ class ApprovedStudiesService {
      * @returns {Promise<Object[]>} An array of ApprovedStudies
      */
     async findByStudyName(studyName) {
-        return await this.approvedStudiesCollection.aggregate([{ "$match": {studyName}}]);
+        return await this.approvedStudyDAO.findMany({studyName});
     }
 
     /**
@@ -106,13 +106,12 @@ class ApprovedStudiesService {
         return approvedStudy;
     }
 
-    async _findOrganizationByStudyID(studyID)
-    {
+    async _findOrganizationByStudyID(studyID){
         const orgIds = await this.organizationService.findByStudyID(studyID);
         if (orgIds && orgIds.length > 0 ) {
             const filters = {_id: {"$in": orgIds}};
             // For the data concierge purpose, the sort should be enabled.
-            return await this.organizationService.organizationCollection.aggregate([{ "$match": filters }, {"$sort": {_id: -1}}]);
+            return await this.programDAO.findMany(filters, {orderBy: {id: PRISMA_SORT.DESC,}});
         }
         return null;
     }
@@ -125,7 +124,7 @@ class ApprovedStudiesService {
      * @returns {Promise<Object[]>} An array of ApprovedStudies
      */
     async listApprovedStudies(filters = {}) {
-        return await this.approvedStudiesCollection.aggregate([{ "$match": filters }]);
+        return await this.approvedStudyDAO.findMany(filters);
     }
 
     /**
@@ -150,165 +149,7 @@ class ApprovedStudiesService {
             programID
         } = params;
 
-        let pipelines = [
-            // Join with the program
-            {"$lookup": {
-                from: ORGANIZATION_COLLECTION,
-                localField: "_id",
-                foreignField: "studies._id",
-                as: "programs"}},
-            {"$lookup": {
-                from: USER_COLLECTION,
-                localField: "primaryContactID",
-                foreignField: "_id",
-                as: "primaryContact"}},
-            {"$replaceRoot": {
-                newRoot: {
-                    $mergeObjects: [
-                        "$$ROOT",
-                        {
-                            primaryContact: {
-                                _id: {
-                                    $cond: [
-                                        "$useProgramPC",
-                                        { $arrayElemAt: ["$programs.conciergeID", 0] },
-                                        { $arrayElemAt: ["$primaryContact._id", 0] }
-                                    ]
-                                },
-                                firstName: {
-                                    $cond: [
-                                        "$useProgramPC",
-                                        {
-                                            $ifNull: [
-                                                { $arrayElemAt: [
-                                                        { $split: [
-                                                                { $arrayElemAt: ["$programs.conciergeName", 0] },
-                                                                " "
-                                                            ] },
-                                                        0 // first element → firstName
-                                                    ] },
-                                                ""
-                                            ]
-                                        },
-                                        { $arrayElemAt: ["$primaryContact.firstName", 0] }
-                                    ]
-                                },
-                                lastName: {
-                                    $cond: [
-                                        "$useProgramPC",
-                                        {
-                                            $ifNull: [
-                                                { $arrayElemAt: [
-                                                        { $split: [
-                                                                { $arrayElemAt: ["$programs.conciergeName", 0] },
-                                                                " "
-                                                            ] },
-                                                        1 // second element → lastName
-                                                ] },
-                                                ""
-                                            ]
-                                        },
-                                        { $arrayElemAt: ["$primaryContact.lastName", 0] }
-                                    ]
-                                }
-                            }
-                        }
-                    ]
-                }
-            }}
-        ];
-        // set matches
-        let matches = {};
-        if (study)
-            matches.$or = [{studyName: {$regex: study, $options: 'i'}}, {studyAbbreviation: {$regex: study, $options: 'i'}}];
-        if (controlledAccess) {
-            if (!CONTROLLED_ACCESS_OPTIONS.includes(controlledAccess)) {
-                throw new Error(ERROR.INVALID_CONTROLLED_ACCESS);
-            }
-            if (controlledAccess !== CONTROLLED_ACCESS_ALL)
-            {
-                if (controlledAccess === CONTROLLED_ACCESS_CONTROLLED)
-                {
-                    matches.controlledAccess = true;
-                }
-                else
-                {
-                    matches.openAccess = true;
-                }
-            }
-        }
-       
-        if (dbGaPID) {
-            matches.dbGaPID = {$regex: dbGaPID, $options: 'i'};
-        }
-
-        if (programID && programID !== this._ALL) {
-            matches["programs._id"] = programID;
-        }
-
-        pipelines.push({$match: matches});
-        const pagination = new MongoPagination(first, offset, orderBy, sortDirection);
-        const paginationPipe = pagination.getPaginationPipeline()
-        // Added the custom sort
-        const isNotStudyName = orderBy !== "studyName";
-        const customPaginationPipeline = paginationPipe?.map(pagination =>
-            Object.keys(pagination)?.includes("$sort") && isNotStudyName ? {...pagination, $sort: {...pagination.$sort, studyName: DIRECTION.ASC}} : pagination
-        );
-
-        const programSort = "programs.name";
-        const isProgramSort = orderBy === programSort;
-        const programPipeLine = paginationPipe?.map(pagination =>
-            Object.keys(pagination)?.includes("$sort") && pagination.$sort === programSort ? {...pagination, $sort: {...pagination.$sort, [programSort]: sortDirection?.toLowerCase() === SORT.DESC ? DIRECTION.DESC : DIRECTION.ASC}} : pagination
-        );
-
-        // Always sort programs array inside each document by name DESC
-        pipelines.push({
-            $addFields: {
-                programs: {
-                    $cond: [
-                        { $isArray: "$programs" },
-                        { $sortArray: {
-                                input: "$programs",
-                                sortBy: { name: DIRECTION.DESC }
-                        }},
-                        []
-                    ]
-                }
-            }
-        });
-        // This is the program’s custom sort order; the program name in the first element should be sorted.
-        if (isProgramSort) {
-            pipelines.push(
-                { $unwind: { path: "$programs", preserveNullAndEmptyArrays: true } },
-                { $sort: { "programs.name": sortDirection === SORT.DESC ? DIRECTION.DESC : DIRECTION.ASC } },
-                { $group: {
-                        _id: "$_id",
-                        doc: { $first: "$$ROOT" },
-                        programs: { $push: "$programs" }
-                }},
-                { $replaceRoot: {
-                        newRoot: { $mergeObjects: ["$doc", { programs: "$programs" }] }
-                }}
-            );
-        }
-
-        pipelines.push({
-            $facet: {
-                total: [{
-                    $count: "total"
-                }],
-                results: isProgramSort ? programPipeLine : customPaginationPipeline
-            }
-        });
-        pipelines.push({
-            $set: {
-                total: {
-                    $first: "$total.total",
-                }
-            }
-        });
-
-        let dataRecords = await this.approvedStudiesCollection.aggregate(pipelines);
+        let dataRecords = await this.approvedStudyDAO.listApprovedStudies(study, controlledAccess, dbGaPID, programID, first, offset, orderBy, sortDirection);
         dataRecords = dataRecords.length > 0 ? dataRecords[0] : {}
         let approvedStudyList = {total: dataRecords?.total || 0,
             studies: dataRecords?.results || []}
@@ -396,11 +237,11 @@ class ApprovedStudiesService {
             useProgramPC,
             pendingModelChange
         } = this._verifyAndFormatStudyParams(params);
-        let updateStudy = await this.approvedStudiesCollection.find(studyID);
-        if (!updateStudy || updateStudy.length === 0) {
+        let updateStudy = await this.approvedStudyDAO.findFirst(studyID);
+        if (!updateStudy) {
             throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
         }
-        updateStudy = updateStudy[0];
+
         // check if name is unique
         if (name !== updateStudy.studyName)
             await this._validateStudyName(name)
@@ -444,19 +285,31 @@ class ApprovedStudiesService {
 
         updateStudy.primaryContactID = useProgramPC ? null : primaryContactID;
         updateStudy.updatedAt = getCurrentTime();
-        const result = await this.approvedStudiesCollection.update(updateStudy);
-        if (!result?.acknowledged) {
+        const result = await this.approvedStudyDAO.update(studyID, updateStudy);
+        if (!result) {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_UPDATE);
         }
 
         const programs = await this._findOrganizationByStudyID(studyID);
         const [conciergeName, conciergeEmail] = this._getConcierge(programs, primaryContact, useProgramPC);
-        const updatedSubmissions = await this.submissionCollection.updateMany({
+        const updatedSubmissions = await this.submissionDAO.updateMany({
             studyID: updateStudy._id,
-            status: {$in: [NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, CANCELED, DELETED, ARCHIVED]},
-            $or: [{conciergeName: { "$ne": conciergeName?.trim() }}, {conciergeEmail: { "$ne": conciergeEmail }}, {studyName: { "$ne": name }}, {studyName: { "$ne": name }}, {studyAbbreviation: { "$ne": updateStudy?.studyAbbreviation }}]}, {
-            // To update the data concierge
-            conciergeName: conciergeName?.trim(), conciergeEmail, studyName: name, studyAbbreviation: updateStudy?.studyAbbreviation || "", updatedAt: getCurrentTime()});
+            status: {
+                in: [NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, CANCELED, DELETED, ARCHIVED],
+            },
+            OR: [
+                { conciergeName: { not: conciergeName?.trim() } },
+                { conciergeEmail: { not: conciergeEmail } },
+                { studyName: { not: name } },
+                { studyAbbreviation: { not: updateStudy?.studyAbbreviation } },
+            ]},{
+            conciergeName: conciergeName?.trim(),
+            conciergeEmail,
+            studyName: name,
+            studyAbbreviation: updateStudy?.studyAbbreviation || "",
+            updatedAt: getCurrentTime()
+        });
+
         if (!updatedSubmissions?.acknowledged) {
             console.log(ERROR.FAILED_PRIMARY_CONTACT_UPDATE, `StudyID: ${studyID}`);
             throw new Error(ERROR.FAILED_PRIMARY_CONTACT_UPDATE);
@@ -488,8 +341,7 @@ class ApprovedStudiesService {
      * @returns 
      */
     async _findUserByID(userID){
-        const result = await this.userCollection.aggregate([{"$match": {"_id": userID, "userStatus": USER.STATUSES.ACTIVE}}]);
-        return (result && result.length > 0)? result[0]: null;
+        return await this.userDAO.findFirst({"_id": userID, "userStatus": USER.STATUSES.ACTIVE});
     }
     /**
      * Validate the identifier format.
@@ -502,7 +354,7 @@ class ApprovedStudiesService {
     }
 
     async _validateStudyName(name) {
-        const existingStudy = await this.approvedStudiesCollection.aggregate([{ "$match": {studyName: name}}]);
+        const existingStudy = await this.approvedStudyDAO.findMany({studyName: name});
         if (existingStudy.length > 0) {
             throw new Error(ERROR.DUPLICATE_STUDY_NAME);
         } 

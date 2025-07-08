@@ -1,4 +1,4 @@
-const getApprovedStudyByID = require('../dao/approvedStudy');
+const {getApprovedStudyByID} = require('../dao/approvedStudy');
 
 jest.mock('../prisma', () => ({
     approvedStudy: {

@@ -17,3 +17,15 @@ Commands:
         );
   - create a collection called pendingPVs CRDCDH-2974: |
         db.createCollection("pendingPVs");:
+  - migration user institution id CRDCDH-2852: |     
+      db.institutions.updateMany(
+        {
+          $or: [
+            { status: { $exists: false } },
+            { status: { $nin: ["Active", "Inactive"] } }
+          ]
+        },
+        {
+          $set: { status: "Active" }
+        }
+      )
