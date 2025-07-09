@@ -397,19 +397,29 @@ class Application {
         }
 
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, CANCELED, document?.comment);
-        const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-            $set: {status: CANCELED, updatedAt: history.dateTime, version: aApplication.version},
-            $push: {history}
-        });
-
-        if (updated?.modifiedCount && updated?.modifiedCount > 0) {
+        let updated = null
+        let deleteApplication = false;
+        if (!aApplication?.programName && !aApplication?.studyAbbreviation && !aApplication?.studyName && !aApplication?.ORCID && !aApplication?.PI && !aApplication?.programAbbreviation && !aApplication?.programDescription){
+            updated = await this.dbService.deleteOne(APPLICATION, {_id: document._id});
+            deleteApplication = true;
+        } else{
+            updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
+                $set: {status: CANCELED, updatedAt: history.dateTime, version: aApplication.version},
+                $push: {history}
+            });
+        }
+        if ((updated?.modifiedCount && updated?.modifiedCount > 0) || (updated?.deletedCount && updated?.deletedCount > 0)) {
             await this._sendCancelApplicationEmail(userInfo, aApplication);
         } else {
             console.error(ERROR.FAILED_DELETE_APPLICATION, `${document._id}`);
             throw new Error(ERROR.FAILED_DELETE_APPLICATION);
         }
-        return await this.getApplicationById(document._id);
-    }
+        if (deleteApplication) {
+            // If application is deleted, then return null
+            return null;
+        }else
+            return await this.getApplicationById(document._id);
+        }
 
     async restoreApplication(document, context) {
         const aApplication = await this.getApplicationById(document._id);
