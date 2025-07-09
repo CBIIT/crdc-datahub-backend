@@ -30,7 +30,17 @@ Commands:
         db.users.updateMany(
           { organization: { $type: "object", $eq: {} } },
           { $unset: { organization: "" } }
-        )
+        );
+      
+        db.applications.updateMany(
+        {
+          $or: [
+            { organization: { $type: "object", $eq: {} } },
+            { "organization._id": null }
+          ]
+        },
+        { $unset: { organization: "" } }
+        );
       
         db.users.updateMany(
           {

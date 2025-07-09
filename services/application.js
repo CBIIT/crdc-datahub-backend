@@ -130,10 +130,6 @@ class Application {
                 applicantName: formatName(userInfo),
                 applicantEmail: userInfo.email
             },
-            organization: {
-                _id: userInfo?.organization?.orgID,
-                name: userInfo?.organization?.orgName
-            },
             history: [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)],
             createdAt: timestamp,
             updatedAt: timestamp,
@@ -141,6 +137,14 @@ class Application {
             programDescription: application?.programDescription,
             version: (application?.version)? application.version : await this._getApplicationVersionByStatus(NEW)
         };
+
+        if (userInfo?.organization?.orgID) {
+            newApplicationProperties.organization = {
+                _id: userInfo?.organization?.orgID,
+                name: userInfo?.organization?.orgName || ""
+            }
+        }
+
         application = {
             ...application,
             ...newApplicationProperties
