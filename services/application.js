@@ -16,6 +16,7 @@ const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo
 const {EMAIL_NOTIFICATIONS} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {UserScope} = require("../domain/user-scope");
+const {UtilityService} = require("../services/utility");
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ApplicationDAO = require("../dao/application");
 const OrderByMap = {
@@ -418,7 +419,8 @@ class Application {
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, CANCELED, document?.comment);
         let updated = null
         let deleteApplication = false;
-        if (!aApplication?.programName && !aApplication?.studyAbbreviation && !aApplication?.studyName && !aApplication?.ORCID && !aApplication?.PI && !aApplication?.programAbbreviation && !aApplication?.programDescription){
+        const utilityService = new UtilityService();
+        if (await utilityService.isApplicationDeletion(aApplication)) {
             updated = await this.dbService.deleteOne(APPLICATION, {_id: document._id});
             deleteApplication = true;
         } else{
