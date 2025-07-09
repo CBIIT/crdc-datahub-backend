@@ -34,7 +34,7 @@ const NODE_RELATION_TYPE_CHILD="child";
 const NODE_RELATION_TYPES = [NODE_RELATION_TYPE_PARENT, NODE_RELATION_TYPE_CHILD];
 const FILE = "file";
 const DATA_SHEET = {
-    SUBJECT_ID: "study_participant_id",
+    SUBJECT_ID: "participant_id",
     SAMPLE_ID: "sample_id",
     RACE: "race",
     AGE_ONSET: "age_at_diagnosis", 
@@ -803,6 +803,7 @@ class DataRecordService {
         }
         // 5) create Sequencing Metadata (genomic_info) DS by join file and genomic_info
         const genomicInfoArr = [];
+        const uniqueSampleFileSet = new Set();
         for (const sample of sampleNodes){
             const sampleID = sample.nodeID;
             const biosample_accession = sample.props?.biosample_accession? sample.props.biosample_accession: sample.nodeID;
@@ -818,35 +819,40 @@ class DataRecordService {
                const results = await Promise.all(
                   sampleFiles.map(async (sampleFile) => {
                     const fileID = sampleFile.nodeID;
-                    const fileName = sampleFile.props?.file_name;
-                    const fileMD5 = sampleFile.props?.md5sum;
-                    const fileType = sampleFile.props?.file_type;
-                    const genomicInfoList = await this._getGenomicInfoByFile(fileID, aSubmission._id);
-                    if (genomicInfoList && genomicInfoList.length > 0){
-                        genomicInfoList.map((genomicInfo) => {
-                            const libraryID = genomicInfo.props?.library_id;
-                            const libraryStrategy = genomicInfo.props?.library_strategy;
-                            const librarySelection = genomicInfo.props?.library_selection;
-                            const libraryLayout = genomicInfo.props?.library_layout;
-                            const platform = genomicInfo.props?.platform;
-                            const instrumentModel = genomicInfo.props?.instrument_model;
-                            const designDescription = genomicInfo.props?.design_description;
-                            const reference_genome_assembly = genomicInfo.props?.reference_genome_assembly;
-                            const alignemnt_software = genomicInfo.props?.sequence_alignment_software;
-                            genomicInfoArr.push({[DATA_SHEET.PHS_ACCESSION]: aSubmission.dbGaPID, [DATA_SHEET.SAMPLE_ID]: biosample_accession, 
-                                [DATA_SHEET.LIBRARY_ID]: libraryID, [DATA_SHEET.LIBRARY_STRATEGY]: libraryStrategy, 
-                                [DATA_SHEET.LIBRARY_SELECTION]: librarySelection, [DATA_SHEET.LIBRARY_LAYOUT]: libraryLayout, 
-                                [DATA_SHEET.PLATFORM]: platform,[DATA_SHEET.INSTRUMENT_MODEL]: instrumentModel, 
-                                [DATA_SHEET.DESIGN_DESCRIPTION]: designDescription,
-                                [DATA_SHEET.REFERENCE_GENOME_ASSEMBLY]: reference_genome_assembly,
-                                [DATA_SHEET.SEQUENCE_ALIGNMENT_SOFTWARE]: alignemnt_software,
-                                [DATA_SHEET.FILE_TYPE]: fileType, [DATA_SHEET.FILE_NAME]: fileName, [DATA_SHEET.MD5SUM]: fileMD5});
-                        });
+                    const uniqueFileID = `${sampleID}_${fileID}`;
+                    if (!uniqueSampleFileSet.has(uniqueFileID)){
+                        uniqueSampleFileSet.add(uniqueFileID);
+                        const fileName = sampleFile.props?.file_name;
+                        const fileMD5 = sampleFile.props?.md5sum;
+                        const fileType = sampleFile.props?.file_type;
+                        const genomicInfoList = await this._getGenomicInfoByFile(fileID, aSubmission._id);
+                        if (genomicInfoList && genomicInfoList.length > 0){
+                            genomicInfoList.map((genomicInfo) => {
+                                const libraryID = genomicInfo.props?.library_id;
+                                const libraryStrategy = genomicInfo.props?.library_strategy;
+                                const librarySelection = genomicInfo.props?.library_selection;
+                                const libraryLayout = genomicInfo.props?.library_layout;
+                                const platform = genomicInfo.props?.platform;
+                                const instrumentModel = genomicInfo.props?.instrument_model;
+                                const designDescription = genomicInfo.props?.design_description;
+                                const reference_genome_assembly = genomicInfo.props?.reference_genome_assembly;
+                                const alignemnt_software = genomicInfo.props?.sequence_alignment_software;
+                                genomicInfoArr.push({[DATA_SHEET.PHS_ACCESSION]: aSubmission.dbGaPID, [DATA_SHEET.SAMPLE_ID]: biosample_accession, 
+                                    [DATA_SHEET.LIBRARY_ID]: libraryID, [DATA_SHEET.LIBRARY_STRATEGY]: libraryStrategy, 
+                                    [DATA_SHEET.LIBRARY_SELECTION]: librarySelection, [DATA_SHEET.LIBRARY_LAYOUT]: libraryLayout, 
+                                    [DATA_SHEET.PLATFORM]: platform,[DATA_SHEET.INSTRUMENT_MODEL]: instrumentModel, 
+                                    [DATA_SHEET.DESIGN_DESCRIPTION]: designDescription,
+                                    [DATA_SHEET.REFERENCE_GENOME_ASSEMBLY]: reference_genome_assembly,
+                                    [DATA_SHEET.SEQUENCE_ALIGNMENT_SOFTWARE]: alignemnt_software,
+                                    [DATA_SHEET.FILE_TYPE]: fileType, [DATA_SHEET.FILE_NAME]: fileName, [DATA_SHEET.MD5SUM]: fileMD5});
+                            });
+                        }
                     }
                     return true;
                 }));
             }
         }
+        
         if (genomicInfoArr.length > 0){
             const sequenceMetadata = `${download_dir}/${dbGaPDir}_SequenceMetadata_DD`;
             const sequenceMetadataSourceFile = `${dataDefinitionSourceDir}/SequenceMetadata_DD.xlsx`;

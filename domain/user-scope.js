@@ -35,15 +35,15 @@ class UserScope {
     }
 
     isRoleScope() {
-        return this.scopes?.some(scope => scope?.scope === SCOPES.ROLE);
+        return this.scopes?.some(scope => scope?.scope === SCOPES.ROLE || scope === SCOPES.ROLE);
     }
 
     isOwnScope() {
-        return this.scopes?.some(scope => scope?.scope === SCOPES.OWN);
+        return this.scopes?.some(scope => scope?.scope === SCOPES.OWN || scope === SCOPES.OWN);
     }
 
     isAllScope() {
-        return this.scopes?.some(scope => scope?.scope === SCOPES.ALL);
+        return this.scopes?.some(scope => scope?.scope === SCOPES.ALL || scope === SCOPES.ALL);
     }
 
     isNoneScope() {
