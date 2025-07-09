@@ -17,6 +17,15 @@ const {EMAIL_NOTIFICATIONS} = require("../crdc-datahub-database-drivers/constant
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {UserScope} = require("../domain/user-scope");
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ApplicationDAO = require("../dao/application");
+const OrderByMap = {
+    "Submitter Name": "applicant.applicantName",
+    "Organization": "organization.name",
+    "Study": "studyName",
+    "Program": "programName",
+    "Status": "status",
+    "Submitted Date": "submittedDate"
+};
 class Application {
     _DELETE_REVIEW_COMMENT="This Submission Request has been deleted by the system due to inactivity.";
     _ALL_FILTER="All";
@@ -26,6 +35,8 @@ class Application {
     constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService, configurationService, authorizationService) {
         this.logCollection = logCollection;
         this.applicationCollection = applicationCollection;
+        // Use ApplicationDAO for all applicationCollection calls
+        this.applicationDAO = new ApplicationDAO();
         this.approvedStudiesService = approvedStudiesService;
         this.userService = userService;
         this.dbService = dbService;
@@ -84,9 +95,10 @@ class Application {
     }
 
     async getApplicationById(id) {
-        let result = await this.applicationCollection.find(id);
-        if (!result?.length || result.length < 1) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
-        return result[0];
+        // Use ApplicationDAO for find
+        let result = await this.applicationDAO.findById(id);
+        if (!result) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
+        return result;
     }
 
     async reviewApplication(params, context) {
@@ -131,8 +143,8 @@ class Application {
                 applicantEmail: userInfo.email
             },
             organization: {
-                _id: userInfo?.organization?.orgID,
-                name: userInfo?.organization?.orgName
+                _id: userInfo?.organization?.orgID || userInfo?.organization?._id ,
+                name: userInfo?.organization?.orgName || userInfo?.organization?.name
             },
             history: [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)],
             createdAt: timestamp,
@@ -145,7 +157,7 @@ class Application {
             ...application,
             ...newApplicationProperties
         };
-        const res = await this.applicationCollection.insert(application);
+        const res = await this.applicationDAO.insert(application);
         if (res?.acknowledged) await this.logCollection.insert(CreateApplicationEvent.create(userInfo._id, userInfo.email, userInfo.IDP, application._id));
         return application;
     }
@@ -172,7 +184,7 @@ class Application {
         let application = {...storedApplication, ...inputApplication, status: IN_PROGRESS};
         // auto upgrade version based on configuration
         application.version = await this._getApplicationVersionByStatus(IN_PROGRESS);
-        application = await updateApplication(this.applicationCollection, application, prevStatus, context?.userInfo?._id);
+        application = await updateApplication(this.applicationDAO, application, prevStatus, context?.userInfo?._id);
         if (prevStatus !== application.status){
             await logStateChange(this.logCollection, context.userInfo, application, prevStatus);
         }
@@ -196,10 +208,10 @@ class Application {
             sortCreatedAtDescending,
             limitReturnToOneApplication
         ];
-        const result = await this.applicationCollection.aggregate(pipeline);
+        const result = await this.applicationDAO.aggregate(pipeline);
         const application = result.length > 0 ? result[0] : null;
         // auto upgrade version
-        application.version = await this._getApplicationVersionByStatus(IN_PROGRESS);
+        if (application) application.version = await this._getApplicationVersionByStatus(IN_PROGRESS);
         return application;
     }
 
@@ -258,20 +270,22 @@ class Application {
         ];
         const [listConditions, programCondition, studyNameCondition, statuesCondition, submitterNameCondition] = filterConditions;
         let pipeline = [{"$match": listConditions}];
-        const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
+        // convert params.orderBy from orderBy in ["Submitter Name", "Organization", "Study", "Program", "Status", "Submitted Date"] to Application in prisma schema
+        const orderBy = params?.orderBy ? OrderByMap[params.orderBy]: "";
+        const paginationPipe = new MongoPagination(params?.first, params.offset, orderBy, params.sortDirection);
         const noPaginationPipe = pipeline.concat(paginationPipe.getNoLimitPipeline());
 
         const promises = [
-            this.applicationCollection.aggregate(pipeline.concat(paginationPipe.getPaginationPipeline())),
-            this.applicationCollection.aggregate(noPaginationPipe.concat([{ $group: { _id: "$_id" } }, { $count: "count" }])),
+            this.applicationDAO.aggregate(pipeline.concat(paginationPipe.getPaginationPipeline())),
+            this.applicationDAO.aggregate(noPaginationPipe.concat([{ $group: { _id: "$_id" } }, { $count: "count" }])),
             // note: Program name filter is omitted
-            this.applicationCollection.distinct("programName", programCondition),
+            this.applicationDAO.distinct("programName", programCondition),
             // note: Study name filter is omitted
-            this.applicationCollection.distinct("studyName", studyNameCondition),
+            this.applicationDAO.distinct("studyName", studyNameCondition),
             // note: Statues filter is omitted
-            this.applicationCollection.distinct("status", statuesCondition),
+            this.applicationDAO.distinct("status", statuesCondition),
             // note: Submitter name filter is omitted
-            this.applicationCollection.distinct("applicant.applicantName", submitterNameCondition)
+            this.applicationDAO.distinct("applicant.applicantName", submitterNameCondition)
         ];
 
         const results = await Promise.all(promises);
@@ -317,7 +331,7 @@ class Application {
             updatedAt: historyEvent.dateTime,
             submittedDate: historyEvent.dateTime
         };
-        const updated = await this.applicationCollection.update(aApplication);
+        const updated = await this.applicationDAO.update(aApplication);
         if (!updated?.modifiedCount || updated?.modifiedCount < 1) throw new Error(ERROR.UPDATE_FAILED);
         const logEvent = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, SUBMITTED);
         await Promise.all([
@@ -568,7 +582,7 @@ class Application {
             },
             status: {$in: [NEW, IN_PROGRESS, INQUIRED]}
         };
-        const applications = await this.applicationCollection.aggregate([{$match: inactiveCondition}]);
+        const applications = await this.applicationDAO.aggregate([{$match: inactiveCondition}]);
         verifyApplication(applications)
             .isUndefined();
 
@@ -617,7 +631,7 @@ class Application {
             const query = {_id: {$in: applicationIDs}};
             // Disable all reminders to ensure no notifications are sent.
             const everyReminderDays = this._getEveryReminderQuery(this.emailParams.inactiveApplicationNotifyDays, true);
-            const updatedReminder = await this.applicationCollection.updateMany(query, everyReminderDays);
+            const updatedReminder = await this.applicationDAO.updateMany(query, everyReminderDays);
             if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
                 console.error("The email reminder flag intended to notify the inactive submission request (FINAL) is not being stored", `submissionIDs: ${applicationIDs.join(', ')}`);
             }
@@ -673,7 +687,7 @@ class Application {
                     acc[`${this._INACTIVE_REMINDER}_${day}`] = true;
                     return acc;
                 }, {});
-                const updatedReminder = await this.applicationCollection.update({_id: applicationID, ...reminderFilter});
+                const updatedReminder = await this.applicationDAO.update({_id: applicationID, ...reminderFilter});
                 if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
                     console.error("The email reminder flag intended to notify the inactive submission request is not being stored", applicationID);
                 }
@@ -682,6 +696,13 @@ class Application {
     }
 
     async _getInactiveSubmissions(inactiveDays, inactiveFlagField) {
+        if (!inactiveDays || !inactiveFlagField) {
+            console.error("Invalid parameters");
+            return [];  // Return an empty array or handle the error as needed
+        }
+        if(inactiveFlagField !== "inactiveReminder") {
+           inactiveFlagField = "inactiveReminder";
+        }
         const remindCondition = {
             updatedAt: {
                 $lt: subtractDaysFromNow(inactiveDays),
@@ -692,7 +713,7 @@ class Application {
             // Tracks whether the notification has already been sent
             [inactiveFlagField]: {$ne: true}
         };
-        return await this.applicationCollection.aggregate([{$match: remindCondition}]);
+        return await this.applicationDAO.aggregate([{$match: remindCondition}]);
     }
 
     async _findUsersByApplicantIDs(applications) {
@@ -911,7 +932,7 @@ class Application {
         const programName = aApplication?.programName ?? "NA";
         // Upon approval of the submission request, the data concierge is retrieved from the associated program.
         return await this.approvedStudiesService.storeApprovedStudies(
-            aApplication?._id, aApplication?.studyName, studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name, controlledAccess, aApplication?.ORCID,
+            aApplication?.studyName, studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name, controlledAccess, aApplication?.ORCID,
             aApplication?.PI, aApplication?.openAccess, programName, true, pendingModelChange
         );
     }
@@ -926,7 +947,7 @@ class Application {
     }
 }
 
-async function updateApplication(applicationCollection, application, prevStatus, userID) {
+async function updateApplication(applicationDAO, application, prevStatus, userID) {
     if (prevStatus !== IN_PROGRESS) {
         application = {history: [], ...application};
         const historyEvent = HistoryEventBuilder.createEvent(userID, IN_PROGRESS, null);
@@ -935,7 +956,7 @@ async function updateApplication(applicationCollection, application, prevStatus,
     // Save an email reminder when an inactive application is reactivated.
     application.inactiveReminder = false;
     application.updatedAt = getCurrentTime();
-    const updateResult = await applicationCollection.update(application);
+    const updateResult = await applicationDAO.update(application);
     if ((updateResult?.matchedCount || 0) < 1) {
         throw new Error(ERROR.APPLICATION_NOT_FOUND + application?._id);
     }

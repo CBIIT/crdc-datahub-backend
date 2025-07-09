@@ -1,4 +1,5 @@
 const prisma = require("../prisma");
+const {convertIdFields, convertMongoFilterToPrismaFilter} = require('./utils/orm-converter');
 
 class GenericDAO {
     constructor(modelName) {
@@ -6,7 +7,7 @@ class GenericDAO {
     }
 
     async create(data) {
-        return await this.model.create({ data });
+        return await this.model.create({ data: data });
     }
 
     async findById(id) {
@@ -22,15 +23,16 @@ class GenericDAO {
         return result.map(item => ({ ...item, _id: item.id }));
     }
 
-    async findFirst(where) {
-        const result = await this.model.findFirst({ where });
+    async findFirst(filter) {
+        const result = await this.model.findFirst({ where: filter });
         if (!result) {
             return null;
         }
         return { ...result, _id: result.id };
     }
-    async findMany(where) {
-        const result = await this.model.findMany({ where });
+    async findMany(filter) {
+        filter = convertMongoFilterToPrismaFilter(filter);
+        const result = await this.model.findMany({ where: filter });
         return result.map(item => ({ ...item, _id: item.id }));
     }
 
