@@ -110,9 +110,11 @@ class Application {
         if (application && application.status && application.status === SUBMITTED) {
             // If Submitted status, change it to In Review
             const history = HistoryEventBuilder.createEvent(context.userInfo._id, IN_REVIEW, null);
-            const updated = await this.dbService.updateOne(APPLICATION, {_id: params._id}, {
-                $set: {status: IN_REVIEW, updatedAt: history.dateTime},
-                $push: {history}
+            const updated = await this.applicationDAO.update({
+                ...application,
+                status: IN_REVIEW,
+                updatedAt: history.dateTime,
+                history: [...(application.history || []), history]
             });
             if (updated?.modifiedCount && updated?.modifiedCount > 0) {
                 const promises = [
@@ -361,9 +363,12 @@ class Application {
         if (application && application.status) {
             const reviewComment = this._getInProgressComment(application?.history);
             const history = HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, reviewComment);
-            const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-                $set: {status: IN_PROGRESS, updatedAt: history.dateTime, version: application.version},
-                $push: {history}
+            const updated = await this.applicationDAO.update({
+                ...application,
+                status: IN_PROGRESS,
+                updatedAt: history.dateTime,
+                version: application.version,
+                history: [...(application.history || []), history]
             });
             if (updated?.modifiedCount && updated?.modifiedCount > 0) {
                 const promises = [
@@ -411,9 +416,12 @@ class Application {
         }
 
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, CANCELED, document?.comment);
-        const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-            $set: {status: CANCELED, updatedAt: history.dateTime, version: aApplication.version},
-            $push: {history}
+        const updated = await this.applicationDAO.update({
+            ...aApplication,
+            status: CANCELED,
+            updatedAt: history.dateTime,
+            version: aApplication.version,
+            history: [...(aApplication.history || []), history]
         });
 
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
@@ -446,10 +454,11 @@ class Application {
         }
         const prevStatus = aApplication?.history?.at(-2)?.status;
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, prevStatus, document?.comment);
-        const updated = await this.dbService.updateOne(APPLICATION, {_id: aApplication._id}, {
-            $set: {status: prevStatus, updatedAt: history.dateTime},
-            $push: {history},
-
+        const updated = await this.applicationDAO.update({
+            ...aApplication,
+            status: prevStatus,
+            updatedAt: history.dateTime,
+            history: [...(aApplication.history || []), history]
         });
 
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
@@ -476,10 +485,14 @@ class Application {
 
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, APPROVED, document.comment);
         const questionnaire = getApplicationQuestionnaire(application);
-
-        const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-            $set: {reviewComment: document.comment, wholeProgram: document.wholeProgram, status: APPROVED, updatedAt: history.dateTime, version: application.version},
-            $push: {history}
+        const updated = await this.applicationDAO.update({
+            ...application,
+            reviewComment: document.comment,
+            wholeProgram: document.wholeProgram,
+            status: APPROVED,
+            updatedAt: history.dateTime,
+            version: application.version,
+            history: [...(application.history || []), history]
         });
         const isDbGapMissing = (questionnaire?.accessTypes?.includes("Controlled Access") && !questionnaire?.study?.dbGaPPPHSNumber);
         let promises = [];
@@ -528,9 +541,13 @@ class Application {
             .state([IN_REVIEW, SUBMITTED]);
         application.version = await this._getApplicationVersionByStatus(application.status, application?.version);
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, REJECTED, document.comment);
-        const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-            $set: {reviewComment: document.comment, status: REJECTED, updatedAt: history.dateTime, version: application.version},
-            $push: {history}
+        const updated = await this.applicationDAO.update({
+            ...application,
+            reviewComment: document.comment,
+            status: REJECTED,
+            updatedAt: history.dateTime,
+            version: application.version,
+            history: [...(application.history || []), history]
         });
 
         await sendEmails.rejectApplication(this.notificationService, this.userService, this.emailParams, application, document.comment);
@@ -557,9 +574,13 @@ class Application {
         // auto upgrade version
         application.version = await this._getApplicationVersionByStatus(application.status);
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, INQUIRED, document.comment);
-        const updated = await this.dbService.updateOne(APPLICATION, {_id: document._id}, {
-            $set: {reviewComment: document.comment, status: INQUIRED, updatedAt: history.dateTime, version: application.version},
-            $push: {history}
+        const updated = await this.applicationDAO.update({
+            ...application,
+            reviewComment: document.comment,
+            status: INQUIRED,
+            updatedAt: history.dateTime,
+            version: application.version,
+            history: [...(application.history || []), history]
         });
         await sendEmails.inquireApplication(this.notificationService, this.userService, this.emailParams, application, document?.comment);
         if (updated?.modifiedCount && updated?.modifiedCount > 0) {
@@ -599,11 +620,13 @@ class Application {
                     ?.map((u) => u?._id)
             );
             const history = HistoryEventBuilder.createEvent("", DELETED, this._DELETE_REVIEW_COMMENT);
-            const updated = await this.dbService.updateMany(APPLICATION,
+            const updated = await this.applicationDAO.updateMany(
                 inactiveCondition,
                 {   // Once the submission request is deleted, the reminder email should not be sent.
                     $set: {status: DELETED, updatedAt: history.dateTime, inactiveReminder: true},
-                    $push: {history}});
+                    $push: {history: history}
+                }
+            );
             if (updated?.modifiedCount && updated?.modifiedCount > 0) {
                 console.log("Executed to delete application(s) because of no activities at " + getCurrentTime());
                 await Promise.all(applications.map(async (app) => {
@@ -1033,7 +1056,9 @@ const sendEmails = {
             const toEmails = getUserEmails(toUsers);
             const toBCCEmails = getUserEmails(BCCUsers)
                 ?.filter((email) => !toEmails?.includes(email));
-            const programName = application?.programName?.trim() || "NA";
+            const programName = typeof application?.programName === "string" && application.programName.trim().length > 0
+                ? application.programName.trim()
+                : "NA";
             await notificationService.submitQuestionNotification(getUserEmails(toUsers),
                 [],
                 toBCCEmails, {
