@@ -28,7 +28,7 @@ class UtilityService {
             });
         });
     }
-    async isApplicationDeletion(aApplication) {
+    isApplicationEmpty(aApplication) {
         // Whether or not to delete the application
         return (
             !aApplication?.programName &&
