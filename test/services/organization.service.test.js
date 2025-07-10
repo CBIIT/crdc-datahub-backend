@@ -13,15 +13,13 @@ jest.mock('../../dao/program');
 jest.mock('../../dao/user');
 jest.mock('../../dao/submission');
 jest.mock('../../dao/application');
-jest.mock('../../dao/approvedStudy', () => ({
-  ApprovedStudyDAO: jest.fn()
-}));
+jest.mock('../../dao/approvedStudy');
 
 const ProgramDAO = require('../../dao/program');
 const UserDAO = require('../../dao/user');
 const SubmissionDAO = require('../../dao/submission');
 const ApplicationDAO = require('../../dao/application');
-const { ApprovedStudyDAO } = require('../../dao/approvedStudy');
+const ApprovedStudyDAO = require('../../dao/approvedStudy');
 
 
 describe('Organization.listPrograms', () => {

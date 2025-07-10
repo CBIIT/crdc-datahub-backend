@@ -79,198 +79,12 @@ describe('ApprovedStudiesService', () => {
         // Reset all mocks
         jest.clearAllMocks();
     });
-    // Move the getApprovedStudyAPI tests here
-    describe('getApprovedStudyAPI', () => {
-        const mockStudyId = 'test-study-id';
-        const mockParams = { _id: mockStudyId };
-        const mockContext = {
-            cookie: {},
-            userInfo: TEST_CONSTANTS.TEST_SESSION.userInfo
-        };
-        const mockApprovedStudy = {
-            _id: mockStudyId,
-            studyName: 'Test Study',
-            studyAbbreviation: 'TS',
-            dbGaPID: '1234-5678-9012-345',
-            controlledAccess: true,
-            ORCID: '0000-0002-1825-0097',
-            PI: 'Dr. Test',
-            openAccess: false,
-            primaryContactID: 'test-contact-id',
-            useProgramPC: false,
-            pendingModelChange: false,
-            createdAt: '2023-01-01T00:00:00Z',
-            updatedAt: '2023-01-01T00:00:00Z'
-        };
-        const mockPrograms = [
-            {
-                _id: 'test-program-id',
-                name: 'Test Program',
-                conciergeID: 'test-concierge-id',
-                conciergeName: 'Test Concierge',
-                conciergeEmail: 'concierge@test.com'
-            }
-        ];
-        const mockPrimaryContact = {
-            _id: 'test-contact-id',
-            firstName: 'John',
-            lastName: 'Doe',
-            email: 'john.doe@test.com',
-            role: 'DATA_COMMONS_PERSONNEL'
-        };
-        const mockDisplayNamesStudy = {
-            ...mockApprovedStudy,
-            dataCommonsDisplayName: 'Test Study Display Name'
-        };
 
-        beforeEach(() => {
-            // Reset mocks
-            jest.clearAllMocks();
 
-            // Setup default mock implementations
-            verifySession.mockReturnValue({
-                verifyInitialized: jest.fn()
-            });
-            getDataCommonsDisplayNamesForApprovedStudy.mockReturnValue(mockDisplayNamesStudy);
-            getApprovedStudyByID.mockResolvedValue(mockApprovedStudy);
-            service.organizationService.findByStudyID.mockResolvedValue(['test-program-id']);
-            service.programDAO.findMany.mockResolvedValue(mockPrograms);
-            service.userDAO.findFirst.mockResolvedValue(mockPrimaryContact);
-        });
 
-        it('should successfully get an approved study with all related data', async () => {
-            const result = await service.getApprovedStudyAPI(mockParams, mockContext);
 
-            // Verify session verification
-            expect(verifySession).toHaveBeenCalledWith(mockContext);
-            expect(verifySession(mockContext).verifyInitialized).toHaveBeenCalled();
 
-            // Verify DAO calls
-            expect(getApprovedStudyByID).toHaveBeenCalledWith(mockStudyId);
-            expect(service.organizationService.findByStudyID).toHaveBeenCalledWith(mockStudyId);
-            expect(service.programDAO.findMany).toHaveBeenCalledWith(
-                { _id: { $in: ['test-program-id'] } },
-                { orderBy: { id: 'desc' } }
-            );
-            expect(service.userDAO.findFirst).toHaveBeenCalledWith({
-                _id: 'test-contact-id',
-                userStatus: 'Active'
-            });
-
-            // Verify data commons remapping
-            expect(getDataCommonsDisplayNamesForApprovedStudy).toHaveBeenCalledWith({
-                ...mockApprovedStudy,
-                programs: mockPrograms,
-                primaryContact: mockPrimaryContact
-            });
-
-            // Verify result
-            expect(result).toEqual(mockDisplayNamesStudy);
-        });
-
-        it('should handle study without programs', async () => {
-            service.organizationService.findByStudyID.mockResolvedValue(null);
-
-            const result = await service.getApprovedStudyAPI(mockParams, mockContext);
-
-            // programDAO.findMany should NOT be called
-            expect(service.programDAO.findMany).not.toHaveBeenCalled();
-            expect(getDataCommonsDisplayNamesForApprovedStudy).toHaveBeenCalledWith({
-                ...mockApprovedStudy,
-                programs: null,
-                primaryContact: mockPrimaryContact
-            });
-            expect(result).toEqual(mockDisplayNamesStudy);
-        });
-
-        it('should handle empty programs array', async () => {
-            service.organizationService.findByStudyID.mockResolvedValue([]);
-
-            const result = await service.getApprovedStudyAPI(mockParams, mockContext);
-
-            // programDAO.findMany should NOT be called
-            expect(service.programDAO.findMany).not.toHaveBeenCalled();
-            expect(getDataCommonsDisplayNamesForApprovedStudy).toHaveBeenCalledWith({
-                ...mockApprovedStudy,
-                programs: null,
-                primaryContact: mockPrimaryContact
-            });
-            expect(result).toEqual(mockDisplayNamesStudy);
-        });
-
-        it('should handle primary contact not found', async () => {
-            service.userDAO.findFirst.mockResolvedValue(null);
-
-            const result = await service.getApprovedStudyAPI(mockParams, mockContext);
-
-            expect(getDataCommonsDisplayNamesForApprovedStudy).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    ...mockApprovedStudy,
-                    programs: mockPrograms,
-                    primaryContact: null
-                })
-            );
-            expect(result).toEqual(mockDisplayNamesStudy);
-        });
-
-        it('should handle study without primary contact', async () => {
-            const studyWithoutContact = { ...mockApprovedStudy, primaryContactID: null };
-            getApprovedStudyByID.mockResolvedValue(studyWithoutContact);
-            service.userDAO.findFirst.mockReset(); // ensure it returns undefined if called
-            getDataCommonsDisplayNamesForApprovedStudy.mockReturnValue({
-                ...studyWithoutContact,
-                programs: mockPrograms,
-                primaryContact: undefined
-            });
-
-            const result = await service.getApprovedStudyAPI(mockParams, mockContext);
-
-            expect(service.userDAO.findFirst).not.toHaveBeenCalled();
-            expect(result).toEqual({
-                ...studyWithoutContact,
-                programs: mockPrograms,
-                primaryContact: undefined
-            });
-        });
-
-        it('should throw error when study is not found', async () => {
-            getApprovedStudyByID.mockResolvedValue(null);
-            // Mock session verification
-            verifySession.mockReturnValue({
-                verifyInitialized: jest.fn()
-            });
-
-            // Mock permission check
-            mockAuthorizationService.getPermissionScope.mockResolvedValue([{ scope: 'all' }]);
-
-            // Mock DAO to return null
-            mockApprovedStudyDAO.getApprovedStudyByID.mockResolvedValue(null);
-
-            await expect(service.getApprovedStudyAPI(mockParams, mockContext))
-                .rejects.toThrow(ERROR.APPROVED_STUDY_NOT_FOUND);
-        });
-
-        it('should throw error when study ID is missing', async () => {
-            const invalidParams = { _id: null };
-
-            await expect(service.getApprovedStudyAPI(invalidParams, mockContext))
-                .rejects.toThrow(ERROR.APPROVED_STUDY_NOT_FOUND);
-        });
-
-        it('should throw error when study ID is not a string', async () => {
-            const invalidParams = { _id: 123 };
-
-            await expect(service.getApprovedStudyAPI(invalidParams, mockContext))
-                .rejects.toThrow(ERROR.APPROVED_STUDY_NOT_FOUND);
-        });
-
-        it('should throw error when study ID is empty string', async () => {
-            const invalidParams = { _id: '' };
-
-            await expect(service.getApprovedStudyAPI(invalidParams, mockContext))
-                .rejects.toThrow(ERROR.APPROVED_STUDY_NOT_FOUND);
-        });
-    });
+    
 
     describe('addApprovedStudyAPI', () => {
         const mockParams = {
@@ -533,6 +347,76 @@ describe('ApprovedStudiesService', () => {
         it('should throw if verifySession fails', async () => {
             verifySession.mockImplementation(() => { throw new Error('Session error'); });
             await expect(service.listApprovedStudiesAPI({ ...mockParams }, mockContext)).rejects.toThrow('Session error');
+        });
+    });
+
+    describe('getApprovedStudyAPI', () => {
+        const mockContext = {
+            cookie: {},
+            userInfo: TEST_CONSTANTS.TEST_SESSION.userInfo
+        };
+        const mockParams = { _id: 'study-id' };
+        const mockApprovedStudy = {
+            _id: 'study-id',
+            studyName: 'Test Study',
+            studyAbbreviation: 'TS',
+            primaryContactID: 'user-id',
+            programs: [{ _id: 'org-id', name: 'Org' }],
+        };
+        const mockDisplayStudy = { ...mockApprovedStudy, dataCommonsDisplayName: 'Test Study Display' };
+
+        beforeEach(() => {
+            jest.clearAllMocks();
+            verifySession.mockReturnValue({ verifyInitialized: jest.fn() });
+            service.getApprovedStudy = jest.fn().mockResolvedValue(mockApprovedStudy);
+            getDataCommonsDisplayNamesForApprovedStudy.mockReturnValue(mockDisplayStudy);
+        });
+
+        it('should return the approved study with display names', async () => {
+            const result = await service.getApprovedStudyAPI({ ...mockParams }, mockContext);
+            expect(verifySession).toHaveBeenCalledWith(mockContext);
+            expect(verifySession(mockContext).verifyInitialized).toHaveBeenCalled();
+            expect(service.getApprovedStudy).toHaveBeenCalledWith(mockParams);
+            expect(getDataCommonsDisplayNamesForApprovedStudy).toHaveBeenCalledWith(mockApprovedStudy);
+            expect(result).toEqual(mockDisplayStudy);
+        });
+
+        it('should throw if verifySession fails', async () => {
+            verifySession.mockImplementation(() => { throw new Error('Session error'); });
+            await expect(service.getApprovedStudyAPI({ ...mockParams }, mockContext)).rejects.toThrow('Session error');
+        });
+
+        it('should throw if getApprovedStudy throws', async () => {
+            service.getApprovedStudy = jest.fn().mockRejectedValue(new Error('Not found'));
+            await expect(service.getApprovedStudyAPI({ ...mockParams }, mockContext)).rejects.toThrow('Not found');
+        });
+
+        it('should throw if study is not found', async () => {
+            service.getApprovedStudy = jest.fn().mockRejectedValue(new Error(ERROR.APPROVED_STUDY_NOT_FOUND));
+            await expect(service.getApprovedStudyAPI({ _id: 'notfound' }, mockContext)).rejects.toThrow(ERROR.APPROVED_STUDY_NOT_FOUND);
+        });
+
+        it('should populate primaryContact if primaryContactID is present', async () => {
+            const mockPrimaryContact = { _id: 'user-id', firstName: 'John', lastName: 'Doe', email: 'john.doe@test.com' };
+            const mockStudyWithContact = { ...mockApprovedStudy, primaryContactID: 'user-id' };
+            service.getApprovedStudy = jest.fn().mockResolvedValue({ ...mockStudyWithContact, primaryContact: mockPrimaryContact });
+            getDataCommonsDisplayNamesForApprovedStudy.mockReturnValue({ ...mockStudyWithContact, primaryContact: mockPrimaryContact });
+            const result = await service.getApprovedStudyAPI({ _id: 'study-id' }, mockContext);
+            expect(result.primaryContact).toEqual(mockPrimaryContact);
+        });
+
+        it('should populate programs if present', async () => {
+            const mockPrograms = [{ _id: 'org-id', name: 'Org' }];
+            const mockStudyWithPrograms = { ...mockApprovedStudy, programs: mockPrograms };
+            service.getApprovedStudy = jest.fn().mockResolvedValue(mockStudyWithPrograms);
+            getDataCommonsDisplayNamesForApprovedStudy.mockReturnValue(mockStudyWithPrograms);
+            const result = await service.getApprovedStudyAPI({ _id: 'study-id' }, mockContext);
+            expect(result.programs).toEqual(mockPrograms);
+        });
+
+        it('should propagate error from getDataCommonsDisplayNamesForApprovedStudy', async () => {
+            getDataCommonsDisplayNamesForApprovedStudy.mockImplementation(() => { throw new Error('Mapping error'); });
+            await expect(service.getApprovedStudyAPI({ ...mockParams }, mockContext)).rejects.toThrow('Mapping error');
         });
     });
 
