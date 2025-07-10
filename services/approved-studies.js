@@ -45,8 +45,8 @@ class ApprovedStudiesService {
         this.emailParams = emailParams;
     }
 
-    async storeApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID) {
-        const approvedStudies = ApprovedStudies.createApprovedStudies(studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID);
+    async storeApprovedStudies(applicationID, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID) {
+        const approvedStudies = ApprovedStudies.createApprovedStudies(applicationID, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID);
         const res = await this.approvedStudyDAO.create(approvedStudies);
 
         if (!res) {
@@ -206,7 +206,7 @@ class ApprovedStudiesService {
         if (!acronym){
             acronym = name;
         }
-        let newStudy = await this.storeApprovedStudies(name, acronym, dbGaPID, null, controlledAccess, ORCID, PI, openAccess, null, useProgramPC, pendingModelChange, primaryContactID);
+        let newStudy = await this.storeApprovedStudies(null, name, acronym, dbGaPID, null, controlledAccess, ORCID, PI, openAccess, null, useProgramPC, pendingModelChange, primaryContactID);
         // add new study to organization with name of "NA"
         const org = await this.organizationService.getOrganizationByName(NA_PROGRAM);
         if (org && org?._id) {

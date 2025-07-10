@@ -136,7 +136,7 @@ describe('ApprovedStudiesService', () => {
             expect(service._validateStudyName).toHaveBeenCalledWith('New Study');
             expect(service._findUserByID).toHaveBeenCalledWith('contact-id');
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
-                'New Study', 'NS', '1234-5678-9012-345', null, true, '0000-0002-1825-0097', 'Dr. New', false, null, false, false, 'contact-id'
+                null, 'New Study', 'NS', '1234-5678-9012-345', null, true, '0000-0002-1825-0097', 'Dr. New', false, null, false, false, 'contact-id'
             );
             expect(service.organizationService.getOrganizationByName).toHaveBeenCalledWith('NA');
             expect(service.organizationService.storeApprovedStudies).toHaveBeenCalledWith('org-id', 'new-study-id');
