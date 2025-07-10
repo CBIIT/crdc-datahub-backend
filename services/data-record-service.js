@@ -773,7 +773,7 @@ class DataRecordService {
             participants.map(async (participant) => {
             const subjectID = participant.props?.dbGaP_subject_id? participant.props.dbGaP_subject_id : participant.nodeID;
             const race = participant.props?.race;
-            const ageAtDiagnosis = await this._getAgeAtDiagnosisByParticipant(subjectID, aSubmission._id);
+            const ageAtDiagnosis = await this._getAgeAtDiagnosisByParticipant(participant.nodeID, aSubmission._id);
             return {[DATA_SHEET.SUBJECT_ID]: subjectID, [DATA_SHEET.RACE]: race, [DATA_SHEET.AGE_ONSET]: ageAtDiagnosis};
         }));
         if (subjectPhenotypeArr.length > 0){
