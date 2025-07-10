@@ -1,6 +1,6 @@
 const prisma = require("../prisma");
-const {MODEL_NAME} = require("../constants/db-constants");
 const GenericDAO = require("./generic");
+const {MODEL_NAME} = require("../constants/db-constants");
 const {ORGANIZATION_COLLECTION, USER_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const ERROR = require("../constants/error-constants");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
@@ -11,18 +11,25 @@ const CONTROLLED_ACCESS_OPEN = "Open";
 const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
 const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN, CONTROLLED_ACCESS_CONTROLLED];
 
-async function getApprovedStudyByID(id) {
-    const study = await prisma.approvedStudy.findUnique({where: {id: id}})
-    //prisma doesn't allow using _id, so we have to map it
-    if (!study) {
-        return null
-    }
-    return {...study, _id: study.id}
-}
-
-class ApprovedStudyDAO extends GenericDAO {
+class ApprovedStudyDAO extends GenericDAO  {
     constructor() {
         super(MODEL_NAME.APPROVED_STUDY);
+    }
+
+    async getApprovedStudyByID(studyID) {
+        return await this.findById(studyID)
+    }
+
+    async getApprovedStudiesInStudies(studyIDs) {
+        const studies = await prisma.approvedStudy.findMany({
+            where: {
+                id: {
+                    in: studyIDs || []
+                }
+            },
+        });
+        //prisma doesn't allow using _id, so we have to map it
+        return studies.map(study => ({...study, _id: study.id}))
     }
 
     async listApprovedStudies(study, controlledAccess, dbGaPID, programID, first, offset, orderBy, sortDirection) {
@@ -188,9 +195,7 @@ class ApprovedStudyDAO extends GenericDAO {
 
         return await this.approvedStudiesCollection.aggregate(pipelines);
     }
+
 }
 
-module.exports = {
-    getApprovedStudyByID,
-    ApprovedStudyDAO
-}
+module.exports = ApprovedStudyDAO

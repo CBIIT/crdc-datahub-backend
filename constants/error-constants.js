@@ -166,6 +166,7 @@ const ERROR = {
     FAILED_APPROVED_STUDY_INSERTION: "Failed to create the approved study.",
     FAILED_APPROVED_STUDY_UPDATE: "Failed to update the approved study.",
     FAILED_PRIMARY_CONTACT_UPDATE: "Failed to update the data concierge in the approved study.",
+    FAILED_TO_NOTIFY_CLEAR_PENDING_STATE: "Failed to send notification for clearing the approved study; $item$",
     APPROVED_STUDY_NOT_FOUND: "Approved study not found.",
     EXISTING_SUBMISSION_COLLABORATOR: "The collaborator exists in the submission already.",
     COLLABORATOR_NOT_EXIST: "collaborator does not exist",

@@ -1,4 +1,3 @@
-const prisma = require("../prisma");
 const GenericDAO = require("./generic");
 const { MODEL_NAME } = require('../constants/db-constants');
 const {APPROVED_STUDIES_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");

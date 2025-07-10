@@ -25,6 +25,7 @@
     "http-errors": "^2.0.0",
     "js-yaml": "^4.1.0",
     "jsonwebtoken": "^9.0.2",
+    "mdf-reader": "^1.2.0",
     "moment": "^2.29.4",
     "mongodb": "^5.5.0",
     "morgan": "^1.10.0",

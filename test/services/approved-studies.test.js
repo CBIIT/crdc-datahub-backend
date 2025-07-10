@@ -34,6 +34,7 @@ describe('ApprovedStudiesService', () => {
     let mockOrganizationService;
     let mockSubmissionCollection;
     let mockAuthorizationService;
+    let mockApprovedStudyDAO;
 
     beforeEach(() => {
         // Initialize mock collections and services
@@ -60,6 +61,11 @@ describe('ApprovedStudiesService', () => {
             getPermissionScope: jest.fn()
         };
 
+        // Mock the DAO with getApprovedStudyByID
+        mockApprovedStudyDAO = {
+            getApprovedStudyByID: jest.fn()
+        };
+
         service = new ApprovedStudiesService(
             mockApprovedStudiesCollection,
             mockUserCollection,
@@ -67,6 +73,8 @@ describe('ApprovedStudiesService', () => {
             mockSubmissionCollection,
             mockAuthorizationService
         );
+        // Inject the mock DAO
+        service.approvedStudyDAO = mockApprovedStudyDAO;
 
         // Reset all mocks
         jest.clearAllMocks();
@@ -75,9 +83,9 @@ describe('ApprovedStudiesService', () => {
     describe('getApprovedStudyAPI', () => {
         const mockStudyId = 'test-study-id';
         const mockParams = { _id: mockStudyId };
-        const mockContext = { 
-            cookie: {}, 
-            userInfo: TEST_CONSTANTS.TEST_SESSION.userInfo 
+        const mockContext = {
+            cookie: {},
+            userInfo: TEST_CONSTANTS.TEST_SESSION.userInfo
         };
         const mockApprovedStudy = {
             _id: mockStudyId,
@@ -118,7 +126,7 @@ describe('ApprovedStudiesService', () => {
         beforeEach(() => {
             // Reset mocks
             jest.clearAllMocks();
-            
+
             // Setup default mock implementations
             verifySession.mockReturnValue({
                 verifyInitialized: jest.fn()
@@ -227,6 +235,16 @@ describe('ApprovedStudiesService', () => {
 
         it('should throw error when study is not found', async () => {
             getApprovedStudyByID.mockResolvedValue(null);
+            // Mock session verification
+            verifySession.mockReturnValue({
+                verifyInitialized: jest.fn()
+            });
+
+            // Mock permission check
+            mockAuthorizationService.getPermissionScope.mockResolvedValue([{ scope: 'all' }]);
+
+            // Mock DAO to return null
+            mockApprovedStudyDAO.getApprovedStudyByID.mockResolvedValue(null);
 
             await expect(service.getApprovedStudyAPI(mockParams, mockContext))
                 .rejects.toThrow(ERROR.APPROVED_STUDY_NOT_FOUND);
@@ -520,5 +538,5 @@ describe('ApprovedStudiesService', () => {
 
 
 
-    
+
 });
