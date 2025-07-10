@@ -11,6 +11,8 @@ Config:
     data: {dataFolder}
     #path to manifest file, conditional required when type = file
     manifest: {manifest}
+     # path to archive manifest file, conditional required when uploading any zipped (.zip) data files.
+    archive_manifest: {archive_manifest}
     #file uploading retries
     retries: 3
     # if overwrite existed file
