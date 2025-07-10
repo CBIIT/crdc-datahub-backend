@@ -370,7 +370,7 @@ class ApprovedStudiesService {
         if (!acronym){
             acronym = name;
         }
-        let newStudy = await this.storeApprovedStudies(name, acronym, dbGaPID, null, controlledAccess, ORCID, PI, openAccess, null, useProgramPC, pendingModelChange, primaryContactID);
+        let newStudy = await this.storeApprovedStudies(null, name, acronym, dbGaPID, null, controlledAccess, ORCID, PI, openAccess, null, useProgramPC, pendingModelChange, primaryContactID);
         // add new study to organization with name of "NA"
         const org = await this.organizationService.getOrganizationByName(NA_PROGRAM);
         if (org && org?._id) {
