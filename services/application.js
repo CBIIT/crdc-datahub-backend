@@ -420,7 +420,7 @@ class Application {
         let updated = null
         let deleteApplication = false;
         const utilityService = new UtilityService();
-        if (await utilityService.isApplicationEmpty(aApplication)) {
+        if (utilityService.isEmptyApplication(aApplication)) {
             updated = await this.dbService.deleteOne(APPLICATION, {_id: document._id});
             deleteApplication = true;
         } else{
