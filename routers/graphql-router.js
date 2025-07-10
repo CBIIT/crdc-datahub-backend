@@ -142,13 +142,13 @@ dbConnector.connect().then(async () => {
             return await dataInterface.inquireApplication({...params, comment}, context);
         },
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
-        deleteApplication: async (params, context)=> {
+        cancelApplication: async (params, context)=> {
             const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
             if (comment?.trim().length > 500) {
                 throw new Error(ERROR.COMMENT_LIMIT);
             }
 
-            return await dataInterface.deleteApplication({...params, comment}, context);
+            return await dataInterface.cancelApplication({...params, comment}, context);
         },
         restoreApplication: async (params, context)=> {
             const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});

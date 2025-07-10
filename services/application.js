@@ -376,7 +376,7 @@ class Application {
         return userScope;
     }
 
-    async deleteApplication(document, context) {
+    async cancelApplication(document, context) {
         verifySession(context)
             .verifyInitialized();
         const userInfo = context?.userInfo;
@@ -398,10 +398,13 @@ class Application {
         }
 
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, CANCELED, document?.comment);
-        let updated = null
+        // If the application is empty, then delete the application and return the deleted application document.
+        let updated = null;
         let deleteApplication = false;
+        let deleteApplicationDocument = null;
         const utilityService = new UtilityService();
         if (utilityService.isEmptyApplication(aApplication)) {
+            deleteApplicationDocument = await this.getApplicationById(document._id);
             updated = await this.dbService.deleteOne(APPLICATION, {_id: document._id});
             deleteApplication = true;
         } else{
@@ -418,7 +421,7 @@ class Application {
         }
         if (deleteApplication) {
             // If application is deleted, then return null
-            return null;
+            return deleteApplicationDocument;
         }else
             return await this.getApplicationById(document._id);
         }
