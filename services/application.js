@@ -401,10 +401,10 @@ class Application {
         // If the application is empty, then delete the application and return the deleted application document.
         let updated = null;
         let deleteApplication = false;
-        let deleteApplicationDocument = null;
+        let deletedApplicationDocument = null;
         const utilityService = new UtilityService();
         if (utilityService.isEmptyApplication(aApplication)) {
-            deleteApplicationDocument = await this.getApplicationById(document._id);
+            deletedApplicationDocument = await this.getApplicationById(document._id);
             updated = await this.dbService.deleteOne(APPLICATION, {_id: document._id});
             deleteApplication = true;
         } else{
@@ -421,7 +421,7 @@ class Application {
         }
         if (deleteApplication) {
             // If application is deleted, then return null
-            return deleteApplicationDocument;
+            return deletedApplicationDocument;
         }else
             return await this.getApplicationById(document._id);
         }
