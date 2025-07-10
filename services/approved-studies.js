@@ -27,7 +27,7 @@ const ApprovedStudyDAO = require("../dao/approvedStudy");
 const ProgramDAO = require("../dao/program");
 const UserDAO = require("../dao/user");
 const SubmissionDAO = require("../dao/submission");
-
+const ApplicationDAO = require("../dao/application");
 class ApprovedStudiesService {
     constructor(approvedStudiesCollection, userCollection, organizationService, submissionCollection, authorizationService, notificationsService, emailParams) {
         this.approvedStudiesCollection = approvedStudiesCollection;
@@ -40,6 +40,7 @@ class ApprovedStudiesService {
         this.notificationsService = notificationsService;
         this.emailParams = emailParams;
         this.approvedStudyDAO = new ApprovedStudyDAO();
+        this.applicationDAO = new ApplicationDAO();
         this.userDAO = new UserDAO();
         this.emailParams = emailParams;
     }
@@ -242,7 +243,7 @@ class ApprovedStudiesService {
             useProgramPC,
             pendingModelChange
         } = this._verifyAndFormatStudyParams(params);
-        let updateStudy = await this.approvedStudyDAO.findFirst(studyID);
+        let updateStudy = await this.approvedStudyDAO.findFirst({id: studyID});
         if (!updateStudy) {
             throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
         }
@@ -320,7 +321,7 @@ class ApprovedStudiesService {
             updatedAt: getCurrentTime()
         });
 
-        if (!updatedSubmissions?.acknowledged) {
+        if (!(updatedSubmissions?.count >= 0)) {
             console.log(ERROR.FAILED_PRIMARY_CONTACT_UPDATE, `StudyID: ${studyID}`);
             throw new Error(ERROR.FAILED_PRIMARY_CONTACT_UPDATE);
         }
@@ -330,10 +331,10 @@ class ApprovedStudiesService {
     }
 
     async _notifyClearPendingState(updateStudy) {
-        const application = await this.applicationDAO.findByID(updateStudy.pendingApplicationID);
+        const application = await this.applicationDAO.findFirst({id: updateStudy.pendingApplicationID});
         const aSubmitter = await this.userDAO.findFirst({id: application?.applicant?.applicantID});
         const BCCUsers = await this.userDAO.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_PENDING_CLEARED],
-            [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD, ROLES.ADMIN]);
+            [USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.FEDERAL_LEAD, USER.ROLES.ADMIN]);
         const filteredBCCUsers = BCCUsers.filter((u) => u?._id !== aSubmitter?._id);
 
         const errorMsg = replaceErrorString(ERROR.FAILED_TO_NOTIFY_CLEAR_PENDING_STATE, `studyID: ${updateStudy?._id}`);

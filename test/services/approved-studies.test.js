@@ -224,7 +224,7 @@ describe('ApprovedStudiesService', () => {
             service.approvedStudyDAO.findFirst = jest.fn().mockResolvedValue({ ...mockStudy });
             service.approvedStudyDAO.update = jest.fn().mockResolvedValue(true);
             service._findOrganizationByStudyID = jest.fn().mockResolvedValue(mockPrograms);
-            service.submissionDAO.updateMany = jest.fn().mockResolvedValue({ acknowledged: true });
+            service.submissionDAO.updateMany = jest.fn().mockResolvedValue({ count: 0 });
             service._getConcierge = jest.fn().mockReturnValue(['Concierge Name', 'concierge@email.com']);
             getDataCommonsDisplayNamesForApprovedStudy.mockReturnValue(mockDisplayStudy);
         });
@@ -233,7 +233,7 @@ describe('ApprovedStudiesService', () => {
             const result = await service.editApprovedStudyAPI({ ...mockParams }, mockContext);
             expect(verifySession).toHaveBeenCalledWith(mockContext);
             expect(service._getUserScope).toHaveBeenCalledWith(mockContext.userInfo, ADMIN.MANAGE_STUDIES);
-            expect(service.approvedStudyDAO.findFirst).toHaveBeenCalledWith('study-id');
+            expect(service.approvedStudyDAO.findFirst).toHaveBeenCalledWith({id: 'study-id'});
             expect(service._validateStudyName).toHaveBeenCalledWith('Updated Study');
             expect(service._findUserByID).toHaveBeenCalledWith('contact-id');
             expect(service.approvedStudyDAO.update).toHaveBeenCalled();

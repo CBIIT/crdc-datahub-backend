@@ -40,8 +40,10 @@ class GenericDAO {
     }
 
     async update(id, data) {
-        const res = await this.model.update({ where: { id }, data });
-        return res.map(item => ({ ...item, _id: item.id }));
+        // Accidental _id or id fields should be excluded.
+        const {_id: __, id: _, ...updateData} = data;
+        const res = await this.model.update({ where: { id }, data: updateData });
+        return { ...res, _id: res.id };
     }
 
     async updateMany(condition, data){
