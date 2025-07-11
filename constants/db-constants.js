@@ -9,6 +9,7 @@ module.exports = Object.freeze({
         SUBMISSION: "submission",
         CDE: "cDE",
         PENDING_PVS: "pendingPVs",
-        INSTITUTIONS: "institution"
+        INSTITUTIONS: "institution",
+        APPLICATION: "application"
     }
 });

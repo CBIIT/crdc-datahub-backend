@@ -90,9 +90,17 @@ class Application {
     }
 
     async getApplicationById(id) {
-        let result = await this.applicationDAO.findByID(id);
+        let result = await this.applicationDAO.findFirst({id: id}, {
+            include: {
+                institution: true,
+            }
+        });
         if (!result) {
             throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
+        }
+
+        if (result?.institution?.id && !result.institution._id) {
+            result.institution._id = result.institution.id;
         }
         return result;
     }
