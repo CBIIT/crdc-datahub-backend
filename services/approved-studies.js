@@ -483,7 +483,7 @@ class ApprovedStudiesService {
     }
 
     async _notifyClearPendingState(updateStudy) {
-        const application = await this.applicationDAO.findByID(updateStudy.pendingApplicationID);
+        const application = await this.applicationDAO.findFirst({id: updateStudy.pendingApplicationID});
         const aSubmitter = await this.userDAO.findFirst({id: application?.applicant?.applicantID});
         const BCCUsers = await this.userDAO.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_PENDING_CLEARED],
             [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD, ROLES.ADMIN]);
