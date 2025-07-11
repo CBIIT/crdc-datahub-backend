@@ -484,16 +484,20 @@ class ApprovedStudiesService {
 
     async _notifyClearPendingState(updateStudy) {
         const application = await this.applicationDAO.findFirst({id: updateStudy.pendingApplicationID});
-        const aSubmitter = await this.userDAO.findFirst({id: application?.applicant?.applicantID});
-        const BCCUsers = await this.userDAO.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_PENDING_CLEARED],
-            [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD, ROLES.ADMIN]);
-        const filteredBCCUsers = BCCUsers.filter((u) => u?._id !== aSubmitter?._id);
-
         const errorMsg = replaceErrorString(ERROR.FAILED_TO_NOTIFY_CLEAR_PENDING_STATE, `studyID: ${updateStudy?._id}`);
-        if (!aSubmitter?._id || !application?._id) {
+        if (!application) {
             console.error(errorMsg);
             throw new Error(errorMsg);
         }
+
+        const aSubmitter = await this.userDAO.findFirst({id: application?.applicant?.applicantID});
+        if (!aSubmitter?._id) {
+            console.error(errorMsg);
+            throw new Error(errorMsg);
+        }
+        const BCCUsers = await this.userDAO.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_PENDING_CLEARED],
+            [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD, ROLES.ADMIN]);
+        const filteredBCCUsers = BCCUsers.filter((u) => u?._id !== aSubmitter?._id);
 
         if (aSubmitter?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_PENDING_CLEARED)) {
             const res = await this.notificationsService.clearPendingModelState(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
