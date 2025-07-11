@@ -7,7 +7,6 @@ module.exports = Object.freeze({
         USER: "user",
         APPLICATION: "application",
         APPROVED_STUDY: "approvedStudy",
-        SUBMISSION_REQUEST: "application",
         SUBMISSION: "submission",
         CDE: "cDE",
         PENDING_PVS: "pendingPVs",
