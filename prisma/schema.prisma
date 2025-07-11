@@ -152,7 +152,7 @@ model CDE {
 }
 
 model Application {
-  id                  String       @id @default(uuid()) @map("_id")
+  id                  String    @id @default(uuid()) @map("_id")
   version             String
   ORCID               String?
   PI                  String?

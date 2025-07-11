@@ -249,7 +249,6 @@ describe('Application', () => {
         });
     });
 
-    // TODO
     describe('saveApplication', () => {
         it('creates new application if no id', async () => {
             userScopeMock.isNoneScope.mockReturnValue(false);
