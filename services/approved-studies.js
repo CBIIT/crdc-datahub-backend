@@ -485,7 +485,7 @@ class ApprovedStudiesService {
     async _notifyClearPendingState(updateStudy) {
         const application = await this.applicationDAO.findFirst({id: updateStudy.pendingApplicationID});
         const errorMsg = replaceErrorString(ERROR.FAILED_TO_NOTIFY_CLEAR_PENDING_STATE, `studyID: ${updateStudy?._id}`);
-        if (!application) {
+        if (!application || !application?._id) {
             console.error(errorMsg);
             throw new Error(errorMsg);
         }
