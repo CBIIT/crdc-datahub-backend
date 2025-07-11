@@ -224,7 +224,7 @@ class Application {
         const result = await this.applicationCollection.aggregate(pipeline);
         const application = result.length > 0 ? result[0] : null;
         // auto upgrade version
-        const res = this.getApplicationById(application?._id);
+        const res = await this.getApplicationById(application?._id);
         res.version = await this._getApplicationVersionByStatus(IN_PROGRESS);
         return res;
     }
