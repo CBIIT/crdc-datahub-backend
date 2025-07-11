@@ -22,8 +22,11 @@ class GenericDAO {
         return result.map(item => ({ ...item, _id: item.id }));
     }
 
-    async findFirst(where) {
-        const result = await this.model.findFirst({ where });
+    async findFirst(where, option = {}) {
+        const result = await this.model.findFirst({
+            where,
+            ...option
+        });
         if (!result) {
             return null;
         }
@@ -35,7 +38,10 @@ class GenericDAO {
     }
 
     async update(id, data) {
-        return await this.model.update({ where: { id }, data });
+        // Accidental _id or id fields should be excluded.
+        const {_id: __, id: _, ...updateData} = data;
+        const res = await this.model.update({ where: { id }, data: updateData });
+        return { ...res, _id: res.id };
     }
 
     async delete(id) {

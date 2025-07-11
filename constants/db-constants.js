@@ -8,6 +8,7 @@ module.exports = Object.freeze({
         APPROVED_STUDY: "approvedStudy",
         SUBMISSION: "submission",
         CDE: "cDE",
-        PENDING_PVS: "pendingPVs"
+        PENDING_PVS: "pendingPVs",
+        INSTITUTIONS: "institution"
     }
 });

@@ -1,6 +1,9 @@
 const prisma = require("../prisma");
-class ApplicationDAO {
+const GenericDAO = require("./generic");
+const {MODEL_NAME} = require("../constants/db-constants");
+class ApplicationDAO extends GenericDAO {
     constructor() {
+        super(MODEL_NAME.APPLICATION);
     }
     /**
      * Finds an application associated with a given submission ID.
