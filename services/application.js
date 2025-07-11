@@ -200,7 +200,7 @@ class Application {
         if (prevStatus !== application.status){
             await logStateChange(this.logCollection, context.userInfo, application, prevStatus);
         }
-        return application;
+        return this.getApplicationById(application?._id);
     }
 
     async getMyLastApplication(params, context) {
@@ -212,15 +212,21 @@ class Application {
         }
 
         const userID = context.userInfo._id;
-        const application = await this.applicationDAO.findFirst({
-                "applicant.applicantID": userID,
-                status: APPROVED,
-            },
-            { orderBy: { createdAt: SORT_ORDER.DESC} }
-        );
+        // To remove this MongoDB query, we need to refactor the schema to move applicantID to the root level.
+        const matchApplicantIDToUser = {"$match": {"applicant.applicantID": userID, status: APPROVED}};
+        const sortCreatedAtDescending = {"$sort": {createdAt: -1}};
+        const limitReturnToOneApplication = {"$limit": 1};
+        const pipeline = [
+            matchApplicantIDToUser,
+            sortCreatedAtDescending,
+            limitReturnToOneApplication
+        ];
+        const result = await this.applicationCollection.aggregate(pipeline);
+        const application = result.length > 0 ? result[0] : null;
         // auto upgrade version
-        application.version = await this._getApplicationVersionByStatus(IN_PROGRESS);
-        return application;
+        const res = this.getApplicationById(application?._id);
+        res.version = await this._getApplicationVersionByStatus(IN_PROGRESS);
+        return res;
     }
 
     _listApplicationConditions(userID, userScope, programName, studyName, statues, submitterName) {
@@ -968,7 +974,8 @@ class Application {
         // Save an email reminder when an inactive application is reactivated.
         application.inactiveReminder = false;
         application.updatedAt = getCurrentTime();
-        const updateResult = await this.applicationDAO.update(application);
+        const {institution: _, ...data} = application;
+        const updateResult = await this.applicationDAO.update(application?._id, data);
         if (!updateResult) {
             throw new Error(ERROR.APPLICATION_NOT_FOUND + updateResult?._id);
         }
