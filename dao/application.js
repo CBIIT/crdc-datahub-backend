@@ -4,7 +4,7 @@ const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-
 
 class ApplicationDAO extends GenericDAO {
     constructor(applicationCollection) {
-        super(MODEL_NAME.SUBMISSION_REQUEST);
+        super(MODEL_NAME.APPLICATION);
         this.applicationCollection = applicationCollection;
     }
     // Prisma can't join _id in the object.

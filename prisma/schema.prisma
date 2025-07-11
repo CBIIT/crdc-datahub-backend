@@ -161,7 +161,7 @@ model Application {
   history             History[]
   inactiveReminder    Boolean?
   openAccess          Boolean?
-  organization        OrgInfo
+  organization        OrgInfo?
   programAbbreviation String?
   programDescription  String?
   programName         String

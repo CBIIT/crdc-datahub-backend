@@ -5,6 +5,7 @@ module.exports = Object.freeze({
     }, 
     MODEL_NAME: {
         USER: "user",
+        APPLICATION: "application",
         APPROVED_STUDY: "approvedStudy",
         SUBMISSION_REQUEST: "application",
         SUBMISSION: "submission",

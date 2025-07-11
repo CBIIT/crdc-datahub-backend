@@ -888,7 +888,7 @@ type Mutation {
     rejectApplication (_id: ID!, comment: String!): Application
     inquireApplication (_id: ID!, comment: String!): Application
 
-    deleteApplication (_id: ID!, comment: String!): Application
+    cancelApplication (_id: ID!, comment: String!): Application
     restoreApplication (_id: ID!, comment: String!): Application
 
     "Submitter or Org Owner"

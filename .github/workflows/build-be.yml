@@ -51,7 +51,8 @@ jobs:
           echo "branch=$BRANCH_NAME" >> "$GITHUB_ENV"
           echo "Current branch is: $BRANCH_NAME"
           git fetch --tags --force --quiet
-          tag=$(git tag -l $BRANCH_NAME* | tail -1)
+          #tag=$(git tag -l $BRANCH_NAME* | tail -1)
+          tag=$(git tag -l $BRANCH_NAME* | sort -V | tail -1)
           if  [ ! -z "$tag" ];
           then
             # Increment the build number if a tag is found
