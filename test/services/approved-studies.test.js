@@ -181,12 +181,12 @@ describe('ApprovedStudiesService', () => {
             mockApprovedStudiesCollection.findOneAndUpdate.mockResolvedValue(fakeResult);
 
             const result = await service.storeApprovedStudies(
-                studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName,
+                null, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName,
                 useProgramPC, pendingModelChange, primaryContactID
             );
 
             expect(ApprovedStudies.createApprovedStudies).toHaveBeenCalledWith(
-                studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName,
+                null, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName,
                 useProgramPC, pendingModelChange, primaryContactID
             );
             expect(mockApprovedStudiesCollection.findOneAndUpdate).toHaveBeenCalledWith(
@@ -201,7 +201,7 @@ describe('ApprovedStudiesService', () => {
             const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
 
             const result = await service.storeApprovedStudies(
-                studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName
+                null, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName
             );
 
             expect(consoleSpy).toHaveBeenCalledWith(
