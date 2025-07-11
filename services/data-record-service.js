@@ -727,7 +727,7 @@ class DataRecordService {
         const datacommon = aSubmission.dataCommons;
         const dataDefinitionSourceDir = `resources/data-definition/${datacommon}`;
         const tempFolder = `logs/${aSubmission._id}`;
-        const dbGaPDir = `dbGaP${aSubmission.dbGaPID}_${aSubmission.name}_${getFormatDateStr(getCurrentTime())}`;
+        const dbGaPDir = `dbGaP_${aSubmission.dbGaPID}_${aSubmission.name}_${getFormatDateStr(getCurrentTime())}`;
         const download_dir = path.join(tempFolder, dbGaPDir);
         // 1) create subject sample mapping sheet
         const participants = await this.dataRecordsCollection.aggregate([{
