@@ -158,14 +158,23 @@ describe('Application', () => {
 
     describe('getApplication', () => {
         it('should return application with upgraded version', async () => {
-            userScopeMock.isNoneScope.mockReturnValue(false); // Ensure user has scope
-            userScopeMock.isAllScope.mockReturnValue(true);   // Ensure user has all scope
-            userScopeMock.isOwnScope.mockReturnValue(false);  // Ensure not own scope
+            userScopeMock.isNoneScope.mockReturnValue(false);
+            userScopeMock.isAllScope.mockReturnValue(true);
+            userScopeMock.isOwnScope.mockReturnValue(false);
             UserScope.create.mockReturnValue(userScopeMock);
-            mockApplicationCollection.find.mockResolvedValue([{ _id: 'app1', status: APPROVED, version: '2.0' }]);
-            mockConfigurationService.findByType.mockResolvedValue({ current: '2.0', new: '3.0' });
-            mockApprovedStudiesService.findByStudyName.mockResolvedValue([{ controlledAccess: false }]);
+
+            // Mock getApplicationById to return an application with APPROVED status and version '2.0'
+            app.getApplicationById = jest.fn().mockResolvedValue({ _id: 'app1', status: APPROVED, version: '2.0' });
+            // Mock _checkConditionalApproval to do nothing
+            app._checkConditionalApproval = jest.fn().mockResolvedValue(undefined);
+            // Mock _getApplicationVersionByStatus to return '2.0'
+            app._getApplicationVersionByStatus = jest.fn().mockResolvedValue('2.0');
+
             await expect(app.getApplication({ _id: 'app1' }, context)).resolves.toMatchObject({ _id: 'app1', version: '2.0' });
+
+            expect(app.getApplicationById).toHaveBeenCalledWith('app1');
+            expect(app._checkConditionalApproval).toHaveBeenCalledWith(expect.objectContaining({ _id: 'app1', status: APPROVED, version: '2.0' }));
+            expect(app._getApplicationVersionByStatus).toHaveBeenCalledWith(APPROVED, '2.0');
         });
     });
 
@@ -210,13 +219,19 @@ describe('Application', () => {
     });
 
     describe('getApplicationById', () => {
-        it('returns first result', async () => {
-            mockApplicationCollection.find.mockResolvedValue([{ _id: 'app1' }]);
-            await expect(app.getApplicationById('app1')).resolves.toEqual({ _id: 'app1' });
+        it('returns result from applicationDAO', async () => {
+            // Mock the applicationDAO.findFirst method to resolve to an application object
+            app.applicationDAO = {
+                findFirst: jest.fn().mockResolvedValue({ _id: 'app1', institution: { id: 'inst1' } })
+            };
+            await expect(app.getApplicationById('app1')).resolves.toEqual({ _id: 'app1', institution: { id: 'inst1', _id: 'inst1' } });
+            expect(app.applicationDAO.findFirst).toHaveBeenCalledWith({id: 'app1'}, { include: { institution: true } });
         });
 
         it('throws if not found', async () => {
-            mockApplicationCollection.find.mockResolvedValue([]);
+            app.applicationDAO = {
+                findFirst: jest.fn().mockResolvedValue(null)
+            };
             await expect(app.getApplicationById('app1')).rejects.toThrow(ERROR.APPLICATION_NOT_FOUND + 'app1');
         });
     });
@@ -256,8 +271,10 @@ describe('Application', () => {
         });
 
         it('throws if not owner', async () => {
+            // Setup: the stored application has a different applicantID than the current user
             const params = { application: { _id: 'app1' } };
-            mockApplicationCollection.find.mockResolvedValue([{ _id: 'app1', applicant: { applicantID: 'other' }, status: NEW }]);
+            // Mock getApplicationById to return an application with applicantID 'other'
+            jest.spyOn(app, 'getApplicationById').mockResolvedValue({ _id: 'app1', applicant: { applicantID: 'other' }, status: NEW });
             await expect(app.saveApplication(params, context)).rejects.toThrow(ERROR.VERIFY.INVALID_PERMISSION);
         });
     });
@@ -268,7 +285,13 @@ describe('Application', () => {
             userScopeMock.isAllScope.mockReturnValue(true);   // Ensure user has all scope
             mockApplicationCollection.aggregate.mockResolvedValue([{ _id: 'app1', status: APPROVED }]);
             mockConfigurationService.findByType.mockResolvedValue({ current: '2.0', new: '3.0' });
-            await expect(app.getMyLastApplication({}, context)).resolves.toMatchObject({ _id: 'app1', version: '3.0' });
+
+            // Patch: getApplicationById now expects {id: ...} and returns institution, so mock accordingly
+            const applicationWithInstitution = { _id: 'app1', status: APPROVED, institution: { id: 'inst1', _id: 'inst1' } };
+            jest.spyOn(app, 'getApplicationById').mockResolvedValue(applicationWithInstitution);
+
+            const result = await app.getMyLastApplication({}, context);
+            expect(result).toMatchObject({ _id: 'app1', version: '3.0', institution: { id: 'inst1', _id: 'inst1' } });
         });
     });
 

@@ -17,6 +17,9 @@ const {EMAIL_NOTIFICATIONS} = require("../crdc-datahub-database-drivers/constant
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {UserScope} = require("../domain/user-scope");
 const {UtilityService} = require("../services/utility");
+const InstitutionDAO = require("../dao/institution");
+const ApplicationDAO = require("../dao/application");
+const {SORT: SORT_ORDER} = require("../constants/db-constants");
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 class Application {
     _DELETE_REVIEW_COMMENT="This Submission Request has been deleted by the system due to inactivity.";
@@ -36,6 +39,8 @@ class Application {
         this.institutionService = institutionService;
         this.configurationService = configurationService;
         this.authorizationService = authorizationService;
+        this.institionDAO = new InstitutionDAO()
+        this.applicationDAO = new ApplicationDAO();
     }
 
     async getApplication(params, context) {
@@ -85,9 +90,19 @@ class Application {
     }
 
     async getApplicationById(id) {
-        let result = await this.applicationCollection.find(id);
-        if (!result?.length || result.length < 1) throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
-        return result[0];
+        let result = await this.applicationDAO.findFirst({id: id}, {
+            include: {
+                institution: true,
+            }
+        });
+        if (!result) {
+            throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
+        }
+
+        if (result?.institution?.id && !result.institution._id) {
+            result.institution._id = result.institution.id;
+        }
+        return result;
     }
 
     async reviewApplication(params, context) {
@@ -177,11 +192,19 @@ class Application {
         let application = {...storedApplication, ...inputApplication, status: IN_PROGRESS};
         // auto upgrade version based on configuration
         application.version = await this._getApplicationVersionByStatus(IN_PROGRESS);
-        application = await updateApplication(this.applicationCollection, application, prevStatus, context?.userInfo?._id);
+
+        if (inputApplication?.insitutionID?.trim().length > 0 && application?.insitutionID !== inputApplication?.insitutionID) {
+            const institution = this.institionDAO.findById(inputApplication.insitutionID);
+            if (institution) {
+                application.insitutionID = institution.insitutionID;
+            }
+        }
+
+        application = await this._updateApplication(application, prevStatus, context?.userInfo?._id);
         if (prevStatus !== application.status){
             await logStateChange(this.logCollection, context.userInfo, application, prevStatus);
         }
-        return application;
+        return this.getApplicationById(application?._id);
     }
 
     async getMyLastApplication(params, context) {
@@ -193,6 +216,7 @@ class Application {
         }
 
         const userID = context.userInfo._id;
+        // To remove this MongoDB query, we need to refactor the schema to move applicantID to the root level.
         const matchApplicantIDToUser = {"$match": {"applicant.applicantID": userID, status: APPROVED}};
         const sortCreatedAtDescending = {"$sort": {createdAt: -1}};
         const limitReturnToOneApplication = {"$limit": 1};
@@ -204,8 +228,9 @@ class Application {
         const result = await this.applicationCollection.aggregate(pipeline);
         const application = result.length > 0 ? result[0] : null;
         // auto upgrade version
-        application.version = await this._getApplicationVersionByStatus(IN_PROGRESS);
-        return application;
+        const res = await this.getApplicationById(application?._id);
+        res.version = await this._getApplicationVersionByStatus(IN_PROGRESS);
+        return res;
     }
 
     _listApplicationConditions(userID, userScope, programName, studyName, statues, submitterName) {
@@ -943,22 +968,23 @@ class Application {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
     }
-}
 
-async function updateApplication(applicationCollection, application, prevStatus, userID) {
-    if (prevStatus !== IN_PROGRESS) {
-        application = {history: [], ...application};
-        const historyEvent = HistoryEventBuilder.createEvent(userID, IN_PROGRESS, null);
-        application.history.push(historyEvent);
+    async _updateApplication(application, prevStatus, userID) {
+        if (prevStatus !== IN_PROGRESS) {
+            application = {history: [], ...application};
+            const historyEvent = HistoryEventBuilder.createEvent(userID, IN_PROGRESS, null);
+            application.history.push(historyEvent);
+        }
+        // Save an email reminder when an inactive application is reactivated.
+        application.inactiveReminder = false;
+        application.updatedAt = getCurrentTime();
+        const {institution: _, ...data} = application;
+        const updateResult = await this.applicationDAO.update(application?._id, data);
+        if (!updateResult) {
+            throw new Error(ERROR.APPLICATION_NOT_FOUND + updateResult?._id);
+        }
+        return updateResult;
     }
-    // Save an email reminder when an inactive application is reactivated.
-    application.inactiveReminder = false;
-    application.updatedAt = getCurrentTime();
-    const updateResult = await applicationCollection.update(application);
-    if ((updateResult?.matchedCount || 0) < 1) {
-        throw new Error(ERROR.APPLICATION_NOT_FOUND + application?._id);
-    }
-    return application;
 }
 
 async function logStateChange(logCollection, userInfo, application, prevStatus) {
