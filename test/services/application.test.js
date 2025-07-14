@@ -189,12 +189,14 @@ describe('Application', () => {
             userScopeMock.isAllScope.mockReturnValue(true);
             userScopeMock.isOwnScope.mockReturnValue(false);
             UserScope.create.mockReturnValue(userScopeMock);
-            // Patch: use applicationDAO mock to avoid Prisma call and simulate found
-            app.applicationDAO = {
-                findById: jest.fn().mockResolvedValue({ _id: 'app1', status: APPROVED, version: '2.0' })
-            };
-            mockConfigurationService.findByType.mockResolvedValue({ current: '2.0', new: '3.0' });
-            mockApprovedStudiesService.findByStudyName.mockResolvedValue([{ controlledAccess: false }]);
+
+            // Mock getApplicationById to return an application with APPROVED status and version '2.0'
+            app.getApplicationById = jest.fn().mockResolvedValue({ _id: 'app1', status: APPROVED, version: '2.0' });
+            // Mock _checkConditionalApproval to do nothing
+            app._checkConditionalApproval = jest.fn().mockResolvedValue(undefined);
+            // Mock _getApplicationVersionByStatus to return '2.0'
+            app._getApplicationVersionByStatus = jest.fn().mockResolvedValue('2.0');
+
             await expect(app.getApplication({ _id: 'app1' }, context)).resolves.toMatchObject({ _id: 'app1', version: '2.0' });
 
             expect(app.getApplicationById).toHaveBeenCalledWith('app1');
@@ -244,18 +246,18 @@ describe('Application', () => {
     });
 
     describe('getApplicationById', () => {
-        it('returns first result', async () => {
-            // Patch: use applicationDAO mock to avoid Prisma call and simulate found
+        it('returns result from applicationDAO', async () => {
+            // Mock the applicationDAO.findFirst method to resolve to an application object
             app.applicationDAO = {
-                findById: jest.fn().mockResolvedValue({ _id: 'app1' })
+                findFirst: jest.fn().mockResolvedValue({ _id: 'app1', institution: { id: 'inst1' } })
             };
-            await expect(app.getApplicationById('app1')).resolves.toEqual({ _id: 'app1' });
+            await expect(app.getApplicationById('app1')).resolves.toEqual({ _id: 'app1', institution: { id: 'inst1', _id: 'inst1' } });
+            expect(app.applicationDAO.findFirst).toHaveBeenCalledWith({id: 'app1'}, { include: { institution: true } });
         });
 
         it('throws if not found', async () => {
-            // Patch: use applicationDAO mock to avoid Prisma call and simulate not found
             app.applicationDAO = {
-                findById: jest.fn().mockResolvedValue(undefined)
+                findFirst: jest.fn().mockResolvedValue(null)
             };
             await expect(app.getApplicationById('app1')).rejects.toThrow(ERROR.APPLICATION_NOT_FOUND + 'app1');
         });
@@ -299,11 +301,10 @@ describe('Application', () => {
         });
 
         it('throws if not owner', async () => {
-            // Patch: use applicationDAO mock to avoid Prisma call and simulate not owner
-            app.applicationDAO = {
-                findById: jest.fn().mockResolvedValue({ _id: 'app1', applicant: { applicantID: 'other' }, status: NEW })
-            };
+            // Setup: the stored application has a different applicantID than the current user
             const params = { application: { _id: 'app1' } };
+            // Mock getApplicationById to return an application with applicantID 'other'
+            jest.spyOn(app, 'getApplicationById').mockResolvedValue({ _id: 'app1', applicant: { applicantID: 'other' }, status: NEW });
             await expect(app.saveApplication(params, context)).rejects.toThrow(ERROR.VERIFY.INVALID_PERMISSION);
         });
     });
