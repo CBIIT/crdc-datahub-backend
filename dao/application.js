@@ -1,4 +1,5 @@
 const prisma = require("../prisma");
+const GenericDAO = require("./generic");
 const { MODEL_NAME, SORT} = require('../constants/db-constants');
 const GenericDAO = require("./generic");
 const {convertIdFields, convertMongoFilterToPrismaFilter} = require('./utils/orm-converter');

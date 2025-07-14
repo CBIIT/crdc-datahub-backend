@@ -185,9 +185,9 @@ describe('Application', () => {
 
     describe('getApplication', () => {
         it('should return application with upgraded version', async () => {
-            userScopeMock.isNoneScope.mockReturnValue(false); // Ensure user has scope
-            userScopeMock.isAllScope.mockReturnValue(true);   // Ensure user has all scope
-            userScopeMock.isOwnScope.mockReturnValue(false);  // Ensure not own scope
+            userScopeMock.isNoneScope.mockReturnValue(false);
+            userScopeMock.isAllScope.mockReturnValue(true);
+            userScopeMock.isOwnScope.mockReturnValue(false);
             UserScope.create.mockReturnValue(userScopeMock);
             // Patch: use applicationDAO mock to avoid Prisma call and simulate found
             app.applicationDAO = {
@@ -196,6 +196,10 @@ describe('Application', () => {
             mockConfigurationService.findByType.mockResolvedValue({ current: '2.0', new: '3.0' });
             mockApprovedStudiesService.findByStudyName.mockResolvedValue([{ controlledAccess: false }]);
             await expect(app.getApplication({ _id: 'app1' }, context)).resolves.toMatchObject({ _id: 'app1', version: '2.0' });
+
+            expect(app.getApplicationById).toHaveBeenCalledWith('app1');
+            expect(app._checkConditionalApproval).toHaveBeenCalledWith(expect.objectContaining({ _id: 'app1', status: APPROVED, version: '2.0' }));
+            expect(app._getApplicationVersionByStatus).toHaveBeenCalledWith(APPROVED, '2.0');
         });
     });
 
@@ -313,7 +317,13 @@ describe('Application', () => {
                 aggregate: jest.fn().mockResolvedValue([{ _id: 'app1', status: APPROVED }])
             };
             mockConfigurationService.findByType.mockResolvedValue({ current: '2.0', new: '3.0' });
-            await expect(app.getMyLastApplication({}, context)).resolves.toMatchObject({ _id: 'app1', version: '3.0' });
+
+            // Patch: getApplicationById now expects {id: ...} and returns institution, so mock accordingly
+            const applicationWithInstitution = { _id: 'app1', status: APPROVED, institution: { id: 'inst1', _id: 'inst1' } };
+            jest.spyOn(app, 'getApplicationById').mockResolvedValue(applicationWithInstitution);
+
+            const result = await app.getMyLastApplication({}, context);
+            expect(result).toMatchObject({ _id: 'app1', version: '3.0', institution: { id: 'inst1', _id: 'inst1' } });
         });
     });
 
