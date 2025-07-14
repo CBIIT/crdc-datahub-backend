@@ -1,9 +1,99 @@
-const {MODEL_NAME} = require("../constants/db-constants");
+const prisma = require("../prisma");
+const { MODEL_NAME, SORT} = require('../constants/db-constants');
 const GenericDAO = require("./generic");
+const {convertIdFields, convertMongoFilterToPrismaFilter} = require('./utils/orm-converter');
+
 class ApplicationDAO extends GenericDAO {
     constructor() {
         super(MODEL_NAME.APPLICATION);
     }
+
+    async insert(application) {
+        const createdData = convertIdFields(application);
+        const created = await this.create(createdData);
+        return { acknowledged: !!created, insertedId: created.id };
+    }
+
+    async update(application) {
+        // expects application._id or application.id
+        const id = application._id || application.id;
+        const { _id, id: appId, ...updateData } = application;
+        // use super.update to call the update method from GenericDAO
+        const updated = await super.update(id, updateData);
+        return { matchedCount: updated ? 1 : 0, modifiedCount: updated ? 1 : 0 };
+    }
+
+    async updateMany(filter, data) {
+        // Prisma expects a plain object for update, not MongoDB-style operators
+        const updateDoc = Array.isArray(data)
+            ? Object.assign({}, ...data)
+            : data;
+
+        filter = convertMongoFilterToPrismaFilter(filter);
+        const result = await prisma.application.updateMany({
+            where: filter,
+            data: updateDoc
+        });
+        return { matchedCount: result.count, modifiedCount: result.count };
+    }
+
+    async aggregate(pipeline) {
+        // Only support simple $match, $sort, $limit for now
+        let query = {};
+        let orderBy = undefined;
+        let take = undefined;
+        for (const stage of pipeline) {
+            if (stage.$match) query = { ...query, ...stage.$match };
+            if (stage.$sort) {
+                orderBy = Object.entries(stage.$sort).map(([field, dir]) => ({
+                    [field]: dir === -1 ? SORT.DESC : SORT.ASC
+                }));
+            }
+            if (stage.$limit) take = stage.$limit;
+        }
+        query = convertMongoFilterToPrismaFilter(query);
+
+        // Flatten dot notation for nested fields (e.g., "applicant.applicantID")
+        // Prisma expects: { applicant: { is: { applicantID: ... } } }
+        for (const key of Object.keys(query)) {
+            if (key.includes('.')) {
+                const [parent, child] = key.split('.');
+                // If already an object, merge
+                if (!query[parent]) query[parent] = {};
+                if (!query[parent].is) query[parent].is = {};
+                query[parent].is[child] = query[key];
+                delete query[key];
+            }
+        }
+        const apps = await prisma.application.findMany({
+            where: query,
+            orderBy,
+            take
+        });
+        return apps.map(app => ({ ...app, _id: app.id }));
+    }
+
+    async distinct(field, filter = {}) {
+        filter = convertMongoFilterToPrismaFilter(filter);
+        // Handle dot notation for nested fields (e.g., "applicant.applicantName")
+        let select = {};
+        if (field.includes('.')) {
+            const [parent, child] = field.split('.');
+            select[parent] = { select: { [child]: true } };
+        } else {
+            select[field] = true;
+        }
+
+        const apps = await prisma.application.findMany({ where: filter, select });
+        // Flatten nested fields if needed
+        const values = field.includes('.')
+            ? apps.map(app => {
+                const [parent, child] = field.split('.');
+                return app[parent]?.[child];
+            })
+            : apps.map(app => app[field]);
+        return [...new Set(values)].filter(v => v !== undefined && v !== null);
+    }
 }
 
-module.exports = ApplicationDAO
+module.exports = ApplicationDAO;

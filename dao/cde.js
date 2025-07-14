@@ -1,7 +1,6 @@
 const prisma = require("../prisma");
-const { SORT } = require('../constants/db-constants');
+const { SORT, MODEL_NAME} = require('../constants/db-constants');
 const GenericDAO = require("./generic");
-const { MODEL_NAME } = require('../constants/db-constants');
 
 class CdeDAO extends GenericDAO {
     constructor() {
