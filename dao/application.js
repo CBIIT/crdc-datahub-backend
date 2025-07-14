@@ -14,13 +14,9 @@ class ApplicationDAO extends GenericDAO {
         return { acknowledged: !!created, insertedId: created.id };
     }
 
-    async update(application) {
-        // expects application._id or application.id
-        const id = application._id || application.id;
-        const { _id, id: appId, ...updateData } = application;
+    async update(id, application) {
         // use super.update to call the update method from GenericDAO
-        const updated = await super.update(id, updateData);
-        return { matchedCount: updated ? 1 : 0, modifiedCount: updated ? 1 : 0 };
+        return await super.update(id, application);
     }
 
     async updateMany(filter, data) {

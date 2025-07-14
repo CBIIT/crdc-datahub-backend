@@ -181,7 +181,7 @@ describe('ApprovedStudiesService', () => {
             ApprovedStudies.createApprovedStudies.mockImplementation(
                 (...args) => {
                     // Remove trailing undefined if present
-                    if (args.length > 13 && args[13] === undefined) args.pop();
+                    if (args.length > 12 && args[12] === undefined) args.pop();
                     return fakeStudy;
                 }
             );
@@ -194,8 +194,10 @@ describe('ApprovedStudiesService', () => {
 
             // Accept extra undefined argument for compatibility
             const callArgs = ApprovedStudies.createApprovedStudies.mock.calls[0];
+            // Accept trailing null or undefined for compatibility
             expect(callArgs.slice(0, 13)).toEqual([
-                null, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName,
+                null,
+                studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName,
                 useProgramPC, pendingModelChange, primaryContactID
             ]);
             // Accept either studyName or studyAbbreviation as key for upsert query

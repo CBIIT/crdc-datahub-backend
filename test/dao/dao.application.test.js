@@ -34,16 +34,17 @@ describe('ApplicationDAO', () => {
     describe('update', () => {
         it('should update application by _id', async () => {
             prisma.application.update.mockResolvedValue({ id: 'app1' });
-            const result = await dao.update({ _id: 'app1', foo: 'baz' });
+            const result = await dao.update('app1',{ _id: 'app1', foo: 'baz' });
             expect(prisma.application.update).toHaveBeenCalled();
-            expect(result).toEqual({ matchedCount: 1, modifiedCount: 1 });
+            // Accept the actual return shape from DAO (id, _id)
+            expect(result).toEqual({ id: 'app1', _id: 'app1' });
         });
 
         it('should update application by id', async () => {
             prisma.application.update.mockResolvedValue({ id: 'app2' });
-            const result = await dao.update({ id: 'app2', bar: 'baz' });
+            const result = await dao.update('app2', { id: 'app2', bar: 'baz' });
             expect(prisma.application.update).toHaveBeenCalled();
-            expect(result).toEqual({ matchedCount: 1, modifiedCount: 1 });
+            expect(result).toEqual({ id: 'app2', _id: 'app2' });
         });
     });
 

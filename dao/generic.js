@@ -40,8 +40,12 @@ class GenericDAO {
     }
 
     async update(id, data) {
+        // Patch: If id is not provided, try to extract from data._id or data.id
+        if (!id) {
+            id = data._id || data.id;
+        }
         // Accidental _id or id fields should be excluded.
-        const {_id: __, id: _, ...updateData} = data;
+        const { _id, id: dataId, ...updateData } = data;
         const res = await this.model.update({ where: { id }, data: updateData });
         return { ...res, _id: res.id };
     }
