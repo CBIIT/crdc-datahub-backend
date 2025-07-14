@@ -721,6 +721,16 @@ class Submission {
         const [prevMetadataValidationStatus, prevFileValidationStatus, prevCrossSubmissionStatus, prevTime] =
             [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus, aSubmission?.crossSubmissionStatus, aSubmission?.updatedAt];
 
+        // if the user role is DATA_COMMONS_PERSONNEL, and the submission status is "Submitted", and aSubmission?.crossSubmissionStatus is "Failed", 
+        // and params.type contains validation type metadata, replace validation type metadata to cross-submission validation.  User story CRDCDH-2830
+        if (userInfo?.role === ROLES.DATA_COMMONS_PERSONNEL && aSubmission?.status === SUBMITTED && 
+            aSubmission?.crossSubmissionStatus === VALIDATION_STATUS.FAILED && params?.types &&
+            params?.types?.includes(VALIDATION.TYPES.METADATA)) {
+            
+            params.types = params.types.map(type =>
+                type === VALIDATION.TYPES.METADATA ? VALIDATION.TYPES.CROSS_SUBMISSION : type
+            );
+        }
         await this._updateValidationStatus(params?.types, aSubmission, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING, getCurrentTime());
         const validationRecord = ValidationRecord.createValidation(aSubmission?._id, params?.types, params?.scope, VALIDATION_STATUS.VALIDATING);
         const res = await this.validationCollection.insert(validationRecord);
