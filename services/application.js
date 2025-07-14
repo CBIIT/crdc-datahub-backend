@@ -19,6 +19,15 @@ const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/cons
 const {UserScope} = require("../domain/user-scope");
 const {UtilityService} = require("../services/utility");
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const OrderByMap = {
+    "Submitter Name": "applicant.applicantName",
+    "Organization": "organization.name",
+    "Study": "studyName",
+    "Program": "programName",
+    "Status": "status",
+    "Submitted Date": "submittedDate"
+};
 class Application {
     _DELETE_REVIEW_COMMENT="This Submission Request has been deleted by the system due to inactivity.";
     _ALL_FILTER="All";
@@ -267,7 +276,9 @@ class Application {
         ];
         const [listConditions, programCondition, studyNameCondition, statuesCondition, submitterNameCondition] = filterConditions;
         let pipeline = [{"$match": listConditions}];
-        const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
+        // convert params.orderBy from orderBy in ["Submitter Name", "Organization", "Study", "Program", "Status", "Submitted Date"] to Application in prisma schema
+        const orderBy = params?.orderBy ? OrderByMap[params.orderBy]: "";
+        const paginationPipe = new MongoPagination(params?.first, params.offset, orderBy, params.sortDirection);
         const noPaginationPipe = pipeline.concat(paginationPipe.getNoLimitPipeline());
 
         const promises = [
@@ -278,7 +289,7 @@ class Application {
             // note: Study name filter is omitted
             this.applicationDAO.distinct("studyName", studyNameCondition),
             // note: Statues filter is omitted
-            this.applicationDAOdistinct("status", statuesCondition),
+            this.applicationDAO.distinct("status", statuesCondition),
             // note: Submitter name filter is omitted
             this.applicationDAO.distinct("applicant.applicantName", submitterNameCondition)
         ];
