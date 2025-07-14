@@ -461,7 +461,7 @@ class ReleaseService {
         if (!modelProps || modelProps.length === 0) {
             return [];
         }
-        const modelPropNames = modelProps.map(prop => {
+        const modelPropNames = modelProps.filter(prop => prop.handle.toLowerCase() !== "crdc_id").map(prop => {
             const required = prop?.is_required  && ["yes", "true"].includes(String(prop.is_required).toLowerCase()) ? true : false;
             return {"name": prop.handle, "required": required, "group": PROP_GROUPS.MODEL_DEFINED}
         });
@@ -484,7 +484,7 @@ class ReleaseService {
         });
         properties.push(...otherPropsGroup);
         // 5) get generated properties
-        if(dataModelNotDefined.find(prop => prop.toLowerCase() === "crdc_id")){
+        if(modelProps.find(prop => prop.handle.toLowerCase() === "crdc_id") || dataModelNotDefined.find(prop => prop.toLowerCase() === "crdc_id")){
             properties.push({
                 "name": "crdc_id",
                 "required": false,
