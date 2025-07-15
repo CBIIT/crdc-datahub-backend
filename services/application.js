@@ -1011,7 +1011,7 @@ class Application {
         application.inactiveReminder = false;
         application.updatedAt = getCurrentTime();
         const {institution: _, ...data} = application;
-        const updateResult = await this.applicationDAO.update(application?._id, data);
+        const updateResult = await this.applicationDAO.update({_id: application?._id, ...data});
         if (!updateResult) {
             throw new Error(ERROR.APPLICATION_NOT_FOUND + updateResult?._id);
         }

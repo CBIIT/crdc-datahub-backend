@@ -14,9 +14,13 @@ class ApplicationDAO extends GenericDAO {
         return { acknowledged: !!created, insertedId: created.id };
     }
 
-    async update(id, application) {
+    async update(application) {
+        // check if _id or id is present
+        if (!application._id && !application.id) {
+            throw new Error('Application must have an _id or id');
+        }
         // use super.update to call the update method from GenericDAO
-        return await super.update(id, application);
+        return await super.update(application._id, application);
     }
 
     async updateMany(filter, data) {
