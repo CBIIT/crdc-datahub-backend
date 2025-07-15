@@ -5,7 +5,7 @@
 // - ISO 8601 with timezone offset: 2023-12-25T10:30:00.000+05:30 or 2023-12-25T10:30:00.000-05:30
 // - ISO 8601 without timezone: 2023-12-25T10:30:00.000
 // - All formats with or without milliseconds (.000)
-const isoPattern = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3})?(Z|[+-]\d{2}:\d{2})?)?$/;
+const isoPattern = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])(T\d{2}:\d{2}:\d{2}(\.\d{3})?(Z|[+-]\d{2}:\d{2})?)?$/;
 
 // Convert _id fields to id
 function convertIdFields(obj) {
