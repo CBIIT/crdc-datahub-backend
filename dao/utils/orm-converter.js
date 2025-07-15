@@ -64,7 +64,7 @@ function tryConvertDate(val) {
   // Only convert ISO format strings
   const isoPatterns = [
     // ISO 8601 format: 2023-12-25T10:30:00.000Z
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/,
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?(Z|[+-]\d{2}:\d{2})?$/,
     // ISO 8601 with timezone offset: 2023-12-25T10:30:00.000+05:30
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?[+-]\d{2}:\d{2}$/,
     // ISO date format: 2023-12-25
