@@ -62,7 +62,7 @@ class Submission {
     constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService,
                 dataRecordService, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList,
                 hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs, 
-                submissionBucketName, configurationService, uploadingMonitor, dataCommonsBucketMap, authorizationService) {
+                submissionBucketName, configurationService, uploadingMonitor, dataCommonsBucketMap, authorizationService, dataModelService) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -88,6 +88,7 @@ class Submission {
         this.authorizationService = authorizationService;
         this.pendingPVDAO = new PendingPVDAO();
         this.submissionDAO = new SubmissionDAO();
+        this.dataModelService = dataModelService;
     }
 
     async createSubmission(params, context) {
@@ -1883,7 +1884,7 @@ class Submission {
     async requestPV(param, context) {
         verifySession(context)
             .verifyInitialized();
-        const {submissionID, property, value, nodeName, CDEId, comment} = param;
+        const {submissionID, property, value, nodeName, comment} = param;
         if (nodeName?.trim()?.length === 0) {
             throw new Error(ERROR.EMPTY_NODE_REQUEST_PV);
         }
@@ -1939,6 +1940,8 @@ class Submission {
         if (!insertedPendingPV) {
             throw new Error(replaceErrorString(ERROR.FAILED_TO_INSERT_REQUEST_PV, `submissionID: ${submissionID}, property: ${property}, value: ${value}`));
         }
+
+        const modelInfo = await this.dataModelService.getDataModelByDataCommonAndVersion(aSubmission?.dataCommons, aSubmission?.modelVersion);
 
         const userInfo = context?.userInfo;
         const res = await this.notificationService.requestPVNotification(DCEmails, nonDCEmails, aSubmission?.dataCommons ,{
