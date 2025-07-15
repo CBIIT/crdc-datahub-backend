@@ -1,9 +1,10 @@
 const prisma = require("../prisma");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
-const {v4} = require("uuid");
-class PendingPVDAO {
-    constructor(pendingPVCollection) {
-        this.pendingPVCollection = pendingPVCollection;
+const GenericDAO = require("./generic");
+const {MODEL_NAME} = require("../constants/db-constants");
+class PendingPVDAO extends GenericDAO {
+    constructor() {
+        super(MODEL_NAME.PENDING_PVS);
     }
     /**
      * Finds all pending PVs associated with a given submission ID.
