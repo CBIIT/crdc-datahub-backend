@@ -1,4 +1,13 @@
- // Convert _id fields to id
+// Only convert ISO format strings
+// Covers:
+// - ISO date only: 2023-12-25
+// - ISO 8601 with Z timezone: 2023-12-25T10:30:00.000Z
+// - ISO 8601 with timezone offset: 2023-12-25T10:30:00.000+05:30 or 2023-12-25T10:30:00.000-05:30
+// - ISO 8601 without timezone: 2023-12-25T10:30:00.000
+// - All formats with or without milliseconds (.000)
+const isoPattern = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3})?(Z|[+-]\d{2}:\d{2})?)?$/;
+
+// Convert _id fields to id
 function convertIdFields(obj) {
     if (Array.isArray(obj)) {
         return obj.map(convertIdFields);
@@ -61,14 +70,7 @@ function tryConvertDate(val) {
     return val;
   }
 
-  // Only convert ISO format strings
-  const isIsoFormat = isoPatterns.some(pattern => pattern.test(val));
-  
-  if (!isIsoFormat) {
-    return val; // Not in ISO format
-  }
-
-  const isIsoFormat = isoPatterns.some(pattern => pattern.test(val));
+  const isIsoFormat = isoPattern.test(val);
   
   if (!isIsoFormat) {
     return val; // Not in ISO format
