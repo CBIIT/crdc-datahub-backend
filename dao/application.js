@@ -3,9 +3,19 @@ const { MODEL_NAME, SORT} = require('../constants/db-constants');
 const GenericDAO = require("./generic");
 const {convertIdFields, convertMongoFilterToPrismaFilter} = require('./utils/orm-converter');
 
+const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
+
 class ApplicationDAO extends GenericDAO {
-    constructor() {
+    constructor(applicationCollection) {
         super(MODEL_NAME.APPLICATION);
+        this.applicationCollection = applicationCollection;
+    }
+    // Prisma can't join _id in the object.
+    async updateApplicationOrg(orgID, updatedOrg){
+        return await this.applicationCollection.updateMany(
+            {"organization._id": orgID, "organization.name": {"$ne": updatedOrg.name}},
+            {"organization.name": updatedOrg.name, updatedAt: getCurrentTime()}
+        )
     }
 
     async insert(application) {

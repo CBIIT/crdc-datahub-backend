@@ -50,5 +50,15 @@ Commands:
             $addToSet: { notifications: "submission_request:pending_cleared" }
           }
         );
-      
-      
+  - migration user institution id CRDCDH-2852: |     
+      db.institutions.updateMany(
+        {
+          $or: [
+            { status: { $exists: false } },
+            { status: { $nin: ["Active", "Inactive"] } }
+          ]
+        },
+        {
+          $set: { status: "Active" }
+        }
+      )

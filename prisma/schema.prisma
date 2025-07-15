@@ -197,6 +197,7 @@ model ApprovedStudy {
   pendingModelChange Boolean?
   createdAt         DateTime @default(now()) @db.Date
   updatedAt         DateTime @updatedAt @db.Date
+  pendingApplicationID String?
 
   Concierge User? @relation(fields: [primaryContactID], references: [id])
 
@@ -496,6 +497,7 @@ model Submission {
   rootPath                 String
   status                   String
   studyAbbreviation        String?
+  studyName                String?
   studyID                  String
   submitterID              String
   submitterName            String
