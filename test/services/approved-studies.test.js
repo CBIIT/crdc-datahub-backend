@@ -3,9 +3,9 @@ const { ADMIN } = require('../../crdc-datahub-database-drivers/constants/user-pe
 const ERROR = require('../../constants/error-constants');
 const { verifySession } = require('../../verifier/user-info-verifier');
 const { getDataCommonsDisplayNamesForApprovedStudy, getDataCommonsDisplayNamesForUser } = require('../../utility/data-commons-remapper');
-const { getApprovedStudyByID } = require('../../dao/approvedStudy');
 const TEST_CONSTANTS = require('../test-constants');
 const USER = require('../../crdc-datahub-database-drivers/constants/user-constants');
+const {ApprovedStudies} = require("../../crdc-datahub-database-drivers/domain/approved-studies");
 
 // Mock dependencies
 jest.mock('../../verifier/user-info-verifier');
@@ -445,7 +445,11 @@ describe('ApprovedStudiesService', () => {
                     return fakeStudy;
                 }
             );
-            mockApprovedStudiesCollection.findOneAndUpdate.mockResolvedValue(fakeResult);
+
+            // Patch: mock DAO create to just return the input
+            service.approvedStudyDAO = {
+                create: jest.fn().mockResolvedValue(fakeStudy)
+            };
 
             const result = await service.storeApprovedStudies(
                 null, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName,
@@ -453,26 +457,26 @@ describe('ApprovedStudiesService', () => {
             );
 
             // Accept extra undefined argument for compatibility
-            const callArgs = ApprovedStudies.createApprovedStudies.mock.calls[0];
+            const callArgs = ApprovedStudies.createApprovedStudies.mock.calls[0] || [];
             // Accept trailing null or undefined for compatibility
             expect(callArgs.slice(0, 13)).toEqual([
                 null,
                 studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName,
                 useProgramPC, pendingModelChange, primaryContactID
             ]);
-            // Accept either studyName or studyAbbreviation as key for upsert query
-            const upsertQuery = mockApprovedStudiesCollection.findOneAndUpdate.mock.calls[0][0];
-            expect(
-                upsertQuery.studyName === studyName ||
-                upsertQuery.studyName === studyAbbreviation
-            ).toBe(true);
-            expect(mockApprovedStudiesCollection.findOneAndUpdate).toHaveBeenCalledWith(
-                upsertQuery, fakeStudy, { returnDocument: 'after', upsert: true }
-            );
+
+            // Check that DAO create was called with the correct study
+            expect(service.approvedStudyDAO.create).toHaveBeenCalledWith(fakeStudy);
+
             expect(result).toBe(fakeStudy);
         });
 
         it('should log error and return undefined if insertion fails', async () => {
+            service.approvedStudyDAO = {
+
+                create: jest.fn()
+            };
+
             ApprovedStudies.createApprovedStudies.mockReturnValue(fakeStudy);
             mockApprovedStudiesCollection.findOneAndUpdate.mockResolvedValue({ value: undefined });
             const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
@@ -481,7 +485,6 @@ describe('ApprovedStudiesService', () => {
                 null, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName
             );
 
-            // Accept either abbreviation or studyName in error message
             expect(consoleSpy).toHaveBeenCalledWith(
                 expect.stringContaining("An error occurred while attempting to insert the approved studies into the database.")
             );
