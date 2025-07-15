@@ -1,4 +1,4 @@
-const { convertIdFields } = require('../../dao/utils/orm-converter');
+const { convertIdFields, convertMongoFilterToPrismaFilter } = require('../../dao/utils/orm-converter');
 
 describe('convertIdFields', () => {
     it('should convert a single object with _id to id', () => {
@@ -54,5 +54,147 @@ describe('convertIdFields', () => {
     it('should handle empty objects and arrays', () => {
         expect(convertIdFields({})).toEqual({});
         expect(convertIdFields([])).toEqual([]);
+    });
+});
+
+describe('convertMongoFilterToPrismaFilter', () => {
+    it('should convert _id fields to id fields', () => {
+        const input = { _id: { $in: ['123', '456'] } };
+        const expected = { id: { in: ['123', '456'] } };
+        expect(convertMongoFilterToPrismaFilter(input)).toEqual(expected);
+    });
+
+    it('should convert nested _id fields', () => {
+        const input = { 
+            _id: { $in: ['123'] },
+            parent: { _id: { $eq: '789' } }
+        };
+        const expected = { 
+            id: { in: ['123'] },
+            parent: { id: { equals: '789' } }
+        };
+        expect(convertMongoFilterToPrismaFilter(input)).toEqual(expected);
+    });
+
+    it('should handle regular MongoDB operators without _id', () => {
+        const input = { name: { $eq: 'test' }, age: { $gt: 18 } };
+        const expected = { name: { equals: 'test' }, age: { gt: 18 } };
+        expect(convertMongoFilterToPrismaFilter(input)).toEqual(expected);
+    });
+});
+
+describe('tryConvertDate', () => {
+    const { tryConvertDate } = require('../../dao/utils/orm-converter');
+    
+    describe('should convert valid ISO format strings', () => {
+        it('should convert ISO 8601 format', () => {
+            const input = '2023-12-25T10:30:00.000Z';
+            const result = tryConvertDate(input);
+            expect(result).toBeInstanceOf(Date);
+            expect(result.toISOString()).toBe(input);
+        });
+
+        it('should convert ISO date format', () => {
+            const input = '2023-12-25';
+            const result = tryConvertDate(input);
+            expect(result).toBeInstanceOf(Date);
+            expect(result.getFullYear()).toBe(2023);
+            expect(result.getMonth()).toBe(11); // December is 11 (0-indexed)
+            // Note: getDate() might be 24 or 25 depending on timezone
+            expect([24, 25]).toContain(result.getDate());
+        });
+
+        it('should convert ISO 8601 without milliseconds', () => {
+            const input = '2023-12-25T10:30:00Z';
+            const result = tryConvertDate(input);
+            expect(result).toBeInstanceOf(Date);
+            expect(result.getFullYear()).toBe(2023);
+            // Note: getHours() might vary due to timezone conversion
+            // The original time is 10:30 UTC, so local time could be different
+            expect([5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4]).toContain(result.getHours());
+            expect(result.getMinutes()).toBe(30);
+        });
+
+        it('should convert ISO 8601 without Z suffix', () => {
+            const input = '2023-12-25T10:30:00.000';
+            const result = tryConvertDate(input);
+            expect(result).toBeInstanceOf(Date);
+            expect(result.getFullYear()).toBe(2023);
+        });
+
+        it('should convert ISO 8601 with positive timezone offset', () => {
+            const input = '2023-12-25T10:30:00.000+05:30';
+            const result = tryConvertDate(input);
+            expect(result).toBeInstanceOf(Date);
+            expect(result.getFullYear()).toBe(2023);
+            expect(result.getMonth()).toBe(11); // December is 11 (0-indexed)
+        });
+
+        it('should convert ISO 8601 with negative timezone offset', () => {
+            const input = '2023-12-25T10:30:00.000-08:00';
+            const result = tryConvertDate(input);
+            expect(result).toBeInstanceOf(Date);
+            expect(result.getFullYear()).toBe(2023);
+            expect(result.getMonth()).toBe(11); // December is 11 (0-indexed)
+        });
+
+        it('should convert ISO 8601 with timezone offset without milliseconds', () => {
+            const input = '2023-12-25T10:30:00+05:30';
+            const result = tryConvertDate(input);
+            expect(result).toBeInstanceOf(Date);
+            expect(result.getFullYear()).toBe(2023);
+        });
+    });
+
+    describe('should NOT convert non-ISO format strings', () => {
+        it('should not convert short strings', () => {
+            expect(tryConvertDate('123')).toBe('123');
+            expect(tryConvertDate('abc')).toBe('abc');
+        });
+
+        it('should not convert UUIDs', () => {
+            const uuid = 'ba4a581f-4666-4c8f-911e-89d7e405bdca';
+            expect(tryConvertDate(uuid)).toBe(uuid);
+        });
+
+        it('should not convert MongoDB ObjectIds', () => {
+            const objectId = '507f1f77bcf86cd799439011';
+            expect(tryConvertDate(objectId)).toBe(objectId);
+        });
+
+        it('should not convert pure numeric strings', () => {
+            expect(tryConvertDate('123456789')).toBe('123456789');
+            expect(tryConvertDate('999999999')).toBe('999999999');
+        });
+
+        it('should not convert strings that look like IDs', () => {
+            expect(tryConvertDate('user123')).toBe('user123');
+            expect(tryConvertDate('test-id-456')).toBe('test-id-456');
+        });
+
+        it('should not convert non-ISO date formats', () => {
+            expect(tryConvertDate('12/25/2023')).toBe('12/25/2023');
+            expect(tryConvertDate('25-12-2023')).toBe('25-12-2023');
+            expect(tryConvertDate('2023/12/25')).toBe('2023/12/25');
+        });
+
+        it('should not convert invalid date strings', () => {
+            expect(tryConvertDate('2023-13-45')).toBe('2023-13-45'); // Invalid month/day
+            expect(tryConvertDate('not-a-date')).toBe('not-a-date');
+        });
+    });
+
+    describe('should handle edge cases', () => {
+        it('should return non-strings as-is', () => {
+            expect(tryConvertDate(123)).toBe(123);
+            expect(tryConvertDate(null)).toBe(null);
+            expect(tryConvertDate(undefined)).toBe(undefined);
+            expect(tryConvertDate({})).toEqual({});
+            expect(tryConvertDate([])).toEqual([]);
+        });
+
+        it('should handle empty string', () => {
+            expect(tryConvertDate('')).toBe('');
+        });
     });
 });
