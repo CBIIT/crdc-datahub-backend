@@ -155,12 +155,14 @@ class DataRecordService {
             const docCount = await getCount(this.dataRecordsCollection, submissionID);
             if (docCount === 0)  errorMessages.push(ERRORS.FAILED_VALIDATE_METADATA, ERRORS.NO_VALIDATION_METADATA);
             else {
+                // updated for task CRDCDH-3001, both cross-submission and metadata need to be validated in parallel in a special condition.
                 if (types.includes(VALIDATION.TYPES.CROSS_SUBMISSION)) {
                     const msg = Message.createMetadataMessage("Validate Cross-submission", submissionID, null, validationID);
                     const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.metadataQueueName, submissionID);
                     if (!success.success)
                         errorMessages.push(ERRORS.FAILED_VALIDATE_CROSS_SUBMISSION, success.message);
-                } else {
+                }
+                if (types.includes(VALIDATION.TYPES.METADATA)) {
                     const newDocCount = await getCount(this.dataRecordsCollection, submissionID, scope);
                     if (!(scope.toLowerCase() === VALIDATION.SCOPE.NEW && newDocCount === 0)) {
                         const msg = Message.createMetadataMessage("Validate Metadata", submissionID, scope, validationID);
