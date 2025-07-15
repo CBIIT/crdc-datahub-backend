@@ -99,14 +99,17 @@ class Application {
     }
 
     async getApplicationById(id) {
-        // Remove Prisma include for institution, just fetch by id
-        let result = await this.applicationDAO.findById(id);
+        let result = await this.applicationDAO.findFirst({id: id}, {
+            include: {
+                institution: true,
+            }
+        });
         if (!result) {
             throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
         }
-        // If institution is needed, fetch separately (example, not implemented):
-        if (result.institutionID) {
-            result.institution = await this.institionDAO.findById(result.institutionID);
+
+        if (result?.institution?.id && !result.institution._id) {
+            result.institution._id = result.institution.id;
         }
         return result;
     }
