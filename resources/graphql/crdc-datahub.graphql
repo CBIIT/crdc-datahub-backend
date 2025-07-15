@@ -409,6 +409,8 @@ type ErrorMessage {
     code: String
     title: String
     description: String
+    offendingProperty: String
+    offendingValue: String
 }
 
 type CrossValidationMessage {
