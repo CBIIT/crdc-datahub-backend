@@ -100,8 +100,8 @@ describe('tryConvertDate', () => {
             expect(result).toBeInstanceOf(Date);
             expect(result.getFullYear()).toBe(2023);
             expect(result.getMonth()).toBe(11); // December is 11 (0-indexed)
-            // Note: getDate() might be 24 or 25 depending on timezone
-            expect([24, 25]).toContain(result.getDate());
+            // Note: getUTCDate() ensures consistent results regardless of timezone
+            expect(result.getUTCDate()).toBe(25);
         });
 
         it('should convert ISO 8601 without milliseconds', () => {
