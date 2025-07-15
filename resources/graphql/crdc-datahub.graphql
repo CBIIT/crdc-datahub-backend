@@ -795,7 +795,7 @@ type Query {
         apiURL: String!,
         dataFolder: String = "/Users/my_name/my_files",
         manifest: String = "/Users/my_name/my_manifest.tsv",
-        archive_manifest: String = "/Users/my_name/my_archive_manifest.tsv"
+        archive_manifest: String
     ): String
 
     listInstitutions(

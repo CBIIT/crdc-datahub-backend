@@ -1030,7 +1030,7 @@ class Submission {
         const parameters = {submissionID: params.submissionID, apiURL: params.apiURL, 
             dataFolder: (params.dataFolder)?  params.dataFolder : "/Users/my_name/my_files",
             manifest: (params.manifest)? params.manifest: "/Users/my_name/my_manifest.tsv",
-            archive_manifest: (params.archive_manifest)? params.archive_manifest: "/Users/my_name/my_archive_manifest.tsv"
+            archive_manifest: (params.archive_manifest)? params.archive_manifest: ""
         }
         //get the uploader CLI config template as string
         var configString = this.uploaderCLIConfigs;
