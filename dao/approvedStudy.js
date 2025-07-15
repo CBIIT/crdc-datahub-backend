@@ -12,6 +12,7 @@ const CONTROLLED_ACCESS_CONTROLLED = "Controlled";
 const CONTROLLED_ACCESS_OPTIONS = [CONTROLLED_ACCESS_ALL, CONTROLLED_ACCESS_OPEN, CONTROLLED_ACCESS_CONTROLLED];
 
 class ApprovedStudyDAO extends GenericDAO  {
+    _ALL = "All";
     constructor(approvedStudiesCollection) {
         super(MODEL_NAME.APPROVED_STUDY);
         this.approvedStudiesCollection = approvedStudiesCollection;
