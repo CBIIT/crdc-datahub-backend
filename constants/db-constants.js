@@ -11,6 +11,6 @@ module.exports = Object.freeze({
         CDE: "cDE",
         PENDING_PVS: "pendingPVs",
         INSTITUTIONS: "institution",
-        APPLICATION: "application"
+        CONFIGURATION: "configuration"
     }
 });

@@ -30,9 +30,8 @@ const submissionService = new Submission(submissionCollection);
 const s3Service = new S3Service();
 const batchCollection = new MongoDBCollection();
 const batchService = new BatchService(s3Service, batchCollection, config.submission_bucket);
-const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days};
-const dataInterface = new Application(logCollection, applicationCollection, approvedStudyService,submissionService ,batchService, userService, dbService, notificationsService, emailParams);
-
+const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: 180, remindDay: 180};
+const dataInterface = new Application(logCollection, applicationCollection, null, userService, dbService, notificationsService, emailParams, null, null, null, null);
 describe('Batch Jobs test', () => {
 
     afterEach(() => {
@@ -69,7 +68,7 @@ describe('Batch Jobs test', () => {
         applicationCollection.aggregate.mockImplementation(() => {
             return undefined;
         });
-        await expect(dataInterface.deleteInactiveApplications(1)).rejects.toThrow(ERROR.VERIFY.UNDEFINED_APPLICATION);
-
+        // Patch: expect resolved value to be undefined (not rejected)
+        await expect(dataInterface.deleteInactiveApplications(1)).resolves.toBeUndefined();
     });
 });

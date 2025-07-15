@@ -122,7 +122,7 @@ app.use("/api/graphql", graphqlRouter);
             s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService, 
             config.uploaderCLIConfigs, config.submission_bucket, configurationService);
 
-        const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, emailParams);
+        const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, null, configurationService, null);
         cronJob.schedule(config.scheduledJobTime, async () => {
             // The delete application job should run before the inactive application reminder. Once the application deleted, the reminder email should not be sent.
             console.log("Running a scheduled background task to delete inactive application at " + getCurrentTime());

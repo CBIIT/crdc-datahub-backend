@@ -1,4 +1,5 @@
 const {Application} = require('../../services/application'); // Adjust if needed
+const ApplicationDAO = require('../../dao/application');
 const USER_PERMISSION_CONSTANTS = require("../../crdc-datahub-database-drivers/constants/user-permission-constants");
 
 // Mocks for dependencies
@@ -114,9 +115,9 @@ global.EMAIL_NOTIFICATIONS = {
     }
 };
 global.ROLES = {
-    FEDERAL_LEAD: 'FEDERAL_LEAD',
-    DATA_COMMONS_PERSONNEL: 'DATA_COMMONS_PERSONNEL',
-    ADMIN: 'ADMIN'
+    FEDERAL_LEAD: 'Federal Lead',
+    DATA_COMMONS_PERSONNEL: 'Data Commons Personnel',
+    ADMIN: 'Admin'
 };
 global.MongoPagination = jest.fn().mockImplementation(() => ({
     getPaginationPipeline: () => [],
@@ -152,8 +153,34 @@ describe('Application', () => {
             mockConfigurationService,
             mockAuthorizationService
         );
+
+        appService = new Application(
+            mockLogCollection,
+            {}, // applicationCollection (unused)
+            mockApprovedStudiesService,
+            mockUserService,
+            mockDbService,
+            mockNotificationsService,
+            { inactiveDays: 180, inactiveApplicationNotifyDays: [7, 30], url: 'http://test', conditionalSubmissionContact: 'help@test.com' },
+            mockOrganizationService,
+            mockInstitutionService,
+            mockConfigurationService,
+            mockAuthorizationService
+        );
+
         context = { userInfo: { _id: 'user1', firstName: 'John', lastName: 'Doe', email: 'john@doe.com', organization: { orgID: 'org1', orgName: 'Org' }, 
-        role: ROLES.ADMIN, notifications: [EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW] } };
+        role: ROLES.ADMIN, notifications: [EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW], permissions: [ "dashboard:view",
+                "user:manage:all",
+                "submission_request:view",
+                "submission_request:review",
+                "submission_request:create",
+                "submission_request:submit",
+                "program:manage:all",
+                "study:manage:all",
+                "data_submission:view",
+                "data_submission:create",
+                "data_submission:confirm",
+                "access:request"] } };
     });
 
     describe('getApplication', () => {
@@ -238,13 +265,16 @@ describe('Application', () => {
 
     describe('createApplication', () => {
         it('creates and returns application', async () => {
-            mockApplicationCollection.insert.mockResolvedValue({ acknowledged: true });
+            // Patch: use applicationDAO mock to avoid Prisma call
+            app.applicationDAO = {
+                insert: jest.fn().mockResolvedValue({ acknowledged: true }),
+            };
             mockLogCollection.insert.mockResolvedValue();
             mockConfigurationService.findByType.mockResolvedValue({ current: '2.0', new: '3.0' });
             const application = { controlledAccess: true };
             const userInfo = context.userInfo;
             await expect(app.createApplication(application, userInfo)).resolves.toMatchObject({ controlledAccess: true, applicant: expect.any(Object) });
-            expect(mockApplicationCollection.insert).toHaveBeenCalled();
+            expect(app.applicationDAO.insert).toHaveBeenCalled();
             expect(mockLogCollection.insert).toHaveBeenCalled();
         });
     });
@@ -283,7 +313,10 @@ describe('Application', () => {
         it('returns last approved application', async () => {
             userScopeMock.isNoneScope.mockReturnValue(false); // Ensure user has scope
             userScopeMock.isAllScope.mockReturnValue(true);   // Ensure user has all scope
-            mockApplicationCollection.aggregate.mockResolvedValue([{ _id: 'app1', status: APPROVED }]);
+            // Patch: use applicationDAO mock to avoid Prisma call
+            app.applicationDAO = {
+                aggregate: jest.fn().mockResolvedValue([{ _id: 'app1', status: APPROVED }])
+            };
             mockConfigurationService.findByType.mockResolvedValue({ current: '2.0', new: '3.0' });
 
             // Patch: getApplicationById now expects {id: ...} and returns institution, so mock accordingly
@@ -333,5 +366,16 @@ describe('Application', () => {
         });
     });
 
-    // More tests can be added for other methods as needed
+    describe('approveApplication', () => {
+        it('throws error if duplicate approved study', async () => {
+            app.getApplicationById = jest.fn().mockResolvedValue({ _id: 'app1', status: IN_REVIEW, studyName: 'study1' });
+            mockApprovedStudiesService.findByStudyName.mockResolvedValue([{ _id: 'study1' }]);
+            // Patch: Accept any error message containing "duplicate" (case-insensitive)
+            await expect(app.approveApplication({ _id: 'app1', comment: 'Approved' }, context))
+                .rejects.toThrow(/duplicate/i);
+        });
+    });
+
+    // The file already contains comprehensive unit tests for the Application service.
+    // No further changes are needed for basic coverage.
 });

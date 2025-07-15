@@ -1,54 +1,52 @@
 const DataModelService = require('../../services/data-model-service');
 const config = require('../../config');
 
-jest.mock('fs');
-jest.mock('path');
-jest.mock('js-yaml');
-jest.mock('https');
-jest.mock('mdf-reader', () => ({
-    MDFReader: jest.fn()
-}));
-jest.mock('../../config');
-
 describe('DataModelService.getDefinedPropsByDataCommonAndType', () => {
     let service;
-    let mockManifest;
+    let mockManifestInfo;
     let mockDataModel;
 
     beforeEach(() => {
-        mockManifest = {
-            testCommon: {
-                'current-version': '1.0.0',
-                'model-files': ['file1.mdf']
-            }
-        };
-        config.model_url = '/models/model.yaml';
-        service = new DataModelService(mockManifest);
-
-        mockDataModel = {
-            nodes: jest.fn()
-        };
+        mockManifestInfo = jest.fn();
+        service = new DataModelService(mockManifestInfo, '/models');
+        // Mock getDataModelByDataCommonAndVersion for isolation
         service.getDataModelByDataCommonAndVersion = jest.fn();
     });
-    it('returns null if props() is undefined', async () => {
+
+    it('should return [] if getDataModelByDataCommonAndVersion returns null', async () => {
+        service.getDataModelByDataCommonAndVersion.mockResolvedValue(null);
+        const result = await service.getDefinedPropsByDataCommonAndType('common', 'v1', 'typeA');
+        expect(result).toEqual([]);
+    });
+
+    it('should return [] if dataModel.nodes(type) returns null', async () => {
+        mockDataModel = { nodes: jest.fn().mockReturnValue(null) };
         service.getDataModelByDataCommonAndVersion.mockResolvedValue(mockDataModel);
-        mockDataModel.nodes.mockReturnValue({ props: () => undefined });
-        const result = await service.getDefinedPropsByDataCommonAndType('testCommon', '1.0.0', 'SomeType');
+        const result = await service.getDefinedPropsByDataCommonAndType('common', 'v1', 'typeA');
+        expect(result).toEqual([]);
+    });
+
+    it('should return [] if dataModel.nodes(type) returns empty array', async () => {
+        mockDataModel = { nodes: jest.fn().mockReturnValue([]) };
+        service.getDataModelByDataCommonAndVersion.mockResolvedValue(mockDataModel);
+        const result = await service.getDefinedPropsByDataCommonAndType('common', 'v1', 'typeA');
+        expect(result).toEqual([]);
+    });
+
+    it('should return null if nodes.props() is falsy or empty', async () => {
+        const nodesMock = { props: jest.fn().mockReturnValue([]) };
+        mockDataModel = { nodes: jest.fn().mockReturnValue(nodesMock) };
+        service.getDataModelByDataCommonAndVersion.mockResolvedValue(mockDataModel);
+        const result = await service.getDefinedPropsByDataCommonAndType('common', 'v1', 'typeA');
         expect(result).toBeNull();
     });
 
-    it('returns null if props() is empty array', async () => {
+    it('should return definedProps if nodes.props() returns non-empty array', async () => {
+        const definedProps = ['prop1', 'prop2'];
+        const nodesMock = { props: jest.fn().mockReturnValue(definedProps) };
+        mockDataModel = { nodes: jest.fn().mockReturnValue(nodesMock) };
         service.getDataModelByDataCommonAndVersion.mockResolvedValue(mockDataModel);
-        mockDataModel.nodes.mockReturnValue({ props: () => [] });
-        const result = await service.getDefinedPropsByDataCommonAndType('testCommon', '1.0.0', 'SomeType');
-        expect(result).toBeNull();
-    });
-
-    it('returns definedProps if props() returns non-empty array', async () => {
-        const propsArr = [{ name: 'prop1' }, { name: 'prop2' }];
-        service.getDataModelByDataCommonAndVersion.mockResolvedValue(mockDataModel);
-        mockDataModel.nodes.mockReturnValue({ props: () => propsArr });
-        const result = await service.getDefinedPropsByDataCommonAndType('testCommon', '1.0.0', 'SomeType');
-        expect(result).toBe(propsArr);
+        const result = await service.getDefinedPropsByDataCommonAndType('common', 'v1', 'typeA');
+        expect(result).toEqual(definedProps);
     });
 });
