@@ -16,7 +16,7 @@ Commands:
           { $set: { pendingModelChange: false } }
         );
   - create a collection called pendingPVs CRDCDH-2974: |
-        db.createCollection("pendingPVs");:
+        db.createCollection("pendingPvs");:
   - add the data_submission:pv_requested email notification to the data commons personnel CRDCDH-2930: |
         db.users.updateMany(
           {
