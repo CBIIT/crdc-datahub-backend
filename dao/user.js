@@ -8,7 +8,7 @@ class UserDAO extends GenericDAO {
         super(MODEL_NAME.USER);
         this.userCollection = userCollection;
     }
-    // TODO double check
+
     async updateUserOrg(orgID, updatedOrg) {
         await this.userCollection.updateMany(
             {"organization.orgID": orgID, "organization.orgName": {"$ne": updatedOrg.name}},
