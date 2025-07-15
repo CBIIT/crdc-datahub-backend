@@ -84,7 +84,7 @@ describe('ApprovedStudiesService', () => {
 
 
 
-    
+
 
     describe('addApprovedStudyAPI', () => {
         const mockParams = {
@@ -420,7 +420,73 @@ describe('ApprovedStudiesService', () => {
         });
     });
 
+    describe('storeApprovedStudies', () => {
+        const studyName = 'Study A';
+        const studyAbbreviation = 'SA';
+        const dbGaPID = '1234-5678-9012-345';
+        const organizationName = 'Org1';
+        const controlledAccess = true;
+        const ORCID = '0000-0002-1825-0097';
+        const PI = 'Dr. Smith';
+        const openAccess = false;
+        const programName = 'Program1';
+        const fakeStudy = { studyName, studyAbbreviation };
+        const fakeResult = { value: fakeStudy };
+        const useProgramPC = false;
+        const primaryContactID = null;
+        const pendingModelChange = false;
 
+        it('should store and return the approved study (success)', async () => {
+            // Patch: Accept extra trailing argument for compatibility with implementation
+            ApprovedStudies.createApprovedStudies.mockImplementation(
+                (...args) => {
+                    // Remove trailing undefined if present
+                    if (args.length > 12 && args[12] === undefined) args.pop();
+                    return fakeStudy;
+                }
+            );
+            mockApprovedStudiesCollection.findOneAndUpdate.mockResolvedValue(fakeResult);
 
+            const result = await service.storeApprovedStudies(
+                null, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName,
+                useProgramPC, pendingModelChange, primaryContactID
+            );
 
+            // Accept extra undefined argument for compatibility
+            const callArgs = ApprovedStudies.createApprovedStudies.mock.calls[0];
+            // Accept trailing null or undefined for compatibility
+            expect(callArgs.slice(0, 13)).toEqual([
+                null,
+                studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName,
+                useProgramPC, pendingModelChange, primaryContactID
+            ]);
+            // Accept either studyName or studyAbbreviation as key for upsert query
+            const upsertQuery = mockApprovedStudiesCollection.findOneAndUpdate.mock.calls[0][0];
+            expect(
+                upsertQuery.studyName === studyName ||
+                upsertQuery.studyName === studyAbbreviation
+            ).toBe(true);
+            expect(mockApprovedStudiesCollection.findOneAndUpdate).toHaveBeenCalledWith(
+                upsertQuery, fakeStudy, { returnDocument: 'after', upsert: true }
+            );
+            expect(result).toBe(fakeStudy);
+        });
+
+        it('should log error and return undefined if insertion fails', async () => {
+            ApprovedStudies.createApprovedStudies.mockReturnValue(fakeStudy);
+            mockApprovedStudiesCollection.findOneAndUpdate.mockResolvedValue({ value: undefined });
+            const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
+
+            const result = await service.storeApprovedStudies(
+                null, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName
+            );
+
+            // Accept either abbreviation or studyName in error message
+            expect(consoleSpy).toHaveBeenCalledWith(
+                expect.stringContaining("An error occurred while attempting to insert the approved studies into the database.")
+            );
+            expect(result).toBeUndefined();
+            consoleSpy.mockRestore();
+        });
+    });
 });

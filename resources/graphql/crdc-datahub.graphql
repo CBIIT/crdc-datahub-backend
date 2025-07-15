@@ -28,6 +28,8 @@ type Application {
     programDescription: String,
     version: String
     reviewComment: String
+    institutionID: String
+    institution: Institution
 }
 
 type Event {
@@ -50,7 +52,8 @@ input AppInput {
     openAccess: Boolean
     programAbbreviation: String
     programDescription: String,
-    version: String
+    version: String,
+    institutionID: String
 }
 
 type Applicant {

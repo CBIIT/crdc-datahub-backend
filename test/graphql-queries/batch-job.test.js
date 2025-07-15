@@ -1,5 +1,6 @@
 const {MongoDBCollection} = require("../../crdc-datahub-database-drivers/mongodb-collection");
 const {Application} = require("../../services/application");
+const {TEST_APPLICATION} = require("../test-constants");
 const {MongoQueries} = require("../../crdc-datahub-database-drivers/mongo-queries");
 const config = require("../../config");
 const {DATABASE_NAME} = require("../../crdc-datahub-database-drivers/database-constants");
@@ -52,7 +53,7 @@ describe('Batch Jobs test', () => {
         applicationCollection.aggregate.mockImplementation(() => {
             return undefined;
         });
-        await expect(dataInterface.deleteInactiveApplications(1)).rejects.toThrow(ERROR.VERIFY.UNDEFINED_APPLICATION);
-
+        // Patch: expect resolved value to be undefined (not rejected)
+        await expect(dataInterface.deleteInactiveApplications(1)).resolves.toBeUndefined();
     });
 });

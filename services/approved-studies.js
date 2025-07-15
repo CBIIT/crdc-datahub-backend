@@ -2,6 +2,7 @@ const {USER} = require("../crdc-datahub-database-drivers/constants/user-constant
 const ERROR = require("../constants/error-constants");
 const { verifySession } = require('../verifier/user-info-verifier');
 const {ApprovedStudies} = require("../crdc-datahub-database-drivers/domain/approved-studies");
+const ApprovedStudyDAO = require("../dao/approvedStudy");
 const {ADMIN, EMAIL_NOTIFICATIONS} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {
     NEW,
@@ -23,7 +24,6 @@ const {replaceErrorString} = require("../utility/string-util");
 const NA_PROGRAM = "NA";
 const NA = "NA";
 const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
-const ApprovedStudyDAO = require("../dao/approvedStudy");
 const ProgramDAO = require("../dao/program");
 const UserDAO = require("../dao/user");
 const SubmissionDAO = require("../dao/submission");
@@ -128,7 +128,6 @@ class ApprovedStudiesService {
      * @param {Filters} [filters] Filters to apply to the query
      * @returns {Promise<Object[]>} An array of ApprovedStudies
      */
-    // TODO
     async listApprovedStudies(studyIDs) {
         return await this.approvedStudyDAO.getApprovedStudiesInStudies(studyIDs);
     }
@@ -332,16 +331,20 @@ class ApprovedStudiesService {
 
     async _notifyClearPendingState(updateStudy) {
         const application = await this.applicationDAO.findFirst({id: updateStudy.pendingApplicationID});
-        const aSubmitter = await this.userDAO.findFirst({id: application?.applicant?.applicantID});
-        const BCCUsers = await this.userDAO.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_PENDING_CLEARED],
-            [USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.FEDERAL_LEAD, USER.ROLES.ADMIN]);
-        const filteredBCCUsers = BCCUsers.filter((u) => u?._id !== aSubmitter?._id);
-
         const errorMsg = replaceErrorString(ERROR.FAILED_TO_NOTIFY_CLEAR_PENDING_STATE, `studyID: ${updateStudy?._id}`);
-        if (!aSubmitter?._id || !application?._id) {
+        if (!application || !application?._id) {
             console.error(errorMsg);
             throw new Error(errorMsg);
         }
+
+        const aSubmitter = await this.userDAO.findFirst({id: application?.applicant?.applicantID});
+        if (!aSubmitter?._id) {
+            console.error(errorMsg);
+            throw new Error(errorMsg);
+        }
+        const BCCUsers = await this.userDAO.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_PENDING_CLEARED],
+            [USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.FEDERAL_LEAD, USER.ROLES.ADMIN]);
+        const filteredBCCUsers = BCCUsers.filter((u) => u?._id !== aSubmitter?._id);
 
         if (aSubmitter?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_PENDING_CLEARED)) {
             const res = await this.notificationsService.clearPendingModelState(aSubmitter?.email, getUserEmails(filteredBCCUsers), {

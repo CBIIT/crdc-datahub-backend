@@ -1,7 +1,7 @@
-
-const { MODEL_NAME, SORT} = require('../constants/db-constants');
 const {INSTITUTION} = require("../crdc-datahub-database-drivers/constants/organization-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
+
+const { MODEL_NAME} = require('../constants/db-constants');
 const GenericDAO = require("./generic");
 const {USER_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
