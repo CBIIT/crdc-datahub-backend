@@ -39,10 +39,8 @@ class ApprovedStudiesService {
         this.submissionDAO = new SubmissionDAO(submissionCollection);
         this.notificationsService = notificationsService;
         this.emailParams = emailParams;
-        this.approvedStudyDAO = new ApprovedStudyDAO();
+        this.approvedStudyDAO = new ApprovedStudyDAO(approvedStudiesCollection);
         this.applicationDAO = new ApplicationDAO();
-        this.userDAO = new UserDAO();
-        this.emailParams = emailParams;
     }
 
     async storeApprovedStudies(applicationID, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID) {

@@ -62,7 +62,7 @@ class Submission {
     constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService,
                 dataRecordService, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList,
                 hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs, 
-                submissionBucketName, configurationService, uploadingMonitor, dataCommonsBucketMap, authorizationService, pendingPVCollection) {
+                submissionBucketName, configurationService, uploadingMonitor, dataCommonsBucketMap, authorizationService) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -86,7 +86,7 @@ class Submission {
         this.uploadingMonitor = uploadingMonitor;
         this.dataCommonsBucketMap = dataCommonsBucketMap;
         this.authorizationService = authorizationService;
-        this.pendingPVDAO = new PendingPVDAO(pendingPVCollection);
+        this.pendingPVDAO = new PendingPVDAO();
         this.submissionDAO = new SubmissionDAO();
     }
 

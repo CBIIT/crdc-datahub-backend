@@ -1,9 +1,10 @@
 const prisma = require("../prisma");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
-const {v4} = require("uuid");
-class PendingPVDAO {
-    constructor(pendingPVCollection) {
-        this.pendingPVCollection = pendingPVCollection;
+const GenericDAO = require("./generic");
+const {MODEL_NAME} = require("../constants/db-constants");
+class PendingPVDAO extends GenericDAO {
+    constructor() {
+        super(MODEL_NAME.PENDING_PVS);
     }
     /**
      * Finds all pending PVs associated with a given submission ID.
@@ -19,11 +20,9 @@ class PendingPVDAO {
     async insertOne(submissionID, offendingProperty, value) {
         try {
             const newPendingPV = PendingPVData.createPendingPV(submissionID, offendingProperty, value);
-            // TODO switch to prisma
-            // const res = await prisma.pendingPVs.create({
-            //     data: newPendingPV,
-            // });
-            return await this.pendingPVCollection.insert(newPendingPV);
+            return await prisma.pendingPVs.create({
+                data: newPendingPV,
+            });
         } catch (error) {
             console.error(`Error inserting pending PV: ${submissionID}`, error);
         }
@@ -33,8 +32,6 @@ class PendingPVDAO {
 
 class PendingPVData {
     constructor(submissionID, offendingProperty, value) {
-        // TODO prisma does not need the UUID
-        this._id = v4();
         this.submissionID = submissionID;
         this.offendingProperty = offendingProperty;
         this.value = value;

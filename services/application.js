@@ -38,10 +38,8 @@ class Application {
     _CRDC_TEAM = "the CRDC team";
     constructor(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService, configurationService, authorizationService) {
         this.logCollection = logCollection;
-        this.applicationCollection = applicationCollection;
         this.approvedStudiesService = approvedStudiesService;
         this.userService = userService;
-        this.dbService = dbService;
         this.notificationService = notificationsService;
         this.emailParams = emailParams;
         this.organizationService = organizationService;
