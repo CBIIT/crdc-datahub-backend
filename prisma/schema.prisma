@@ -358,7 +358,7 @@ model PendingPVs {
   value             String
   createdAt         DateTime? @default(now()) @db.Date
   updatedAt         DateTime? @updatedAt @db.Date
-  @@map("pendingPVs")
+  @@map("pendingPvs")
 }
 
 model Institution {
