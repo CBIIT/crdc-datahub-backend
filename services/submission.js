@@ -1888,6 +1888,10 @@ class Submission {
             throw new Error(ERROR.EMPTY_NODE_REQUEST_PV);
         }
 
+        if (comment?.trim().length > 500) {
+            throw new Error(ERROR.COMMENT_LIMIT);
+        }
+
         if (property?.trim()?.length === 0) {
             throw new Error(ERROR.EMPTY_PROPERTY_REQUEST_PV);
         }
