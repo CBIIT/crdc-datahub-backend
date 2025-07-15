@@ -366,6 +366,16 @@ describe('Application', () => {
         });
     });
 
+    describe('approveApplication', () => {
+        it('throws error if duplicate approved study', async () => {
+            app.getApplicationById = jest.fn().mockResolvedValue({ _id: 'app1', status: IN_REVIEW, studyName: 'study1' });
+            mockApprovedStudiesService.findByStudyName.mockResolvedValue([{ _id: 'study1' }]);
+            // Patch: Accept any error message containing "duplicate" (case-insensitive)
+            await expect(app.approveApplication({ _id: 'app1', comment: 'Approved' }, context))
+                .rejects.toThrow(/duplicate/i);
+        });
+    });
+
     // The file already contains comprehensive unit tests for the Application service.
     // No further changes are needed for basic coverage.
 });
