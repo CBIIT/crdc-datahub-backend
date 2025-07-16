@@ -155,7 +155,8 @@ class DataRecordService {
             const docCount = await getCount(this.dataRecordsCollection, submissionID);
             if (docCount === 0)  errorMessages.push(ERRORS.FAILED_VALIDATE_METADATA, ERRORS.NO_VALIDATION_METADATA);
             else {
-                // updated for task CRDCDH-3001, both cross-submission and metadata need to be validated in parallel in a special condition.
+                // updated for task CRDCDH-3001, both cross-submission and metadata need to be validated in parallel in a condition
+                // if the user role is DATA_COMMONS_PERSONNEL, and the submission status is "Submitted", and aSubmission?.crossSubmissionStatus is "Error",
                 if (types.includes(VALIDATION.TYPES.CROSS_SUBMISSION)) {
                     const msg = Message.createMetadataMessage("Validate Cross-submission", submissionID, null, validationID);
                     const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.metadataQueueName, submissionID);
