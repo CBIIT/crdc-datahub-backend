@@ -53,11 +53,6 @@ function convertMongoFilterToPrismaFilter(mongoFilter) {
       let mappedValue = Array.isArray(value)
         ? value.map(v => tryConvertDate(v))
         : tryConvertDate(value);
-
-      // If $in/$nin, ensure array stays array (not converted to object by recursion)
-      if ((key === '$in' || key === '$nin') && Array.isArray(mappedValue)) {
-        // Ensure mappedValue is an array for $in/$nin
-      }
       prismaFilter[operatorMap[key]] = mappedValue;
     } else if (key === '$not' && typeof value === 'object') {
       prismaFilter['not'] = convertMongoFilterToPrismaFilter(value);
