@@ -456,7 +456,7 @@ class Application {
                 status: CANCELED,
                 updatedAt: history.dateTime,
                 version: aApplication.version,
-                history: [...(deletedApplicationDocument.history || []), history]
+                history: [...(aApplication?.history || []), history]
             });
         }
         if (updated) {
