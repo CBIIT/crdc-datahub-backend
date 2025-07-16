@@ -352,7 +352,7 @@ class Application {
         const historyEvent = HistoryEventBuilder.createEvent(context.userInfo._id, SUBMITTED, null);
         history.push(historyEvent)
         const aApplication = {
-            ...application,
+            _id: application._id,
             history: history,
             status: SUBMITTED,
             updatedAt: historyEvent.dateTime,
@@ -452,7 +452,7 @@ class Application {
             deleteApplication = true;
         } else{
             updated = await this.applicationDAO.update({
-                _id: deletedApplicationDocument._id,
+                _id: aApplication._id,
                 status: CANCELED,
                 updatedAt: history.dateTime,
                 version: aApplication.version,
@@ -660,13 +660,16 @@ class Application {
                     ?.map((u) => u?._id)
             );
             const history = HistoryEventBuilder.createEvent("", DELETED, this._DELETE_REVIEW_COMMENT);
-            const updated = await this.applicationDAO.updateMany(
-                inactiveCondition,
-                {   // Once the submission request is deleted, the reminder email should not be sent.
-                    $set: {status: DELETED, updatedAt: history.dateTime, inactiveReminder: true},
-                    $push: {history}
-                }
-            );
+            // Prisma does not support $set/$push like MongoDB. You need to update each application individually.
+            const updated = await Promise.all(applications.map(async (app) => {
+                return this.applicationDAO.update({
+                    _id: app._id,
+                    status: DELETED,
+                    updatedAt: history.dateTime,
+                    inactiveReminder: true,
+                    history: [...(app.history || []), history]
+                });
+            }));
             if (updated) {
                 console.log("Executed to delete application(s) because of no activities at " + getCurrentTime());
                 await Promise.all(applications.map(async (app) => {
