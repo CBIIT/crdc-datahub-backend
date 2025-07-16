@@ -122,12 +122,12 @@ class Application {
             // If Submitted status, change it to In Review
             const history = HistoryEventBuilder.createEvent(context.userInfo._id, IN_REVIEW, null);
             const updated = await this.applicationDAO.update({
-                ...application,
+                _id: application._id,
                 status: IN_REVIEW,
                 updatedAt: history.dateTime,
                 history: [...(application.history || []), history]
             });
-            if (updated?.modifiedCount && updated?.modifiedCount > 0) {
+            if (updated) {
                 const promises = [
                     await this.getApplicationById(params._id),
                     this.logCollection.insert(
@@ -359,7 +359,7 @@ class Application {
             submittedDate: historyEvent.dateTime
         };
         const updated = await this.applicationDAO.update(aApplication);
-        if (!updated?.modifiedCount || updated?.modifiedCount < 1) throw new Error(ERROR.UPDATE_FAILED);
+        if (!updated) throw new Error(ERROR.UPDATE_FAILED);
         const logEvent = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, SUBMITTED);
         await Promise.all([
             await this.logCollection.insert(logEvent),
@@ -388,14 +388,14 @@ class Application {
         if (application && application.status) {
             const reviewComment = this._getInProgressComment(application?.history);
             const history = HistoryEventBuilder.createEvent(context.userInfo._id, IN_PROGRESS, reviewComment);
-             const updated = await this.applicationDAO.update({
-                ...application,
+            const updated = await this.applicationDAO.update({
+                _id: application._id,
                 status: IN_PROGRESS,
                 updatedAt: history.dateTime,
                 version: application.version,
                 history: [...(application.history || []), history]
             });
-            if (updated?.modifiedCount && updated?.modifiedCount > 0) {
+            if (updated) {
                 const promises = [
                     await this.getApplicationById(document._id),
                     await this.logCollection.insert(UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, IN_PROGRESS))
@@ -452,14 +452,14 @@ class Application {
             deleteApplication = true;
         } else{
             updated = await this.applicationDAO.update({
-                ...deletedApplicationDocument,
+                _id: deletedApplicationDocument._id,
                 status: CANCELED,
                 updatedAt: history.dateTime,
                 version: aApplication.version,
                 history: [...(deletedApplicationDocument.history || []), history]
             });
         }
-        if ((updated?.modifiedCount && updated?.modifiedCount > 0) || (updated?.deletedCount && updated?.deletedCount > 0)) {
+        if (updated) {
             await this._sendCancelApplicationEmail(userInfo, aApplication);
         } else {
             console.error(ERROR.FAILED_DELETE_APPLICATION, `${document._id}`);
@@ -494,13 +494,13 @@ class Application {
         const prevStatus = aApplication?.history?.at(-2)?.status;
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, prevStatus, document?.comment);
         const updated = await this.applicationDAO.update({
-            ...aApplication,
+            _id: aApplication._id,
             status: prevStatus,
             updatedAt: history.dateTime,
             history: [...(aApplication.history || []), history]
         });
 
-        if (updated?.modifiedCount && updated?.modifiedCount > 0) {
+        if (updated) {
             await this._sendRestoreApplicationEmail(aApplication);
         } else {
             console.error(ERROR.FAILED_RESTORE_APPLICATION, `${aApplication._id}`);
@@ -526,7 +526,7 @@ class Application {
         const questionnaire = getApplicationQuestionnaire(application);
 
         const updated = await this.applicationDAO.update({
-            ...application,
+            _id: application._id,
             reviewComment: document.comment,
             wholeProgram: document.wholeProgram,
             status: APPROVED,
@@ -538,7 +538,7 @@ class Application {
         let promises = [];
         promises.push(this.institutionService.addNewInstitutions(document?.institutions));
         promises.push(this.sendEmailAfterApproveApplication(context, application, document?.comment, isDbGapMissing, isTrue(document?.pendingModelChange)));
-        if (updated?.modifiedCount && updated?.modifiedCount > 0) {
+        if (updated) {
             promises.unshift(this.getApplicationById(document._id));
             if(questionnaire) {
                 const approvedStudies = await this._saveApprovedStudies(application, questionnaire, document?.pendingModelChange);
@@ -582,7 +582,7 @@ class Application {
         application.version = await this._getApplicationVersionByStatus(application.status, application?.version);
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, REJECTED, document.comment);
         const updated = await this.applicationDAO.update({
-            ...application,
+            _id: application._id,
             reviewComment: document.comment,
             status: REJECTED,
             updatedAt: history.dateTime,
@@ -591,7 +591,7 @@ class Application {
         });
 
         await sendEmails.rejectApplication(this.notificationService, this.userService, this.emailParams, application, document.comment);
-        if (updated?.modifiedCount && updated?.modifiedCount > 0) {
+        if (updated) {
             const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, REJECTED);
             const promises = [
                 await this.getApplicationById(document._id),
@@ -615,7 +615,7 @@ class Application {
         application.version = await this._getApplicationVersionByStatus(application.status);
         const history = HistoryEventBuilder.createEvent(context.userInfo._id, INQUIRED, document.comment);
         const updated = await this.applicationDAO.update({
-            ...application,
+            _id: application._id,
             reviewComment: document.comment,
             status: INQUIRED,
             updatedAt: history.dateTime,
@@ -623,7 +623,7 @@ class Application {
             history: [...(application.history || []), history]
         });
         await sendEmails.inquireApplication(this.notificationService, this.userService, this.emailParams, application, document?.comment);
-        if (updated?.modifiedCount && updated?.modifiedCount > 0) {
+        if (updated) {
             const log = UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, INQUIRED);
             const promises = [
                 await this.getApplicationById(document._id),
@@ -667,7 +667,7 @@ class Application {
                     $push: {history}
                 }
             );
-            if (updated?.modifiedCount && updated?.modifiedCount > 0) {
+            if (updated) {
                 console.log("Executed to delete application(s) because of no activities at " + getCurrentTime());
                 await Promise.all(applications.map(async (app) => {
                     if (permittedUserIDs.has(app?.applicant?.applicantID)) {
@@ -695,7 +695,7 @@ class Application {
             // Disable all reminders to ensure no notifications are sent.
             const everyReminderDays = this._getEveryReminderQuery(this.emailParams.inactiveApplicationNotifyDays, true);
             const updatedReminder = await this.applicationDAO.updateMany(query, everyReminderDays);
-            if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
+            if (!updatedReminder?.count || updatedReminder?.count === 0) {
                 console.error("The email reminder flag intended to notify the inactive submission request (FINAL) is not being stored", `submissionIDs: ${applicationIDs.join(', ')}`);
             }
         }
@@ -751,7 +751,7 @@ class Application {
                     return acc;
                 }, {});
                 const updatedReminder = await this.applicationDAO.update({_id: applicationID, ...reminderFilter});
-                if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
+                if (!updatedReminder) {
                     console.error("The email reminder flag intended to notify the inactive submission request is not being stored", applicationID);
                 }
             }

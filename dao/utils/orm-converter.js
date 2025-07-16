@@ -11,7 +11,7 @@ const isoPattern = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])(T\d{2}:\d{2}
 function convertIdFields(obj) {
     if (Array.isArray(obj)) {
         return obj.map(convertIdFields);
-    } else if (obj instanceof Date) {
+    } else if (obj instanceof Date || Array.isArray(obj)) {
         return obj; // ✅ preserve Date object
     } else if (obj && typeof obj === 'object') {
         const newObj = {};
@@ -50,11 +50,20 @@ function convertMongoFilterToPrismaFilter(mongoFilter) {
 
     if (operatorMap[key]) {
       // Handle date conversion if value is ISO string
-      prismaFilter[operatorMap[key]] = Array.isArray(value)
+      let mappedValue = Array.isArray(value)
         ? value.map(v => tryConvertDate(v))
         : tryConvertDate(value);
+
+      // If $in/$nin, ensure array stays array (not converted to object by recursion)
+      if ((key === '$in' || key === '$nin') && Array.isArray(mappedValue)) {
+        prismaFilter[operatorMap[key]] = mappedValue;
+      } else {
+        prismaFilter[operatorMap[key]] = mappedValue;
+      }
     } else if (key === '$not' && typeof value === 'object') {
       prismaFilter['not'] = convertMongoFilterToPrismaFilter(value);
+    } else if ((key === 'in' || key === 'notIn') && Array.isArray(value)) {
+      prismaFilter[key] = value.map(v => tryConvertDate(v));
     } else {
       // Assume field name (e.g. createdAt: { $gt: ... })
       prismaFilter[key] = convertMongoFilterToPrismaFilter(value);
