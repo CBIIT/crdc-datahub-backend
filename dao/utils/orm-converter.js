@@ -11,7 +11,7 @@ const isoPattern = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])(T\d{2}:\d{2}
 function convertIdFields(obj) {
     if (Array.isArray(obj)) {
         return obj.map(convertIdFields);
-    } else if (obj instanceof Date || Array.isArray(obj)) {
+    } else if (obj instanceof Date) {
         return obj; // ✅ preserve Date object
     } else if (obj && typeof obj === 'object') {
         const newObj = {};
