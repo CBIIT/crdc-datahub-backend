@@ -56,10 +56,9 @@ function convertMongoFilterToPrismaFilter(mongoFilter) {
 
       // If $in/$nin, ensure array stays array (not converted to object by recursion)
       if ((key === '$in' || key === '$nin') && Array.isArray(mappedValue)) {
-        prismaFilter[operatorMap[key]] = mappedValue;
-      } else {
-        prismaFilter[operatorMap[key]] = mappedValue;
+        // Ensure mappedValue is an array for $in/$nin
       }
+      prismaFilter[operatorMap[key]] = mappedValue;
     } else if (key === '$not' && typeof value === 'object') {
       prismaFilter['not'] = convertMongoFilterToPrismaFilter(value);
     } else if ((key === 'in' || key === 'notIn') && Array.isArray(value)) {
