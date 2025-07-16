@@ -323,7 +323,7 @@ class Application {
 
         return {
             applications: applications,
-            total: results[1]?.length > 0 ? results[1][0]?.count : 0,
+            total: results[1]?.length,
             programs: results[2] || [],
             studies: results[3] || [],
             status: () => {
