@@ -81,6 +81,24 @@ describe('convertMongoFilterToPrismaFilter', () => {
         const expected = { name: { equals: 'test' }, age: { gt: 18 } };
         expect(convertMongoFilterToPrismaFilter(input)).toEqual(expected);
     });
+
+    it('should handle $in with single element array', () => {
+        const input = { _id: { $in: ['app1'] } };
+        const expected = { id: { in: ['app1'] } };
+        expect(convertMongoFilterToPrismaFilter(input)).toEqual(expected);
+    });
+
+    it('should handle $in with multiple element array', () => {
+        const input = { _id: { $in: ['app1', 'app2'] } };
+        const expected = { id: { in: ['app1', 'app2'] } };
+        expect(convertMongoFilterToPrismaFilter(input)).toEqual(expected);
+    });
+
+    it('should handle in with multiple element array', () => {
+        const input = { id: { in: ['app1', 'app2'] } };
+        const expected = { id: { in: ['app1', 'app2'] } };
+        expect(convertMongoFilterToPrismaFilter(input)).toEqual(expected);
+    });
 });
 
 describe('tryConvertDate', () => {

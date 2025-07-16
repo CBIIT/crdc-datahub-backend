@@ -29,6 +29,10 @@ class ApplicationDAO extends GenericDAO {
         if (!application._id && !application.id) {
             throw new Error('Application must have an _id or id');
         }
+        // remove institution object if it exists
+        if (application.institution) {
+            delete application.institution;
+        }
         // use super.update to call the update method from GenericDAO
         return await super.update(application._id, application);
     }

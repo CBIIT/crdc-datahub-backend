@@ -29,6 +29,7 @@ class GenericDAO {
     }
 
     async findFirst(where, option = {}) {
+        where = convertMongoFilterToPrismaFilter(where);
         const result = await this.model.findFirst({
             where,
             ...option

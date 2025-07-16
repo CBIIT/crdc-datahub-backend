@@ -50,11 +50,14 @@ function convertMongoFilterToPrismaFilter(mongoFilter) {
 
     if (operatorMap[key]) {
       // Handle date conversion if value is ISO string
-      prismaFilter[operatorMap[key]] = Array.isArray(value)
+      let mappedValue = Array.isArray(value)
         ? value.map(v => tryConvertDate(v))
         : tryConvertDate(value);
+      prismaFilter[operatorMap[key]] = mappedValue;
     } else if (key === '$not' && typeof value === 'object') {
       prismaFilter['not'] = convertMongoFilterToPrismaFilter(value);
+    } else if ((key === 'in' || key === 'notIn') && Array.isArray(value)) {
+      prismaFilter[key] = value.map(v => tryConvertDate(v));
     } else {
       // Assume field name (e.g. createdAt: { $gt: ... })
       prismaFilter[key] = convertMongoFilterToPrismaFilter(value);
