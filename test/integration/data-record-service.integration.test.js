@@ -138,6 +138,94 @@ describe('DataRecordService Integration Tests', () => {
       expect(stat.warning).toBe(0);
       expect(stat.total).toBe(7);
     });
+
+    test('should handle only orphaned files (no data files)', () => {
+      const submissionStats = { stats: [] };
+      const validatedOrphanedFiles = ['file1.txt', 'file2.txt'];
+      const nonValidatedOrphanedFiles = ['file3.txt'];
+      const fileNotFoundErrors = ['file4.txt'];
+      const dataFiles = [];
+
+      dataRecordService._saveDataFileStats(submissionStats, validatedOrphanedFiles, nonValidatedOrphanedFiles, fileNotFoundErrors, dataFiles);
+
+      expect(submissionStats.stats).toHaveLength(1);
+      const stat = submissionStats.stats[0];
+      
+      // Only orphaned files count
+      expect(stat.new).toBe(1); // nonValidatedOrphanedFiles
+      expect(stat.error).toBe(3); // validatedOrphanedFiles + fileNotFoundErrors
+      expect(stat.passed).toBe(0);
+      expect(stat.warning).toBe(0);
+      expect(stat.total).toBe(4);
+    });
+
+    test('should handle only data files (no orphaned files)', () => {
+      const submissionStats = { stats: [] };
+      const validatedOrphanedFiles = [];
+      const nonValidatedOrphanedFiles = [];
+      const fileNotFoundErrors = [];
+      const dataFiles = [
+        { status: VALIDATION_STATUS.NEW },
+        { status: VALIDATION_STATUS.PASSED },
+        { status: VALIDATION_STATUS.WARNING },
+        { status: VALIDATION_STATUS.ERROR }
+      ];
+
+      dataRecordService._saveDataFileStats(submissionStats, validatedOrphanedFiles, nonValidatedOrphanedFiles, fileNotFoundErrors, dataFiles);
+
+      expect(submissionStats.stats).toHaveLength(1);
+      const stat = submissionStats.stats[0];
+      
+      // Only data files count
+      expect(stat.new).toBe(1);
+      expect(stat.error).toBe(1);
+      expect(stat.passed).toBe(1);
+      expect(stat.warning).toBe(1);
+      expect(stat.total).toBe(4);
+    });
+
+    test('should handle data files with unknown status', () => {
+      const submissionStats = { stats: [] };
+      const validatedOrphanedFiles = [];
+      const nonValidatedOrphanedFiles = [];
+      const fileNotFoundErrors = [];
+      const dataFiles = [
+        { status: 'UNKNOWN_STATUS' },
+        { status: VALIDATION_STATUS.PASSED }
+      ];
+
+      dataRecordService._saveDataFileStats(submissionStats, validatedOrphanedFiles, nonValidatedOrphanedFiles, fileNotFoundErrors, dataFiles);
+
+      expect(submissionStats.stats).toHaveLength(1);
+      const stat = submissionStats.stats[0];
+      
+      // Unknown status should not be counted in any category
+      expect(stat.new).toBe(0);
+      expect(stat.error).toBe(0);
+      expect(stat.passed).toBe(1);
+      expect(stat.warning).toBe(0);
+      expect(stat.total).toBe(1);
+    });
+
+    test('should handle empty data files array', () => {
+      const submissionStats = { stats: [] };
+      const validatedOrphanedFiles = ['file1.txt'];
+      const nonValidatedOrphanedFiles = ['file2.txt'];
+      const fileNotFoundErrors = ['file3.txt'];
+
+      // Test with empty dataFiles array
+      dataRecordService._saveDataFileStats(submissionStats, validatedOrphanedFiles, nonValidatedOrphanedFiles, fileNotFoundErrors, []);
+
+      expect(submissionStats.stats).toHaveLength(1);
+      const stat = submissionStats.stats[0];
+      
+      // Should only count orphaned files
+      expect(stat.new).toBe(1);
+      expect(stat.error).toBe(2);
+      expect(stat.passed).toBe(0);
+      expect(stat.warning).toBe(0);
+      expect(stat.total).toBe(3);
+    });
   });
 
   describe('exportMetadata Integration', () => {
@@ -190,6 +278,68 @@ describe('DataRecordService Integration Tests', () => {
       expect(message.type).toBe('Export Metadata');
       expect(message.submissionID).toBe('submission-456');
       expect(message.validationID).toBeUndefined(); // No validationID for export
+    });
+
+    test('should handle empty submission ID', async () => {
+      mockAwsService.sendSQSMessage.mockResolvedValue({ success: true });
+
+      const result = await dataRecordService.exportMetadata('');
+
+      // Should still attempt to send message
+      expect(mockAwsService.sendSQSMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'Export Metadata',
+          submissionID: ''
+        }),
+        '',
+        '',
+        'export-queue'
+      );
+
+      expect(result.success).toBe(true);
+    });
+
+    test('should handle null submission ID', async () => {
+      mockAwsService.sendSQSMessage.mockResolvedValue({ success: true });
+
+      const result = await dataRecordService.exportMetadata(null);
+
+      // Should still attempt to send message
+      expect(mockAwsService.sendSQSMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'Export Metadata',
+          submissionID: null
+        }),
+        null,
+        null,
+        'export-queue'
+      );
+
+      expect(result.success).toBe(true);
+    });
+
+    test('should handle SQS timeout error', async () => {
+      // Mock timeout error
+      const timeoutError = new Error('SQS timeout');
+      timeoutError.name = 'TimeoutError';
+      mockAwsService.sendSQSMessage.mockRejectedValue(timeoutError);
+
+      const result = await dataRecordService.exportMetadata('submission-123');
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('export-queue');
+    });
+
+    test('should handle SQS permission error', async () => {
+      // Mock permission error
+      const permissionError = new Error('Access denied');
+      permissionError.name = 'AccessDenied';
+      mockAwsService.sendSQSMessage.mockRejectedValue(permissionError);
+
+      const result = await dataRecordService.exportMetadata('submission-123');
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('export-queue');
     });
   });
 

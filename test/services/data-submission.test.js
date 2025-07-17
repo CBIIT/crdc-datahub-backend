@@ -31,7 +31,15 @@ describe('Submission.getPendingPVs', () => {
             null, null, null, null,
             null, null, [], [],    // dataCommonsList, hiddenDataCommonsList
             null, null, null, null,
-            'bucket', null, null, {} // submissionBucketName, configService, monitor, bucketMap, authService
+            'bucket', null, null, {}, null, // submissionBucketName, configService, monitor, bucketMap, authService, dataModelService
+            {
+                getDataModelByDataCommonAndVersion: jest.fn().mockResolvedValue({
+                    terms_: {
+                        age: 'Age',
+                        Age: 'Age'
+                    }
+                })
+            }
         );
 
         // Mock dependencies

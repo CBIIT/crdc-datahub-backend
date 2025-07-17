@@ -158,10 +158,6 @@ describe('DataRecordService', () => {
   });
 
   describe('_saveDataFileStats', () => {
-    test.skip('should create and add stats when there are files', () => {
-      // Skipped: relies on static method mock that cannot be replaced without code changes
-    });
-
     test('should not add stats when total is 0', () => {
       // This test does not rely on static method mocks
       const mockStat = {
@@ -378,11 +374,7 @@ describe('DataRecordService', () => {
     });
   });
 
-  describe('exportMetadata', () => {
-    test.skip('should export metadata successfully', async () => {
-      // Skipped: relies on static method mock that cannot be replaced without code changes
-    });
-  });
+
 
   describe('_getNode', () => {
     test('should return node when found', async () => {
