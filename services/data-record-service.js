@@ -747,7 +747,7 @@ class DataRecordService {
         if (!sampleNodes || sampleNodes.length === 0) throw new Error(ERRORS.SAMPLE_NOT_FOUND);
         let subjectSampleMapArr = sampleNodes.map((sampleNode) => {
             const subject = sampleNode.parents.find(p=>p.parentType === "participant");
-            const subjectID = subject? subject?.parentIDValue : "";
+            const subjectID = subject.props?.dbGaP_subject_id? subject.props.dbGaP_subject_id : subject.nodeID;
             const sampleID = sampleNode.nodeID;
             return subjectID ? { [DATA_SHEET.SUBJECT_ID]: subjectID, [DATA_SHEET.SAMPLE_ID]: sampleID } : null;
         });
