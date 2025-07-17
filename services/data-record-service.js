@@ -109,6 +109,8 @@ class DataRecordService {
     }
 
     _dataFilesStats(s3SubmissionFiles, fileRecords) {
+        s3SubmissionFiles = Array.isArray(s3SubmissionFiles) ? s3SubmissionFiles : [];
+        fileRecords = Array.isArray(fileRecords) ? fileRecords : [];
         const s3FileSet = new Set(s3SubmissionFiles);
         const fileDataRecordsMap = new Map(fileRecords.map(file => [file?.s3FileInfo?.fileName, file?.s3FileInfo]));
         const [orphanedFiles, missingErrorFileSet, dataFiles] = [[], new Set(), []];
@@ -496,6 +498,7 @@ class DataRecordService {
             return aNodes[0];
     }
     _convertParents(parents){
+        parents = Array.isArray(parents) ? parents : [];
         let convertedParents = [];
         let parentTypes = new Set();
         for (let parent of parents){
@@ -665,6 +668,7 @@ class DataRecordService {
     }
 
     _replaceNaN(results, replacement){
+        if (!Array.isArray(results)) return results;
         results?.map((result) => {
             Object.keys(result).forEach((key) => {
                 if (Object.is(result[key], Number.NaN)){
