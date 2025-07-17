@@ -234,6 +234,8 @@ const ERROR = {
     MAINTENANCE_MODE: "The CRDC Submission Portal site is currently undergoing scheduled maintenance. Please check back soon. We appreciate your patience.",
     PARTICIPANT_NOT_FOUND: "The specified participant was not found.",
     SAMPLE_NOT_FOUND: "The specified sample was not found.",
+    PARTICIPANT_SAMPLE_NOT_FOUND: "The specified participant-sample mapping was not found.",
+    FAILED_CREATE_LOAD_SHEET: "An error occurred while creating the load sheet.",
 }
 
 module.exports = ERROR;
