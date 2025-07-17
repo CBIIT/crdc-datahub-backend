@@ -717,9 +717,9 @@ class Submission {
         if (isNotPermitted) {
             throw new Error(ERROR.INVALID_VALIDATE_METADATA)
         }
-        // if the user role is DATA_COMMONS_PERSONNEL, and the submission status is "Submitted", and aSubmission?.crossSubmissionStatus is "Error", 
+        // if the user has review permission, and the submission status is "Submitted", and aSubmission?.crossSubmissionStatus is "Error", 
         // and params.types not contains CROSS_SUBMISSION, add CROSS_SUBMISSION. User story CRDCDH-2830
-        if (userInfo?.role === ROLES.DATA_COMMONS_PERSONNEL && aSubmission?.status === SUBMITTED && 
+        if (reviewScope && !reviewScope.isNoneScope() && aSubmission?.status === SUBMITTED &&
             aSubmission?.crossSubmissionStatus === VALIDATION_STATUS.ERROR && params?.types &&
             !params?.types?.includes(VALIDATION.TYPES.CROSS_SUBMISSION)) {
 
