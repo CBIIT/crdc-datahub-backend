@@ -106,7 +106,6 @@ const ERROR = {
     EMPTY_NODE_REQUEST_PV: "node name can not be empty when requesting PV.",
     EMPTY_PROPERTY_REQUEST_PV: "property can not be empty when requesting PV.",
     EMPTY_PV_REQUEST_PV: "permission value(PV) can not be empty when requesting PV.",
-    INVALID_PV_OFFENDING_PROPERTY: "$item$ offending property does not exist in the data model. Please,check the property name and try again.",
     NO_RECIPIENT_PV_REQUEST: "No Data Commons personnel found or no PBAC PV request notification is enabled. The PV request email cannot be sent.",
     INVALID_MODEL_VERSION_PERMISSION: "You do not have the correct permissions to update the model-version",
     FAILED_UPDATE_MODEL_VERSION: "Failed to update the model-version for the submission.",
