@@ -87,7 +87,7 @@ class Submission {
         this.dataCommonsBucketMap = dataCommonsBucketMap;
         this.authorizationService = authorizationService;
         this.pendingPVDAO = new PendingPVDAO();
-        this.submissionDAO = new SubmissionDAO();
+        this.submissionDAO = new SubmissionDAO(this.submissionCollection);
     }
 
     async createSubmission(params, context) {
@@ -385,7 +385,7 @@ class Submission {
         verifySession(context)
             .verifyInitialized();
 
-        let aSubmission = await findByID(this.submissionCollection, params._id);
+        let aSubmission = await this._findByID(params._id);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
@@ -2012,6 +2012,24 @@ class Submission {
                 }
             }
         }
+    }
+
+    async _findByID(id) {
+        return await this.submissionDAO.findFirst({id: id}, {
+            include: {
+                organization: true,
+                // program: {
+                //     orderBy: { name: 'desc' },
+                //     take: 1,
+                //     select: {
+                //         id: true,
+                //         name: true,
+                //         abbreviation: true,
+                //     }
+                // },
+                study: true
+            }
+        });
     }
 }
 

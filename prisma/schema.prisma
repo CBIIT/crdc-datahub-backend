@@ -99,11 +99,16 @@ type InstitutionInfo {
 }
 
 type Collaborator {
-  Organization     OrgInfo?
+  Organization     CollaboratorOrg?
   collaboratorID   String
   collaboratorName String?
   /// Multiple data types found: String: 97.4%, Array(String): 2.6% out of 38 sampled entries
   permission       Json
+}
+
+type CollaboratorOrg {
+    id        String    @map("orgID")
+    orgName      String?
 }
 
 type DataFileSize {
@@ -198,7 +203,7 @@ model ApprovedStudy {
   createdAt         DateTime @default(now()) @db.Date
   updatedAt         DateTime @updatedAt @db.Date
   pendingApplicationID String?
-
+  submission Submission[]
   Concierge User? @relation(fields: [primaryContactID], references: [id])
 
   @@map("approvedStudies")
@@ -408,6 +413,7 @@ model Program {
   createdAt      DateTime    @default(now()) @db.Date
   updateAt       DateTime    @updatedAt @db.Date // this is a typo, but it's been like this for a while
 
+  submission Submission[]
   Concierge User? @relation(fields: [conciergeID], references: [id])
 
   @@map("organization")
@@ -491,7 +497,7 @@ model Submission {
   modelVersion             String
   name                     String
   nodeCount                Int?
-  organization             OrgInfo
+  //organization             OrgInfo
   /// Could not determine type: the field only had null or empty values in the sample set.
   reviewComment            String?
   rootPath                 String
@@ -507,12 +513,13 @@ model Submission {
   validationType           String[]
   createdAt                DateTime       @default(now()) @db.Date
   updatedAt                DateTime       @updatedAt @db.Date
-
+  organizationID String?
+  organization         Program? @relation(fields: [organizationID], references: [id])
+  study         ApprovedStudy? @relation(fields: [studyID], references: [id])
   batches     Batch[]
   dataRecords DataRecord[]
   qcResults   QcResult[]
   validations Validation[]
-
   @@map("submissions")
 }
 
