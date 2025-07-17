@@ -107,18 +107,19 @@ dbConnector.connect().then(async () => {
         inactiveApplicationNotifyDays: config.inactiveApplicationNotifyDays};
         
     const uploadingMonitor = UploadingMonitor.getInstance(batchCollection, configurationService);
+
+    const cdeService = new CDE();
+    const dataModelService = new DataModelService(fetchDataModelInfo, config.model_url);
     const submissionService = new Submission(logCollection, submissionCollection, batchService, userService,
         organizationService, notificationsService, dataRecordService, fetchDataModelInfo, awsService, config.export_queue,
         s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService, config.uploaderCLIConfigs,
-        config.submission_bucket, configurationService, uploadingMonitor, config.dataCommonsBucketMap, authorizationService);
+        config.submission_bucket, configurationService, uploadingMonitor, config.dataCommonsBucketMap, authorizationService, dataModelService);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService, configurationService, authorizationService);
 
     const dashboardService = new DashboardService(userService, awsService, configurationService, {sessionTimeout: config.dashboardSessionTimeout}, authorizationService);
     userInitializationService = new UserInitializationService(userCollection, organizationCollection, approvedStudiesCollection, configurationService);
     authenticationService = new AuthenticationService(userCollection);
-    
-    const cdeService = new CDE();
-    const dataModelService = new DataModelService(fetchDataModelInfo, config.model_url);
+
     const releaseService = new Release(releaseCollection, authorizationService, dataModelService);
     root = {
         version: () => {return config.version},
@@ -245,7 +246,7 @@ dbConnector.connect().then(async () => {
         listReleasedDataRecords: releaseService.listReleasedDataRecords.bind(releaseService),
         retrievePropsForNodeType: releaseService.getPropsForNodeType.bind(releaseService),
         requestPV: async (params, context)=> {
-            const fieldsToSanitize = ['comment', 'node', 'property', 'value', 'CDEId'];
+            const fieldsToSanitize = ['comment', 'nodeName', 'property', 'value'];
             const sanitized = Object.fromEntries(
                 fieldsToSanitize.map(field => [field, sanitizeHtml(params?.[field], { allowedTags: [], allowedAttributes: {} })])
             );
