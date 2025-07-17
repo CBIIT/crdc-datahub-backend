@@ -117,7 +117,7 @@ describe('Submission.getPendingPVs', () => {
             { email: 'dc1@example.com', role: 'Data Commons Personnel' },
             { email: 'admin@example.com', role: 'ADMIN' }
         ]);
-
+        service.pendingPVDAO.findBySubmissionID.mockResolvedValue([]);
         service.pendingPVDAO.insertOne.mockResolvedValue(true);
         service.notificationService.requestPVNotification.mockResolvedValue({ accepted: ['dc1@example.com'] });
 
@@ -126,10 +126,14 @@ describe('Submission.getPendingPVs', () => {
         const result = await service.requestPV({
             submissionID: 'sub1',
             property: 'age',
-            value: 'unknown'
+            value: 'unknown',
+            nodeName: 'Person',
+            comment: 'Test comment'
         }, context);
 
         expect(result.success).toBe(true);
+        expect(service.pendingPVDAO.insertOne).toHaveBeenCalledWith('sub1', 'age', 'unknown');
+        expect(service.notificationService.requestPVNotification).toHaveBeenCalled();
     });
 
     it('throws if property is empty', async () => {
