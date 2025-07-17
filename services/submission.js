@@ -1907,7 +1907,7 @@ class Submission {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
 
-        const [isNotPermitted, { DCEmails, nonDCEmails }, termProperty, pendingPVs] = await Promise.all([
+        const [isNotPermitted, { DCEmails, nonDCEmails }, cdeID, pendingPVs] = await Promise.all([
             (async () => {
                 const createScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, aSubmission);
                 return !this._isCollaborator(context?.userInfo, aSubmission) && createScope.isNoneScope();
@@ -1927,7 +1927,8 @@ class Submission {
             })(),
             (async () => {
                 const modelInfo = await this.dataModelService.getDataModelByDataCommonAndVersion(aSubmission?.dataCommons, aSubmission?.modelVersion);
-                return modelInfo?.terms_[property?.charAt(0).toUpperCase() + property?.slice(1).toLowerCase()] || modelInfo?.terms_[property]
+                const termPropertyArr = modelInfo.props_?.[property]?.terms();
+                return termPropertyArr?.length > 0 ? termPropertyArr[0]?.origin_id?.trim() : null;
             })(),
             this.pendingPVDAO.findBySubmissionID(submissionID),
         ]);
@@ -1959,7 +1960,7 @@ class Submission {
             nodeName: nodeName,
             studyAbbreviation: aSubmission?.studyAbbreviation,
             submissionID: aSubmission?._id,
-            CDEId: termProperty?.origin_id?.trim() || "NA",
+            CDEId: cdeID || "NA",
             property : property?.trim(),
             value : value?.trim(),
             comment: comment?.trim()

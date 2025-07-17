@@ -109,19 +109,35 @@ describe('Submission.getPendingPVs', () => {
             { email: 'dc1@example.com', role: 'Data Commons Personnel' },
             { email: 'admin@example.com', role: 'ADMIN' }
         ]);
-
+        service.pendingPVDAO.findBySubmissionID.mockResolvedValue([]);
         service.pendingPVDAO.insertOne.mockResolvedValue(true);
         service.notificationService.requestPVNotification.mockResolvedValue({ accepted: ['dc1@example.com'] });
+
+        // Patch: If dataModelService is undefined, define it on the service instance
+        if (!service.dataModelService) {
+            service.dataModelService = {};
+        }
+        service.dataModelService.getDataModelByDataCommonAndVersion = jest.fn().mockResolvedValue({
+            props_: {
+                age: {
+                    terms: () => [{ origin_id: 'CDE-123' }]
+                }
+            }
+        });
 
         jest.spyOn(ValidationHandler, 'success').mockReturnValue(new ValidationHandler(true));
 
         const result = await service.requestPV({
             submissionID: 'sub1',
             property: 'age',
-            value: 'unknown'
+            value: 'unknown',
+            nodeName: 'Person',
+            comment: 'Test comment'
         }, context);
 
         expect(result.success).toBe(true);
+        expect(service.pendingPVDAO.insertOne).toHaveBeenCalledWith('sub1', 'age', 'unknown');
+        expect(service.notificationService.requestPVNotification).toHaveBeenCalled();
     });
 
     it('throws if property is empty', async () => {
@@ -143,7 +159,17 @@ describe('Submission.getPendingPVs', () => {
     it('throws if user is not permitted', async () => {
         service._getUserScope.mockResolvedValue({ isNoneScope: () => true });
         service._isCollaborator.mockReturnValue(false);
-
+        // Patch: If dataModelService is undefined, define it on the service instance
+        if (!service.dataModelService) {
+            service.dataModelService = {};
+        }
+        service.dataModelService.getDataModelByDataCommonAndVersion = jest.fn().mockResolvedValue({
+            props_: {
+                age: {
+                    terms: () => [{ origin_id: 'CDE-123' }]
+                }
+            }
+        });
         await expect(service.requestPV({
             submissionID: 'sub1',
             property: 'age',
@@ -160,6 +186,17 @@ describe('Submission.getPendingPVs', () => {
 
         jest.spyOn(ValidationHandler, 'handle').mockReturnValue(new ValidationHandler(false, 'NO_RECIPIENT_PV_REQUEST'));
 
+        // Patch: If dataModelService is undefined, define it on the service instance
+        if (!service.dataModelService) {
+            service.dataModelService = {};
+        }
+        service.dataModelService.getDataModelByDataCommonAndVersion = jest.fn().mockResolvedValue({
+            props_: {
+                age: {
+                    terms: () => [{ origin_id: 'CDE-123' }]
+                }
+            }
+        });
         const result = await service.requestPV({
             submissionID: 'sub1',
             property: 'age',
@@ -178,7 +215,17 @@ describe('Submission.getPendingPVs', () => {
             { email: 'admin@example.com', role: 'ADMIN' }
         ]);
         service.pendingPVDAO.insertOne.mockResolvedValue(null);
-
+        // Patch: If dataModelService is undefined, define it on the service instance
+        if (!service.dataModelService) {
+            service.dataModelService = {};
+        }
+        service.dataModelService.getDataModelByDataCommonAndVersion = jest.fn().mockResolvedValue({
+            props_: {
+                age: {
+                    terms: () => [{ origin_id: 'CDE-123' }]
+                }
+            }
+        });
         await expect(service.requestPV({
             submissionID: 'sub1',
             property: 'age',
@@ -194,7 +241,17 @@ describe('Submission.getPendingPVs', () => {
         ]);
         service.pendingPVDAO.insertOne.mockResolvedValue(true);
         service.notificationService.requestPVNotification.mockResolvedValue({ accepted: [] });
-
+        // Patch: If dataModelService is undefined, define it on the service instance
+        if (!service.dataModelService) {
+            service.dataModelService = {};
+        }
+        service.dataModelService.getDataModelByDataCommonAndVersion = jest.fn().mockResolvedValue({
+            props_: {
+                age: {
+                    terms: () => [{ origin_id: 'CDE-123' }]
+                }
+            }
+        });
         jest.spyOn(ValidationHandler, 'handle').mockReturnValue(new ValidationHandler(false, 'FAILED_TO_REQUEST_PV'));
 
         const result = await service.requestPV({
