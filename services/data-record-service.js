@@ -1028,5 +1028,8 @@ class SubmissionStats {
 
 module.exports = {
     DataRecordService, 
-    NODE_RELATION_TYPES
+    NODE_RELATION_TYPES,
+    Message,
+    Stat,
+    SubmissionStats
 };
