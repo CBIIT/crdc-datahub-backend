@@ -12,7 +12,8 @@ jest.mock('../../prisma', () => ({
 
 jest.mock('../../dao/utils/orm-converter', () => ({
     convertIdFields: jest.fn((x) => x),
-    convertMongoFilterToPrismaFilter: jest.fn((x) => x)
+    convertMongoFilterToPrismaFilter: jest.fn((x) => x),
+    handleDotNotation: jest.fn((x) => x)
 }));
 
 describe('ApplicationDAO', () => {
