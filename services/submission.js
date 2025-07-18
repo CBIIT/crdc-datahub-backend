@@ -118,6 +118,11 @@ class Submission {
         if (approvedStudies.length === 0) {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
         }
+
+        if (!program) {
+            throw new Error(ERROR.CREATE_SUBMISSION_NO_ASSOCIATED_PROGRAM);
+        }
+
         let approvedStudy = approvedStudies[0];
         if (approvedStudy.controlledAccess && !approvedStudy?.dbGaPID) {
             throw new Error(ERROR.MISSING_CREATE_SUBMISSION_DBGAPID);
