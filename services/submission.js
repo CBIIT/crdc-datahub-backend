@@ -724,10 +724,18 @@ class Submission {
         if (isNotPermitted) {
             throw new Error(ERROR.INVALID_VALIDATE_METADATA)
         }
+        // if the user has review permission, and the submission status is "Submitted", and aSubmission?.crossSubmissionStatus is "Error", 
+        // and params.types not contains CROSS_SUBMISSION, add CROSS_SUBMISSION. User story CRDCDH-2830
+        if (reviewScope && !reviewScope.isNoneScope() && aSubmission?.status === SUBMITTED &&
+            aSubmission?.crossSubmissionStatus === VALIDATION_STATUS.ERROR && params?.types &&
+            !params?.types?.includes(VALIDATION.TYPES.CROSS_SUBMISSION)) {
+
+            params.types.push(VALIDATION.TYPES.CROSS_SUBMISSION);
+        }
         // start validation, change validating status
         const [prevMetadataValidationStatus, prevFileValidationStatus, prevCrossSubmissionStatus, prevTime] =
             [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus, aSubmission?.crossSubmissionStatus, aSubmission?.updatedAt];
-
+   
         await this._updateValidationStatus(params?.types, aSubmission, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING, getCurrentTime());
         const validationRecord = ValidationRecord.createValidation(aSubmission?._id, params?.types, params?.scope, VALIDATION_STATUS.VALIDATING);
         const res = await this.validationCollection.insert(validationRecord);
