@@ -70,6 +70,7 @@ const ERROR = {
     UPDATE_SUBMISSION_ERROR:"An error occurred while attempting to update the submission in the database",
     CREATE_SUBMISSION_INVALID_DATA_COMMONS: "Requested data commons $item$ is not supported",
     CREATE_SUBMISSION_NO_MATCHING_STUDY: "The study provided does not match an approved study within the user's studies",
+    CREATE_SUBMISSION_NO_ASSOCIATED_PROGRAM: "The study is not associated with any program. Please, associate the study with a program.",
     MISSING_CREATE_SUBMISSION_DBGAPID: "dbGapID is required for controlled-access studies.",
     PENDING_APPROVED_STUDY: "The Data Commons team is reviewing this study for potential data model changes. Data submissions cannot be created until any required model updates are released.",
     // List Submissions
