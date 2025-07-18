@@ -91,7 +91,7 @@ class ReleaseService {
                 newRoot: {
                     $mergeObjects: [
                         "$$ROOT",
-                        {dbGaPID : "$approvedStudies.dbGaPID", studyName: "$approvedStudies.studyName", studyAbbreviation: "$approvedStudies.studyAbbreviation",  studyID: "$approvedStudies._id"}
+                        {dbGaPID: "$approvedStudies.dbGaPID", studyName: "$approvedStudies.studyName", studyAbbreviation: "$approvedStudies.studyAbbreviation",  studyID: "$approvedStudies._id"}
             ]}}},
             // Sort by the element of dataCommonsDisplayNames
             ...(params.orderBy === 'dataCommonsDisplayNames'
