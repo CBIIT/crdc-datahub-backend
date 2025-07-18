@@ -97,17 +97,9 @@ class Application {
     }
 
     async getApplicationById(id) {
-        let result = await this.applicationDAO.findFirst({id: id}, {
-            include: {
-                institution: true,
-            }
-        });
+        let result = await this.applicationDAO.findFirst({id: id});
         if (!result) {
             throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
-        }
-
-        if (result?.institution?.id && !result.institution._id) {
-            result.institution._id = result.institution.id;
         }
         return result;
     }
@@ -536,6 +528,15 @@ class Application {
         });
         const isDbGapMissing = (questionnaire?.accessTypes?.includes("Controlled Access") && !questionnaire?.study?.dbGaPPPHSNumber);
         let promises = [];
+
+
+        // TODO update institution in the questionnaire if the same institution exists
+        // if the institution,
+
+        // TODO no longer accept the parameter institutions
+        // instead use the application.newInstitution object array
+        // if the duplicate institution found, we keep the new institution to old one(already existing one), also, store this into the questionnaire
+        // this logic might be friendly to the user
         promises.push(this.institutionService.addNewInstitutions(document?.institutions));
         promises.push(this.sendEmailAfterApproveApplication(context, application, document?.comment, isDbGapMissing, isTrue(document?.pendingModelChange)));
         if (updated) {

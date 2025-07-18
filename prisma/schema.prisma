@@ -175,9 +175,7 @@ model Application {
   wholeProgram        Boolean?
   createdAt           DateTime  @default(now()) @db.Date
   updatedAt           DateTime  @updatedAt @db.Date
-  institutionID       String?
-  institution         Institution? @relation(fields: [institutionID], references: [id])
-
+  newInstitutions     String[]
   @@map("applications")
 }
 
@@ -368,7 +366,6 @@ model Institution {
   submitterCount Int?
   createdAt      DateTime? @default(now()) @db.Date
   updatedAt      DateTime? @updatedAt @db.Date
-  application    Application[]
   @@map("institutions")
 }
 
