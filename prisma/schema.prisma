@@ -536,7 +536,6 @@ model User {
   institution   InstitutionInfo?
   lastName      String
   notifications String[]
-  organization  OrgInfo?
   permissions   String[]
   role          String
   status        String? // do we use this???
