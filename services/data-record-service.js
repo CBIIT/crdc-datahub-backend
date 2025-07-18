@@ -750,13 +750,14 @@ class DataRecordService {
         }]);
         if (!sampleNodes || sampleNodes.length === 0) throw new Error(ERRORS.SAMPLE_NOT_FOUND);
         let subjectSampleMapArr = sampleNodes.map((sampleNode) => {
-            const subject = sampleNode.parents.find(p=>p.parentType === "participant");
-            const subjectID = subject? subject?.parentIDValue : "";
-            const sampleID = sampleNode.nodeID;
+            const parent = sampleNode.parents.find(p=>p.parentType === "participant");
+            const subject = parent ? participants.find(p => p.nodeID === parent.parentIDValue) : null;
+            const subjectID = subject.props?.dbGaP_subject_id? subject.props.dbGaP_subject_id : subject.nodeID;
+            const sampleID = sampleNode.props?.biosample_accession? sampleNode.props.biosample_accession: sampleNode.nodeID;
             return subjectID ? { [DATA_SHEET.SUBJECT_ID]: subjectID, [DATA_SHEET.SAMPLE_ID]: sampleID } : null;
         });
         subjectSampleMapArr = subjectSampleMapArr.filter((subjectSampleMap) => subjectSampleMap !== null);
-        if (subjectSampleMapArr.length === 0 ) throw new Error(ERRORS.INVALID_PARTICIPANT_SAMPLE_NOT_FOUND);
+        if (subjectSampleMapArr.length === 0 ) throw new Error(ERRORS.PARTICIPANT_SAMPLE_NOT_FOUND);
         // 2) create temp folder and save SubjectSampleMapping_DD/DS
         if (!fs.existsSync(tempFolder)) {
             fs.mkdirSync(tempFolder, { recursive: true });
