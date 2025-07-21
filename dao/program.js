@@ -48,8 +48,7 @@ class ProgramDAO extends GenericDAO {
                 },
             );
         }
-
-        pipeline.push({"$match": {name}});
+        pipeline.push({"$match": {name: { $regex: name?.trim().replace(/\\/g, "\\\\"), $options: "i" }}});
         pipeline.push({"$limit": 1});
         const result = await this.organizationCollection.aggregate(pipeline);
         return result?.length > 0 ? result[0] : null;
