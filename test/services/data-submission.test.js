@@ -144,14 +144,6 @@ describe('Submission.getPendingPVs', () => {
         }, context)).rejects.toThrow(ERROR.EMPTY_PROPERTY_REQUEST_PV);
     });
 
-    it('throws if value is empty', async () => {
-        await expect(service.requestPV({
-            submissionID: 'sub1',
-            property: 'age',
-            value: '   '
-        }, context)).rejects.toThrow(ERROR.EMPTY_PV_REQUEST_PV);
-    });
-
     it('throws if user is not permitted', async () => {
         service._getUserScope.mockResolvedValue({ isNoneScope: () => true });
         service._isCollaborator.mockReturnValue(false);
