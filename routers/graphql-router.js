@@ -246,7 +246,7 @@ dbConnector.connect().then(async () => {
         listReleasedDataRecords: releaseService.listReleasedDataRecords.bind(releaseService),
         retrievePropsForNodeType: releaseService.getPropsForNodeType.bind(releaseService),
         requestPV: async (params, context)=> {
-            const fieldsToSanitize = ['comment', 'nodeName', 'property', 'value'];
+            const fieldsToSanitize = ['comment', 'nodeName', 'property'];
             const sanitized = Object.fromEntries(
                 fieldsToSanitize.map(field => [field, sanitizeHtml(params?.[field], { allowedTags: [], allowedAttributes: {} })])
             );

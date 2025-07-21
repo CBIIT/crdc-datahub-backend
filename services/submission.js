@@ -39,6 +39,7 @@ const {UserScope} = require("../domain/user-scope");
 const {ORGANIZATION_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {zipFilesInDir} = require("../utility/io-util");
 const PendingPVDAO = require("../dao/pendingPV");
+const sanitizeHtml = require("sanitize-html");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -1911,7 +1912,7 @@ class Submission {
             throw new Error(ERROR.EMPTY_PROPERTY_REQUEST_PV);
         }
 
-        if (value?.trim()?.length === 0) {
+        if (value?.length === 0) {
             throw new Error(ERROR.EMPTY_PV_REQUEST_PV);
         }
 
@@ -1975,7 +1976,7 @@ class Submission {
             submissionID: aSubmission?._id,
             CDEId: cdeID || "NA",
             property : property?.trim(),
-            value : value?.trim(),
+            value : sanitizeHtml(value, { allowedTags: [], allowedAttributes: {} }),
             comment: comment?.trim()
         });
 
