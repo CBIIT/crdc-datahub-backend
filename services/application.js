@@ -217,26 +217,27 @@ class Application {
         // The institution name is stored only when the SR gets approval, and only unique institutions should be stored.
         const duplicatesNames = newInstitutionNames.filter((item, index) => newInstitutionNames.indexOf(item) !== index);
         if (duplicatesNames.length > 0) {
-            throw new Error(ERROR.DUPLICATE_INSTITUTION_NAME  + `;` +  duplicatesNames.join(", "));
+            throw new Error(`${ERROR.DUPLICATE_INSTITUTION_NAME};${duplicatesNames.join(", ")}`);
         }
         // This is the generated institution ID by FE.
         const duplicatesIDs = newInstitutionIDs.filter((item, index) => newInstitutionIDs.indexOf(item) !== index);
         if (duplicatesIDs.length > 0) {
-            throw new Error(ERROR.DUPLICATE_INSTITUTION_ID + `;` + duplicatesIDs.join(", "));
+            throw new Error(`${ERROR.DUPLICATE_INSTITUTION_ID};${duplicatesIDs.join(", ")}`);
         }
 
         if (newInstitutionNames.length > 0) {
-            const existingInstitutions = this.institionDAO.findMany({
-                id: { in: newInstitutionNames },
+            const existingInstitutions = await this.institionDAO.findMany({
+                name: { in: newInstitutionNames },
             });
             if (existingInstitutions.length > 0) {
-                throw new Error(ERROR.DUPLICATE_INSTITUTION_NAME, newInstitutionNames.join(", "));
+                const existingInstitutionNames = existingInstitutions.map(i => i?.name);
+                throw new Error(`${ERROR.DUPLICATE_INSTITUTION_NAME};${existingInstitutionNames.join(", ")}`);
             }
         }
 
         const InvalidInstitutionNames = newInstitutionNames.filter(i => i?.length > MAX_INSTITUTION_NAME_LENGTH);
         if (InvalidInstitutionNames?.length > 0) {
-            throw new Error(ERROR.MAX_INSTITUTION_NAME_LIMIT, InvalidInstitutionNames.join(", "));
+            throw new Error(`${ERROR.MAX_INSTITUTION_NAME_LIMIT};${InvalidInstitutionNames.join(", ")}`);
         }
     }
 
