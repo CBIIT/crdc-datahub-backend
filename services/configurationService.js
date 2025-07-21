@@ -75,7 +75,7 @@ class ConfigurationService {
      */
     async getOMB() {
         // get OMB info from database
-        const ombConfig = await getOMBConfiguration()
+        const ombConfig = await getOMBConfiguration();
         if (!ombConfig) {
             throw new Error(ERROR.OMB_NOT_FOUND);
         }
