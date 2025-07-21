@@ -267,6 +267,9 @@ model Configuration {
   timeout                          Int?
   type                             String
   version                          String?
+  OMBInfo                          String[]
+  OMBNumber                        String?
+  expirationDate                   DateTime? @default(now()) @db.Date
 
   @@map("configuration")
 }
@@ -538,7 +541,6 @@ model User {
   institution   InstitutionInfo?
   lastName      String
   notifications String[]
-  organization  OrgInfo?
   permissions   String[]
   role          String
   status        String? // do we use this???

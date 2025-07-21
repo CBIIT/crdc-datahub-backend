@@ -157,12 +157,15 @@ class DataRecordService {
             const docCount = await getCount(this.dataRecordsCollection, submissionID);
             if (docCount === 0)  errorMessages.push(ERRORS.FAILED_VALIDATE_METADATA, ERRORS.NO_VALIDATION_METADATA);
             else {
+                // updated for task CRDCDH-3001, both cross-submission and metadata need to be validated in parallel in a condition
+                // if the user role is DATA_COMMONS_PERSONNEL, and the submission status is "Submitted", and aSubmission?.crossSubmissionStatus is "Error",
                 if (types.includes(VALIDATION.TYPES.CROSS_SUBMISSION)) {
                     const msg = Message.createMetadataMessage("Validate Cross-submission", submissionID, null, validationID);
                     const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.metadataQueueName, submissionID);
                     if (!success.success)
                         errorMessages.push(ERRORS.FAILED_VALIDATE_CROSS_SUBMISSION, success.message);
-                } else {
+                }
+                if (types.includes(VALIDATION.TYPES.METADATA)) {
                     const newDocCount = await getCount(this.dataRecordsCollection, submissionID, scope);
                     if (!(scope.toLowerCase() === VALIDATION.SCOPE.NEW && newDocCount === 0)) {
                         const msg = Message.createMetadataMessage("Validate Metadata", submissionID, scope, validationID);
@@ -750,13 +753,14 @@ class DataRecordService {
         }]);
         if (!sampleNodes || sampleNodes.length === 0) throw new Error(ERRORS.SAMPLE_NOT_FOUND);
         let subjectSampleMapArr = sampleNodes.map((sampleNode) => {
-            const subject = sampleNode.parents.find(p=>p.parentType === "participant");
-            const subjectID = subject? subject?.parentIDValue : "";
-            const sampleID = sampleNode.nodeID;
+            const parent = sampleNode.parents.find(p=>p.parentType === "participant");
+            const subject = parent ? participants.find(p => p.nodeID === parent.parentIDValue) : null;
+            const subjectID = subject.props?.dbGaP_subject_id? subject.props.dbGaP_subject_id : subject.nodeID;
+            const sampleID = sampleNode.props?.biosample_accession? sampleNode.props.biosample_accession: sampleNode.nodeID;
             return subjectID ? { [DATA_SHEET.SUBJECT_ID]: subjectID, [DATA_SHEET.SAMPLE_ID]: sampleID } : null;
         });
         subjectSampleMapArr = subjectSampleMapArr.filter((subjectSampleMap) => subjectSampleMap !== null);
-        if (subjectSampleMapArr.length === 0 ) throw new Error(ERRORS.INVALID_PARTICIPANT_SAMPLE_NOT_FOUND);
+        if (subjectSampleMapArr.length === 0 ) throw new Error(ERRORS.PARTICIPANT_SAMPLE_NOT_FOUND);
         // 2) create temp folder and save SubjectSampleMapping_DD/DS
         if (!fs.existsSync(tempFolder)) {
             fs.mkdirSync(tempFolder, { recursive: true });

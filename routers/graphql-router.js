@@ -73,7 +73,7 @@ dbConnector.connect().then(async () => {
     const authorizationService = new AuthorizationService(configurationService);
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
     const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
-    const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection, approvedStudiesCollection, authorizationService);
+    const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection, approvedStudiesCollection);
     const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, userCollection, organizationService, submissionCollection, authorizationService, notificationsService, {url: config.emails_url, contactEmail: config.conditionalSubmissionContact, submissionGuideURL: config.submissionGuideUrl});
 
     const institutionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, INSTITUTION_COLLECTION, userCollection);
@@ -246,12 +246,14 @@ dbConnector.connect().then(async () => {
         listReleasedDataRecords: releaseService.listReleasedDataRecords.bind(releaseService),
         retrievePropsForNodeType: releaseService.getPropsForNodeType.bind(releaseService),
         requestPV: async (params, context)=> {
-            const fieldsToSanitize = ['comment', 'nodeName', 'property', 'value'];
+            const fieldsToSanitize = ['comment', 'nodeName', 'property'];
             const sanitized = Object.fromEntries(
                 fieldsToSanitize.map(field => [field, sanitizeHtml(params?.[field], { allowedTags: [], allowedAttributes: {} })])
             );
             return await submissionService.requestPV({...params, ...sanitized}, context);
         },
+        downloadDBGaPLoadSheet : submissionService.downloadDBGaPLoadSheet.bind(submissionService),
+        getOMB : configurationService.getOMB.bind(configurationService)
     };
 });
 

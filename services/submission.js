@@ -39,6 +39,7 @@ const {UserScope} = require("../domain/user-scope");
 const {ORGANIZATION_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {zipFilesInDir} = require("../utility/io-util");
 const PendingPVDAO = require("../dao/pendingPV");
+const sanitizeHtml = require("sanitize-html");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -118,6 +119,11 @@ class Submission {
         if (approvedStudies.length === 0) {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
         }
+
+        if (!program) {
+            throw new Error(ERROR.CREATE_SUBMISSION_NO_ASSOCIATED_PROGRAM);
+        }
+
         let approvedStudy = approvedStudies[0];
         if (approvedStudy.controlledAccess && !approvedStudy?.dbGaPID) {
             throw new Error(ERROR.MISSING_CREATE_SUBMISSION_DBGAPID);
@@ -719,10 +725,18 @@ class Submission {
         if (isNotPermitted) {
             throw new Error(ERROR.INVALID_VALIDATE_METADATA)
         }
+        // if the user has review permission, and the submission status is "Submitted", and aSubmission?.crossSubmissionStatus is "Error", 
+        // and params.types not contains CROSS_SUBMISSION, add CROSS_SUBMISSION. User story CRDCDH-2830
+        if (reviewScope && !reviewScope.isNoneScope() && aSubmission?.status === SUBMITTED &&
+            aSubmission?.crossSubmissionStatus === VALIDATION_STATUS.ERROR && params?.types &&
+            !params?.types?.includes(VALIDATION.TYPES.CROSS_SUBMISSION)) {
+
+            params.types.push(VALIDATION.TYPES.CROSS_SUBMISSION);
+        }
         // start validation, change validating status
         const [prevMetadataValidationStatus, prevFileValidationStatus, prevCrossSubmissionStatus, prevTime] =
             [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus, aSubmission?.crossSubmissionStatus, aSubmission?.updatedAt];
-
+   
         await this._updateValidationStatus(params?.types, aSubmission, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING, getCurrentTime());
         const validationRecord = ValidationRecord.createValidation(aSubmission?._id, params?.types, params?.scope, VALIDATION_STATUS.VALIDATING);
         const res = await this.validationCollection.insert(validationRecord);
@@ -1898,7 +1912,7 @@ class Submission {
             throw new Error(ERROR.EMPTY_PROPERTY_REQUEST_PV);
         }
 
-        if (value?.trim()?.length === 0) {
+        if (value?.length === 0) {
             throw new Error(ERROR.EMPTY_PV_REQUEST_PV);
         }
 
@@ -1962,7 +1976,7 @@ class Submission {
             submissionID: aSubmission?._id,
             CDEId: cdeID || "NA",
             property : property?.trim(),
-            value : value?.trim(),
+            value : sanitizeHtml(value, { allowedTags: [], allowedAttributes: {} }),
             comment: comment?.trim()
         });
 
