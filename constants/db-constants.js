@@ -13,5 +13,6 @@ module.exports = Object.freeze({
         PROGRAM: "program",
         INSTITUTIONS: "institution",
         CONFIGURATION: "configuration"
-    }
+    },
+    OMB_INFO: "OMB_INFO"
 });

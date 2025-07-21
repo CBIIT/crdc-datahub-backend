@@ -1,8 +1,8 @@
 const prisma = require("../prisma");
-const omb_type = "OMB_INFO";
+const {OMB_INFO} = require('../constants/db-constants');
 const ERROR = require("../constants/error-constants");
 async function getOMBConfiguration() {
-    const ombConfig = await prisma.configuration.findFirst({where: {type: omb_type}})
+    const ombConfig = await prisma.configuration.findFirst({where: {type: OMB_INFO}})
     if (!ombConfig) {
         return null
     }
