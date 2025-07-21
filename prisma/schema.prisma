@@ -265,8 +265,8 @@ model Configuration {
   type                             String
   version                          String?
   OMBInfo                          String[]
-  OMBNumber                        String
-  expirationDate                   DateTime @default(now()) @db.Date
+  OMBNumber                        String?
+  expirationDate                   DateTime? @default(now()) @db.Date
 
   @@map("configuration")
 }
