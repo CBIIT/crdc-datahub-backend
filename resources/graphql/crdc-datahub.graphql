@@ -170,6 +170,14 @@ type FileSize {
     size: Float
 }
 
+type OMBConfiguration{
+    _id: ID
+    OMBInfo: [String]
+    OMBNumber: String
+    expirationDate: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    type: String
+}
+
 # not being used currently
 type Validation {
     _id: ID
@@ -697,6 +705,7 @@ type Query {
     ): ApprovedStudyList
     
     getApprovedStudy(_id: ID!): ApprovedStudy
+    getOMB: OMBConfiguration
 
     "Result depends on user's permission"
     listSubmissions(
@@ -992,5 +1001,5 @@ type Mutation {
     updateSubmissionModelVersion(_id: String!, version: String!): Submission
     updateInstitution(_id: ID!, name: String, status: String): Institution
     createInstitution(name: String!, status: String!): Institution
-    requestPV(submissionID: String!, value: String!, nodeName: String!, CDEId: String, property: String!, comment: String): AsyncProcessResult
+    requestPV(submissionID: String!, value: String!, nodeName: String!, property: String!, comment: String!): AsyncProcessResult
 }

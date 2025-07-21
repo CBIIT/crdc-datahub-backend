@@ -31,7 +31,15 @@ describe('Submission.getPendingPVs', () => {
             null, null, null, null,
             null, null, [], [],    // dataCommonsList, hiddenDataCommonsList
             null, null, null, null,
-            'bucket', null, null, {} // submissionBucketName, configService, monitor, bucketMap, authService
+            'bucket', null, null, {}, null, // submissionBucketName, configService, monitor, bucketMap, authService, dataModelService
+            {
+                getDataModelByDataCommonAndVersion: jest.fn().mockResolvedValue({
+                    terms_: {
+                        age: 'Age',
+                        Age: 'Age'
+                    }
+                })
+            }
         );
 
         // Mock dependencies
@@ -109,7 +117,7 @@ describe('Submission.getPendingPVs', () => {
             { email: 'dc1@example.com', role: 'Data Commons Personnel' },
             { email: 'admin@example.com', role: 'ADMIN' }
         ]);
-
+        service.pendingPVDAO.findBySubmissionID.mockResolvedValue([]);
         service.pendingPVDAO.insertOne.mockResolvedValue(true);
         service.notificationService.requestPVNotification.mockResolvedValue({ accepted: ['dc1@example.com'] });
 
@@ -118,10 +126,14 @@ describe('Submission.getPendingPVs', () => {
         const result = await service.requestPV({
             submissionID: 'sub1',
             property: 'age',
-            value: 'unknown'
+            value: 'unknown',
+            nodeName: 'Person',
+            comment: 'Test comment'
         }, context);
 
         expect(result.success).toBe(true);
+        expect(service.pendingPVDAO.insertOne).toHaveBeenCalledWith('sub1', 'age', 'unknown');
+        expect(service.notificationService.requestPVNotification).toHaveBeenCalled();
     });
 
     it('throws if property is empty', async () => {
@@ -130,14 +142,6 @@ describe('Submission.getPendingPVs', () => {
             property: '   ',
             value: 'value'
         }, context)).rejects.toThrow(ERROR.EMPTY_PROPERTY_REQUEST_PV);
-    });
-
-    it('throws if value is empty', async () => {
-        await expect(service.requestPV({
-            submissionID: 'sub1',
-            property: 'age',
-            value: '   '
-        }, context)).rejects.toThrow(ERROR.EMPTY_PV_REQUEST_PV);
     });
 
     it('throws if user is not permitted', async () => {

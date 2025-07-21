@@ -39,6 +39,7 @@ const {UserScope} = require("../domain/user-scope");
 const {ORGANIZATION_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {zipFilesInDir} = require("../utility/io-util");
 const PendingPVDAO = require("../dao/pendingPV");
+const sanitizeHtml = require("sanitize-html");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -52,6 +53,7 @@ const FINAL_INACTIVE_REMINDER = "finalInactiveReminder";
 const SUBMISSION_ID = "Submission ID";
 const DATA_SUBMISSION_TYPE = "Data Submission Type";
 const DESTINATION_LOCATION = "Destination Location";
+const MAX_COMMENT_LENGTH = 500;
 // Set to array
 Set.prototype.toArray = function() {
     return Array.from(this);
@@ -62,7 +64,7 @@ class Submission {
     constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService,
                 dataRecordService, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList,
                 hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs, 
-                submissionBucketName, configurationService, uploadingMonitor, dataCommonsBucketMap, authorizationService) {
+                submissionBucketName, configurationService, uploadingMonitor, dataCommonsBucketMap, authorizationService, dataModelService) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -88,6 +90,7 @@ class Submission {
         this.authorizationService = authorizationService;
         this.pendingPVDAO = new PendingPVDAO();
         this.submissionDAO = new SubmissionDAO(this.submissionCollection);
+        this.dataModelService = dataModelService;
     }
 
     async createSubmission(params, context) {
@@ -116,6 +119,11 @@ class Submission {
         if (approvedStudies.length === 0) {
             throw new Error(ERROR.CREATE_SUBMISSION_NO_MATCHING_STUDY);
         }
+
+        if (!program) {
+            throw new Error(ERROR.CREATE_SUBMISSION_NO_ASSOCIATED_PROGRAM);
+        }
+
         let approvedStudy = approvedStudies[0];
         if (approvedStudy.controlledAccess && !approvedStudy?.dbGaPID) {
             throw new Error(ERROR.MISSING_CREATE_SUBMISSION_DBGAPID);
@@ -716,6 +724,14 @@ class Submission {
         const isNotPermitted = !this._isCollaborator(userInfo, aSubmission) && createScope.isNoneScope() && reviewScope.isNoneScope();
         if (isNotPermitted) {
             throw new Error(ERROR.INVALID_VALIDATE_METADATA)
+        }
+        // if the user has review permission, and the submission status is "Submitted", and aSubmission?.crossSubmissionStatus is "Error",
+        // and params.types not contains CROSS_SUBMISSION, add CROSS_SUBMISSION. User story CRDCDH-2830
+        if (reviewScope && !reviewScope.isNoneScope() && aSubmission?.status === SUBMITTED &&
+            aSubmission?.crossSubmissionStatus === VALIDATION_STATUS.ERROR && params?.types &&
+            !params?.types?.includes(VALIDATION.TYPES.CROSS_SUBMISSION)) {
+
+            params.types.push(VALIDATION.TYPES.CROSS_SUBMISSION);
         }
         // start validation, change validating status
         const [prevMetadataValidationStatus, prevFileValidationStatus, prevCrossSubmissionStatus, prevTime] =
@@ -1883,16 +1899,20 @@ class Submission {
     async requestPV(param, context) {
         verifySession(context)
             .verifyInitialized();
-        const {submissionID, property, value, nodeName, CDEId, comment} = param;
+        const {submissionID, property, value, nodeName, comment} = param;
         if (nodeName?.trim()?.length === 0) {
             throw new Error(ERROR.EMPTY_NODE_REQUEST_PV);
+        }
+
+        if (comment?.trim().length > MAX_COMMENT_LENGTH) {
+            throw new Error(ERROR.COMMENT_LIMIT);
         }
 
         if (property?.trim()?.length === 0) {
             throw new Error(ERROR.EMPTY_PROPERTY_REQUEST_PV);
         }
 
-        if (value?.trim()?.length === 0) {
+        if (value?.length === 0) {
             throw new Error(ERROR.EMPTY_PV_REQUEST_PV);
         }
 
@@ -1901,31 +1921,41 @@ class Submission {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
 
-        const createScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, aSubmission);
-        const isNotPermitted = !this._isCollaborator(context?.userInfo, aSubmission) && createScope.isNoneScope();
+        const [isNotPermitted, { DCEmails, nonDCEmails }, cdeID, pendingPVs] = await Promise.all([
+            (async () => {
+                const createScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, aSubmission);
+                return !this._isCollaborator(context?.userInfo, aSubmission) && createScope.isNoneScope();
+            })(),
+            (async () => {
+                const DCUsers = await this.userService.getUsersByNotifications([EN.DATA_SUBMISSION.PENDING_PV],
+                    [ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN, ROLES.FEDERAL_LEAD]);
+                return (DCUsers || []).reduce(
+                    (acc, u) => {
+                        if (u?.email) {
+                            (u.role === ROLES.DATA_COMMONS_PERSONNEL ? acc.DCEmails : acc.nonDCEmails).push(u.email);
+                        }
+                        return acc;
+                    },
+                    { DCEmails: [], nonDCEmails: [] }
+                );
+            })(),
+            (async () => {
+                const modelInfo = await this.dataModelService.getDataModelByDataCommonAndVersion(aSubmission?.dataCommons, aSubmission?.modelVersion);
+                const termPropertyArr = modelInfo.props_?.[property]?.terms();
+                return termPropertyArr?.length > 0 ? termPropertyArr[0]?.origin_id?.trim() : null;
+            })(),
+            this.pendingPVDAO.findBySubmissionID(submissionID),
+        ]);
+
         if (isNotPermitted) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
-
-        const DCUsers = await this.userService.getUsersByNotifications([EN.DATA_SUBMISSION.PENDING_PV],
-            [ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN, ROLES.FEDERAL_LEAD]);
-
-        const { DCEmails, nonDCEmails } = (DCUsers || []).reduce(
-            (acc, u) => {
-                if (u?.email) {
-                    (u.role === ROLES.DATA_COMMONS_PERSONNEL ? acc.DCEmails : acc.nonDCEmails).push(u.email);
-                }
-                return acc;
-            },
-            { DCEmails: [], nonDCEmails: [] }
-        );
 
         if (DCEmails.length === 0) {
             console.error(ERROR.NO_RECIPIENT_PV_REQUEST);
             return ValidationHandler.handle(ERROR.NO_RECIPIENT_PV_REQUEST);
         }
 
-        const pendingPVs = await this.pendingPVDAO.findBySubmissionID(submissionID);
         const filteredPendingPVs = pendingPVs?.filter(pv => pv?.value === value && pv?.offendingProperty === property);
         if (filteredPendingPVs?.length > 0) {
             throw new Error(replaceErrorString(ERROR.DUPLICATE_REQUEST_PV, `submissionID: ${submissionID}, property: ${property}, value: ${value}`));
@@ -1944,9 +1974,9 @@ class Submission {
             nodeName: nodeName,
             studyAbbreviation: aSubmission?.studyAbbreviation,
             submissionID: aSubmission?._id,
-            CDEId: CDEId?.trim() || "NA",
+            CDEId: cdeID || "NA",
             property : property?.trim(),
-            value : value?.trim(),
+            value : sanitizeHtml(value, { allowedTags: [], allowedAttributes: {} }),
             comment: comment?.trim()
         });
 

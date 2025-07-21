@@ -73,7 +73,7 @@ dbConnector.connect().then(async () => {
     const authorizationService = new AuthorizationService(configurationService);
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
     const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
-    const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection, approvedStudiesCollection, authorizationService);
+    const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection, approvedStudiesCollection);
     const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, userCollection, organizationService, submissionCollection, authorizationService, notificationsService, {url: config.emails_url, contactEmail: config.conditionalSubmissionContact, submissionGuideURL: config.submissionGuideUrl});
 
     const institutionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, INSTITUTION_COLLECTION, userCollection);
@@ -107,18 +107,19 @@ dbConnector.connect().then(async () => {
         inactiveApplicationNotifyDays: config.inactiveApplicationNotifyDays};
         
     const uploadingMonitor = UploadingMonitor.getInstance(batchCollection, configurationService);
+
+    const cdeService = new CDE();
+    const dataModelService = new DataModelService(fetchDataModelInfo, config.model_url);
     const submissionService = new Submission(logCollection, submissionCollection, batchService, userService,
         organizationService, notificationsService, dataRecordService, fetchDataModelInfo, awsService, config.export_queue,
         s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService, config.uploaderCLIConfigs,
-        config.submission_bucket, configurationService, uploadingMonitor, config.dataCommonsBucketMap, authorizationService);
+        config.submission_bucket, configurationService, uploadingMonitor, config.dataCommonsBucketMap, authorizationService, dataModelService);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService, configurationService, authorizationService);
 
     const dashboardService = new DashboardService(userService, awsService, configurationService, {sessionTimeout: config.dashboardSessionTimeout}, authorizationService);
     userInitializationService = new UserInitializationService(userCollection, organizationCollection, approvedStudiesCollection, configurationService);
     authenticationService = new AuthenticationService(userCollection);
-    
-    const cdeService = new CDE();
-    const dataModelService = new DataModelService(fetchDataModelInfo, config.model_url);
+
     const releaseService = new Release(releaseCollection, authorizationService, dataModelService);
     root = {
         version: () => {return config.version},
@@ -245,12 +246,14 @@ dbConnector.connect().then(async () => {
         listReleasedDataRecords: releaseService.listReleasedDataRecords.bind(releaseService),
         retrievePropsForNodeType: releaseService.getPropsForNodeType.bind(releaseService),
         requestPV: async (params, context)=> {
-            const fieldsToSanitize = ['comment', 'node', 'property', 'value', 'CDEId'];
+            const fieldsToSanitize = ['comment', 'nodeName', 'property'];
             const sanitized = Object.fromEntries(
                 fieldsToSanitize.map(field => [field, sanitizeHtml(params?.[field], { allowedTags: [], allowedAttributes: {} })])
             );
             return await submissionService.requestPV({...params, ...sanitized}, context);
         },
+        downloadDBGaPLoadSheet : submissionService.downloadDBGaPLoadSheet.bind(submissionService),
+        getOMB : configurationService.getOMB.bind(configurationService)
     };
 });
 

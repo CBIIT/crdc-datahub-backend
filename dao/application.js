@@ -1,7 +1,7 @@
 const prisma = require("../prisma");
 const { MODEL_NAME, SORT} = require('../constants/db-constants');
 const GenericDAO = require("./generic");
-const {convertIdFields, convertMongoFilterToPrismaFilter} = require('./utils/orm-converter');
+const {convertIdFields, convertMongoFilterToPrismaFilter,handleDotNotation} = require('./utils/orm-converter');
 
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 
@@ -89,6 +89,7 @@ class ApplicationDAO extends GenericDAO {
 
     async distinct(field, filter = {}) {
         filter = convertMongoFilterToPrismaFilter(filter);
+        handleDotNotation(filter);
         // Handle dot notation for nested fields (e.g., "applicant.applicantName")
         let select = {};
         if (field.includes('.')) {

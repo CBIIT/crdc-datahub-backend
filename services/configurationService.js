@@ -3,11 +3,12 @@ const ConfigurationDAO = require("../dao/configuration");
 const PBAC_CONFIG_TYPE = "PBAC";
 const CLI_UPLOADER_VERSION = "CLI_UPLOADER_VERSION";
 const MAINTENANCE_MODE = "MAINTENANCE_MODE";
+const getOMBConfiguration = require("../dao/omb");
+const ERROR = require("../constants/error-constants");
 class ConfigurationService {
     constructor() {
         this.configurationDAO = new ConfigurationDAO();
     }
-
     async findByType(type) {
         return await this.configurationDAO.findByType(type) || null;
     }
@@ -67,6 +68,18 @@ class ConfigurationService {
             permissions: UserAccessControl.get(usersPermissions[0]?.permissions),
             notifications: UserAccessControl.get(usersPermissions[0]?.notifications)
         };
+    }
+
+    /**
+     * API: getOMB retrieve OMB message
+     */
+    async getOMB() {
+        // get OMB info from database
+        const ombConfig = await getOMBConfiguration();
+        if (!ombConfig) {
+            throw new Error(ERROR.OMB_NOT_FOUND);
+        }
+        return ombConfig;
     }
 
     /**

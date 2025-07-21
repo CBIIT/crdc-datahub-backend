@@ -90,8 +90,24 @@ function tryConvertDate(val) {
   return parsedDate;
 }
 
+function handleDotNotation(query) {
+  // Flatten dot notation for nested fields (e.g., "applicant.applicantID")
+  // Prisma expects: { applicant: { is: { applicantID: ... } } }
+  for (const key of Object.keys(query)) {
+    if (key.includes('.')) {
+      const [parent, child] = key.split('.');
+      // If already an object, merge
+      if (!query[parent]) query[parent] = {};
+      if (!query[parent].is) query[parent].is = {};
+      query[parent].is[child] = query[key];
+      delete query[key];
+    }
+  }
+}
+
 module.exports = {
     convertIdFields,
     convertMongoFilterToPrismaFilter,
-    tryConvertDate
+    tryConvertDate,
+    handleDotNotation
 };
