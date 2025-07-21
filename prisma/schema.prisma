@@ -139,6 +139,11 @@ type Error {
   severity          String?
 }
 
+type newInstitution {
+    id String @map("_id")
+    name String
+}
+
 model CDE {
   id                String   @id @default(uuid()) @map("_id")
   CDECode           String
@@ -175,7 +180,7 @@ model Application {
   wholeProgram        Boolean?
   createdAt           DateTime  @default(now()) @db.Date
   updatedAt           DateTime  @updatedAt @db.Date
-  newInstitutions     String[]
+  newInstitutions     newInstitution[]
   @@map("applications")
 }
 
