@@ -21,7 +21,7 @@ const InstitutionDAO = require("../dao/institution");
 const ApplicationDAO = require("../dao/application");
 const {SORT: SORT_ORDER} = require("../constants/db-constants");
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
+const MAX_INSTITUTION_NAME_LENGTH = 100;
 const OrderByMap = {
     "Submitter Name": "applicant.applicantName",
     "Organization": "organization.name",
@@ -194,11 +194,8 @@ class Application {
         // auto upgrade version based on configuration
         application.version = await this._getApplicationVersionByStatus(IN_PROGRESS);
 
-        if (inputApplication?.insitutionID?.trim().length > 0 && application?.insitutionID !== inputApplication?.insitutionID) {
-            const institution = this.institionDAO.findById(inputApplication.insitutionID);
-            if (institution) {
-                application.insitutionID = institution.insitutionID;
-            }
+        if (inputApplication?.newInstitutions?.length > 0) {
+            await this._validateNewInstitution(inputApplication?.newInstitutions);
         }
 
         application = await this._updateApplication(application, prevStatus, context?.userInfo?._id);
@@ -206,6 +203,41 @@ class Application {
             await logStateChange(this.logCollection, context.userInfo, application, prevStatus);
         }
         return this.getApplicationById(application?._id);
+    }
+
+    async _validateNewInstitution(newInstitutions) {
+        const newInstitutionNames = newInstitutions
+            .map(i => i?.name)
+            .filter(Boolean);
+
+        const newInstitutionIDs = newInstitutions
+            .map(i => i?.id)
+            .filter(Boolean);
+
+        // The institution name is stored only when the SR gets approval, and only unique institutions should be stored.
+        const duplicatesNames = newInstitutionNames.filter((item, index) => newInstitutionNames.indexOf(item) !== index);
+        if (duplicatesNames.length > 0) {
+            throw new Error(ERROR.DUPLICATE_INSTITUTION_NAME  + `;` +  duplicatesNames.join(", "));
+        }
+        // This is the generated institution ID by FE.
+        const duplicatesIDs = newInstitutionIDs.filter((item, index) => newInstitutionIDs.indexOf(item) !== index);
+        if (duplicatesIDs.length > 0) {
+            throw new Error(ERROR.DUPLICATE_INSTITUTION_ID + `;` + duplicatesIDs.join(", "));
+        }
+
+        if (newInstitutionNames.length > 0) {
+            const existingInstitutions = this.institionDAO.findMany({
+                id: { in: newInstitutionNames },
+            });
+            if (existingInstitutions.length > 0) {
+                throw new Error(ERROR.DUPLICATE_INSTITUTION_NAME, newInstitutionNames.join(", "));
+            }
+        }
+
+        const InvalidInstitutionNames = newInstitutionNames.filter(i => i?.length > MAX_INSTITUTION_NAME_LENGTH);
+        if (InvalidInstitutionNames?.length > 0) {
+            throw new Error(ERROR.MAX_INSTITUTION_NAME_LIMIT, InvalidInstitutionNames.join(", "));
+        }
     }
 
     async getMyLastApplication(params, context) {
@@ -529,15 +561,7 @@ class Application {
         const isDbGapMissing = (questionnaire?.accessTypes?.includes("Controlled Access") && !questionnaire?.study?.dbGaPPPHSNumber);
         let promises = [];
 
-
-        // TODO update institution in the questionnaire if the same institution exists
-        // if the institution,
-
-        // TODO no longer accept the parameter institutions
-        // instead use the application.newInstitution object array
-        // if the duplicate institution found, we keep the new institution to old one(already existing one), also, store this into the questionnaire
-        // this logic might be friendly to the user
-        promises.push(this.institutionService.addNewInstitutions(document?.institutions));
+        promises.push(this.institutionService.addNewInstitutions(application?.newInstitutions));
         promises.push(this.sendEmailAfterApproveApplication(context, application, document?.comment, isDbGapMissing, isTrue(document?.pendingModelChange)));
         if (updated) {
             promises.unshift(this.getApplicationById(document._id));
@@ -1015,7 +1039,7 @@ class Application {
         // Save an email reminder when an inactive application is reactivated.
         application.inactiveReminder = false;
         application.updatedAt = getCurrentTime();
-        const {institution: _, ...data} = application;
+        const {...data} = application;
         const updateResult = await this.applicationDAO.update({_id: application?._id, ...data});
         if (!updateResult) {
             throw new Error(ERROR.APPLICATION_NOT_FOUND + updateResult?._id);
