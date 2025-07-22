@@ -62,3 +62,50 @@ Commands:
           $set: { status: "Active" }
         }
       )
+  - migration script programID: |
+      db.submissions.updateMany(
+        {},
+        [
+          {
+            $set: {
+              programID: {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $ne: ["$organization._id", null] },
+                      { $ne: ["$organization._id", undefined] }
+                    ]
+                  },
+                  then: "$organization._id",
+                  else: "$$REMOVE"
+                }
+              }
+            }
+          }
+        ]
+      )
+      // reviewComment is stored array causing the prisma scheme issue.
+      db.submissions.updateMany(
+        {
+          $or: [
+            { reviewComment: { $exists: true } },
+            { reviewComment: { $type: "array" } }
+          ]
+        },
+        [
+          {
+            $set: {
+              reviewComment: {
+                $cond: [
+                  { $or: [
+                    { $eq: [{ $type: "$reviewComment" }, "array"] },
+                    { $not: ["$reviewComment"] }
+                  ]},
+                  "",
+                  "$reviewComment"
+                ]
+              }
+            }
+          }
+        ]
+      );

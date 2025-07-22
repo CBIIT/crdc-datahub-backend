@@ -468,7 +468,7 @@ model Release {
 model Submission {
   id                       String         @id @default(uuid()) @map("_id")
   ORCID                    String?
-  accessedAt               DateTime       @db.Date
+  accessedAt               DateTime?       @db.Date
   archived                 Boolean?
   bucketName               String
   collaborators            Collaborator[]
@@ -480,7 +480,7 @@ model Submission {
   dataCommons              String
   dataCommonsDisplayName   String?
   dataFileSize             DataFileSize
-  dataType                 String
+  // dataType                 String
   dbGaPID                  String?
   deletingData             Boolean?
   // fileErrors               SubmissionsFileErrors[]
@@ -500,7 +500,6 @@ model Submission {
   modelVersion             String
   name                     String
   nodeCount                Int?
-  //organization             OrgInfo
   /// Could not determine type: the field only had null or empty values in the sample set.
   reviewComment            String?
   rootPath                 String
@@ -516,9 +515,9 @@ model Submission {
   validationType           String[]
   createdAt                DateTime       @default(now()) @db.Date
   updatedAt                DateTime       @updatedAt @db.Date
-  organizationID String?
-  organization         Program? @relation(fields: [organizationID], references: [id])
-  study         ApprovedStudy? @relation(fields: [studyID], references: [id])
+  programID                String?
+  organization             Program? @relation(fields: [programID], references: [id])
+  study                    ApprovedStudy? @relation(fields: [studyID], references: [id])
   batches     Batch[]
   dataRecords DataRecord[]
   qcResults   QcResult[]

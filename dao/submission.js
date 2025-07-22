@@ -29,20 +29,6 @@ class SubmissionDAO extends GenericDAO {
                     _id: 1
             }}]);
     }
-
-    async updateSubmissionOrg(orgID, updatedOrg) {
-        const submissionUpdateCondition = {"organization._id": orgID, $or: [
-                updatedOrg.name ? {"organization.name": {"$ne": updatedOrg.name}} : {},
-                updatedOrg?.abbreviation? {"organization.abbreviation": {"$ne": updatedOrg.abbreviation}} : {}
-            ]}
-        return await this.submissionCollection.updateMany(
-            submissionUpdateCondition,
-            {
-                ...(updatedOrg.name ? {"organization.name": updatedOrg.name} : {}),
-                ...(updatedOrg.abbreviation ? {"organization.abbreviation": updatedOrg.abbreviation} : {}),
-                updatedAt: getCurrentTime()}
-        )
-    }
 }
 
 module.exports = SubmissionDAO

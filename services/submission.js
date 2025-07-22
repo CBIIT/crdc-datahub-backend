@@ -36,10 +36,13 @@ const {getDataCommonsDisplayNamesForSubmission, getDataCommonsDisplayNamesForLis
     getDataCommonsDisplayNamesForUser, getDataCommonsDisplayNamesForReleasedNode
 } = require("../utility/data-commons-remapper");
 const {UserScope} = require("../domain/user-scope");
-const {ORGANIZATION_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
+const {ORGANIZATION_COLLECTION, APPROVED_STUDIES_COLLECTION, USER_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {zipFilesInDir} = require("../utility/io-util");
 const PendingPVDAO = require("../dao/pendingPV");
 const sanitizeHtml = require("sanitize-html");
+const {SORT: PRISMA_SORT} = require("../constants/db-constants");
+const ProgramDAO = require("../dao/program");
+const UserDAO = require("../dao/user");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -91,6 +94,8 @@ class Submission {
         this.pendingPVDAO = new PendingPVDAO();
         this.submissionDAO = new SubmissionDAO(this.submissionCollection);
         this.dataModelService = dataModelService;
+        this.programDAO = new ProgramDAO();
+        this.userDAO = new UserDAO();
     }
 
     async createSubmission(params, context) {
@@ -144,7 +149,7 @@ class Submission {
         }
 
         await this._remindPrimaryContactEmail(newSubmission, approvedStudy, program);
-        return newSubmission;
+        return this._findByID(newSubmission?._id);
     }
     async _findApprovedStudies(studies) {
         if (!studies || studies.length === 0) return [];
@@ -227,6 +232,25 @@ class Submission {
                     preserveNullAndEmptyArrays: true
                 }
             },
+            {"$lookup": {
+                    from: APPROVED_STUDIES_COLLECTION,
+                    localField: "studyID",
+                    foreignField: "_id",
+                    as: "study"}
+            },
+            {
+                $unwind: {
+                    path: "$study",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            // note: FE use the root level properties; studyName, studyAbbreviation
+            {
+                $addFields: {
+                    studyName: "$study.studyName",
+                    studyAbbreviation: "$study.studyAbbreviation"
+                }
+            },
             ...(params?.organization && params?.organization !== ALL_FILTER
                 ? [{ $match: {
                         "organization._id": params?.organization
@@ -277,7 +301,7 @@ class Submission {
             .isUndefined()
             .notEmpty()
             .type([BATCH.TYPE.METADATA, BATCH.TYPE.DATA_FILE]);
-        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        const aSubmission = await this._findByID(params.submissionID);
 
         this._verifyBatchPermission(aSubmission, userInfo?._id);
 
@@ -328,7 +352,7 @@ class Submission {
             throw new Error(ERROR.BATCH_NOT_EXIST);
         }
 
-        const aSubmission = await findByID(this.submissionCollection, aBatch.submissionID);
+        const aSubmission = await this._findByID(aBatch.submissionID);
         this._verifyBatchPermission(aSubmission, userInfo?._id);
 
         // check if it's a heartbeat call sent by CLI of uploading data file.
@@ -376,7 +400,7 @@ class Submission {
         verifySession(context)
             .verifyInitialized();
 
-        const aSubmission = await findByID(this.submissionCollection,params?.submissionID);
+        const aSubmission = await this._findByID(params?.submissionID);
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
@@ -495,7 +519,7 @@ class Submission {
         verifySession(context)
             .verifyInitialized()
         const {submissionID, action, comment} = params;
-        let submission = await findByID(this.submissionCollection, submissionID);
+        let submission = await this._findByID(submissionID);
         if (!submission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST, submissionID);
         }
@@ -536,7 +560,7 @@ class Submission {
             status: newStatus,
             history: events,
             updatedAt: getCurrentTime(),
-            reviewComment: submission?.reviewComment || []
+            reviewComment: submission?.reviewComment || ""
         }
         submission = getDataCommonsDisplayNamesForSubmission(submission);
         const updated = await this.submissionCollection.update(submission);
@@ -692,7 +716,7 @@ class Submission {
         verifySession(context)
             .verifyInitialized();
 
-        const aSubmission = await findByID(this.submissionCollection, params?._id);
+        const aSubmission = await this._findByID(params?._id);
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
@@ -713,7 +737,7 @@ class Submission {
     async validateSubmission(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const aSubmission = await findByID(this.submissionCollection, params._id);
+        const aSubmission = await this._findByID(params._id);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
@@ -778,7 +802,7 @@ class Submission {
         verifySession(context)
             .verifyInitialized()
 
-        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        const aSubmission = await this._findByID(params.submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
@@ -795,7 +819,7 @@ class Submission {
             .verifyInitialized();
 
         const submissionID = params?._id;
-        const aSubmission = await findByID(this.submissionCollection, submissionID);
+        const aSubmission = await this._findByID(submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
@@ -825,7 +849,7 @@ class Submission {
             orderBy,
             sortDirection} = params;
         //check if submission exists
-        const aSubmission = await findByID(this.submissionCollection, submissionID);
+        const aSubmission = await this._findByID(submissionID);
         if (!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
@@ -989,7 +1013,7 @@ class Submission {
         verifySession(context)
             .verifyInitialized();
 
-        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        const aSubmission = await this._findByID(params.submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
@@ -1011,7 +1035,7 @@ class Submission {
         verifySession(context)
             .verifyInitialized();
 
-        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        const aSubmission = await this._findByID(params.submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
@@ -1103,7 +1127,7 @@ class Submission {
             submissionID,
             collaborators, 
         } = params;
-        const aSubmission = await findByID(this.submissionCollection, submissionID);
+        const aSubmission = await this._findByID(submissionID);
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
@@ -1125,7 +1149,7 @@ class Submission {
         // validate collaborators one by one.
         for (const collaborator of collaborators) {
             //find a submitter with the collaborator ID
-            const user = await findByID(this.userService.userCollection, collaborator.collaboratorID);
+            const user = await this.userDAO.findFirst({id: collaborator.collaboratorID});
             //find if the submission including existing collaborator
             if (!aSubmission.collaborators.find(c => c.collaboratorID === collaborator.collaboratorID)) {
                 if (!user) {
@@ -1160,7 +1184,7 @@ class Submission {
     _verifyStudyInUserStudies(user, studyId){
         if(!user?.studies || user.studies.length === 0 )
             return false;
-        const userStudy = (user.studies[0] instanceof Object)? user.studies.find(s=>s._id === studyId || s._id === "All"):
+        const userStudy = (user.studies[0] instanceof Object)? user.studies.find(s=>s.id === studyId || s.id === "All"):
             user.studies.find(s=> s === studyId || s === "All"); //backward compatible
         return (userStudy)? true: false;
     }
@@ -1421,7 +1445,7 @@ class Submission {
     async deleteDataRecords(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const aSubmission = await findByID(this.submissionCollection, params.submissionID);
+        const aSubmission = await this._findByID(params.submissionID);
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
@@ -1478,7 +1502,7 @@ class Submission {
     async listPotentialCollaborators(params, context) {
         verifySession(context)
             .verifyInitialized();
-        const aSubmission = await findByID(this.submissionCollection, params?.submissionID);
+        const aSubmission = await this._findByID(params?.submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
@@ -1505,7 +1529,7 @@ class Submission {
             .verifyInitialized();
 
         const {_id, version} = params;
-        const aSubmission = await findByID(this.submissionCollection, _id);
+        const aSubmission = await this._findByID(_id);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
@@ -1621,7 +1645,7 @@ class Submission {
     }
 
     async verifyTempCredential(submissionID, userInfo) {
-        const aSubmission = await findByID(this.submissionCollection, submissionID);
+        const aSubmission = await this._findByID(submissionID);
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
@@ -1787,7 +1811,7 @@ class Submission {
         if (aBatch?.status === BATCH.STATUSES.FAILED) {
             throw new Error(ERROR.BATCH_NOT_UPLOADED);
         }
-        const aSubmission = await findByID(this.submissionCollection, aBatch?.submissionID);
+        const aSubmission = await this._findByID(aBatch?.submissionID);
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
@@ -1815,7 +1839,7 @@ class Submission {
         verifySession(context)
             .verifyInitialized();
 
-        let aSubmission = await findByID(this.submissionCollection, params?.submissionID);
+        let aSubmission = await this._findByID(params?.submissionID);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
@@ -1883,7 +1907,7 @@ class Submission {
             .verifyInitialized();
 
         const {submissionID} = params;
-        const aSubmission = await findByID(this.submissionCollection, submissionID);
+        const aSubmission = await this._findByID(submissionID);
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
@@ -1916,7 +1940,7 @@ class Submission {
             throw new Error(ERROR.EMPTY_PV_REQUEST_PV);
         }
 
-        const aSubmission = await findByID(this.submissionCollection, param.submissionID);
+        const aSubmission = await this._findByID(param.submissionID);
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
@@ -1993,7 +2017,7 @@ class Submission {
         const {
             submissionID: submissionID
         } = params;
-        const aSubmission = await findByID(this.submissionCollection, submissionID);
+        const aSubmission = await this._findByID(submissionID);
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
@@ -2045,21 +2069,33 @@ class Submission {
     }
 
     async _findByID(id) {
-        return await this.submissionDAO.findFirst({id: id}, {
-            include: {
-                organization: true,
-                // program: {
-                //     orderBy: { name: 'desc' },
-                //     take: 1,
-                //     select: {
-                //         id: true,
-                //         name: true,
-                //         abbreviation: true,
-                //     }
-                // },
-                study: true
-            }
-        });
+        const aSubmission = await this.submissionDAO.findFirst(
+            { id },
+            {include: { study: true }}
+        );
+        // Prisma performs relation joins using multiple queries, so you can't sort by a related field directly.
+        if (aSubmission?.programID) {
+            aSubmission.organization = await this.programDAO.findFirst(
+                {id: aSubmission?.programID},
+                {
+                    orderBy: {name: PRISMA_SORT.DESC},
+                    take: 1,
+                    select: {
+                        id: true,
+                        name: true,
+                        abbreviation: true,
+                    }
+                }
+            );
+        }
+
+        if (aSubmission?.study?.id) {
+            aSubmission.study._id = aSubmission?.study?.id;
+            // note: FE use the root level properties; studyName, studyAbbreviation
+            aSubmission.studyName = aSubmission?.study?.studyName;
+            aSubmission.studyAbbreviation = aSubmission?.study?.studyAbbreviation;
+        }
+        return aSubmission;
     }
 }
 
@@ -2397,49 +2433,6 @@ const getUserEmails = (users) => {
         ?.map((aUser)=> aUser.email);
 }
 
-
-const findByID = async (submissionCollection, id) => {
-    const submissions = await submissionCollection.aggregate([
-        {"$match": {_id: id}},
-        {"$lookup": {
-                from: ORGANIZATION_COLLECTION,
-                let: {studyId: "$studyID"},
-                pipeline: [
-                    {
-                        $match: {
-                            $expr: {
-                                $in: ["$$studyId", "$studies._id"]
-                            }
-                        }
-                    },
-                    {
-                        $sort: {
-                            name: -1 // THIS MUST BE DESC TO LIST SUBMISSIONS PROPERLY
-                        }
-                    },
-                    {
-                        $limit: 1
-                    },
-                    {
-                        $project: {
-                            _id: 1,
-                            name: 1,
-                            abbreviation: 1
-                        }
-                    }
-                ],
-                as: "organization"
-            }
-        },
-        {$unwind: {
-                path: "$organization",
-                preserveNullAndEmptyArrays: true
-            }
-        }
-    ]);
-    return (submissions?.length > 0) ? submissions[0] : null;
-}
-
 function validateCreateSubmissionParams (params, allowedDataCommons, hiddenDataCommons, intention, dataType) {
     if (!params.name || params?.name?.trim().length === 0 || !params.studyID || !params.dataCommons) {
         throw new Error(ERROR.CREATE_SUBMISSION_INVALID_PARAMS);
@@ -2504,9 +2497,8 @@ class DataValidation {
         return new DataValidation(validationType, validationScope, validationStarted);
     }
 }
-
+const SUBMISSIONS = "submissions";
 class DataSubmission {
-    _SUBMISSIONS = "submissions";
     constructor(name, userInfo, dataCommons, dbGaPID, aProgram, modelVersion, intention, dataType, approvedStudy, submissionBucketName) {
         this._id = v4();
         this.name = name;
@@ -2519,13 +2511,11 @@ class DataSubmission {
         this.dbGaPID = dbGaPID;
         this.status = NEW;
         this.history = [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)];
-        this.organization = {
-            _id: (aProgram && aProgram?._id) ? aProgram?._id : null,
-            name: (aProgram && aProgram?.name) ? aProgram?.name : null,
-            abbreviation: (aProgram && aProgram?.abbreviation) ? aProgram?.abbreviation : null
-        };
+        if (aProgram && aProgram?._id) {
+            this.programID = aProgram?._id;
+        }
         this.bucketName = submissionBucketName;
-        this.rootPath = `${this._SUBMISSIONS}/${this._id}`;
+        this.rootPath = `${SUBMISSIONS}/${this._id}`;
         this.conciergeName = this._getConciergeName(approvedStudy, aProgram);
         this.conciergeEmail = this._getConciergeEmail(approvedStudy, aProgram);
         this.createdAt = this.updatedAt = getCurrentTime();
@@ -2535,8 +2525,6 @@ class DataSubmission {
         this.fileWarnings = [];
         this.intention = intention;
         this.dataType = dataType;
-        this.studyAbbreviation = approvedStudy?.studyAbbreviation;
-        this.studyName = approvedStudy?.studyName;
         if (!isUndefined(approvedStudy?.controlledAccess)) {
             this.controlledAccess = approvedStudy.controlledAccess;
         }
