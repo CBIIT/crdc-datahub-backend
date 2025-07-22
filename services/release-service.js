@@ -14,6 +14,8 @@ const PROP_GROUPS = {
     INTERNAL: "internal"
 };
 
+const DATA_COMMONS_DISPLAY_NAME = "dataCommonsDisplayNames";
+
 class ReleaseService {
     _ALL_FILTER = "All";
     _STUDY_NODE = "study";
@@ -45,7 +47,9 @@ class ReleaseService {
         ];
 
         const [listConditions, dataCommonsCondition] = filterConditions;
-        const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
+        // Don’t include this custom sort in the pagination sort — it can cause unexpected sorting behavior.
+        const customSort = params.orderBy === DATA_COMMONS_DISPLAY_NAME ? null : params.orderBy
+        const paginationPipe = new MongoPagination(params?.first, params.offset, customSort, params.sortDirection);
         const combinedPipeline = [
             {$match: {nodeType: this._STUDY_NODE, studyID: {$exists: true}}},
             {$group:{
