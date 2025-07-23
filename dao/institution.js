@@ -7,7 +7,7 @@ const {USER_COLLECTION} = require("../crdc-datahub-database-drivers/database-con
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 class InstitutionDAO extends GenericDAO {
-
+    _NAME = "name";
     _ALL_FILTER = "All";
     constructor(institutionCollection) {
         super(MODEL_NAME.INSTITUTIONS);
@@ -32,7 +32,7 @@ class InstitutionDAO extends GenericDAO {
                 as: "submitters"}
         };
 
-        const paginationPipe = new MongoPagination(first, offset, orderBy, sortDirection);
+        const paginationPipe = new MongoPagination(first, offset, orderBy, sortDirection, orderBy === this._NAME);
         const pipeline = [{"$match": this._listConditions(name, status)}, userJoin,
             {
                 $project: {
