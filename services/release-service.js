@@ -93,11 +93,46 @@ class ReleaseService {
                         "$$ROOT",
                         {dbGaPID: "$approvedStudies.dbGaPID", studyName: "$approvedStudies.studyName", studyAbbreviation: "$approvedStudies.studyAbbreviation",  studyID: "$approvedStudies._id"}
             ]}}},
+            {$set: {
+                    dataCommonsDisplayNames: {
+                        $map: {
+                            input: {
+                                $sortArray: {
+                                    input: {
+                                        $map: {
+                                            input: "$dataCommonsDisplayNames",
+                                            as: "name",
+                                            in: {
+                                                original: "$$name",
+                                                lower: { $toLower: "$$name" }
+                                            }
+                                        }
+                                    },
+                                    sortBy: { original: 1 }
+                                }
+                            },
+                            as: "item",
+                            in: "$$item.original"
+                        }
+                    }
+                }
+            },
+            {$set: {
+                    dataCommonsDisplayNamesSort: {
+                        $reduce: {
+                            input: "$dataCommonsDisplayNames",
+                            initialValue: "",
+                            in: { $concat: ["$$value", "$$this"] }
+                        }
+                    }
+                }
+            },
+
             // Sort by the element of dataCommonsDisplayNames
             ...(params.orderBy === 'dataCommonsDisplayNames'
                 ? [{
                     $sort: {
-                        "dataCommonsDisplayNames.0": params.sortDirection?.toLowerCase() === SORT.DESC ? DIRECTION.DESC : DIRECTION.ASC  // ascending by first element
+                        "dataCommonsDisplayNamesSort": params.sortDirection?.toLowerCase() === SORT.DESC ? DIRECTION.DESC : DIRECTION.ASC  // ascending by first element
                     }
                 }]
                 : []),
