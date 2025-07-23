@@ -97,6 +97,28 @@ class ReleaseService {
                         "$$ROOT",
                         {dbGaPID: "$approvedStudies.dbGaPID", studyName: "$approvedStudies.studyName", studyAbbreviation: "$approvedStudies.studyAbbreviation",  studyID: "$approvedStudies._id"}
             ]}}},
+            // Sort dataCommonsDisplayNames array ignoring case
+            {
+                $set: {
+                    dataCommonsDisplayNames: {
+                        $sortArray: {
+                            input: "$dataCommonsDisplayNames",
+                            sortBy: { $toLower: "$$this" }
+                        }
+                    }
+                }
+            },
+            {
+                $set: {
+                    dataCommonsDisplayNamesSort: {
+                        $reduce: {
+                            input: "$dataCommonsDisplayNames",
+                            initialValue: "",
+                            in: { $concat: ["$$value", "$$this"] }
+                        }
+                    }
+                }
+            },
             // Sort by the element of dataCommonsDisplayNames
             ...(params.orderBy === 'dataCommonsDisplayNames'
                 ? [{
