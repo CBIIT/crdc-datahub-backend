@@ -14,6 +14,7 @@ class InstitutionService {
     constructor(institutionCollection, authorizationService) {
         this.authorizationService = authorizationService;
         this.institutionDAO = new InstitutionDAO(institutionCollection);
+        this.institutionCollection = institutionCollection;
     }
 
     async getInstitutionByID(id) {
@@ -187,18 +188,27 @@ class InstitutionService {
         return await this.institutionDAO.listInstitution(params?.name, params?.offset, params?.first, params?.orderBy, params?.sortDirection, params?.status);
     }
 
-    async addNewInstitutions(institutionNames){
+    async addNewInstitutions(institutionList){
         try{
-            const existingInstitutions = await this._listInstitutions();
-            const newInstitutionNames = getListDifference(institutionNames, existingInstitutions);
-            if (newInstitutionNames.length > 0){
-                const newInstitutions = createNewInstitutions(newInstitutionNames);
-                const insertResult = await this.institutionDAO.createMany(newInstitutions);
-                const insertedCount = insertResult?.insertedCount;
-                if (insertedCount !== newInstitutions.length){
-                    throw new Error(`only ${insertedCount}/${newInstitutions.length} were created successfully`);
+            const institutionNames = new Set(institutionList
+                .map(x => x?.name)
+                .filter(Boolean) || []).toArray();
+            if (institutionNames?.length > 0) {
+                const existingInstitutions = await this._listInstitutions();
+                const newInstitutionNames = getListDifference(institutionNames, existingInstitutions);
+                if (newInstitutionNames.length > 0){
+                    const newInstitutions = createNewInstitutions(institutionList);
+                    const operations = newInstitutions.map(doc => ({
+                        insertOne: { document: doc }
+                    }));
+                    // Prisma can't create the document with the given ID. Otherwise, it needs to change the scheme.
+                    const insertResult = await this.institutionCollection.bulkWrite(operations);
+                    const insertedCount = insertResult?.insertedCount ?? 0;
+                    if (insertedCount !== newInstitutions.length) {
+                        throw new Error(`only ${insertedCount}/${newInstitutions.length} were created successfully`);
+                    }
+                    console.log(`${insertedCount} new institution(s) created in the database`)
                 }
-                console.log(`${insertedCount} new institution(s) created in the database`)
             }
         }
         catch (exception){
@@ -219,10 +229,13 @@ class InstitutionService {
     }
 }
 
-function createNewInstitutions(institutionNames){
+function createNewInstitutions(institutionsList){
     let newInstitutions = [];
-    institutionNames.forEach(name => {
-        newInstitutions.push(Institution.createInstitution(name, INSTITUTION.STATUSES.ACTIVE));
+    institutionsList.forEach(institution => {
+        const item = Institution.createInstitution(institution?.name, INSTITUTION.STATUSES.ACTIVE);
+        // Created the MongoDB _id
+        item._id = institution.id;
+        newInstitutions.push(item);
     });
     return newInstitutions;
 }
@@ -242,6 +255,5 @@ class Institution {
 }
 
 module.exports = {
-    InstitutionService,
-    createNewInstitutions
+    InstitutionService
 };
