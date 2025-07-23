@@ -70,6 +70,7 @@ describe('Submission.getPendingPVs', () => {
             studyID: 'study123',
             organization: { _id: 'org1', name: 'Org Name', abbreviation: 'ORG' }
         };
+        service._findByID = jest.fn().mockResolvedValue(mockSubmission);
 
         mockScope = {
             isNoneScope: jest.fn().mockReturnValue(false),
@@ -77,7 +78,6 @@ describe('Submission.getPendingPVs', () => {
     });
 
     it('returns pending PVs when user has permission', async () => {
-        mockAggregate.mockResolvedValue([mockSubmission]);
         service._getUserScope.mockResolvedValue(mockScope);
         service._isCollaborator.mockReturnValue(true);
         service.pendingPVDAO.findBySubmissionID.mockResolvedValue([
@@ -87,12 +87,11 @@ describe('Submission.getPendingPVs', () => {
         const result = await service.getPendingPVs({ submissionID: 'sub1' }, context);
 
         expect(result).toEqual([{ property: 'age', value: 'unknown' }]);
-        expect(mockAggregate).toHaveBeenCalledWith(expect.any(Array));
+        expect(service._findByID).toHaveBeenCalledWith('sub1');
     });
 
     it('throws error if submission is not found', async () => {
-        mockAggregate.mockResolvedValue([]);
-
+        service._findByID.mockResolvedValue(null);
         await expect(
             service.getPendingPVs({ submissionID: 'sub1' }, context)
         ).rejects.toThrow(ERROR.SUBMISSION_NOT_EXIST);

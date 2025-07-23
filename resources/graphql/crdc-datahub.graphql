@@ -134,6 +134,7 @@ type Submission {
     dataCommons: String
     dataCommonsDisplayName: String
     modelVersion: String # for future use
+    # note: FE should use study object instead
     studyAbbreviation: String
     dbGaPID: String # aka. phs number
     bucketName: String # populated from organization
@@ -161,7 +162,9 @@ type Submission {
     validationType: [String] # String [metadata, file, cross-submission, data file]
     validationScope: String
     studyID: String
+    # note: FE should use study object instead
     studyName: String
+    study: ApprovedStudy
     controlledAccess: Boolean
     ORCID: String
     deletingData: Boolean

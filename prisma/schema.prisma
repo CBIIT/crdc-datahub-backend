@@ -99,11 +99,16 @@ type InstitutionInfo {
 }
 
 type Collaborator {
-  Organization     OrgInfo?
+  Organization     CollaboratorOrg?
   collaboratorID   String
   collaboratorName String?
   /// Multiple data types found: String: 97.4%, Array(String): 2.6% out of 38 sampled entries
   permission       Json
+}
+
+type CollaboratorOrg {
+    id        String    @map("orgID")
+    orgName      String?
 }
 
 type DataFileSize {
@@ -201,7 +206,7 @@ model ApprovedStudy {
   createdAt         DateTime @default(now()) @db.Date
   updatedAt         DateTime @updatedAt @db.Date
   pendingApplicationID String?
-
+  submission Submission[]
   Concierge User? @relation(fields: [primaryContactID], references: [id])
 
   @@map("approvedStudies")
@@ -413,6 +418,7 @@ model Program {
   createdAt      DateTime    @default(now()) @db.Date
   updateAt       DateTime    @updatedAt @db.Date // this is a typo, but it's been like this for a while
 
+  submission Submission[]
   Concierge User? @relation(fields: [conciergeID], references: [id])
 
   @@map("organization")
@@ -464,7 +470,7 @@ model Release {
 model Submission {
   id                       String         @id @default(uuid()) @map("_id")
   ORCID                    String?
-  accessedAt               DateTime       @db.Date
+  accessedAt               DateTime?       @db.Date
   archived                 Boolean?
   bucketName               String
   collaborators            Collaborator[]
@@ -476,7 +482,7 @@ model Submission {
   dataCommons              String
   dataCommonsDisplayName   String?
   dataFileSize             DataFileSize
-  dataType                 String
+  // dataType                 String
   dbGaPID                  String?
   deletingData             Boolean?
   // fileErrors               SubmissionsFileErrors[]
@@ -496,7 +502,6 @@ model Submission {
   modelVersion             String
   name                     String
   nodeCount                Int?
-  organization             OrgInfo
   /// Could not determine type: the field only had null or empty values in the sample set.
   reviewComment            String?
   rootPath                 String
@@ -512,12 +517,13 @@ model Submission {
   validationType           String[]
   createdAt                DateTime       @default(now()) @db.Date
   updatedAt                DateTime       @updatedAt @db.Date
-
+  programID                String?
+  organization             Program? @relation(fields: [programID], references: [id])
+  study                    ApprovedStudy? @relation(fields: [studyID], references: [id])
   batches     Batch[]
   dataRecords DataRecord[]
   qcResults   QcResult[]
   validations Validation[]
-
   @@map("submissions")
 }
 
