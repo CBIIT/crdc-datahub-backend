@@ -241,7 +241,6 @@ dbConnector.connect().then(async () => {
         getSubmissionAttributes: submissionService.getSubmissionAttributes.bind(submissionService),
         listReleasedStudies: releaseService.listReleasedStudies.bind(releaseService),
         getReleaseNodeTypes: releaseService.getReleaseNodeTypes.bind(releaseService),
-        downloadDBGaPLoadSheet : submissionService.downloadDBGaPLoadSheet.bind(submissionService),
         getPendingPVs: submissionService.getPendingPVs.bind(submissionService),
         listReleasedDataRecords: releaseService.listReleasedDataRecords.bind(releaseService),
         retrievePropsForNodeType: releaseService.getPropsForNodeType.bind(releaseService),
