@@ -58,18 +58,13 @@ class AWSService {
             });
         });
 
-        if (result) {
-            console.log("Temporary credentials obtained successfully");
-            const now = new Date();
-            const expiration = result.expiration;
-            const durationHours =
-                (expiration.getTime() - now.getTime()) / 1000 / 3600;
-            console.log("Token is valid for:", durationHours.toFixed(2), "hours");
-            return result;
-        } else {
-            console.error("No credentials returned from assumeRole");
-            throw new Error("Failed to create temporary credentials");
-        }
+        console.log("Temporary credentials obtained successfully");
+        const now = new Date();
+        const expiration = result.expiration;
+        const durationHours =
+            (expiration.getTime() - now.getTime()) / 1000 / 3600;
+        console.log("Token is valid for:", durationHours.toFixed(2), "hours");
+        return result;
     }
 
     /**
