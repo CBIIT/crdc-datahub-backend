@@ -528,7 +528,7 @@ model Submission {
 }
 
 type FileError {
-    submissionID String?
+    submissionID String
     dataRecordID String?
     validationType String?
     batchID String?
