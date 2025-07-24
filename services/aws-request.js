@@ -58,12 +58,14 @@ class AWSService {
             });
         });
 
-        console.log("Temporary credentials obtained successfully");
-        const now = new Date();
-        const expiration = result.expiration;
-        const durationHours =
-            (expiration.getTime() - now.getTime()) / 1000 / 3600;
-        console.log("Token is valid for:", durationHours.toFixed(2), "hours");
+        const expiration = result?.expiration;
+        if (expiration) {
+            console.log("Temporary credentials obtained successfully");
+            const now = new Date();
+            const durationHours =
+                (expiration.getTime() - now.getTime()) / 1000 / 3600;
+            console.log("Token is valid for:", durationHours.toFixed(2), "hours");
+        }
         return result;
     }
 
