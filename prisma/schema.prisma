@@ -482,14 +482,14 @@ model Submission {
   dataCommons              String
   dataCommonsDisplayName   String?
   dataFileSize             DataFileSize
-  // dataType                 String
+  dataType                 String
   dbGaPID                  String?
   deletingData             Boolean?
-  // fileErrors               SubmissionsFileErrors[]
+  fileErrors               FileError[]
   /// Multiple data types found: String: 98.5%, Boolean: 1.5% out of 375 sampled entries
   fileValidationStatus     String?
   /// Could not determine type: the field only had null or empty values in the sample set.
-  // fileWarnings             Json?
+  fileWarnings             FileError[]
   finalInactiveReminder    Boolean?
   history                  History[]
   inactiveReminder         Boolean?
@@ -525,6 +525,22 @@ model Submission {
   qcResults   QcResult[]
   validations Validation[]
   @@map("submissions")
+}
+
+type FileError {
+    submissionID String?
+    dataRecordID String?
+    validationType String?
+    batchID String?
+    batchIDs String[]
+    displayID String?
+    type String?
+    submittedID String?
+    severity String?
+    uploadedDate DateTime?
+    validatedDate DateTime?
+    errors Error[]
+    warnings Error[]
 }
 
 model Synonym {
