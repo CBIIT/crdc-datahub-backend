@@ -41,9 +41,10 @@ class AWSService {
         const s3Params = {
             RoleArn: config.role_arn,
             RoleSessionName: `Temp_Session_${timestamp}`,
-            Policy: JSON.stringify(policy)
+            DurationSeconds: 3600 * 12,
+            Policy: JSON.stringify(policy), 
         };
-        return new Promise((resolve, reject) => {
+        const result = await new Promise((resolve, reject) => {
             sts.assumeRole(s3Params, (err, data) => {
                 if (err) reject(err);
                 else {
@@ -51,10 +52,24 @@ class AWSService {
                         accessKeyId: data.Credentials.AccessKeyId,
                         secretAccessKey: data.Credentials.SecretAccessKey,
                         sessionToken: data.Credentials.SessionToken,
+                        expiration: data.Credentials.Expiration
                     });
                 }
             });
         });
+
+        if (result) {
+            console.log("Temporary credentials obtained successfully");
+            const now = new Date();
+            const expiration = result.expiration;
+            const durationHours =
+                (expiration.getTime() - now.getTime()) / 1000 / 3600;
+            console.log("Token is valid for:", durationHours.toFixed(2), "hours");
+            return result;
+        } else {
+            console.error("No credentials returned from assumeRole");
+            throw new Error("Failed to create temporary credentials");
+        }
     }
 
     /**
