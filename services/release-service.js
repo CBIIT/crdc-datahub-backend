@@ -108,7 +108,7 @@ class ReleaseService {
                                             }
                                         }
                                     },
-                                    sortBy: { original: 1 }
+                                    sortBy: { lower: 1 }
                                 }
                             },
                             as: "item",
@@ -153,7 +153,7 @@ class ReleaseService {
             total: releaseStudies[0]?.totalCount[0]?.count || 0,
             dataCommonsDisplayNames: (dataCommons || [])
                 .map(getDataCommonsDisplayName)
-                .sort()
+                .sort((a, b) => a?.toLowerCase()?.localeCompare(b?.toLowerCase()))
         }
     }
     /**
