@@ -63,6 +63,20 @@ class GenericDAO {
     async delete(id) {
         return await this.model.delete({ where: { id } });
     }
+    /**
+     * Counts the number of documents in the collection based on the given filter and optional distinct fields.
+     *
+     * @param {Object} where - The filter conditions to apply (e.g., { status: 'SUBMITTED' }).
+     * @param {string|string[]} distinct - A single field or an array of fields to count distinct values for.
+     * @returns {Promise<number>} - The count of matching documents (optionally distinct).
+     */
+    async count(where, distinct) {
+        const arr = !Array.isArray(distinct) ? [distinct] : distinct;
+        return await this.model.count({
+            where,
+            distinct: arr,
+        });
+    }
 }
 
 module.exports = GenericDAO;
