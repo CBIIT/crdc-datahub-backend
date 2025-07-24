@@ -43,6 +43,8 @@ const sanitizeHtml = require("sanitize-html");
 const {SORT: PRISMA_SORT} = require("../constants/db-constants");
 const ProgramDAO = require("../dao/program");
 const UserDAO = require("../dao/user");
+const ApprovedStudyDAO = require("../dao/approvedStudy");
+const ValidationDAO = require("../dao/validation");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -96,6 +98,8 @@ class Submission {
         this.dataModelService = dataModelService;
         this.programDAO = new ProgramDAO();
         this.userDAO = new UserDAO();
+        this.approvedStudyDAO = new ApprovedStudyDAO();
+        this.validationDAO = new ValidationDAO();
     }
 
     async createSubmission(params, context) {
@@ -115,10 +119,7 @@ class Submission {
                 const latestDataModel = await this.fetchDataModelInfo();
                 return this._getModelVersion(latestDataModel, params.dataCommons);
             })(),
-            (async () => {
-                const programs = await this.organizationService.findOneByStudyID(params?.studyID);
-                return (programs && programs.length > 0) ? programs[0] : null;
-            })()
+            this.organizationService.findOneByStudyID(params?.studyID)
         ]);
 
         if (approvedStudies.length === 0) {
@@ -143,23 +144,21 @@ class Submission {
         }
         const newSubmission = getDataCommonsDisplayNamesForSubmission(DataSubmission.createSubmission(
             params.name, context.userInfo, params.dataCommons, approvedStudy?.dbGaPID, program, modelVersion, intention, dataType, approvedStudy, this.submissionBucketName));
-        const res = await this.submissionCollection.insert(newSubmission);
-        if (!(res?.acknowledged)) {
+
+        const res = await this.submissionDAO.create(newSubmission);
+        if (!res) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
         }
 
-        await this._remindPrimaryContactEmail(newSubmission, approvedStudy, program);
-        return this._findByID(newSubmission?._id);
+        await this._remindPrimaryContactEmail(res, approvedStudy, program);
+        return this._findByID(res?._id);
     }
     async _findApprovedStudies(studies) {
         if (!studies || studies.length === 0) return [];
         const studiesIDs = (studies[0] instanceof Object) ? studies.map((study) => study?._id) : studies;
-        const approvedStudies = await this.userService.approvedStudiesCollection.aggregate([{
-            "$match": {
-                "_id": { "$in": studiesIDs } 
-            }
-        }]);
-        return approvedStudies;
+        return this.approvedStudyDAO.findMany({
+            id: {in: studiesIDs}
+        });
     }
 
     async listSubmissions(params, context) {
@@ -170,128 +169,8 @@ class Submission {
             console.warn("Failed permission verification for listSubmissions, returning empty list");
             return {submissions: [], total: 0};
         }
-        validateListSubmissionsParams(params);
-
-        const filterConditions = [
-            // default filter for listing submissions
-            this._listConditions(context?.userInfo, params.status, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
-            // no filter for dataCommons aggregation
-            this._listConditions(context?.userInfo, ALL_FILTER, null, null, ALL_FILTER, ALL_FILTER, userScope),
-            // note: Aggregation of Submitter name should not be filtered by a submitterName
-            this._listConditions(context?.userInfo, params?.status, params.name, params.dbGaPID, params.dataCommons, ALL_FILTER, userScope),
-            // Organization filter condition before joining an approved-studies collection
-            this._listConditions(context?.userInfo, params?.status, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
-            // note: Aggregation of status name should not be filtered by statuses
-            this._listConditions(context?.userInfo, ALL_FILTER, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
-        ]
-
-        const [listConditions, dataCommonsCondition, submitterNameCondition, organizationCondition, statusCondition] = filterConditions;
-        const pipeline = [{"$match": listConditions}, {
-            $addFields: {
-                dataFileSize: {
-                    $cond: {
-                        if: { $in: ["$status", [DELETED, CANCELED]] },
-                        then: { size: 0, formatted: NA },
-                        else: "$dataFileSize"
-                    }
-                }
-            }},
-            {
-                $lookup: {
-                    from: ORGANIZATION_COLLECTION,
-                    let: { studyId: "$studyID" },
-                    pipeline: [
-                        {
-                            $match: {
-                                $expr: {
-                                    "$and": [
-                                        {"$in": ["$$studyId", "$studies._id"]},
-
-
-                                    ]
-                                },
-
-                            }
-                        },
-                        { $sort: { name: -1 } },
-                        { $limit: 1 },
-                        {
-                            $project: {
-                                _id: 1,
-                                name: 1,
-                                abbreviation: 1
-                            }
-                        }
-                    ],
-                    as: "organization"
-                }
-            },
-            {
-                $unwind: {
-                    path: "$organization",
-                    preserveNullAndEmptyArrays: true
-                }
-            },
-            {"$lookup": {
-                    from: APPROVED_STUDIES_COLLECTION,
-                    localField: "studyID",
-                    foreignField: "_id",
-                    as: "study"}
-            },
-            {
-                $unwind: {
-                    path: "$study",
-                    preserveNullAndEmptyArrays: true
-                }
-            },
-            // note: FE use the root level properties; studyName, studyAbbreviation
-            {
-                $addFields: {
-                    studyName: "$study.studyName",
-                    studyAbbreviation: "$study.studyAbbreviation"
-                }
-            },
-            ...(params?.organization && params?.organization !== ALL_FILTER
-                ? [{ $match: {
-                        "organization._id": params?.organization
-                    } }]
-                : [])
-        ];
-        const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
-        const noPaginationPipeline = pipeline.concat(paginationPipe.getNoLimitPipeline());
-        const submissionStudyIDs = await this.submissionCollection.distinct("studyID", organizationCondition);
-        const promises = [
-            this.submissionCollection.aggregate(pipeline.concat(paginationPipe.getPaginationPipeline())),
-            this.submissionCollection.aggregate(noPaginationPipeline.concat([{ $group: { _id: "$_id" } }, { $count: "count" }])),
-            this.submissionCollection.distinct("dataCommons", dataCommonsCondition),
-            // note: Submitter name filter is omitted
-            this.submissionCollection.distinct("submitterName", submitterNameCondition),
-            // note: Organization ID filter is omitted
-            this.organizationService.organizationCollection.aggregate([{
-                $match: {
-                        "studies._id": {$in: submissionStudyIDs}
-                    }
-            }, {
-                $project: {_id: 1, name: 1, abbreviation: 1}
-            }]),
-            // note: Status name filter is omitted
-            this.submissionCollection.distinct("status", statusCondition)
-        ];
-        let listSubmissions = await Promise.all(promises).then(function (results) {
-            return {
-                submissions: results[0] || [],
-                total: results[1]?.length > 0 ? results[1][0]?.count : 0,
-                dataCommons: results[2] || [],
-                submitterNames: results[3] || [],
-                organizations: results[4] || [],
-                statuses: () => {
-                    const statusOrder = [NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, COMPLETED, CANCELED, DELETED];
-                    return (results[5] || [])
-                        .sort((a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status));
-                }
-            }
-        });
-        return getDataCommonsDisplayNamesForListSubmissions(listSubmissions);
+        const res = await this.submissionDAO.listSubmissions(context?.userInfo, userScope, params);
+        return getDataCommonsDisplayNamesForListSubmissions(res);
     }
 
     async createBatch(params, context) {
@@ -434,8 +313,9 @@ class Submission {
                 const dataFileSize = await this._getS3DirectorySize(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/`);
                 const isDataFileChanged = aSubmission?.dataFileSize?.size !== dataFileSize.size || aSubmission?.dataFileSize?.formatted !== dataFileSize.formatted;
                 if (isDataFileChanged) {
-                    const updatedSubmission = await this.submissionCollection.findOneAndUpdate({_id: aSubmission?._id}, {dataFileSize, updatedAt: getCurrentTime()}, {returnDocument: 'after', upsert: true});
-                    if (!updatedSubmission?.value) {
+                    const updatedSubmission = await this.submissionDAO.update(aSubmission?._id, {dataFileSize, updatedAt: getCurrentTime()});
+                    // const updatedSubmission = await this.submissionCollection.findOneAndUpdate({_id: aSubmission?._id}, {dataFileSize, updatedAt: getCurrentTime()}, {returnDocument: 'after', upsert: true});
+                    if (!updatedSubmission) {
                         throw new Error(ERROR.FAILED_RECORD_FILESIZE_PROPERTY, `SubmissionID: ${aSubmission?._id}`);
                     }
                 }
@@ -443,11 +323,15 @@ class Submission {
             })(),
             (async () => {
                 if (aSubmission?.studyID) {
-                    const submissions = await this.submissionCollection.aggregate([
-                        {"$match": {$and: [
-                            {studyID: aSubmission.studyID},
-                            {status: {$in: [IN_PROGRESS, SUBMITTED, RELEASED, REJECTED, WITHDRAWN]}},
-                            {_id: { $not: { $eq: params._id}}}]}}]);
+                    const submissions = await this.submissionDAO.findMany({
+                        studyID: aSubmission.studyID,
+                        status: {
+                            in: [IN_PROGRESS, SUBMITTED, RELEASED, REJECTED, WITHDRAWN],
+                        },
+                        NOT: {
+                            id: params._id, // assuming your `_id` is mapped to `id` in Prisma
+                        },
+                    });
                     const otherSubmissions = {
                           [IN_PROGRESS]: [],
                           [SUBMITTED]: [],
@@ -488,9 +372,7 @@ class Submission {
         const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
         if (conditionSubmitter) {
             const everyReminderDays = this._getEveryReminderQuery(this.emailParams.remindSubmissionDay, false);
-            const updateSubmission = await this.submissionCollection.findOneAndUpdate({_id: aSubmission?._id},
-                {accessedAt: getCurrentTime(), ...everyReminderDays},
-                {returnDocument: 'after'});
+            const updateSubmission = await this.submissionDAO.update(aSubmission?._id, {accessedAt: getCurrentTime(), ...everyReminderDays});
             aSubmission = updateSubmission.value;
         }
         let submission = {...aSubmission}
@@ -1698,13 +1580,15 @@ class Submission {
         if (Object.keys(typesToUpdate).length === 0) {
             return;
         }
-        const updated = await this.submissionCollection.update({_id: aSubmission?._id, ...typesToUpdate, updatedAt: updatedTime, validationEnded: new Date()});
-        if(validationRecord){
+
+        const updated = await this.submissionDAO.update(aSubmission?._id, {...typesToUpdate, updatedAt: updatedTime, validationEnded: getCurrentTime()})
+        if (validationRecord) {
             validationRecord["ended"] = new Date();
             validationRecord["status"] = "Error";
-            await this.validationCollection.updateOne({_id: validationRecord["_id"]}, validationRecord);
+            // TODO verify it
+            await this.validationDAO.update(validationRecord["_id"], validationRecord)
         }
-        if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
+        if (!updated) {
             throw new Error(ERROR.FAILED_VALIDATE_METADATA);
         }
     }
@@ -2454,15 +2338,6 @@ function validateCreateSubmissionParams (params, allowedDataCommons, hiddenDataC
     }
 }
 
-function validateListSubmissionsParams (params) {
-    const validStatus = new Set([NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, REJECTED, WITHDRAWN, CANCELED, DELETED, ALL_FILTER]);
-    const invalidStatues = (params?.status || [])
-        .filter((i) => !validStatus.has(i));
-    if (invalidStatues?.length > 0) {
-        throw new Error(replaceErrorString(ERROR.LIST_SUBMISSION_INVALID_STATUS_FILTER, `'${invalidStatues.join(",")}'`));
-    }
-}
-
 class ValidationRecord {
     // submissionID: string
     // type: array
@@ -2500,7 +2375,7 @@ class DataValidation {
 const SUBMISSIONS = "submissions";
 class DataSubmission {
     constructor(name, userInfo, dataCommons, dbGaPID, aProgram, modelVersion, intention, dataType, approvedStudy, submissionBucketName) {
-        this._id = v4();
+        // this._id = v4();
         this.name = name;
         this.submitterID = userInfo._id;
         this.collaborators = [];
