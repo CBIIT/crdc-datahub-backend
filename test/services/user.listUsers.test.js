@@ -1,6 +1,5 @@
 const { UserService } = require('../../services/user');
 const { USER } = require('../../crdc-datahub-database-drivers/constants/user-constants');
-const ERROR = require('../../constants/error-constants');
 
 describe('UserService.listUsers', () => {
     let userService;
