@@ -39,9 +39,9 @@ class GenericDAO {
         }
         return { ...result, _id: result.id };
     }
-    async findMany(filter) {
+    async findMany(filter, option = {}) {
         filter = convertMongoFilterToPrismaFilter(filter);
-        const result = await this.model.findMany({ where: filter });
+        const result = await this.model.findMany({ where: filter, ...option });
         return result.map(item => ({ ...item, _id: item.id }));
     }
 
@@ -58,6 +58,10 @@ class GenericDAO {
 
     async updateMany(condition, data){
         return await this.model.updateMany({ where: { ...condition }, data: { ...data }});
+    }
+
+    async deleteMany(where) {
+        return await this.model.deleteMany({ where});
     }
 
     async delete(id) {
