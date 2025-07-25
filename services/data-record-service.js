@@ -10,6 +10,7 @@ const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-
 const {getFormatDateStr} = require("../utility/string-util.js")
 const {arrayOfObjectsToTSV} = require("../utility/io-util.js")
 const DataRecordDAO = require("../dao/dataRecords");
+const {SORT} = require("../constants/db-constants");
 const BATCH_SIZE = 300;
 const ERROR = "Error";
 const WARNING = "Warning";
@@ -156,7 +157,7 @@ class DataRecordService {
         const isMetadata = types.some(t => t === VALIDATION.TYPES.METADATA || t === VALIDATION.TYPES.CROSS_SUBMISSION);
         let errorMessages = [];
         if (isMetadata) {
-            const docCount = await this._getCount(this.dataRecordsCollection, submissionID);
+            const docCount = await this._getCount(submissionID);
             if (docCount === 0)  errorMessages.push(ERRORS.FAILED_VALIDATE_METADATA, ERRORS.NO_VALIDATION_METADATA);
             else {
                 // updated for task CRDCDH-3001, both cross-submission and metadata need to be validated in parallel in a condition
@@ -168,7 +169,7 @@ class DataRecordService {
                         errorMessages.push(ERRORS.FAILED_VALIDATE_CROSS_SUBMISSION, success.message);
                 }
                 if (types.includes(VALIDATION.TYPES.METADATA)) {
-                    const newDocCount = await this._getCount(this.dataRecordsCollection, submissionID, scope);
+                    const newDocCount = await this._getCount(submissionID, scope);
                     if (!(scope.toLowerCase() === VALIDATION.SCOPE.NEW && newDocCount === 0)) {
                         const msg = Message.createMetadataMessage("Validate Metadata", submissionID, scope, validationID);
                         const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.metadataQueueName, submissionID);
@@ -183,7 +184,7 @@ class DataRecordService {
         }
         const isFile = types.some(t => (t?.toLowerCase() === VALIDATION.TYPES.DATA_FILE || t?.toLowerCase() === VALIDATION.TYPES.FILE));
         if (isFile) {
-            const fileNodes = await this._getFileNodes(this.dataRecordsCollection, submissionID, scope);
+            const fileNodes = await this._getFileNodes(submissionID, scope);
             if (fileNodes && fileNodes.length > 0) {
                 const fileValidationErrors = await this._sendBatchSQSMessage(fileNodes, validationID, submissionID);
                 if (fileValidationErrors.length > 0)
@@ -587,7 +588,7 @@ class DataRecordService {
         };
         return await this.dataRecordsCollection.distinct("nodeType", filter);
     }
-
+    // This MongoDB schema is optimized for performance by reducing joins and leveraging document-based structure.
     async resetDataRecords(submissionID, status) {
         return await this.dataRecordsCollection.updateMany(
             { submissionID: submissionID },

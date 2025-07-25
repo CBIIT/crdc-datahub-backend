@@ -1051,16 +1051,12 @@ class Submission {
             collaborator.collaboratorName = user.lastName + ", " + user.firstName ;
             collaborator.Organization = user.organization;
         }
-        // if passed validation
-        aSubmission.collaborators = collaborators;  
-        aSubmission.updatedAt = new Date();
-        let submission = getDataCommonsDisplayNamesForSubmission(aSubmission);
-        const result = await this.submissionCollection.update(submission);
-        if (result?.modifiedCount === 1) {
-            return submission;
+        // TODO check
+        const result = await this.submissionDAO.update(aSubmission?._id, {collaborators, updatedAt: getCurrentTime()});
+        if (result) {
+            return getDataCommonsDisplayNamesForSubmission(result);
         }
-        else
-            throw new Error(ERROR.FAILED_ADD_SUBMISSION_COLLABORATOR);
+        throw new Error(ERROR.FAILED_ADD_SUBMISSION_COLLABORATOR);
     }
 
     _verifyStudyInUserStudies(user, studyId){
@@ -1068,7 +1064,7 @@ class Submission {
             return false;
         const userStudy = (user.studies[0] instanceof Object)? user.studies.find(s=>s.id === studyId || s.id === "All"):
             user.studies.find(s=> s === studyId || s === "All"); //backward compatible
-        return (userStudy)? true: false;
+        return Boolean(userStudy);
     }
 
     _getModelFileNodeInfo(aSubmission, dataModelInfo){
@@ -1441,45 +1437,49 @@ class Submission {
         if (aSubmission?.modelVersion === version) {
             return aSubmission;
         }
-        const updatedSubmission = await this.submissionCollection.findOneAndUpdate(
-            {_id: aSubmission?._id, modelVersion: {"$ne": version}}, { // update condition
-                // Update documents
+        // TODO check
+        const updatedSubmission = await this.submissionDAO.update(
+            aSubmission?._id, {
                 modelVersion: version,
-                updatedAt: getCurrentTime()},
-            {returnDocument: 'after'}
+                updatedAt: getCurrentTime()
+            }
         );
+        if (!updatedSubmission) {
+            const msg = ERROR.FAILED_UPDATE_MODEL_VERSION + `; submissionID: ${aSubmission?._id}`;
+            console.error(msg)
+            throw new Error(msg);
+        }
         await this._resetValidation(aSubmission?._id);
-        return updatedSubmission?.value;
+        return updatedSubmission;
     }
-
+    // TODO check
     async _resetValidation(aSubmissionID){
         const [resetSubmission, resetDataRecords, resetQCResult] = await Promise.all([
-            this.submissionCollection.findOneAndUpdate(
-                {_id: aSubmissionID}, { // update condition
+            this.submissionDAO.update(
+                aSubmissionID, { // update condition
                     // Update documents
                     updatedAt: getCurrentTime(),
                     metadataValidationStatus: VALIDATION_STATUS.NEW,
                     fileValidationStatus: VALIDATION_STATUS.NEW,
-                    crossSubmissionStatus: VALIDATION_STATUS.NEW},
-                {returnDocument: 'after'}
+                    crossSubmissionStatus: VALIDATION_STATUS.NEW}
             ),
             this.dataRecordService.resetDataRecords(aSubmissionID, VALIDATION_STATUS.NEW),
             this.qcResultsService.resetQCResultData(aSubmissionID)
         ]);
 
-        if (!resetSubmission.value) {
+        if (!resetSubmission) {
             const errorMsg = `${ERROR.FAILED_RESET_SUBMISSION}; SubmissionID: ${aSubmissionID}`;
             console.error(errorMsg)
             throw new Error(errorMsg);
         }
 
-        if (!resetDataRecords.acknowledged) {
+        if (!resetDataRecords) {
             const errorMsg = `${ERROR.FAILED_RESET_DATA_RECORDS}; SubmissionID: ${aSubmissionID}`;
             console.error(errorMsg);
             throw new Error(errorMsg);
         }
-
-        if (!resetQCResult.acknowledged) {
+        // todo check
+        if (!resetQCResult.count) {
             const errorMsg = `${ERROR.FAILED_RESET_QC_RESULT}; SubmissionID: ${aSubmission?._id}`;
             console.error(errorMsg);
             throw new Error(errorMsg);
@@ -1614,11 +1614,17 @@ class Submission {
             return submission;
         }
         const dataValidation = DataValidation.createDataValidation(metadataTypes, validationRecord.scope, validationRecord.started);
-        let updated = await this.submissionCollection.findOneAndUpdate({_id: submissionID}, {...dataValidation, updatedAt: getCurrentTime()}, {returnDocument: 'after'});
-        if (!updated?.value) {
+        const updated = await this.submissionDAO.update({ id: submissionID },
+            {
+                ...dataValidation,
+                updatedAt: getCurrentTime(),
+        });
+
+        if (!updated) {
             throw new Error(ERROR.FAILED_RECORD_VALIDATION_PROPERTY);
         }
-        return updated.value;
+
+        return updated;
     }
 
     // Generates a query for the status of all email notification reminder.
