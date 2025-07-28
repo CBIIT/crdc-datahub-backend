@@ -158,7 +158,7 @@ class UserService {
 
 
     async getUserByID(userID) {
-        const result = await this.userDAO.findFirst(userID);
+        const result = await this.userDAO.findFirst({id: userID});
         if (result?.length === 1) {
             const user = result[0];
             const studies = await this._findApprovedStudies(user.studies);

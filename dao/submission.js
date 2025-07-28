@@ -120,7 +120,7 @@ class SubmissionDAO extends GenericDAO {
                     } }]
                 : [])
         ];
-        const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
+        const paginationPipe = new MongoPagination(params?._first, params._offset, params._orderBy, params._sortDirection);
         const noPaginationPipeline = pipeline.concat(paginationPipe.getNoLimitPipeline());
         const submissionStudyIDs = await this.submissionCollection.distinct("studyID", organizationCondition);
         const promises = [

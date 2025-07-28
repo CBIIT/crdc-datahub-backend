@@ -690,7 +690,7 @@ class DataRecordService {
         const countNodes = await this.dataRecordDAO.count({
             submissionID: submissionID,
         }, ['nodeType']);
-        return countNodes || 0;
+         return countNodes || 0;
     }
     /**
      * public function to retrieve release record from release collection
