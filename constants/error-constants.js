@@ -238,6 +238,7 @@ const ERROR = {
     SAMPLE_NOT_FOUND: "This Data Submission has no [sample OR participant] records uploaded. Unable to generate the dbGaP loading sheets at this time.",
     PARTICIPANT_SAMPLE_NOT_FOUND: "This Data Submission currently has no sample records with a link to a participant record. Unable to generate the dbGaP loading sheets at this time.",
     FAILED_CREATE_LOAD_SHEET: "An unknown error occurred while generating the dbGaP Loading Sheets. Please try again later.",
+    USER_NOT_EXIST: "The user does not exist.",
 }
 
 module.exports = ERROR;
