@@ -14,6 +14,8 @@ const PROP_GROUPS = {
     INTERNAL: "internal"
 };
 
+const DATA_COMMONS_DISPLAY_NAMES = "dataCommonsDisplayNames";
+
 class ReleaseService {
     _ALL_FILTER = "All";
     _STUDY_NODE = "study";
@@ -45,7 +47,9 @@ class ReleaseService {
         ];
 
         const [listConditions, dataCommonsCondition] = filterConditions;
-        const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
+        // Don’t include this custom sort in the pagination sort — it can cause unexpected sorting behavior.
+        const customSort = params.orderBy === DATA_COMMONS_DISPLAY_NAMES ? null : params.orderBy
+        const paginationPipe = new MongoPagination(params?.first, params.offset, customSort, params.sortDirection);
         const combinedPipeline = [
             {$match: {nodeType: this._STUDY_NODE, studyID: {$exists: true}}},
             {$group:{
@@ -93,11 +97,46 @@ class ReleaseService {
                         "$$ROOT",
                         {dbGaPID: "$approvedStudies.dbGaPID", studyName: "$approvedStudies.studyName", studyAbbreviation: "$approvedStudies.studyAbbreviation",  studyID: "$approvedStudies._id"}
             ]}}},
+            {$set: {
+                    dataCommonsDisplayNames: {
+                        $map: {
+                            input: {
+                                $sortArray: {
+                                    input: {
+                                        $map: {
+                                            input: "$dataCommonsDisplayNames",
+                                            as: "name",
+                                            in: {
+                                                original: "$$name",
+                                                lower: { $toLower: "$$name" }
+                                            }
+                                        }
+                                    },
+                                    sortBy: { lower: 1 }
+                                }
+                            },
+                            as: "item",
+                            in: "$$item.original"
+                        }
+                    }
+                }
+            },
+            {$set: {
+                    dataCommonsDisplayNamesSort: {
+                        $reduce: {
+                            input: "$dataCommonsDisplayNames",
+                            initialValue: "",
+                            in: { $concat: ["$$value", "$$this"] }
+                        }
+                    }
+                }
+            },
+
             // Sort by the element of dataCommonsDisplayNames
             ...(params.orderBy === 'dataCommonsDisplayNames'
                 ? [{
                     $sort: {
-                        "dataCommonsDisplayNames.0": params.sortDirection?.toLowerCase() === SORT.DESC ? DIRECTION.DESC : DIRECTION.ASC  // ascending by first element
+                        "dataCommonsDisplayNamesSort": params.sortDirection?.toLowerCase() === SORT.DESC ? DIRECTION.DESC : DIRECTION.ASC  // ascending by first element
                     }
                 }]
                 : []),
@@ -118,7 +157,7 @@ class ReleaseService {
             total: releaseStudies[0]?.totalCount[0]?.count || 0,
             dataCommonsDisplayNames: (dataCommons || [])
                 .map(getDataCommonsDisplayName)
-                .sort()
+                .sort((a, b) => a?.toLowerCase()?.localeCompare(b?.toLowerCase()))
         }
     }
     /**

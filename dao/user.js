@@ -10,7 +10,7 @@ class UserDAO extends GenericDAO {
     }
 
     async updateUserOrg(orgID, updatedOrg) {
-        await this.userCollection.updateMany(
+        return await this.userCollection.updateMany(
             {"organization.orgID": orgID, "organization.orgName": {"$ne": updatedOrg.name}},
             {
                 "organization.orgName": updatedOrg.name,

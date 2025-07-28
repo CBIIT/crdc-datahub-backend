@@ -99,11 +99,16 @@ type InstitutionInfo {
 }
 
 type Collaborator {
-  Organization     OrgInfo?
+  Organization     CollaboratorOrg?
   collaboratorID   String
   collaboratorName String?
   /// Multiple data types found: String: 97.4%, Array(String): 2.6% out of 38 sampled entries
   permission       Json
+}
+
+type CollaboratorOrg {
+    id        String    @map("orgID")
+    orgName      String?
 }
 
 type DataFileSize {
@@ -137,6 +142,11 @@ type Error {
   offendingProperty String?
   offendingValue    String?
   severity          String?
+}
+
+type newInstitution {
+    id String @map("_id")
+    name String
 }
 
 model CDE {
@@ -175,9 +185,7 @@ model Application {
   wholeProgram        Boolean?
   createdAt           DateTime  @default(now()) @db.Date
   updatedAt           DateTime  @updatedAt @db.Date
-  institutionID       String?
-  institution         Institution? @relation(fields: [institutionID], references: [id])
-
+  newInstitutions     newInstitution[]
   @@map("applications")
 }
 
@@ -198,7 +206,7 @@ model ApprovedStudy {
   createdAt         DateTime @default(now()) @db.Date
   updatedAt         DateTime @updatedAt @db.Date
   pendingApplicationID String?
-
+  submission Submission[]
   Concierge User? @relation(fields: [primaryContactID], references: [id])
 
   @@map("approvedStudies")
@@ -371,7 +379,6 @@ model Institution {
   submitterCount Int?
   createdAt      DateTime? @default(now()) @db.Date
   updatedAt      DateTime? @updatedAt @db.Date
-  application    Application[]
   @@map("institutions")
 }
 
@@ -411,6 +418,7 @@ model Program {
   createdAt      DateTime    @default(now()) @db.Date
   updateAt       DateTime    @updatedAt @db.Date // this is a typo, but it's been like this for a while
 
+  submission Submission[]
   Concierge User? @relation(fields: [conciergeID], references: [id])
 
   @@map("organization")
@@ -462,7 +470,7 @@ model Release {
 model Submission {
   id                       String         @id @default(uuid()) @map("_id")
   ORCID                    String?
-  accessedAt               DateTime       @db.Date
+  accessedAt               DateTime?       @db.Date
   archived                 Boolean?
   bucketName               String
   collaborators            Collaborator[]
@@ -477,11 +485,11 @@ model Submission {
   dataType                 String
   dbGaPID                  String?
   deletingData             Boolean?
-  // fileErrors               SubmissionsFileErrors[]
+  fileErrors               FileError[]
   /// Multiple data types found: String: 98.5%, Boolean: 1.5% out of 375 sampled entries
   fileValidationStatus     String?
   /// Could not determine type: the field only had null or empty values in the sample set.
-  // fileWarnings             Json?
+  fileWarnings             FileError[]
   finalInactiveReminder    Boolean?
   history                  History[]
   inactiveReminder         Boolean?
@@ -494,7 +502,6 @@ model Submission {
   modelVersion             String
   name                     String
   nodeCount                Int?
-  organization             OrgInfo
   /// Could not determine type: the field only had null or empty values in the sample set.
   reviewComment            String?
   rootPath                 String
@@ -510,13 +517,30 @@ model Submission {
   validationType           String[]
   createdAt                DateTime       @default(now()) @db.Date
   updatedAt                DateTime       @updatedAt @db.Date
-
+  programID                String?
+  organization             Program? @relation(fields: [programID], references: [id])
+  study                    ApprovedStudy? @relation(fields: [studyID], references: [id])
   batches     Batch[]
   dataRecords DataRecord[]
   qcResults   QcResult[]
   validations Validation[]
-
   @@map("submissions")
+}
+
+type FileError {
+    submissionID String
+    dataRecordID String
+    validationType String?
+    batchID String?
+    batchIDs String[]
+    displayID String?
+    type String?
+    submittedID String?
+    severity String?
+    uploadedDate DateTime?
+    validatedDate DateTime?
+    errors Error[]
+    warnings Error[]
 }
 
 model Synonym {

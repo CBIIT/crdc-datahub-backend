@@ -249,10 +249,10 @@ describe('Application', () => {
         it('returns result from applicationDAO', async () => {
             // Mock the applicationDAO.findFirst method to resolve to an application object
             app.applicationDAO = {
-                findFirst: jest.fn().mockResolvedValue({ _id: 'app1', institution: { id: 'inst1' } })
+                findFirst: jest.fn().mockResolvedValue({ _id: 'app1'})
             };
-            await expect(app.getApplicationById('app1')).resolves.toEqual({ _id: 'app1', institution: { id: 'inst1', _id: 'inst1' } });
-            expect(app.applicationDAO.findFirst).toHaveBeenCalledWith({id: 'app1'}, { include: { institution: true } });
+            await expect(app.getApplicationById('app1')).resolves.toEqual({ _id: 'app1'});
+            expect(app.applicationDAO.findFirst).toHaveBeenCalledWith({id: 'app1'});
         });
 
         it('throws if not found', async () => {
