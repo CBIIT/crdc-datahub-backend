@@ -125,4 +125,5 @@ Commands:
             type: "OMB_INFO"
           }
         },
-        { upsert: true };
+        { upsert: true }
+      );
