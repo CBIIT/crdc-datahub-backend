@@ -51,7 +51,7 @@ class ProgramDAO extends GenericDAO {
         pipeline.push({"$match": {$expr: {
             $eq: [
                 { $toLower: "$name" },
-                name?.trim().toLowerCase()
+                name?.trim()?.toLowerCase()
             ]
         }}});
         pipeline.push({"$limit": 1});
