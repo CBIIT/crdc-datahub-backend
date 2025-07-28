@@ -135,7 +135,6 @@ type History {
 }
 
 type Error {
-  id                String?    @map("_id")
   title             String
   description       String
   // Optional fields from QcResultsErrors that can be used across all error types
@@ -529,9 +528,8 @@ model Submission {
 }
 
 type FileError {
-    id String?    @map("_id")
-    submissionID String?
-    dataRecordID String?
+    submissionID String
+    dataRecordID String
     validationType String?
     batchID String?
     batchIDs String[]
