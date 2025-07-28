@@ -13,6 +13,8 @@ const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utilit
 const fs = require('fs');
 const path = require('path');
 const {makeDir, zipFilesInDir} = require("../utility/io-util");
+const BatchDAO = require("../dao/batch");
+const {PrismaPagination} = require("../crdc-datahub-database-drivers/domain/prisma-pagination");
 
 const LOAD_METADATA = "Load Metadata";
 const OMIT_DCF_PREFIX = 'omit-DCF-prefix';
@@ -25,6 +27,7 @@ class BatchService {
         this.awsService = awsService;
         this.prodURL = prodURL;
         this.fetchDataModelInfo = fetchDataModelInfo;
+        this.batchDAO = new BatchDAO();
     }
 
     async createBatch(params, aSubmission, user) {
@@ -48,8 +51,9 @@ class BatchService {
                 }
             });
         }
-        const inserted = await this.batchCollection.insert(newBatch);
-        if (!inserted?.acknowledged) {
+        // TODO check
+        const inserted = await this.batchDAO.create(newBatch);
+        if (!inserted) {
             console.error(ERROR.FAILED_NEW_BATCH_INSERTION);
             throw new Error(ERROR.FAILED_NEW_BATCH_INSERTION);
         }
@@ -144,21 +148,16 @@ class BatchService {
     }
 
     async listBatches(params) {
-        const pipeline = [{"$match": {submissionID: params.submissionID}}];
-        const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
-        const combinedPipeline = pipeline.concat([
-            {
-                $facet: {
-                    batches: paginationPipe.getPaginationPipeline(),
-                    totalCount: [{ $count: "count" }]
-                }
-            }
+        const where = {submissionID: params.submissionID};
+        const pagination = new PrismaPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
+        const [batches, count] = await Promise.all([
+            this.batchDAO.findMany(where, pagination.getPagination()),
+            this.batchDAO.count(where)
         ]);
 
-        const res = await this.batchCollection.aggregate(combinedPipeline);
         return {
-            batches: res[0]?.batches || [],
-            total: res[0]?.totalCount[0]?.count || 0
+            batches: batches || [],
+            total: count || 0
         };
     }
     
@@ -167,8 +166,7 @@ class BatchService {
     }
 
     async findByID(id) {
-        const aBatch = await this.batchCollection.find(id);
-        return (aBatch?.length > 0) ? aBatch[0] : null;
+        return await this.batchDAO.findById(id);
     }
     // private function
     async _getBatchDisplayID(submissionID) {
@@ -246,7 +244,8 @@ class BatchService {
                 await this.s3Service.uploadZipFile(aBatch.bucketName, aBatch.filePrefix, zipFileName, zipFilePath);
 
                 //update aBatch with zipFileName if uploaded zip file without exception
-                this.batchCollection.update({"_id": aBatch._id}, {"$set": {"zipFileName": zipFileName, "updatedAt": getCurrentTime()}});        
+                // TODO check
+                await this.batchDAO.update(aBatch._id, {"zipFileName": zipFileName, "updatedAt": getCurrentTime()})
             }
             finally{
                 //delete the temp folder

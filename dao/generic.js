@@ -76,10 +76,11 @@ class GenericDAO {
      */
     async count(where, distinct) {
         const arr = !Array.isArray(distinct) ? [distinct] : distinct;
-        return await this.model.count({
+        const res = await this.model.findMany({
             where,
-            distinct: arr,
+            distinct: arr
         });
+        return res?.length || 0;
     }
 }
 

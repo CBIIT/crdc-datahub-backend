@@ -289,7 +289,7 @@ class Submission {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
-        return this.batchService.listBatches(params);
+        return await this.batchService.listBatches(params);
     }
 
   async getSubmission(params, context){
@@ -350,7 +350,10 @@ class Submission {
               if (!aSubmission?.archived) {
                   const submissionNodeCount = await this.dataRecordService.countNodesBySubmissionID(aSubmission?._id);
                   if (aSubmission.nodeCount !== submissionNodeCount) {
-                      await this.submissionCollection.update({_id: aSubmission?._id, updatedAt: getCurrentTime(), nodeCount: submissionNodeCount});
+                      const updatedNodeCount = await this.submissionDAO.update(aSubmission?._id, {updatedAt: getCurrentTime(), nodeCount: submissionNodeCount});
+                      if (!updatedNodeCount) {
+                          console.error(`Failed to update the node count; submissionID: ${aSubmission?._id}`);
+                      }
                       aSubmission.nodeCount = submissionNodeCount;
                   }
               }
@@ -372,11 +375,14 @@ class Submission {
         const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
         if (conditionSubmitter) {
             const everyReminderDays = this._getEveryReminderQuery(this.emailParams.remindSubmissionDay, false);
-            const updateSubmission = await this.submissionDAO.update(aSubmission?._id, {accessedAt: getCurrentTime(), ...everyReminderDays});
-            aSubmission = updateSubmission.value;
+            await this.submissionDAO.update(aSubmission?._id, {accessedAt: getCurrentTime(), ...everyReminderDays});
         }
-        let submission = {...aSubmission}
-        return getDataCommonsDisplayNamesForSubmission(submission);
+        // Returning the updated document might miss the organization.
+        if (aSubmission.programID && !aSubmission.organization) {
+            aSubmission.organization = await this.programDAO.findById(aSubmission.programID);
+        }
+
+        return getDataCommonsDisplayNamesForSubmission(aSubmission);
     }
 
     /**
