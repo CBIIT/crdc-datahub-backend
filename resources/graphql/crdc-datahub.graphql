@@ -216,6 +216,7 @@ type TempCredentials {
     accessKeyId: String
     secretAccessKey: String
     sessionToken: String
+    expiration: Date
 }
 
 type ApprovedStudy {
