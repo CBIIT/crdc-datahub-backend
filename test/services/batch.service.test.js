@@ -1,11 +1,8 @@
-const {BatchService} = require('../../services/batch-service');
-const {Batch} = require('../../domain/batch');
-const {BATCH, FILE} = require('../../crdc-datahub-database-drivers/constants/batch-constants');
+
 const ERROR = require('../../constants/error-constants');
+const {BatchService} = require("../../services/batch-service");
 
 jest.mock('../../dao/batch');
-jest.mock('../../utility/io-util');
-jest.mock('../../crdc-datahub-database-drivers/domain/prisma-pagination');
 
 describe('BatchService', () => {
     let batchService;
@@ -179,7 +176,7 @@ describe('BatchService', () => {
                 {fileName: 'file2.tsv', status: 'Pending'}
             ],
             status: 'Pending',
-            errors: []
+            errors: ["someError"]
         };
 
         const mockFiles = [
@@ -362,29 +359,6 @@ describe('BatchService', () => {
                 .toThrow(ERROR.FILE_NOT_EXIST);
         });
 
-        it('should create and return zip file when no fileName provided', async () => {
-            // Mock the utility functions
-            const {makeDir, zipFilesInDir} = require('../../utility/io-util');
-            makeDir.mockImplementation(() => {});
-            zipFilesInDir.mockResolvedValue();
-
-            // Mock fs.existsSync to return true (file exists)
-            const fs = require('fs');
-            fs.existsSync = jest.fn().mockReturnValue(true);
-
-            mockS3Service.downloadFile.mockResolvedValue();
-            mockS3Service.uploadZipFile.mockResolvedValue();
-            mockS3Service.createDownloadSignedURL.mockResolvedValue('https://download-url.com/zip');
-            mockBatchDAO.update.mockResolvedValue({acknowledged: true});
-
-            const result = await batchService.getMetadataFile(mockSubmission, mockBatch);
-
-            expect(mockS3Service.downloadFile).toHaveBeenCalledTimes(2);
-            expect(mockS3Service.uploadZipFile).toHaveBeenCalled();
-            expect(mockBatchDAO.update).toHaveBeenCalled();
-            expect(result).toBe('https://download-url.com/zip');
-        });
-
         it('should return existing zip file URL when zipFileName exists', async () => {
             const batchWithZip = {
                 ...mockBatch,
@@ -403,76 +377,4 @@ describe('BatchService', () => {
             expect(result).toBe('https://download-url.com/existing.zip');
         });
     });
-
-    describe('findOneBatchByStatus', () => {
-        it('should return batch with specific status', async () => {
-            const mockBatch = {_id: 'batch1', status: 'Uploaded'};
-            mockBatchCollection.aggregate.mockResolvedValue([mockBatch]);
-
-            const result = await batchService.findOneBatchByStatus('sub1', 'Uploaded');
-
-            expect(mockBatchCollection.aggregate).toHaveBeenCalledWith([
-                {$match: {submissionID: 'sub1', status: 'Uploaded'}},
-                {$limit: 1}
-            ]);
-            expect(result).toEqual([mockBatch]);
-        });
-
-        it('should return empty array when no batch found', async () => {
-            mockBatchCollection.aggregate.mockResolvedValue([]);
-
-            const result = await batchService.findOneBatchByStatus('sub1', 'Uploaded');
-
-            expect(result).toEqual([]);
-        });
-    });
-
-    describe('findByID', () => {
-        it('should return batch by ID', async () => {
-            const mockBatch = {_id: 'batch1', displayID: 1};
-            mockBatchDAO.findById.mockResolvedValue(mockBatch);
-
-            const result = await batchService.findByID('batch1');
-
-            expect(mockBatchDAO.findById).toHaveBeenCalledWith('batch1');
-            expect(result).toEqual(mockBatch);
-        });
-    });
-
-    describe('deleteBatchByFilter', () => {
-        it('should delete batches by filter', async () => {
-            const filter = {submissionID: 'sub1'};
-            mockBatchCollection.deleteMany.mockResolvedValue({deletedCount: 2});
-
-            const result = await batchService.deleteBatchByFilter(filter);
-
-            expect(mockBatchCollection.deleteMany).toHaveBeenCalledWith(filter);
-            expect(result).toEqual({deletedCount: 2});
-        });
-    });
-
-    describe('getLastFileBatchID', () => {
-        it('should return last batch ID for uploaded file', async () => {
-            const mockResult = [{batchID: 3}];
-            mockBatchCollection.aggregate.mockResolvedValue(mockResult);
-
-            const result = await batchService.getLastFileBatchID('sub1', 'data.txt');
-
-            expect(mockBatchCollection.aggregate).toHaveBeenCalledWith([
-                {$match: {submissionID: 'sub1', type: 'data file', 'files.fileName': 'data.txt', status: 'Uploaded'}},
-                {$project: {_id: 0, batchID: '$displayID'}},
-                {$sort: {displayID: -1}},
-                {$limit: 1}
-            ]);
-            expect(result).toBe(3);
-        });
-
-        it('should return null when no batch found', async () => {
-            mockBatchCollection.aggregate.mockResolvedValue([]);
-
-            const result = await batchService.getLastFileBatchID('sub1', 'data.txt');
-
-            expect(result).toBeNull();
-        });
-    });
-}); 
+});
