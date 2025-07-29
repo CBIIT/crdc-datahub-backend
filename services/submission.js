@@ -94,7 +94,7 @@ class Submission {
         this.dataCommonsBucketMap = dataCommonsBucketMap;
         this.authorizationService = authorizationService;
         this.pendingPVDAO = new PendingPVDAO();
-        this.submissionDAO = new SubmissionDAO(this.submissionCollection);
+        this.submissionDAO = new SubmissionDAO(this.submissionCollection, this.organizationService.organizationCollection);
         this.dataModelService = dataModelService;
         this.programDAO = new ProgramDAO();
         this.userDAO = new UserDAO();
@@ -1644,45 +1644,6 @@ class Submission {
     _isCollaborator(userInfo, aSubmission) {
         const collaboratorUserIDs = Collaborators.createCollaborators(aSubmission?.collaborators).getEditableCollaboratorIDs();
         return collaboratorUserIDs.includes(userInfo?._id);
-    }
-
-    _listConditions(userInfo, status, submissionName, dbGaPID, dataCommonsParams, submitterName, userScope){
-        const {_id, dataCommons, studies} = userInfo;
-        const validSubmissionStatus = [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
-            REJECTED, WITHDRAWN, DELETED];
-        const statusCondition = status && !status?.includes(ALL_FILTER) ?
-            { status: { $in: status || [] } } : { status: { $in: validSubmissionStatus } };
-
-        const nameCondition = submissionName ? {name: { $regex: submissionName?.trim().replace(/\\/g, "\\\\"), $options: "i" }} : {};
-        const dbGaPIDCondition = dbGaPID ? {dbGaPID: { $regex: dbGaPID?.trim().replace(/\\/g, "\\\\"), $options: "i" }} : {};
-        const dataCommonsCondition = (dataCommonsParams && dataCommonsParams !== ALL_FILTER) ? {dataCommons: dataCommonsParams?.trim()} : {};
-        const submitterNameCondition = (submitterName && submitterName !== ALL_FILTER) ? {submitterName: submitterName?.trim()} : {};
-
-        const baseConditions = { ...statusCondition, ...nameCondition,
-            ...dbGaPIDCondition, ...dataCommonsCondition, ...submitterNameCondition };
-
-        if (userScope.isAllScope()) {
-            return baseConditions;
-        } else if (userScope.isStudyScope()) {
-            const studyScope = userScope.getStudyScope();
-            const studyQuery = isAllStudy(studyScope?.scopeValues) ? {} : {studyID: {$in: studyScope?.scopeValues}};
-            return {...baseConditions, ...studyQuery};
-        } else if (userScope.isDCScope()) {
-            const DCScope = userScope.getDataCommonsScope();
-            const aFilteredDataCommon = (dataCommonsParams && DCScope?.scopeValues?.includes(dataCommonsParams)) ? [dataCommonsParams] : []
-            return {...baseConditions, dataCommons: {$in: dataCommonsParams !== ALL_FILTER ? aFilteredDataCommon : dataCommons}};
-        } else if (userScope.isOwnScope()) {
-            const userStudies = Array.isArray(studies) && studies.length > 0 ? studies : [];
-            const studyIDs = userStudies?.map(s => s?._id).filter(Boolean);
-            if (isAllStudy(userStudies)) {
-                return baseConditions;
-            }
-            return {...baseConditions, "$or": [
-                    {"submitterID": _id},
-                    {"studyID": {$in: studyIDs || []}},
-                    {"collaborators.collaboratorID": _id, "collaborators.permission": {$in: [COLLABORATOR_PERMISSIONS.CAN_EDIT]}}]};
-        }
-        throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
     }
 
     /**

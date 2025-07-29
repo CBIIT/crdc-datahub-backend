@@ -1,14 +1,16 @@
 const GenericDAO = require("./generic");
 const { MODEL_NAME } = require('../constants/db-constants');
 const {APPROVED_STUDIES_COLLECTION, ORGANIZATION_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
-const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
-const {DELETED, CANCELED, NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, COMPLETED} = require("../constants/submission-constants");
+const {DELETED, CANCELED, NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, COMPLETED, ARCHIVED} = require("../constants/submission-constants");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
+const ERROR = require("../constants/error-constants");
 const ALL_FILTER = "All";
+const NA = "NA"
 class SubmissionDAO extends GenericDAO {
-    constructor(submissionCollection) {
+    constructor(submissionCollection, organizationCollection) {
         super(MODEL_NAME.SUBMISSION);
         this.submissionCollection = submissionCollection;
+        this.organizationCollection = organizationCollection;
     }
     // prisma is unable to join study._id
     async programLevelSubmissions(studyIDs) {
@@ -120,7 +122,7 @@ class SubmissionDAO extends GenericDAO {
                     } }]
                 : [])
         ];
-        const paginationPipe = new MongoPagination(params?._first, params._offset, params._orderBy, params._sortDirection);
+        const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
         const noPaginationPipeline = pipeline.concat(paginationPipe.getNoLimitPipeline());
         const submissionStudyIDs = await this.submissionCollection.distinct("studyID", organizationCondition);
         const promises = [
@@ -130,7 +132,8 @@ class SubmissionDAO extends GenericDAO {
             // note: Submitter name filter is omitted
             this.submissionCollection.distinct("submitterName", submitterNameCondition),
             // note: Organization ID filter is omitted
-            this.organizationService.organizationCollection.aggregate([{
+            // note; programDAO findMany by studies.is is not working
+            this.organizationCollection.aggregate([{
                 $match: {
                     "studies._id": {$in: submissionStudyIDs}
                 }
@@ -157,6 +160,54 @@ class SubmissionDAO extends GenericDAO {
         });
 
     }
+
+    _listConditions(userInfo, status, submissionName, dbGaPID, dataCommonsParams, submitterName, userScope){
+        const {_id, dataCommons, studies} = userInfo;
+        const validSubmissionStatus = [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
+            REJECTED, WITHDRAWN, DELETED];
+        const statusCondition = status && !status?.includes(ALL_FILTER) ?
+            { status: { $in: status || [] } } : { status: { $in: validSubmissionStatus } };
+
+        const nameCondition = submissionName ? {name: { $regex: submissionName?.trim().replace(/\\/g, "\\\\"), $options: "i" }} : {};
+        const dbGaPIDCondition = dbGaPID ? {dbGaPID: { $regex: dbGaPID?.trim().replace(/\\/g, "\\\\"), $options: "i" }} : {};
+        const dataCommonsCondition = (dataCommonsParams && dataCommonsParams !== ALL_FILTER) ? {dataCommons: dataCommonsParams?.trim()} : {};
+        const submitterNameCondition = (submitterName && submitterName !== ALL_FILTER) ? {submitterName: submitterName?.trim()} : {};
+
+        const baseConditions = { ...statusCondition, ...nameCondition,
+            ...dbGaPIDCondition, ...dataCommonsCondition, ...submitterNameCondition };
+
+        if (userScope.isAllScope()) {
+            return baseConditions;
+        } else if (userScope.isStudyScope()) {
+            const studyScope = userScope.getStudyScope();
+            const studyQuery = isAllStudy(studyScope?.scopeValues) ? {} : {studyID: {$in: studyScope?.scopeValues}};
+            return {...baseConditions, ...studyQuery};
+        } else if (userScope.isDCScope()) {
+            const DCScope = userScope.getDataCommonsScope();
+            const aFilteredDataCommon = (dataCommonsParams && DCScope?.scopeValues?.includes(dataCommonsParams)) ? [dataCommonsParams] : []
+            return {...baseConditions, dataCommons: {$in: dataCommonsParams !== ALL_FILTER ? aFilteredDataCommon : dataCommons}};
+        } else if (userScope.isOwnScope()) {
+            const userStudies = Array.isArray(studies) && studies.length > 0 ? studies : [];
+            const studyIDs = userStudies?.map(s => s?._id).filter(Boolean);
+            if (isAllStudy(userStudies)) {
+                return baseConditions;
+            }
+            return {...baseConditions, "$or": [
+                    {"submitterID": _id},
+                    {"studyID": {$in: studyIDs || []}},
+                    {"collaborators.collaboratorID": _id, "collaborators.permission": {$in: [COLLABORATOR_PERMISSIONS.CAN_EDIT]}}]};
+        }
+        throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+    }
+
+}
+
+const isAllStudy = (userStudies) => {
+    const studies = Array.isArray(userStudies) && userStudies.length > 0 ? userStudies : [];
+    return studies.find(study =>
+        (typeof study === 'object' && study._id === "All") ||
+        (typeof study === 'string' && study === "All")
+    );
 }
 
 function validateListSubmissionsParams (params) {
