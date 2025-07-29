@@ -51,13 +51,13 @@ class BatchService {
                 }
             });
         }
-        // TODO check
+
         const inserted = await this.batchDAO.create(newBatch);
         if (!inserted) {
             console.error(ERROR.FAILED_NEW_BATCH_INSERTION);
             throw new Error(ERROR.FAILED_NEW_BATCH_INSERTION);
         }
-        return newBatch;
+        return inserted;
     }
 
     async findOneBatchByStatus(submissionID, status) {
