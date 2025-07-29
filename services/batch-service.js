@@ -98,7 +98,7 @@ class BatchService {
                         aBatch.errors.push(invalidUploadError);
                     }
                 }
-                updatedFiles.push(aFile) 
+                updatedFiles.push(aFile)
             }
             aBatch.files = updatedFiles;
             aBatch.fileCount = updatedFiles.length;
@@ -107,7 +107,7 @@ class BatchService {
             aBatch.files = [];
             aBatch.fileCount = 0;
         }
-        
+
         // Count how many batch files updated from FE match the uploaded files.
         const isAllUploaded = files?.length > 0 && (succeededFiles.length + skippedCount  === files?.length);
         aBatch.status = isAllUploaded ? (aBatch.type=== BATCH.TYPE.METADATA && !isAllSkipped? BATCH.STATUSES.UPLOADING : BATCH.STATUSES.UPLOADED) : BATCH.STATUSES.FAILED;
@@ -141,7 +141,7 @@ class BatchService {
                 aBatch.errors = aBatch.errors || [];
                 aBatch.errors.push(...newErrors);
             }
-            aBatch.errors = new Set(aBatch.errors || []).toArray();
+            aBatch.errors = Array.from(new Set(aBatch.errors || []));
         }
         await asyncUpdateBatch(this.awsService, this.batchCollection, aBatch, this.sqsLoaderQueue, isAllUploaded, isAllSkipped);
         return await this.findByID(aBatch._id);
@@ -160,7 +160,7 @@ class BatchService {
             total: count || 0
         };
     }
-    
+
     async deleteBatchByFilter(filter) {
         return await this.batchCollection.deleteMany(filter);
     }
@@ -177,8 +177,8 @@ class BatchService {
     }
     /**
      * getLastFileBatchID
-     * @param {*} submissionID 
-     * @param {*} fileName 
+     * @param {*} submissionID
+     * @param {*} fileName
      * @returns int
      */
     async getLastFileBatchID(submissionID, fileName){
@@ -200,7 +200,7 @@ class BatchService {
      * @param {*} aBatch
      * @param {*} fileName
      * @returns string
-     */ 
+     */
     async getMetadataFile(submission, aBatch, fileName) {
         const submissionName = submission.name.replace("/", "_");
         if(fileName){
@@ -254,7 +254,7 @@ class BatchService {
             }
         }
         //return presigned download url
-        return await this.s3Service.createDownloadSignedURL(aBatch.bucketName, aBatch.filePrefix, zipFileName);  
+        return await this.s3Service.createDownloadSignedURL(aBatch.bucketName, aBatch.filePrefix, zipFileName);
     }
 }
 
@@ -284,10 +284,10 @@ const createPrefix = (params, rootPath) => {
 
 /**
  * UploadingMonitor: a singleton to hold uploading batch pool and scheduler to check the pool every 5 min.
- * public functions to save/remove {batchID: updatedAt} into/from the pool. 
- * private function to monitor all uploading batches in the pool to check if updatedAT is older than 15 min, 
+ * public functions to save/remove {batchID: updatedAt} into/from the pool.
+ * private function to monitor all uploading batches in the pool to check if updatedAT is older than 15 min,
  * if older than 15min, update the batch and set status to failed with errors.
-*/ 
+*/
 const UPLOADING_BATCH_POOL_FILE = "./logs/uploading_batch_pool.json";
 class UploadingMonitor {
     static instance;
@@ -298,7 +298,7 @@ class UploadingMonitor {
 
     /**
      * getInstance
-     * @param {*} batchCollection 
+     * @param {*} batchCollection
      * @param {*} configurationService
      * @returns UploadingChecker
      */
@@ -311,7 +311,7 @@ class UploadingMonitor {
 
     /**
      * private function:  _initialize
-     * @param {*} configurationService 
+     * @param {*} configurationService
      */
     async _initialize(configurationService) {
         const config = await configurationService.findByType(UPLOADING_HEARTBEAT_CONFIG_TYPE);
@@ -320,13 +320,13 @@ class UploadingMonitor {
         this.uploading_batch_pool = readJsonFile2Object(UPLOADING_BATCH_POOL_FILE);
         this._startScheduler();
     }
-    
+
     async _checkUploadingBatches() {
         if (Object.keys(this.uploading_batch_pool).length === 0) {
             return;
         }
         const now = new Date();
-        // loop through all uploading batches in uploading_batch_pool 
+        // loop through all uploading batches in uploading_batch_pool
         // and check if updatedAt is older than 5*3 min. if older than 15 min, update batch with status failed.
         for (const batchID of Object.keys(this.uploading_batch_pool)) {
             const updatedAt = new Date(this.uploading_batch_pool[batchID]);
@@ -335,7 +335,7 @@ class UploadingMonitor {
                 //update batch with status failed if older than 15 min
                 const error = ERROR.UPLOADING_BATCH_CRASHED;
                 try {
-                    await this.setUploadingFailed(batchID, BATCH.STATUSES.FAILED, error); 
+                    await this.setUploadingFailed(batchID, BATCH.STATUSES.FAILED, error);
                 }
                 catch (e) {
                     console.error(`Failed to update batch ${batchID} with error: ${e.message}`);
@@ -343,7 +343,7 @@ class UploadingMonitor {
                 finally {
                     // remove failed batch from the pool
                     // this.removeUploadingBatch(batchID);
-                } 
+                }
             }
         }
     }
@@ -356,16 +356,16 @@ class UploadingMonitor {
     }
     /**
      * saveUploadingBatch
-     * @param {*} batchID 
+     * @param {*} batchID
      */
     saveUploadingBatch(batchID) {
         this.uploading_batch_pool[batchID] = new Date();
         this._savePool2JsonFile();
-    } 
+    }
 
     /**
      * removeUploadingBatch
-     * @param {*} batchID 
+     * @param {*} batchID
      */
     removeUploadingBatch(batchID) {
          // check if the pool contains the batchID, if not, return
@@ -387,7 +387,7 @@ class UploadingMonitor {
 
     async setUploadingFailed(batchID, status, error, throwable = false) {
         try {
-            const response = await this.batchCollection.update({"_id": batchID}, 
+            const response = await this.batchCollection.update({"_id": batchID},
                 {$set: {"status": status, "errors": [error],"updatedAt": new Date()}});
             if (!response?.acknowledged) {
                 console.error(ERROR.FAILED_UPDATE_BATCH_STATUS);
@@ -401,7 +401,7 @@ class UploadingMonitor {
             }
         }
     }
-} 
+}
 
 module.exports = {
     BatchService, UploadingMonitor
