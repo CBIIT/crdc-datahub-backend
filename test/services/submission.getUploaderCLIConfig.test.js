@@ -1,5 +1,5 @@
 const {Submission} = require('../../services/submission');
-
+jest.mock("../../crdc-datahub-database-drivers/mongodb-collection");
 describe('Submission.getUploaderCLIConfigs', () => {
     let submission;
     let mockSubmissionDAO;
@@ -16,7 +16,8 @@ describe('Submission.getUploaderCLIConfigs', () => {
         };
 
         mockSubmissionDAO = {
-            findById: jest.fn()
+            findById: jest.fn(),
+            organizationCollection: jest.fn()
         };
 
         mockUploaderCLIConfigs = 'submissionID: {submissionID}\napiURL: {apiURL}\ndataFolder: {dataFolder}\nmanifest: {manifest}\narchive_manifest: {archive_manifest}\ntoken: {token}';
@@ -24,13 +25,42 @@ describe('Submission.getUploaderCLIConfigs', () => {
         mockFetchDataModelInfo = jest.fn().mockResolvedValue({ commons1: {} });
         mockReplaceToken = jest.fn().mockImplementation(async (context, configString) => configString.replace('{token}', 'mocked-token'));
 
-        submission = new Submission();
+        // Mock all required dependencies for Submission constructor
+        const mockOrganizationService = {
+            organizationCollection: jest.fn()
+        };
+
+        submission = new Submission(
+            jest.fn(), // logCollection
+            jest.fn(), // submissionCollection
+            jest.fn(), // batchService
+            jest.fn(), // userService
+            mockOrganizationService, // organizationService
+            jest.fn(), // notificationService
+            jest.fn(), // dataRecordService
+            mockFetchDataModelInfo, // fetchDataModelInfo
+            jest.fn(), // awsService
+            jest.fn(), // metadataQueueName
+            jest.fn(), // s3Service
+            jest.fn(), // emailParams
+            [], // dataCommonsList
+            [], // hiddenDataCommonsList
+            jest.fn(), // validationCollection
+            jest.fn(), // sqsLoaderQueue
+            jest.fn(), // qcResultsService
+            mockUploaderCLIConfigs, // uploaderCLIConfigs
+            jest.fn(), // submissionBucketName
+            jest.fn(), // configurationService
+            jest.fn(), // uploadingMonitor
+            jest.fn(), // dataCommonsBucketMap
+            jest.fn(), // authorizationService
+            jest.fn() // dataModelService
+        );
+
+        // Override the submissionDAO with our mock
         submission.submissionDAO = mockSubmissionDAO;
-        submission.uploaderCLIConfigs = mockUploaderCLIConfigs;
-        submission.fetchDataModelInfo = mockFetchDataModelInfo;
         submission._replaceToken = mockReplaceToken;
         submission._verifyBatchPermission = jest.fn();
-
         global.verifySession = jest.fn(() => ({
             verifyInitialized: jest.fn()
         }));
