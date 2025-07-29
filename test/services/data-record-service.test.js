@@ -235,26 +235,32 @@ describe('DataRecordService', () => {
 
   describe('countNodesBySubmissionID', () => {
     test('should return correct count of nodes', async () => {
-      mockDataRecordsCollection.aggregate.mockResolvedValue([
-        { count: 5 }
-      ]);
+      // The implementation uses dataRecordDAO.count, not aggregate
+      dataRecordService.dataRecordDAO = {
+        count: jest.fn().mockResolvedValue(5)
+      };
 
       const result = await dataRecordService.countNodesBySubmissionID('submission-123');
 
       expect(result).toBe(5);
-      expect(mockDataRecordsCollection.aggregate).toHaveBeenCalledWith([
-        { $match: { submissionID: 'submission-123' } },
-        { $group: { _id: '$_id' } },
-        { $count: 'count' }
-      ]);
+      expect(dataRecordService.dataRecordDAO.count).toHaveBeenCalledWith(
+        { submissionID: 'submission-123' },
+        ['nodeType']
+      );
     });
 
     test('should return 0 when no nodes found', async () => {
-      mockDataRecordsCollection.aggregate.mockResolvedValue([]);
+      dataRecordService.dataRecordDAO = {
+        count: jest.fn().mockResolvedValue(0)
+      };
 
       const result = await dataRecordService.countNodesBySubmissionID('submission-123');
 
       expect(result).toBe(0);
+      expect(dataRecordService.dataRecordDAO.count).toHaveBeenCalledWith(
+        { submissionID: 'submission-123' },
+        ['nodeType']
+      );
     });
   });
 

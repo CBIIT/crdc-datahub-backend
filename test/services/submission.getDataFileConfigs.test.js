@@ -62,12 +62,15 @@ describe('Submission.getDataFileConfigs', () => {
         mockFetchDataModelInfo = jest.fn().mockResolvedValue(mockDataModelInfo);
 
         // Initialize Submission with required dependencies
+        // Provide a mock organizationService with an organizationCollection as required by Submission
+        const mockOrganizationService = { organizationCollection: {} };
+
         submission = new Submission(
             null, // logCollection
             null, // submissionCollection
             null, // batchService
             null, // userService
-            null, // organizationService
+            mockOrganizationService, // organizationService with organizationCollection
             null, // notificationService
             null, // dataRecordService
             mockFetchDataModelInfo, // fetchDataModelInfo

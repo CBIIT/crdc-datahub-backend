@@ -19,7 +19,6 @@ const {UserService} = require("../../services/user");
 jest.mock("../../services/notify-user");
 const organizationService = new Organization(new MongoDBCollection());
 const applicationCollection = new MongoDBCollection();
-const approvedStudyService = new ApprovedStudiesService(new MongoDBCollection(), new MongoDBCollection(), organizationService);
 const userCollection = new MongoDBCollection();
 const logCollection = new MongoDBCollection();
 const dbService = new MongoQueries(config.mongo_db_connection_string, DATABASE_NAME);
@@ -29,7 +28,7 @@ const notificationsService = new NotifyUser(emailService);
 const userService = new UserService(userCollection, null , null,null, null, null, null, null, organizationService);
 
 const submissionCollection = new MongoDBCollection();
-const submissionService = new Submission(submissionCollection);
+const submissionService = new Submission(submissionCollection, null, null, null, organizationService);
 const s3Service = new S3Service();
 const batchCollection = new MongoDBCollection();
 const batchService = new BatchService(s3Service, batchCollection, config.submission_bucket);
