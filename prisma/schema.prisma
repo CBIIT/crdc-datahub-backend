@@ -528,8 +528,8 @@ model Submission {
 }
 
 type FileError {
-    submissionID String
-    dataRecordID String
+    submissionID String?
+    dataRecordID String?
     validationType String?
     batchID String?
     batchIDs String[]
