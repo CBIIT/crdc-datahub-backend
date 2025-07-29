@@ -650,12 +650,12 @@ class Submission {
             [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus, aSubmission?.crossSubmissionStatus, aSubmission?.updatedAt];
 
         await this._updateValidationStatus(params?.types, aSubmission, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.VALIDATING, getCurrentTime());
-        const validationRecord = ValidationRecord.createValidation(aSubmission?._id, params?.types, params?.scope, VALIDATION_STATUS.VALIDATING);
-        const res = await this.validationCollection.insert(validationRecord);
-        if (!res?.acknowledged) {
+        const newValidationRecord = ValidationRecord.createValidation(aSubmission?._id, params?.types, params?.scope, VALIDATION_STATUS.VALIDATING);
+        const validationRecord = await this.validationDAO.create(newValidationRecord);
+        if (!validationRecord) {
             throw new Error(ERROR.FAILED_INSERT_VALIDATION_OBJECT);
         }
-        const result = await this.dataRecordService.validateMetadata(params._id, params?.types, params?.scope, validationRecord._id);
+        const result = await this.dataRecordService.validateMetadata(params._id, params?.types, params?.scope, validationRecord.id);
         const updatedSubmission = await this._recordSubmissionValidation(params._id, validationRecord, params?.types, aSubmission);
         // roll back validation if service failed
         if (!result.success) {
@@ -1057,7 +1057,6 @@ class Submission {
             collaborator.collaboratorName = user.lastName + ", " + user.firstName ;
             collaborator.Organization = user.organization;
         }
-        // TODO check
         const result = await this.submissionDAO.update(aSubmission?._id, {collaborators, updatedAt: getCurrentTime()});
         if (result) {
             return getDataCommonsDisplayNamesForSubmission(result);
@@ -1443,7 +1442,7 @@ class Submission {
         if (aSubmission?.modelVersion === version) {
             return aSubmission;
         }
-        // TODO check
+
         const updatedSubmission = await this.submissionDAO.update(
             aSubmission?._id, {
                 modelVersion: version,
@@ -1458,7 +1457,7 @@ class Submission {
         await this._resetValidation(aSubmission?._id);
         return updatedSubmission;
     }
-    // TODO check
+
     async _resetValidation(aSubmissionID){
         const [resetSubmission, resetDataRecords, resetQCResult] = await Promise.all([
             this.submissionDAO.update(
@@ -1479,14 +1478,14 @@ class Submission {
             throw new Error(errorMsg);
         }
 
-        if (!resetDataRecords) {
+        if (!resetDataRecords?.acknowledged) {
             const errorMsg = `${ERROR.FAILED_RESET_DATA_RECORDS}; SubmissionID: ${aSubmissionID}`;
             console.error(errorMsg);
             throw new Error(errorMsg);
         }
-        // todo check
-        if (!resetQCResult.count) {
-            const errorMsg = `${ERROR.FAILED_RESET_QC_RESULT}; SubmissionID: ${aSubmission?._id}`;
+
+        if (!resetQCResult) {
+            const errorMsg = `${ERROR.FAILED_RESET_QC_RESULT}; SubmissionID: ${aSubmissionID}`;
             console.error(errorMsg);
             throw new Error(errorMsg);
         }
@@ -1591,8 +1590,7 @@ class Submission {
         if (validationRecord) {
             validationRecord["ended"] = new Date();
             validationRecord["status"] = "Error";
-            // TODO verify it
-            await this.validationDAO.update(validationRecord["_id"], validationRecord)
+            await this.validationDAO.update(validationRecord["id"], validationRecord)
         }
         if (!updated) {
             throw new Error(ERROR.FAILED_VALIDATE_METADATA);
@@ -1620,7 +1618,7 @@ class Submission {
             return submission;
         }
         const dataValidation = DataValidation.createDataValidation(metadataTypes, validationRecord.scope, validationRecord.started);
-        const updated = await this.submissionDAO.update({ id: submissionID },
+        const updated = await this.submissionDAO.update(submissionID,
             {
                 ...dataValidation,
                 updatedAt: getCurrentTime(),
@@ -2318,7 +2316,6 @@ class ValidationRecord {
     // started: Date
     // status: string
     constructor(submissionID, type, scope, status) {
-        this._id = v4();
         this.submissionID = submissionID;
         this.type = type;
         this.scope = scope;

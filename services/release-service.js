@@ -406,7 +406,7 @@ class ReleaseService {
 
                     },
                     {
-                        $unset: "_sortKey",  // 👈 This removes the temporary sort key
+                        $unset: "_sortKey",
                     }] : [] ) ,
             {$facet: {
                     studies: paginationPipe.getPaginationPipeline(),
