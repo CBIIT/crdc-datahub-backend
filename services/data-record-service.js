@@ -685,7 +685,6 @@ class DataRecordService {
         return results;
     }
 
-    // TODO verify
     async countNodesBySubmissionID(submissionID) {
         const countNodes = await this.dataRecordDAO.count({
             submissionID: submissionID,
@@ -695,9 +694,10 @@ class DataRecordService {
     /**
      * public function to retrieve release record from release collection
      * @param {*} submissionID 
-     * @param {*} nodeType 
+     * @param {*} dataCommons
+     * @param {*} nodeType
      * @param {*} nodeID 
-     * @param {*} nodeStatus 
+     * @param {*} status
      * @returns {Promise<Object[]>}
      */
     async getReleasedAndNewNode(submissionID, dataCommons, nodeType, nodeID, status){
@@ -908,12 +908,12 @@ class DataRecordService {
         return genomicInfos.length > 0 ?  genomicInfos : [];
     }
 
-    async _getCount(submissionID) {
+    async _getCount(submissionID, status = null) {
         const query = (!status)? {submissionID: submissionID} : {submissionID: submissionID, status: status} ;
         return await this.dataRecordsCollection.countDoc(query);
     }
 
-    async _getFileNodes(scope, submissionID) {
+    async _getFileNodes(submissionID, scope) {
         const isNewScope = scope?.toLowerCase() === VALIDATION.SCOPE.NEW.toLowerCase();
         const fileNodes = await this.dataRecordsCollection.aggregate([{
             $match: {

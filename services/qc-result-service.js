@@ -182,7 +182,7 @@ class QcResultService{
         ]);
         return result || [];
     }
-    // TODO check
+
     async resetQCResultData(submissionID) {
         return await this.qcResultDAO.deleteMany({submissionID});
     }

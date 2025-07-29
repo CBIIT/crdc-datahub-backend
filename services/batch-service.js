@@ -244,7 +244,6 @@ class BatchService {
                 await this.s3Service.uploadZipFile(aBatch.bucketName, aBatch.filePrefix, zipFileName, zipFilePath);
 
                 //update aBatch with zipFileName if uploaded zip file without exception
-                // TODO check
                 await this.batchDAO.update(aBatch._id, {"zipFileName": zipFileName, "updatedAt": getCurrentTime()})
             }
             finally{

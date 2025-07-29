@@ -20,6 +20,7 @@ const {UserScope} = require("../domain/user-scope");
 const {COMPLETED, CANCELED, DELETED} = require("../constants/submission-constants");
 const SCOPES = require("../constants/permission-scope-constants");
 const UserDAO = require("../dao/user");
+const ApprovedStudyDAO = require("../dao/approvedStudy");
 
 const isLoggedInOrThrow = (context) => {
     if (!context?.userInfo?.email || !context?.userInfo?.IDP) throw new Error(SUBMODULE_ERROR.NOT_LOGGED_IN);
@@ -58,6 +59,7 @@ class UserService {
         this.institutionService = institutionService;
         this.authorizationService = authorizationService;
         this.userDAO = new UserDAO(userCollection);
+        this.approvedStudyDAO = new ApprovedStudyDAO();
     }
 
     async requestAccess(params, context) {
@@ -191,11 +193,8 @@ class UserService {
         if(studiesIDs.includes("All"))
             return [{_id: "All", studyName: "All" }];
 
-        // TODO check
-        return await this.userDAO.findMany({
-            where: {
-                id: { in: studiesIDs }, // optional: trim if needed
-            },
+        return await this.approvedStudyDAO.findMany({
+            id: { in: studiesIDs }
         });
     }
 
