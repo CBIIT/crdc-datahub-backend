@@ -2,13 +2,9 @@ const {Batch} = require("../domain/batch");
 const {BATCH, FILE} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const { UPLOADING_HEARTBEAT_CONFIG_TYPE } = require("../constants/submission-constants");
 const ERROR = require("../constants/error-constants");
-const {NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED, REJECTED, WITHDRAWN, VALIDATION, INTENTION} = require("../constants/submission-constants");
-const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
-const {SUBMISSIONS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {replaceErrorString} = require("../utility/string-util");
 const {writeObject2JsonFile, readJsonFile2Object} = require("../utility/io-util");
-const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
 const fs = require('fs');
 const path = require('path');
@@ -18,7 +14,7 @@ const {PrismaPagination} = require("../crdc-datahub-database-drivers/domain/pris
 
 const LOAD_METADATA = "Load Metadata";
 const OMIT_DCF_PREFIX = 'omit-DCF-prefix';
-
+const ID = "id";
 class BatchService {
     constructor(s3Service, batchCollection, sqsLoaderQueue, awsService, prodURL, fetchDataModelInfo) {
         this.s3Service = s3Service;
@@ -152,7 +148,7 @@ class BatchService {
         const pagination = new PrismaPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
         const [batches, count] = await Promise.all([
             this.batchDAO.findMany(where, pagination.getPagination()),
-            this.batchDAO.count(where)
+            this.batchDAO.count(where, ID)
         ]);
 
         return {
