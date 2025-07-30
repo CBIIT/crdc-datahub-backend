@@ -4,6 +4,7 @@ const {APPROVED_STUDIES_COLLECTION, ORGANIZATION_COLLECTION} = require("../crdc-
 const {DELETED, CANCELED, NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, COMPLETED, ARCHIVED} = require("../constants/submission-constants");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const ERROR = require("../constants/error-constants");
+const {replaceErrorString} = require("../utility/string-util");
 const ALL_FILTER = "All";
 const NA = "NA"
 class SubmissionDAO extends GenericDAO {
