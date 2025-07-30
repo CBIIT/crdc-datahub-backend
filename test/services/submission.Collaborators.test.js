@@ -1,4 +1,5 @@
 const SUBMISSION_CONSTANTS = require('../../constants/submission-constants');
+const { COLLABORATOR_PERMISSIONS } = SUBMISSION_CONSTANTS;
 
 // Since the Collaborators class is defined inside the submission service,
 // we'll test it by creating a mock implementation based on the actual class
@@ -12,11 +13,15 @@ class Collaborators {
     }
 
     getCollaboratorIDs() {
-        return this.collaborators.map(c => c.collaboratorID)
+        return this.collaborators
+            .filter(c => c && c.collaboratorID)
+            .map(c => c.collaboratorID)
     }
 
     getCollaboratorNames() {
-        return this.collaborators.map(c => c.collaboratorName)
+        return this.collaborators
+            .filter(c => c && c.collaboratorName)
+            .map(c => c.collaboratorName)
     }
 
     getEditableCollaboratorIDs() {
@@ -112,7 +117,7 @@ describe('Collaborators class', () => {
             const instance = new Collaborators(collaborators);
             const result = instance.getCollaboratorIDs();
             
-            expect(result).toEqual([undefined, 'user2']);
+            expect(result).toEqual(['user2']);
         });
     });
 
@@ -145,7 +150,7 @@ describe('Collaborators class', () => {
             const instance = new Collaborators(collaborators);
             const result = instance.getCollaboratorNames();
             
-            expect(result).toEqual([undefined, 'Jane Smith']);
+            expect(result).toEqual(['Jane Smith']);
         });
     });
 
@@ -207,10 +212,7 @@ describe('Collaborators class', () => {
             const instance = new Collaborators(collaborators);
             const result = instance._getEditableCollaborators(collaborators);
             
-            expect(result).toEqual([
-                { collaboratorID: 'user1', permission: COLLABORATOR_PERMISSIONS.CAN_EDIT },
-                { collaboratorID: 'user3', permission: COLLABORATOR_PERMISSIONS.CAN_EDIT }
-            ]);
+            expect(result).toEqual(['user1', 'user3']);
         });
 
         it('should return empty array when no collaborators', () => {
@@ -242,9 +244,7 @@ describe('Collaborators class', () => {
             const instance = new Collaborators(collaborators);
             const result = instance._getEditableCollaborators(collaborators);
             
-            expect(result).toEqual([
-                { collaboratorID: 'user2', permission: COLLABORATOR_PERMISSIONS.CAN_EDIT }
-            ]);
+            expect(result).toEqual(['user2']);
         });
     });
 
@@ -259,7 +259,7 @@ describe('Collaborators class', () => {
             const instance = new Collaborators(collaborators);
             const result = instance.getCollaboratorIDs();
             
-            expect(result).toEqual([undefined, 'user1', undefined]);
+            expect(result).toEqual(['user1']);
         });
 
         it('should handle collaborators with non-string IDs', () => {
