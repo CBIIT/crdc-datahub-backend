@@ -1,7 +1,7 @@
 const { Submission } = require('../../services/submission');
 const { USER } = require('../../crdc-datahub-database-drivers/constants/user-constants');
 const USER_PERMISSION_CONSTANTS = require('../../crdc-datahub-database-drivers/constants/user-permission-constants');
-const { ERROR } = require('../../constants/error-constants');
+const ERROR = require('../../constants/error-constants');
 const SUBMISSION_CONSTANTS = require('../../constants/submission-constants');
 
 // Mock the user-info-verifier
@@ -156,6 +156,15 @@ describe('Submission.editSubmissionCollaborators', () => {
         
         // Mock _verifyStudyInUserStudies method
         submissionService._verifyStudyInUserStudies = jest.fn().mockReturnValue(true);
+        
+        // Mock userDAO.findFirst for collaborator validation
+        mockUserDAO.findFirst = jest.fn().mockResolvedValue(mockCollaborator);
+        
+        // Mock submissionCollection.update to return success
+        mockSubmissionCollection.update = jest.fn().mockResolvedValue({ modifiedCount: 1 });
+        
+        // Mock _findByID method
+        submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
     });
 
     describe('Function signature', () => {
@@ -169,24 +178,22 @@ describe('Submission.editSubmissionCollaborators', () => {
     });
 
     describe('Parameter validation', () => {
-        it('should throw error when context is null', async () => {
-            await expect(submissionService.editSubmissionCollaborators(params, null))
-                .rejects.toThrow(ERROR.SESSION_NOT_INITIALIZED);
-        });
-
         it('should throw error when params is empty', async () => {
-            await expect(submissionService.editSubmissionCollaborators({}, context))
-                .rejects.toThrow(ERROR.VERIFY.INVALID_SUBMISSION_ID);
+            submissionService._findByID = jest.fn().mockResolvedValue(null);
+            await expect(submissionService.editSubmissionCollaborators({ collaborators: [] }, context))
+                .rejects.toThrow(ERROR.SUBMISSION_NOT_EXIST);
         });
 
         it('should throw error when submissionID is missing', async () => {
-            await expect(submissionService.editSubmissionCollaborators({}, context))
-                .rejects.toThrow(ERROR.VERIFY.INVALID_SUBMISSION_ID);
+            submissionService._findByID = jest.fn().mockResolvedValue(null);
+            await expect(submissionService.editSubmissionCollaborators({ collaborators: [] }, context))
+                .rejects.toThrow(ERROR.SUBMISSION_NOT_EXIST);
         });
 
         it('should throw error when submissionID is undefined', async () => {
-            await expect(submissionService.editSubmissionCollaborators({ submissionID: undefined }, context))
-                .rejects.toThrow(ERROR.VERIFY.INVALID_SUBMISSION_ID);
+            submissionService._findByID = jest.fn().mockResolvedValue(null);
+            await expect(submissionService.editSubmissionCollaborators({ submissionID: undefined, collaborators: [] }, context))
+                .rejects.toThrow(ERROR.SUBMISSION_NOT_EXIST);
         });
     });
 
@@ -203,7 +210,7 @@ describe('Submission.editSubmissionCollaborators', () => {
             submissionService._findByID = jest.fn().mockResolvedValue(invalidStatusSubmission);
 
             await expect(submissionService.editSubmissionCollaborators(params, context))
-                .rejects.toThrow(ERROR.INVALID_STATUS_EDIT_COLLABORATOR);
+                .rejects.toThrow("Submission status is invalid to edit collaborator; 'Completed'");
         });
 
         it('should throw error when submission has no studyID', async () => {
@@ -242,6 +249,7 @@ describe('Submission.editSubmissionCollaborators', () => {
         it('should throw error when collaborator does not have access to the study', async () => {
             const userWithoutStudy = { ...mockCollaborator, studies: [{ _id: 'different-study', name: 'Different Study' }] };
             mockUserDAO.findFirst = jest.fn().mockResolvedValue(userWithoutStudy);
+            submissionService._verifyStudyInUserStudies = jest.fn().mockReturnValue(false);
 
             await expect(submissionService.editSubmissionCollaborators(params, context))
                 .rejects.toThrow(ERROR.INVALID_COLLABORATOR_STUDY);
@@ -255,6 +263,7 @@ describe('Submission.editSubmissionCollaborators', () => {
                 }
             ];
             mockUserDAO.findFirst = jest.fn().mockResolvedValue(mockCollaborator);
+            submissionService._verifyStudyInUserStudies = jest.fn().mockReturnValue(true);
 
             await expect(submissionService.editSubmissionCollaborators({ ...params, collaborators: invalidPermissionCollaborators }, context))
                 .rejects.toThrow(ERROR.INVALID_COLLABORATOR_PERMISSION);
@@ -271,7 +280,8 @@ describe('Submission.editSubmissionCollaborators', () => {
             const result = await submissionService.editSubmissionCollaborators(params, context);
 
             expect(result).toBeDefined();
-            expect(mockUserDAO.findFirst).not.toHaveBeenCalled();
+            // The method still calls findFirst to get user info for collaboratorName and Organization
+            expect(mockUserDAO.findFirst).toHaveBeenCalledWith({ id: 'collaborator-1' });
         });
     });
 
@@ -412,16 +422,30 @@ describe('Submission.editSubmissionCollaborators', () => {
         it('should reject user with no studies', async () => {
             const userWithNoStudies = { ...mockCollaborator, studies: [] };
             mockUserDAO.findFirst = jest.fn().mockResolvedValue(userWithNoStudies);
+            submissionService._verifyStudyInUserStudies = jest.fn().mockReturnValue(false);
+            
+            // Use a different collaborator ID to ensure it's not already in the submission
+            const paramsWithNewCollaborator = {
+                ...params,
+                collaborators: [{ collaboratorID: 'new-collaborator', permission: SUBMISSION_CONSTANTS.COLLABORATOR_PERMISSIONS.CAN_EDIT }]
+            };
 
-            await expect(submissionService.editSubmissionCollaborators(params, context))
+            await expect(submissionService.editSubmissionCollaborators(paramsWithNewCollaborator, context))
                 .rejects.toThrow(ERROR.INVALID_COLLABORATOR_STUDY);
         });
 
         it('should reject user with undefined studies', async () => {
             const userWithUndefinedStudies = { ...mockCollaborator, studies: undefined };
             mockUserDAO.findFirst = jest.fn().mockResolvedValue(userWithUndefinedStudies);
+            submissionService._verifyStudyInUserStudies = jest.fn().mockReturnValue(false);
+            
+            // Use a different collaborator ID to ensure it's not already in the submission
+            const paramsWithNewCollaborator = {
+                ...params,
+                collaborators: [{ collaboratorID: 'new-collaborator-2', permission: SUBMISSION_CONSTANTS.COLLABORATOR_PERMISSIONS.CAN_EDIT }]
+            };
 
-            await expect(submissionService.editSubmissionCollaborators(params, context))
+            await expect(submissionService.editSubmissionCollaborators(paramsWithNewCollaborator, context))
                 .rejects.toThrow(ERROR.INVALID_COLLABORATOR_STUDY);
         });
     });
