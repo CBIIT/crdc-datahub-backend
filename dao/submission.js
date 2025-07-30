@@ -215,10 +215,10 @@ const isAllStudy = (userStudies) => {
 
 function validateListSubmissionsParams (params) {
     const validStatus = new Set([NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, REJECTED, WITHDRAWN, CANCELED, DELETED, ALL_FILTER]);
-    const invalidStatues = (params?.status || [])
+    const invalidStatuses = (params?.status || [])
         .filter((i) => !validStatus.has(i));
-    if (invalidStatues?.length > 0) {
-        throw new Error(replaceErrorString(ERROR.LIST_SUBMISSION_INVALID_STATUS_FILTER, `'${invalidStatues.join(",")}'`));
+    if (invalidStatuses?.length > 0) {
+        throw new Error(replaceErrorString(ERROR.LIST_SUBMISSION_INVALID_STATUS_FILTER, `'${invalidStatuses.join(",")}'`));
     }
 }
 
