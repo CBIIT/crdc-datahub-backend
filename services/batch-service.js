@@ -1,6 +1,6 @@
 const {Batch} = require("../domain/batch");
 const {BATCH, FILE} = require("../crdc-datahub-database-drivers/constants/batch-constants");
-const { UPLOADING_HEARTBEAT_CONFIG_TYPE } = require("../constants/submission-constants");
+const { UPLOADING_HEARTBEAT_CONFIG_TYPE, VALIDATION} = require("../constants/submission-constants");
 const ERROR = require("../constants/error-constants");
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {replaceErrorString} = require("../utility/string-util");
