@@ -186,6 +186,8 @@ model Application {
   createdAt           DateTime  @default(now()) @db.Date
   updatedAt           DateTime  @updatedAt @db.Date
   newInstitutions     newInstitution[]
+  GPAName             String?
+  GPAEmail            String?
   @@map("applications")
 }
 
