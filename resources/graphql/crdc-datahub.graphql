@@ -988,6 +988,7 @@ type Mutation {
         primaryContactID: String #data concierge user ID
         useProgramPC: Boolean!,
         pendingModelChange: Boolean
+        pendingGPA: Boolean
     ): ApprovedStudy
 
     updateApprovedStudy(
@@ -1002,6 +1003,7 @@ type Mutation {
         primaryContactID: String, #data concierge user ID
         useProgramPC: Boolean!,
         pendingModelChange: Boolean
+        pendingGPA: Boolean: Boolean
     ): ApprovedStudy
 
     requestAccess(

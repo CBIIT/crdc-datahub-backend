@@ -567,6 +567,7 @@ class Application {
         if (updated) {
             promises.unshift(this.getApplicationById(document._id));
             if(questionnaire) {
+                // TODO
                 const approvedStudies = await this._saveApprovedStudies(application, questionnaire, document?.pendingModelChange);
                 // added approved studies into user collection
                 const { _id, ...updateUser } = context?.userInfo || {};
