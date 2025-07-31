@@ -29,6 +29,7 @@ type Application {
     programDescription: String,
     version: String
     reviewComment: String
+    GPAName: String
 }
 
 type NewInstitution {
@@ -63,6 +64,7 @@ input AppInput {
     programDescription: String,
     version: String,
     newInstitutions: [InstitutionInput]
+    GPAName: String
 }
 
 type Applicant {
