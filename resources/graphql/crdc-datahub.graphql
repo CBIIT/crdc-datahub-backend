@@ -289,6 +289,9 @@ type ApprovedStudy {
     primaryContact: User
     useProgramPC: Boolean
     pendingModelChange: Boolean
+    isPendingGPA: Boolean
+    GPAName: String
+    GPAEmail: String
 }
 
 type ProgramList {
@@ -986,6 +989,9 @@ type Mutation {
         primaryContactID: String #data concierge user ID
         useProgramPC: Boolean!,
         pendingModelChange: Boolean
+        isPendingGPA: Boolean
+        GPAName: String
+        GPAEmail: String
     ): ApprovedStudy
 
     updateApprovedStudy(
@@ -1000,6 +1006,9 @@ type Mutation {
         primaryContactID: String, #data concierge user ID
         useProgramPC: Boolean!,
         pendingModelChange: Boolean
+        isPendingGPA: Boolean
+        GPAName: String
+        GPAEmail: String
     ): ApprovedStudy
 
     requestAccess(

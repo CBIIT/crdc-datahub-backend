@@ -207,6 +207,9 @@ model ApprovedStudy {
   updatedAt         DateTime @updatedAt @db.Date
   pendingApplicationID String?
   submission Submission[]
+  isPendingGPA      Boolean?
+  GPAName           String?
+  GPAEmail          String?
   Concierge User? @relation(fields: [primaryContactID], references: [id])
 
   @@map("approvedStudies")
