@@ -72,7 +72,7 @@ const ERROR = {
     CREATE_SUBMISSION_NO_MATCHING_STUDY: "The study provided does not match an approved study within the user's studies",
     CREATE_SUBMISSION_NO_ASSOCIATED_PROGRAM: "The study is not associated with any program. Please contact your data concierge to resolve this issue.",
     MISSING_CREATE_SUBMISSION_DBGAPID: "dbGapID is required for controlled-access studies.",
-    MISSING_CREATE_SUBMISSION_PENDING_GPA: "GPA(Genomic Program Administrator) is required for controlled-access studies.",
+    MISSING_CREATE_SUBMISSION_PENDING_GPA: "Submission cannot be created while GPA approval is pending for this controlled-access study.",
     PENDING_APPROVED_STUDY: "The Data Commons team is reviewing this study for potential data model changes. Data submissions cannot be created until any required model updates are released.",
     PENDING_APPROVED_STUDY_NO_GPA_INFO: "GPA(Genomic Program Administrator) info is missing for controlled-access studies.",
     // List Submissions
