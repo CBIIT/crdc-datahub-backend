@@ -29,14 +29,15 @@ class UserDAO extends GenericDAO {
     }
 
     async getUsersByNotifications(notifications, roles = []) {
-        const where = {
-            userStatus: USER.STATUSES.ACTIVE,
-            notifications: {
+        // Currently, generic DAO findMany does not support native hasSome; this should be improved.
+        const users = await prisma.user.findMany({where:
+            {
+                userStatus: USER.STATUSES.ACTIVE,
+                notifications: {
                 hasSome: notifications,
             },
             ...(roles.length > 0 && { role: { in: roles } }),
-        };
-        const users = await this.findMany( where );
+        }});
         return users.map(user => ({ ...user, _id: user.id }));
     }
 }
