@@ -135,6 +135,10 @@ class Submission {
             throw new Error(ERROR.MISSING_CREATE_SUBMISSION_DBGAPID);
         }
 
+        if (approvedStudy.controlledAccess && approvedStudy?.isPendingGPA) {
+            throw new Error(ERROR.MISSING_CREATE_SUBMISSION_PENDING_GPA);
+        }
+
         if (isTrue(approvedStudy?.pendingModelChange)) {
             throw new Error(ERROR.PENDING_APPROVED_STUDY);
         }
