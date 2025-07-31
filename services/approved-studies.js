@@ -496,8 +496,8 @@ class PendingGPA {
         this.isPendingGPA = isTrue(isPendingGPA);
     }
 
-    static create(GPAEmail, GPAName, isPendingGPA) {
-        return new PendingGPA(GPAEmail, GPAName, isPendingGPA);
+    static create(GPAName, GPAEmail, isPendingGPA) {
+        return new PendingGPA(GPAName, GPAEmail, isPendingGPA);
     }
 }
 
