@@ -9,6 +9,8 @@ const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-consta
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {getFormatDateStr} = require("../utility/string-util.js")
 const {arrayOfObjectsToTSV} = require("../utility/io-util.js")
+const DataRecordDAO = require("../dao/dataRecords");
+const {SORT} = require("../constants/db-constants");
 const BATCH_SIZE = 300;
 const ERROR = "Error";
 const WARNING = "Warning";
@@ -66,6 +68,7 @@ class DataRecordService {
         this.qcResultsService = qcResultsService;
         this.exportQueue = exportQueue;
         this.releaseCollection = releaseCollection;
+        this.dataRecordDAO = new DataRecordDAO();
 
     }
 
@@ -154,7 +157,7 @@ class DataRecordService {
         const isMetadata = types.some(t => t === VALIDATION.TYPES.METADATA || t === VALIDATION.TYPES.CROSS_SUBMISSION);
         let errorMessages = [];
         if (isMetadata) {
-            const docCount = await getCount(this.dataRecordsCollection, submissionID);
+            const docCount = await this._getCount(submissionID);
             if (docCount === 0)  errorMessages.push(ERRORS.FAILED_VALIDATE_METADATA, ERRORS.NO_VALIDATION_METADATA);
             else {
                 // updated for task CRDCDH-3001, both cross-submission and metadata need to be validated in parallel in a condition
@@ -166,7 +169,7 @@ class DataRecordService {
                         errorMessages.push(ERRORS.FAILED_VALIDATE_CROSS_SUBMISSION, success.message);
                 }
                 if (types.includes(VALIDATION.TYPES.METADATA)) {
-                    const newDocCount = await getCount(this.dataRecordsCollection, submissionID, scope);
+                    const newDocCount = await this._getCount(submissionID, scope);
                     if (!(scope.toLowerCase() === VALIDATION.SCOPE.NEW && newDocCount === 0)) {
                         const msg = Message.createMetadataMessage("Validate Metadata", submissionID, scope, validationID);
                         const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.metadataQueueName, submissionID);
@@ -181,7 +184,7 @@ class DataRecordService {
         }
         const isFile = types.some(t => (t?.toLowerCase() === VALIDATION.TYPES.DATA_FILE || t?.toLowerCase() === VALIDATION.TYPES.FILE));
         if (isFile) {
-            const fileNodes = await getFileNodes(this.dataRecordsCollection, submissionID, scope);
+            const fileNodes = await this._getFileNodes(submissionID, scope);
             if (fileNodes && fileNodes.length > 0) {
                 const fileValidationErrors = await this._sendBatchSQSMessage(fileNodes, validationID, submissionID);
                 if (fileValidationErrors.length > 0)
@@ -585,7 +588,7 @@ class DataRecordService {
         };
         return await this.dataRecordsCollection.distinct("nodeType", filter);
     }
-
+    // This MongoDB schema is optimized for performance by reducing joins and leveraging document-based structure.
     async resetDataRecords(submissionID, status) {
         return await this.dataRecordsCollection.updateMany(
             { submissionID: submissionID },
@@ -683,19 +686,18 @@ class DataRecordService {
     }
 
     async countNodesBySubmissionID(submissionID) {
-        const countNodes = await this.dataRecordsCollection.aggregate([
-            { $match: { submissionID } },              // Filter by submissionID
-            { $group: { _id: "$_id" } },          // Group by distinct nodeType
-            { $count: "count" }        // Count the distinct nodeType values
-        ]);
-        return countNodes.length > 0 ? countNodes[0].count : 0;
+        const countNodes = await this.dataRecordDAO.count({
+            submissionID: submissionID,
+        }, ['nodeType']);
+         return countNodes || 0;
     }
     /**
      * public function to retrieve release record from release collection
      * @param {*} submissionID 
-     * @param {*} nodeType 
+     * @param {*} dataCommons
+     * @param {*} nodeType
      * @param {*} nodeID 
-     * @param {*} nodeStatus 
+     * @param {*} status
      * @returns {Promise<Object[]>}
      */
     async getReleasedAndNewNode(submissionID, dataCommons, nodeType, nodeID, status){
@@ -824,7 +826,7 @@ class DataRecordService {
                 }
             }]);
             if (sampleFiles && sampleFiles.length > 0){
-               const results = await Promise.all(
+               const _ = await Promise.all(
                   sampleFiles.map(async (sampleFile) => {
                     const fileID = sampleFile.nodeID;
                     const uniqueFileID = `${sampleID}_${fileID}`;
@@ -873,7 +875,8 @@ class DataRecordService {
     }
     /**
      * #getAgeAtDiagnosisByParticipant
-     * @param {*} subjectID 
+     * @param {*} subjectID
+     * @param {*} submissionID
      * @returns int
      */
     async _getAgeAtDiagnosisByParticipant(subjectID, submissionID){
@@ -891,6 +894,7 @@ class DataRecordService {
      * #getGenomicInfoByFile
      * @param {*} fileID 
      * @returns array
+     * @param {*} submissionID
      */
     async _getGenomicInfoByFile(fileID, submissionID){
         const genomicInfos = await this.dataRecordsCollection.aggregate([{
@@ -903,24 +907,24 @@ class DataRecordService {
         }]);
         return genomicInfos.length > 0 ?  genomicInfos : [];
     }
-}
 
-const getFileNodes = async (dataRecordsCollection, submissionID, scope) => {
-    const isNewScope = scope?.toLowerCase() === VALIDATION.SCOPE.NEW.toLowerCase();
-    const fileNodes = await dataRecordsCollection.aggregate([{
-        $match: {
-            s3FileInfo: { $exists: true, $ne: null},
-            submissionID: submissionID,
-            // case-insensitive search
-            ...(isNewScope ? { "s3FileInfo.status": { $regex: new RegExp("^" + VALIDATION.SCOPE.NEW + "$", "i") } } : {})}},
-        {$sort: {"s3FileInfo.size": 1}}
-    ]);
-    return fileNodes || [];
-}
+    async _getCount(submissionID, status = null) {
+        const query = (!status)? {submissionID: submissionID} : {submissionID: submissionID, status: status} ;
+        return await this.dataRecordsCollection.countDoc(query);
+    }
 
-const getCount = async (dataRecordsCollection, submissionID, status = null) => {
-    const query = (!status)? {submissionID: submissionID} : {submissionID: submissionID, status: status} ;
-    return await dataRecordsCollection.countDoc(query);
+    async _getFileNodes(submissionID, scope) {
+        const isNewScope = scope?.toLowerCase() === VALIDATION.SCOPE.NEW.toLowerCase();
+        const fileNodes = await this.dataRecordsCollection.aggregate([{
+            $match: {
+                s3FileInfo: { $exists: true, $ne: null},
+                submissionID: submissionID,
+                // case-insensitive search
+                ...(isNewScope ? { "s3FileInfo.status": { $regex: new RegExp("^" + VALIDATION.SCOPE.NEW + "$", "i") } } : {})}},
+            {$sort: {"s3FileInfo.size": 1}}
+        ]);
+        return fileNodes || [];
+    }
 }
 
 const sendSQSMessageWrapper = async (awsService, message, deDuplicationId, queueName, submissionID) => {

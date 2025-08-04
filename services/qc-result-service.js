@@ -6,6 +6,7 @@ const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {verifySession} = require("../verifier/user-info-verifier");
 const {UserScope} = require("../domain/user-scope");
+const QCResultDAO = require("../dao/qcResult");
 
 function replaceNaN(results, replacement){
     results?.map((result) => {
@@ -37,6 +38,7 @@ class QcResultService{
         this.qcResultCollection = qcResultCollection;
         this.submissionCollection = submissionCollection;
         this.authorizationService = authorizationService;
+        this.qcResultDAO = new QCResultDAO();
     }
 
     async submissionQCResultsAPI(params, context){
@@ -182,7 +184,7 @@ class QcResultService{
     }
 
     async resetQCResultData(submissionID) {
-        return await this.qcResultCollection.deleteMany({"submissionID": submissionID});
+        return await this.qcResultDAO.deleteMany({submissionID});
     }
 
     async aggregatedSubmissionQCResultsAPI(params, context) {

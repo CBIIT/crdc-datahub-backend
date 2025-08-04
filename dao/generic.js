@@ -39,9 +39,9 @@ class GenericDAO {
         }
         return { ...result, _id: result.id };
     }
-    async findMany(filter) {
+    async findMany(filter, option = {}) {
         filter = convertMongoFilterToPrismaFilter(filter);
-        const result = await this.model.findMany({ where: filter });
+        const result = await this.model.findMany({ where: filter, ...option });
         return result.map(item => ({ ...item, _id: item.id }));
     }
 
@@ -60,8 +60,27 @@ class GenericDAO {
         return await this.model.updateMany({ where: { ...condition }, data: { ...data }});
     }
 
+    async deleteMany(where) {
+        return await this.model.deleteMany({ where});
+    }
+
     async delete(id) {
         return await this.model.delete({ where: { id } });
+    }
+    /**
+     * Counts the number of documents in the collection based on the given filter and optional distinct fields.
+     *
+     * @param {Object} where - The filter conditions to apply (e.g., { status: 'SUBMITTED' }).
+     * @param {string|string[]} distinct - A single field or an array of fields to count distinct values for.
+     * @returns {Promise<number>} - The count of matching documents (optionally distinct).
+     */
+    async count(where, distinct) {
+        const arr = !Array.isArray(distinct) ? [distinct] : distinct;
+        const res = await this.model.findMany({
+            where,
+            distinct: arr
+        });
+        return res?.length || 0;
     }
 }
 

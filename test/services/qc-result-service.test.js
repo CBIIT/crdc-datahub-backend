@@ -427,17 +427,17 @@ describe('QcResultService', () => {
     describe('resetQCResultData', () => {
         it('should reset QC result data for submission', async () => {
             const mockDeleteResult = {
-                acknowledged: true,
-                deletedCount: 5
+                count: 5
             };
-            mockQcResultCollection.deleteMany.mockResolvedValue(mockDeleteResult);
+            // Mock the qcResultDAO.deleteMany method instead of the collection
+            qcResultService.qcResultDAO = {
+                deleteMany: jest.fn().mockResolvedValue(mockDeleteResult)
+            };
 
             const result = await qcResultService.resetQCResultData("test_submission_id");
 
             expect(result).toEqual(mockDeleteResult);
-            expect(mockQcResultCollection.deleteMany).toHaveBeenCalledWith({
-                submissionID: "test_submission_id"
-            });
+            expect(qcResultService.qcResultDAO.deleteMany).toHaveBeenCalledWith({ submissionID: "test_submission_id" });
         });
     });
 

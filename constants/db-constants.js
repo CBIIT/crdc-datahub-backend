@@ -12,7 +12,11 @@ module.exports = Object.freeze({
         PENDING_PVS: "pendingPVs",
         PROGRAM: "program",
         INSTITUTIONS: "institution",
-        CONFIGURATION: "configuration"
+        CONFIGURATION: "configuration",
+        VALIDATION: "validation",
+        DATA_RECORDS: "dataRecord",
+        QC_RESULT: "qcResult",
+        BATCH: "batch"
     },
     OMB_INFO: "OMB_INFO"
 });
