@@ -86,7 +86,8 @@ class Application {
         const study = studyArr[0];
         const pendingConditions = [
             ...(study?.controlledAccess && !study?.dbGaPID ? [ERROR.CONTROLLED_STUDY_NO_DBGAPID] : []),
-            ...(isTrue(study?.pendingModelChange) ? [ERROR.PENDING_APPROVED_STUDY] : [])
+            ...(isTrue(study?.pendingModelChange) ? [ERROR.PENDING_APPROVED_STUDY] : []),
+            ...((isTrue(study?.controlledAccess) && isTrue(study?.isPendingGPA)) ? [ERROR.PENDING_APPROVED_STUDY_NO_GPA_INFO] : []),
         ];
 
         application.conditional = pendingConditions.length > 0;
@@ -560,6 +561,7 @@ class Application {
             history: [...(application.history || []), history]
         });
         const isDbGapMissing = (questionnaire?.accessTypes?.includes("Controlled Access") && !questionnaire?.study?.dbGaPPPHSNumber);
+        const isPendingGPA = (questionnaire?.accessTypes?.includes("Controlled Access") && Boolean((!aApplication?.GPAName?.trim() || !aApplication?.GPAEmail?.trim())));
         let promises = [];
 
         promises.push(this.institutionService.addNewInstitutions(application?.newInstitutions));
@@ -1015,10 +1017,12 @@ class Application {
             console.error(ERROR.APPLICATION_CONTROLLED_ACCESS_NOT_FOUND, ` id=${aApplication?._id}`);
         }
         const programName = aApplication?.programName ?? "NA";
+        const pendingGPAInfo = {GPAName: aApplication?.GPAName, GPAEmail: aApplication?.GPAEmail, isPendingGPA: Boolean((aApplication?.GPAName?.trim() && aApplication?.GPAEmail?.trim()))};
+        const pendingGPA = isTrue(controlledAccess) ? pendingGPAInfo : null;
         // Upon approval of the submission request, the data concierge is retrieved from the associated program.
         return await this.approvedStudiesService.storeApprovedStudies(
             aApplication?._id, aApplication?.studyName, studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name, controlledAccess, aApplication?.ORCID,
-            aApplication?.PI, aApplication?.openAccess, programName, true, pendingModelChange
+            aApplication?.PI, aApplication?.openAccess, programName, true, pendingModelChange, null, pendingGPA
         );
     }
 

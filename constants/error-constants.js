@@ -73,6 +73,7 @@ const ERROR = {
     CREATE_SUBMISSION_NO_ASSOCIATED_PROGRAM: "The study is not associated with any program. Please contact your data concierge to resolve this issue.",
     MISSING_CREATE_SUBMISSION_DBGAPID: "dbGapID is required for controlled-access studies.",
     PENDING_APPROVED_STUDY: "The Data Commons team is reviewing this study for potential data model changes. Data submissions cannot be created until any required model updates are released.",
+    PENDING_APPROVED_STUDY_NO_GPA_INFO: "GPA(Genomic Program Administrator) info is missing for controlled-access studies.",
     // List Submissions
     LIST_SUBMISSION_INVALID_STATUS_FILTER: "The status filter is invalid",
     INVALID_SUBMISSION_PERMISSION: "You do not have the correct permissions to list submissions",
