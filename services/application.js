@@ -1016,7 +1016,7 @@ class Application {
             console.error(ERROR.APPLICATION_CONTROLLED_ACCESS_NOT_FOUND, ` id=${aApplication?._id}`);
         }
         const programName = aApplication?.programName ?? "NA";
-        const pendingGPAInfo = {GPAName: aApplication?.GPAName, GPAEmail: aApplication?.GPAEmail, isPendingGPA: (!aApplication?.GPAName?.trim() || !aApplication?.GPAEmail?.trim())};
+        const pendingGPAInfo = {GPAName: aApplication?.GPAName, GPAEmail: aApplication?.GPAEmail, isPendingGPA: Boolean((aApplication?.GPAName?.trim() && aApplication?.GPAEmail?.trim()))};
         const pendingGPA = isTrue(controlledAccess) ? pendingGPAInfo : null;
         // Upon approval of the submission request, the data concierge is retrieved from the associated program.
         return await this.approvedStudiesService.storeApprovedStudies(
