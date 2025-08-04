@@ -43,8 +43,8 @@ class ApprovedStudiesService {
         this.applicationDAO = new ApplicationDAO();
     }
 
-    async storeApprovedStudies(applicationID, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID) {
-        const approvedStudies = ApprovedStudies.createApprovedStudies(applicationID, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID);
+    async storeApprovedStudies(applicationID, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID, pendingGPA) {
+        const approvedStudies = ApprovedStudies.createApprovedStudies(applicationID, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID, pendingGPA);
         const res = await this.approvedStudyDAO.create(approvedStudies);
 
         if (!res) {
@@ -184,7 +184,10 @@ class ApprovedStudiesService {
             PI,
             primaryContactID,
             useProgramPC,
-            pendingModelChange
+            pendingModelChange,
+            isPendingGPA,
+            GPAName,
+            GPAEmail
         } = this._verifyAndFormatStudyParams(params);
         // check if name is unique
         await this._validateStudyName(name)
@@ -203,7 +206,10 @@ class ApprovedStudiesService {
         if (!acronym){
             acronym = name;
         }
-        let newStudy = await this.storeApprovedStudies(null, name, acronym, dbGaPID, null, controlledAccess, ORCID, PI, openAccess, null, useProgramPC, pendingModelChange, primaryContactID);
+
+        this._validatePendingGPA(GPAName, GPAEmail, controlledAccess, isPendingGPA);
+        const pendingGPA = PendingGPA.create(GPAName, GPAEmail, isPendingGPA);
+        let newStudy = await this.storeApprovedStudies(null, name, acronym, dbGaPID, null, controlledAccess, ORCID, PI, openAccess, null, useProgramPC, pendingModelChange, primaryContactID, pendingGPA);
         // add new study to organization with name of "NA"
         const org = await this.organizationService.getOrganizationByName(NA_PROGRAM);
         if (org && org?._id) {
@@ -238,7 +244,10 @@ class ApprovedStudiesService {
             PI,
             primaryContactID,
             useProgramPC,
-            pendingModelChange
+            pendingModelChange,
+            isPendingGPA,
+            GPAName,
+            GPAEmail
         } = this._verifyAndFormatStudyParams(params);
         let updateStudy = await this.approvedStudyDAO.findFirst({id: studyID});
         if (!updateStudy) {
@@ -287,6 +296,8 @@ class ApprovedStudiesService {
             }
         }
 
+        this._setPendingGPA(updateStudy, controlledAccess, isPendingGPA, (GPAName || updateStudy?.GPAName), (GPAEmail || updateStudy?.GPAEmail));
+
         updateStudy.primaryContactID = useProgramPC ? null : primaryContactID;
         updateStudy.updatedAt = getCurrentTime();
         const result = await this.approvedStudyDAO.update(studyID, updateStudy);
@@ -325,6 +336,38 @@ class ApprovedStudiesService {
 
         let approvedStudy = {...updateStudy, programs: programs, primaryContact: primaryContact};
         return getDataCommonsDisplayNamesForApprovedStudy(approvedStudy);
+    }
+
+    _setPendingGPA (updateStudy, controlledAccess, isPendingGPA, GPAName, GPAEmail) {
+        if (isTrue(updateStudy.controlledAccess)) {
+            this._validatePendingGPA(GPAName, GPAEmail, controlledAccess, isPendingGPA);
+            updateStudy.GPAName = GPAName;
+            updateStudy.GPAEmail = GPAEmail;
+            updateStudy.isPendingGPA = isPendingGPA;
+        }
+
+        if (!isTrue(updateStudy.controlledAccess)) {
+            updateStudy.GPAName = null;
+            updateStudy.GPAEmail = null
+            updateStudy.isPendingGPA = false;
+        }
+
+    }
+
+    _validatePendingGPA(GPAName, GPAEmail, controlledAccess, isPendingGPA) {
+        // has controlled, not setting pending GPA
+        if (isTrue(controlledAccess)) {
+            if (!isTrue(isPendingGPA)) {
+                throw new Error(ERROR.INVALID_PENDING_GPA + ";controlled Access requires pending GPA.");
+            }
+
+            if (isTrue(isPendingGPA) && (!GPAEmail?.trim() || !GPAName?.trim())) {
+                throw new Error(ERROR.INVALID_PENDING_GPA + ";GPA name or email is missing.");
+            }
+        }
+        if (!isTrue(controlledAccess) && isTrue(isPendingGPA)) {
+            throw new Error(ERROR.INVALID_PENDING_GPA);
+        }
     }
 
     async _notifyClearPendingState(updateStudy) {
@@ -444,6 +487,18 @@ const getUserEmails = (users) => {
     return users
         ?.filter((aUser) => aUser?.email)
         ?.map((aUser)=> aUser.email);
+}
+
+class PendingGPA {
+    constructor(GPAName, GPAEmail, isPendingGPA) {
+        this.GPAEmail = GPAEmail;
+        this.GPAName = GPAName;
+        this.isPendingGPA = isTrue(isPendingGPA);
+    }
+
+    static create(GPAName, GPAEmail, isPendingGPA) {
+        return new PendingGPA(GPAName, GPAEmail, isPendingGPA);
+    }
 }
 
 module.exports = {
