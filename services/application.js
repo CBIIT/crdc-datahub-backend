@@ -561,6 +561,7 @@ class Application {
             history: [...(application.history || []), history]
         });
         const isDbGapMissing = (questionnaire?.accessTypes?.includes("Controlled Access") && !questionnaire?.study?.dbGaPPPHSNumber);
+        const isPendingGPA = (questionnaire?.accessTypes?.includes("Controlled Access") && Boolean((!aApplication?.GPAName?.trim() || !aApplication?.GPAEmail?.trim())));
         let promises = [];
 
         promises.push(this.institutionService.addNewInstitutions(application?.newInstitutions));
