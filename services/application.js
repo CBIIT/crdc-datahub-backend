@@ -560,10 +560,11 @@ class Application {
             history: [...(application.history || []), history]
         });
         const isDbGapMissing = (questionnaire?.accessTypes?.includes("Controlled Access") && !questionnaire?.study?.dbGaPPPHSNumber);
+        const isPendingGPA = (questionnaire?.accessTypes?.includes("Controlled Access") && Boolean((!aApplication?.GPAName?.trim() || !aApplication?.GPAEmail?.trim())));
         let promises = [];
 
         promises.push(this.institutionService.addNewInstitutions(application?.newInstitutions));
-        promises.push(this.sendEmailAfterApproveApplication(context, application, document?.comment, isDbGapMissing, isTrue(document?.pendingModelChange)));
+        promises.push(this.sendEmailAfterApproveApplication(context, application, document?.comment, isDbGapMissing, isTrue(document?.pendingModelChange), isPendingGPA));
         if (updated) {
             promises.unshift(this.getApplicationById(document._id));
             if(questionnaire) {
@@ -811,7 +812,7 @@ class Application {
             }}]);
     }
 
-    async sendEmailAfterApproveApplication(context, application, comment, isDbGapMissing = false, isPendingModelChange) {
+    async sendEmailAfterApproveApplication(context, application, comment, isDbGapMissing = false, isPendingModelChange, isPendingGPA) {
         const res = await Promise.all([
             this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
                 [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD, ROLES.ADMIN]),
