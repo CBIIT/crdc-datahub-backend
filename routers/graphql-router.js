@@ -236,6 +236,7 @@ dbConnector.connect().then(async () => {
         retrievePBACDefaults: configurationService.getPBACDefaults.bind(configurationService),
         downloadMetadataFile: submissionService.getMetadataFile.bind(submissionService),
         retrieveCLIUploaderVersion: configurationService.retrieveCLIUploaderVersion.bind(configurationService),
+        getApplicationFromVersion: configurationService.getApplicationFromVersion.bind(configurationService),
         userIsPrimaryContact: userService.isUserPrimaryContact.bind(userService),
         isMaintenanceMode: configurationService.isMaintenanceMode.bind(configurationService),
         getSubmissionAttributes: submissionService.getSubmissionAttributes.bind(submissionService),

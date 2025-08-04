@@ -2,6 +2,7 @@ const {verifySession} = require("../verifier/user-info-verifier");
 const ConfigurationDAO = require("../dao/configuration");
 const PBAC_CONFIG_TYPE = "PBAC";
 const CLI_UPLOADER_VERSION = "CLI_UPLOADER_VERSION";
+const APPLICATION_FORM_VERSIONS = "APPLICATION_FORM_VERSIONS";
 const MAINTENANCE_MODE = "MAINTENANCE_MODE";
 const getOMBConfiguration = require("../dao/omb");
 const ERROR = require("../constants/error-constants");
@@ -80,6 +81,20 @@ class ConfigurationService {
             throw new Error(ERROR.OMB_NOT_FOUND);
         }
         return ombConfig;
+    }
+
+    /**
+     * API: retrieveApplicationFromVersion
+     * @param {*} params 
+     * @param {*} context 
+     * @returns 
+     */
+    async getApplicationFromVersion(params, context) {
+        const applicationFromVersion = await this.configurationDAO.findByType(APPLICATION_FORM_VERSIONS);
+        if (!applicationFromVersion) {
+            throw new Error(ERROR.APPLICATION_FORM_VERSIONS_NOT_FOUND);
+        }
+        return {...applicationFromVersion, _id: applicationFromVersion.id}
     }
 
     /**
