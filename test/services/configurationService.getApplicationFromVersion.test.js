@@ -1,4 +1,5 @@
 const { ConfigurationService } = require('../../services/configurationService');
+const ERROR = require("../../constants/error-constants");
 
 describe('ConfigurationService - getApplicationFromVersion', () => {
     let configurationService;
@@ -6,7 +7,7 @@ describe('ConfigurationService - getApplicationFromVersion', () => {
 
     beforeEach(() => {
         configurationService = new ConfigurationService();
-        mockFindByTyp = jest
+        mockFindByType = jest
             .spyOn(configurationService.configurationDAO, 'findByType');
     });
 
@@ -16,16 +17,17 @@ describe('ConfigurationService - getApplicationFromVersion', () => {
 
     it('should return the APPLICATION_FORM_VERSIONS when available', async () => {
         const mockConfig = { id: 'application123', type: 'APPLICATION_FORM_VERSIONS', current: '1.0', new: '1.0' };
-        mockGetApplicationFromVersion.mockResolvedValue(mockConfig);
+        mockFindByType.mockResolvedValue(mockConfig);
         const result = await configurationService.getApplicationFromVersion({}, {});
-        expect(result).toBe(mockConfig);
         expect(mockFindByType).toHaveBeenCalled();
+        expect(result).toEqual({ ...mockConfig, _id: mockConfig.id });
     });
 
-    it('should return null if no CLI uploader version is available', async () => {
-        mockGetCurrentCLIUploaderVersion.mockResolvedValue(null);
-        const result = await configurationService.retrieveCLIUploaderVersion({}, {});
-        expect(result).toBeNull();
-        expect(mockGetCurrentCLIUploaderVersion).toHaveBeenCalled();
+    it('should throw APPLICATION_FORM_VERSIONS_NOT_FOUN error if APPLICATION_FORM_VERSIONS is not found', async () => {
+        mockFindByType.mockResolvedValue(null);
+        await expect(
+            configurationService.getApplicationFromVersion({}, {})
+        ).rejects.toThrow(ERROR.APPLICATION_FORM_VERSIONS_NOT_FOUND);
+        expect(mockFindByType).toHaveBeenCalled();
     });
 });

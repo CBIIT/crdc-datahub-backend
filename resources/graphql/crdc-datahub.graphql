@@ -197,7 +197,7 @@ type ApplicationFromVersion{
     _id: ID
     type: String
     current: String
-    new: string
+    new: String
 }
 
 # not being used currently
