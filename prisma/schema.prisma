@@ -422,7 +422,7 @@ model Program {
   studies        StudyByID[]
   createdAt      DateTime    @default(now()) @db.Date
   updateAt       DateTime    @updatedAt @db.Date // this is a typo, but it's been like this for a while
-
+  readOnly       Boolean?
   submission Submission[]
   Concierge User? @relation(fields: [conciergeID], references: [id])
 
