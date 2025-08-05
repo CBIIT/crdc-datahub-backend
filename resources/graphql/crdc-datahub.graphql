@@ -193,6 +193,12 @@ type OMBConfiguration{
     expirationDate: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
     type: String
 }
+type ApplicationFromVersion{
+    _id: ID
+    type: String
+    current: String
+    new: String
+}
 
 # not being used currently
 type Validation {
@@ -878,6 +884,7 @@ type Query {
 
     downloadMetadataFile(batchID: String!, fileName: String):String # download metadata file from S3 with presigned URL
 
+    getApplicationFromVersion: ApplicationFromVersion
     retrieveCLIUploaderVersion: String @public
     isMaintenanceMode: Boolean @public
     userIsPrimaryContact(userID: ID!): Boolean

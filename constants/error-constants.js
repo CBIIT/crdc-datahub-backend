@@ -173,6 +173,7 @@ const ERROR = {
     FAILED_TO_NOTIFY_CLEAR_PENDING_STATE: "Failed to send notification for clearing the approved study; $item$",
     APPROVED_STUDY_NOT_FOUND: "Approved study not found.",
     OMB_NOT_FOUND: "OMB information not found.",
+    APPLICATION_FORM_VERSIONS_NOT_FOUND: "APPLICATION_FORM_VERSIONS not found",
     EXISTING_SUBMISSION_COLLABORATOR: "The collaborator exists in the submission already.",
     COLLABORATOR_NOT_EXIST: "collaborator does not exist",
     INVALID_COLLABORATOR_ROLE_SUBMITTER: "Invalid collaborator role for the submitter",
