@@ -1850,7 +1850,7 @@ class Submission {
         }
 
         const userInfo = context?.userInfo;
-        const res = await this.notificationService.requestPVNotification(DCEmails, nonDCEmails, aSubmission?.dataCommons ,{
+        const res = await this.notificationService.requestPVNotification(DCEmails, nonDCEmails, aSubmission?.dataCommonsDisplayName ,{
             submitterName: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
             submitterEmail: userInfo?.email,
             studyName: aSubmission?.studyName,
