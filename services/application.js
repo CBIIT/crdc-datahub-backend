@@ -841,7 +841,9 @@ class Application {
                 return;
             }
 
-            if (isDbGapMissing && isPendingModelChange && isPendingGPA) {
+            const pendingChange = [isDbGapMissing, isPendingModelChange, isPendingGPA];
+            const filteredPendingChange = pendingChange.filter(Boolean);
+            if (filteredPendingChange?.length > 1) {
                 await this.notificationService.multipleChangesApproveQuestionNotification(application?.applicant?.applicantEmail,
                     CCEmails,
                     toBCCEmails,
@@ -851,7 +853,10 @@ class Application {
                         reviewComments: comment && comment?.trim()?.length > 0 ? comment?.trim() : "N/A",
                         study: setDefaultIfNoName(application?.studyName),
                         submissionGuideURL: this.emailParams?.submissionGuideURL
-                    }
+                    },
+                    isDbGapMissing,
+                    isPendingModelChange,
+                    isPendingGPA
                 );
                 return;
             }
