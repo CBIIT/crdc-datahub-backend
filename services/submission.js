@@ -1414,11 +1414,11 @@ class Submission {
         const userInfo = context?.userInfo;
         const aSubmission = await this._findByID(_id);
 
+        this._validateEditSubmission(aSubmission, newName, context?.userInfo?._id);
+
         if (aSubmission?.name === newName?.trim()) {
             return aSubmission
         }
-
-        this._validateEditSubmission(aSubmission, newName, context?.userInfo?._id);
 
         const duplicateStudySubmission = await this.submissionDAO.findFirst({
             studyID: aSubmission.studyID,
