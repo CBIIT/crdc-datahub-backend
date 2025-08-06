@@ -87,6 +87,7 @@ describe('ApprovedStudiesService', () => {
 
 
     describe('addApprovedStudyAPI', () => {
+        const mockGPA = {"GPAEmail": "GPAEmail@email.com", "GPAName": "GPA name", "isPendingGPA": true};
         const mockParams = {
             name: 'New Study',
             acronym: 'NS',
@@ -97,8 +98,8 @@ describe('ApprovedStudiesService', () => {
             PI: 'Dr. New',
             primaryContactID: 'contact-id',
             useProgramPC: false,
-            pendingModelChange: false
-        };
+            pendingModelChange: false,
+            ...mockGPA};
         const mockContext = {
             cookie: {},
             userInfo: TEST_CONSTANTS.TEST_SESSION.userInfo
@@ -136,8 +137,7 @@ describe('ApprovedStudiesService', () => {
             expect(service._validateStudyName).toHaveBeenCalledWith('New Study');
             expect(service._findUserByID).toHaveBeenCalledWith('contact-id');
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
-                null, 'New Study', 'NS', '1234-5678-9012-345', null, true, '0000-0002-1825-0097', 'Dr. New', false, null, false, false, 'contact-id'
-            );
+                null, 'New Study', 'NS', '1234-5678-9012-345', null, true, '0000-0002-1825-0097', 'Dr. New', false, null, false, false, 'contact-id', mockGPA            );
             expect(service.organizationService.getOrganizationByName).toHaveBeenCalledWith('NA');
             expect(service.organizationService.storeApprovedStudies).toHaveBeenCalledWith('org-id', 'new-study-id');
             expect(getDataCommonsDisplayNamesForApprovedStudy).toHaveBeenCalledWith(mockNewStudy);
@@ -167,6 +167,7 @@ describe('ApprovedStudiesService', () => {
     });
 
     describe('editApprovedStudyAPI', () => {
+        const mockGPA = {"GPAEmail": "GPAEmail@email.com", "GPAName": "GPA name", "isPendingGPA": true};
         const mockParams = {
             studyID: 'study-id',
             name: 'Updated Study',
@@ -178,7 +179,8 @@ describe('ApprovedStudiesService', () => {
             PI: 'Dr. Updated',
             primaryContactID: 'contact-id',
             useProgramPC: false,
-            pendingModelChange: true
+            pendingModelChange: true,
+            ...mockGPA
         };
         const mockContext = {
             cookie: {},
@@ -230,7 +232,8 @@ describe('ApprovedStudiesService', () => {
         });
 
         it('should successfully update an approved study', async () => {
-            const result = await service.editApprovedStudyAPI({ ...mockParams }, mockContext);
+            const paramsWithPendingGPA = { ...mockParams};
+            const result = await service.editApprovedStudyAPI(paramsWithPendingGPA, mockContext);
             expect(verifySession).toHaveBeenCalledWith(mockContext);
             expect(service._getUserScope).toHaveBeenCalledWith(mockContext.userInfo, ADMIN.MANAGE_STUDIES);
             expect(service.approvedStudyDAO.findFirst).toHaveBeenCalledWith({id: 'study-id'});
