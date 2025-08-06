@@ -1,7 +1,7 @@
 {
     "_id": "06e527d4-0040-48cd-a4a1-bd8d850ab828",
     "type": "PBAC",
-    "version": "2.1.0",
+    "version": "2.1.1",
     "Defaults": [
       {
         "role": "Federal Lead",
@@ -286,6 +286,14 @@
             "group": "Data Submission Emails",
             "name": "When New PV requested",
             "order": 10,
+            "checked": false,
+            "disabled": false
+          },
+          {
+            "_id": "data_submission:cfg_changed",
+            "group": "Data Submission Emails",
+            "name": "When changed",
+            "order": 11,
             "checked": false,
             "disabled": false
           },
@@ -611,6 +619,14 @@
             "disabled": false
           },
           {
+            "_id": "data_submission:cfg_changed",
+            "group": "Data Submission Emails",
+            "name": "When changed",
+            "order": 11,
+            "checked": true,
+            "disabled": false
+          },
+          {
             "_id": "access:requested",
             "group": "Miscellaneous",
             "name": "Request Access",
@@ -927,6 +943,14 @@
             "group": "Data Submission Emails",
             "name": "When New PV requested",
             "order": 10,
+            "checked": false,
+            "disabled": false
+          },
+          {
+            "_id": "data_submission:cfg_changed",
+            "group": "Data Submission Emails",
+            "name": "When changed",
+            "order": 11,
             "checked": false,
             "disabled": false
           },
@@ -1251,6 +1275,14 @@
             "disabled": true
           },
           {
+            "_id": "data_submission:cfg_changed",
+            "group": "Data Submission Emails",
+            "name": "When changed",
+            "order": 11,
+            "checked": true,
+            "disabled": true
+          },
+          {
             "_id": "access:requested",
             "group": "Miscellaneous",
             "name": "Request Access",
@@ -1565,6 +1597,14 @@
             "group": "Data Submission Emails",
             "name": "When New PV requested",
             "order": 10,
+            "checked": false,
+            "disabled": true
+          },
+          {
+            "_id": "data_submission:cfg_changed",
+            "group": "Data Submission Emails",
+            "name": "When changed",
+            "order": 11,
             "checked": false,
             "disabled": true
           },

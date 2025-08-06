@@ -587,6 +587,22 @@ class NotifyUser {
         });
     }
 
+    async updateSubmissionNotification(email, CCEmails, BCCEmails, templateParams) {
+        const subject = replaceMessageVariables(this.email_constants.UPDATE_SUBMISSION_SUBJECT, {});
+        return await this.send(async () => {
+            return await this.emailService.sendNotification(
+                this.email_constants.NOTIFICATION_SENDER,
+                isTierAdded(this.tier) ? `${this.tier} ${subject}` : subject,
+                await createEmailTemplate("notification-template-edit-submission.html", {
+                    ...{...templateParams}
+                }),
+                email,
+                CCEmails,
+                BCCEmails
+            );
+        });
+    }
+
     async finalInactiveSubmissionNotification(email, BCCEmails, template_params, messageVariables) {
         const subject = replaceMessageVariables(this.email_constants.FINAL_INACTIVE_SUBMISSION_SUBJECT, messageVariables);
         const message = replaceMessageVariables(this.email_constants.FINAL_INACTIVE_SUBMISSION_CONTENT, messageVariables);

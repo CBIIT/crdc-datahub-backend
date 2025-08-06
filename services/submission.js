@@ -1439,6 +1439,8 @@ class Submission {
             throw new Error(ERROR.FAILED_UPDATE_SUBMISSION_NAME);
         }
 
+        await this._notifyConfigurationChange(userInfo, aSubmission, updated?.name);
+
         // Log for the modifying submission name
         if (updated) {
             await this.logCollection.insert(UpdateSubmissionNameEvent.create(
@@ -1447,6 +1449,31 @@ class Submission {
         return updated;
     }
 
+    async _notifyConfigurationChange(userInfo, aSubmission, newSubmissionName) {
+        const users = await this.userDAO.getUsersByNotifications([EN.DATA_SUBMISSION.CHANGE_CONFIGURATION]);
+        const { submitterEmails, otherEmails } = (users || []).reduce(
+            (acc, u) => {
+                if (u?.email) {
+                    (u?._id === aSubmission?.submitterID ? acc.submitterEmails : acc.otherEmails).push(u.email);
+                }
+                return acc;
+            },
+            { submitterEmails: [], otherEmails: [] }
+        );
+
+        if (submitterEmails?.length > 0) {
+            const sent = await this.notificationService.updateSubmissionNotification(submitterEmails, [], otherEmails, {
+                firstName: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
+                portalURL: this.emailParams.url || NA,
+                submissionName: newSubmissionName,
+                studyName: aSubmission?.study?.studyName || NA
+            });
+
+            if (!sent?.accepted?.length === 0) {
+                console.error(ERROR.FAILED_NOTIFY_SUBMISSION_UPDATE + ";submissionID" + `${aSubmission?._id}`);
+            }
+        }
+    }
 
     _validateEditSubmission(aSubmission, newName, userID) {
         if (!aSubmission){

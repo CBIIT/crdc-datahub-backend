@@ -235,6 +235,7 @@ const ERROR = {
     EMPTY_SUBMISSION_NAME: "Submission name cannot be empty.",
     DUPLICATE_STUDY_SUBMISSION_NAME: "The same submission name exist in the same study; Please enter a different name.",
     FAILED_UPDATE_SUBMISSION_NAME: "Failed to update the submission name",
+    FAILED_NOTIFY_SUBMISSION_UPDATE: "Failed to notify the configuration update",
     // Get Permission Scopes
     INVALID_PERMISSION_STRING: "Failed to parse the permission string, the provided permission is either null or not a string.",
     // User Scope
