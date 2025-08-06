@@ -231,6 +231,10 @@ const ERROR = {
     DUPLICATE_INSTITUTION_NAME: "This institution name already exists. Please enter a different name.",
     FAILED_CREATE_INSTITUTION: "Failed to create a new institution",
     MAX_INSTITUTION_NAME_LIMIT: "Institution name cannot exceed 100 characters.",
+    MAX_SUBMISSION_NAME_LIMIT: "Submission name cannot exceed 100 characters.",
+    EMPTY_SUBMISSION_NAME: "Submission name cannot be empty.",
+    DUPLICATE_STUDY_SUBMISSION_NAME: "The same submission name exist in the same study; Please enter a different name.",
+    FAILED_UPDATE_SUBMISSION_NAME: "Failed to update the submission name",
     // Get Permission Scopes
     INVALID_PERMISSION_STRING: "Failed to parse the permission string, the provided permission is either null or not a string.",
     // User Scope

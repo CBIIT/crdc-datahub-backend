@@ -186,6 +186,7 @@ dbConnector.connect().then(async () => {
         retrieveFileNodeConfig: submissionService.getDataFileConfigs.bind(submissionService),
         retrieveReleasedDataByID: submissionService.getReleasedNodeByIDs.bind(submissionService),
         updateSubmissionModelVersion: submissionService.updateSubmissionModelVersion.bind(submissionService),
+        editSubmission: submissionService.editSubmission.bind(submissionService),
         listInstitutions: institutionService.listInstitutions.bind(institutionService),
         updateInstitution: async (params, context) => {
             const aInstitution = await institutionService.updateInstitution(params, context);
