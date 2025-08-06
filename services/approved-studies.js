@@ -60,7 +60,11 @@ class ApprovedStudiesService {
      * @returns {Promise<Object[]>} An array of ApprovedStudies
      */
     async findByStudyName(studyName) {
-        return await this.approvedStudyDAO.findMany({studyName});
+        return await this.approvedStudyDAO.findManyStudy({studyName: {
+                equals: studyName?.trim(),
+                // case-insensitive match
+                mode: 'insensitive'
+            }});
     }
 
     /**
