@@ -1469,7 +1469,7 @@ class Submission {
                 studyName: aSubmission?.study?.studyName || NA
             });
 
-            if (!sent?.accepted?.length === 0) {
+            if (sent?.accepted?.length === 0) {
                 console.error(ERROR.FAILED_NOTIFY_SUBMISSION_UPDATE + ";submissionID" + `${aSubmission?._id}`);
             }
         }
