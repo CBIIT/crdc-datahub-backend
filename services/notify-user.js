@@ -273,7 +273,7 @@ class NotifyUser {
         ].filter(Boolean);
 
         if (pendingConditions.length === 0) {
-            console.error(`Failed to send Approve Question Email Notifications: ${email}`);
+            console.warn(`Sending Approve Question Email Notification to ${email} with no pending conditions.`);
         }
 
         return await this.send(async () => {
