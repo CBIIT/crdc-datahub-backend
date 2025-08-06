@@ -21,12 +21,7 @@ class ApprovedStudyDAO extends GenericDAO  {
     async getApprovedStudyByID(studyID) {
         return await this.findById(studyID)
     }
-    // note: the generic method needs to be improved; below query does not work in the generic DAO.
-    // {studyName: {
-    //                 equals: studyName?.trim(),
-    //                 // case-insensitive match
-    //                 mode: 'insensitive'
-    // }
+    // The generic DAO's findMany method does not support advanced Prisma query options,
     async findManyStudy(filter, option = {}) {
         const result = await prisma.approvedStudy.findMany({ where: filter });
         return result.map(item => ({ ...item, _id: item.id }));
