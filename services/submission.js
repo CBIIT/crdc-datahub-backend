@@ -150,7 +150,11 @@ class Submission {
             params.name, context.userInfo, params.dataCommons, approvedStudy?.dbGaPID, program, modelVersion, intention, dataType, approvedStudy, this.submissionBucketName));
 
         const created = await this.submissionDAO.create(newSubmission);
-        const res = await this.submissionDAO.update(created?.id, {rootPath: `${SUBMISSIONS}/${created.id}`})
+        if (!created) {
+            throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
+        }
+
+        const res = await this.submissionDAO.update(created?.id, {rootPath: `${SUBMISSIONS}/${created?.id}`})
         if (!res) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
         }
