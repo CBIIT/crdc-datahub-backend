@@ -565,7 +565,7 @@ class Application {
         let promises = [];
 
         promises.push(this.institutionService.addNewInstitutions(application?.newInstitutions));
-        promises.push(this.sendEmailAfterApproveApplication(context, application, document?.comment, isDbGapMissing, isTrue(document?.pendingModelChange)));
+        promises.push(this.sendEmailAfterApproveApplication(context, application, document?.comment, isDbGapMissing, isTrue(document?.pendingModelChange), isPendingGPA));
         if (updated) {
             promises.unshift(this.getApplicationById(document._id));
             if(questionnaire) {
@@ -813,7 +813,7 @@ class Application {
             }}]);
     }
 
-    async sendEmailAfterApproveApplication(context, application, comment, isDbGapMissing = false, isPendingModelChange) {
+    async sendEmailAfterApproveApplication(context, application, comment, isDbGapMissing = false, isPendingModelChange, isPendingGPA = false) {
         const res = await Promise.all([
             this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
                 [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD, ROLES.ADMIN]),
@@ -826,7 +826,7 @@ class Application {
         const toBCCEmails = getUserEmails(toBCCUsers)
             ?.filter((email) => !CCEmails.includes(email) && applicantInfo?.email !== email);
         if (applicantInfo?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW)) {
-            if (!isDbGapMissing && !isPendingModelChange) {
+            if (!isDbGapMissing && !isPendingModelChange && !isPendingGPA) {
                 await this.notificationService.approveQuestionNotification(application?.applicant?.applicantEmail,
                     CCEmails,
                     toBCCEmails,
@@ -841,7 +841,7 @@ class Application {
                 return;
             }
 
-            if (isDbGapMissing && isPendingModelChange) {
+            if (isDbGapMissing && isPendingModelChange && isPendingGPA) {
                 await this.notificationService.multipleChangesApproveQuestionNotification(application?.applicant?.applicantEmail,
                     CCEmails,
                     toBCCEmails,
@@ -873,6 +873,20 @@ class Application {
 
             if (isPendingModelChange) {
                 await this.notificationService.dataModelChangeApproveQuestionNotification(application?.applicant?.applicantEmail,
+                    CCEmails,
+                    toBCCEmails,
+                    {
+                        firstName: application?.applicant?.applicantName,
+                        contactEmail: this.emailParams?.conditionalSubmissionContact,
+                        reviewComments: comment && comment?.trim()?.length > 0 ? comment?.trim() : "N/A",
+                        study: setDefaultIfNoName(application?.studyName),
+                        submissionGuideURL: this.emailParams?.submissionGuideURL
+                    }
+                );
+            }
+
+            if (isPendingGPA) {
+                await this.notificationService.pendingGPANotification(application?.applicant?.applicantEmail,
                     CCEmails,
                     toBCCEmails,
                     {

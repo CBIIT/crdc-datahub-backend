@@ -36,6 +36,7 @@ MISSING_DBGAP_PENDING_CHANGE: "Your study's dbGaP ID was not provided. Please co
 DATA_MODEL_PENDING_CHANGE: "The data model is currently under review to determine if any changes are required."
 CONDITIONAL_PENDING_MULTIPLE_CHANGES: "We are pleased to inform you that your submission request for the $study study to the CRDC Submission Portal has been approved by the CRDC Submission Review Committee, with a pending condition. Please note you cannot begin your data submissions until this condition is resolved. You can find the details below and take appropriate action as soon as possible to address the missing requirements. Details of the pending condition and review comments are provided below."
 MISSING_DBGAP_PENDING_CHANGE_MULTIPLE: "The dbGaP ID for your study has not been provided. Please contact $contactEmail to submit your dbGaP ID once your study has been registered on dbGaP."
+MISSING_GPA_INFO: "The GPA info for your study was not provided. Please contact $contactEmail to submit the GPA name and email address."
 INACTIVE_USER_SUBJECT: "Your CRDC Submission Portal account has been disabled due to Inactivity"
 INACTIVE_USER_CONTENT: "Your access to the CRDC Submission Portal has been disabled due to $inactiveDays days of inactivity. To reinstate your account please contact $officialEmail"
 INACTIVE_ADMIN_USER_RECIPIENT_NAME: "System Admins"
