@@ -42,6 +42,11 @@
   </p>
   {{/if}}
 
+  {{#if prevSubmitterName }}
+    {{#if newSubmitterName }}
+      <p>As the data model version has been changed, all previous validation results have been reset. You are required to rerun validation against the new model version.</p>
+    {{/if}}
+  {{/if}}
   <p>As the newly assigned Submitter, you are now responsible for completing and managing this submission in the portal.</p>
   {{#if prevModelVersion }}
     {{#if newModelVersion }}
