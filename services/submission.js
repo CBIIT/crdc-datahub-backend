@@ -149,7 +149,12 @@ class Submission {
         const newSubmission = getDataCommonsDisplayNamesForSubmission(DataSubmission.createSubmission(
             params.name, context.userInfo, params.dataCommons, approvedStudy?.dbGaPID, program, modelVersion, intention, dataType, approvedStudy, this.submissionBucketName));
 
-        const res = await this.submissionDAO.create(newSubmission);
+        const created = await this.submissionDAO.create(newSubmission);
+        if (!created) {
+            throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
+        }
+
+        const res = await this.submissionDAO.update(created?.id, {rootPath: `${SUBMISSIONS}/${created?.id}`})
         if (!res) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
         }
@@ -2349,7 +2354,6 @@ class DataValidation {
 const SUBMISSIONS = "submissions";
 class DataSubmission {
     constructor(name, userInfo, dataCommons, dbGaPID, aProgram, modelVersion, intention, dataType, approvedStudy, submissionBucketName) {
-        // this._id = v4();
         this.name = name;
         this.submitterID = userInfo._id;
         this.collaborators = [];
@@ -2364,7 +2368,7 @@ class DataSubmission {
             this.programID = aProgram?._id;
         }
         this.bucketName = submissionBucketName;
-        this.rootPath = `${SUBMISSIONS}/${this._id}`;
+        this.rootPath = "";
         this.conciergeName = this._getConciergeName(approvedStudy, aProgram);
         this.conciergeEmail = this._getConciergeEmail(approvedStudy, aProgram);
         this.createdAt = this.updatedAt = getCurrentTime();
