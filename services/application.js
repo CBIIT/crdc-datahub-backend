@@ -562,6 +562,7 @@ class Application {
             history: [...(application.history || []), history]
         });
         const isDbGapMissing = (questionnaire?.accessTypes?.includes("Controlled Access") && !questionnaire?.study?.dbGaPPPHSNumber);
+        const isPendingGPA = (questionnaire?.accessTypes?.includes("Controlled Access") && Boolean((!updated?.GPAName?.trim() || !updated?.GPAEmail?.trim())));
         let promises = [];
 
         promises.push(this.institutionService.addNewInstitutions(application?.newInstitutions));
@@ -569,7 +570,7 @@ class Application {
         if (updated) {
             promises.unshift(this.getApplicationById(document._id));
             if(questionnaire) {
-                const approvedStudies = await this._saveApprovedStudies(updated, questionnaire, document?.pendingModelChange);
+                const approvedStudies = await this._saveApprovedStudies(updated, questionnaire, document?.pendingModelChange, isPendingGPA);
                 // added approved studies into user collection
                 const applicants = await this._findUsersByApplicantIDs([application]);
                 if (applicants?.length > 0) {
@@ -1033,7 +1034,7 @@ class Application {
         }, {[`${this._FINAL_INACTIVE_REMINDER}`]: status});
     }
 
-    async _saveApprovedStudies(aApplication, questionnaire, pendingModelChange) {
+    async _saveApprovedStudies(aApplication, questionnaire, pendingModelChange, isPendingGPA) {
         // use study name when study abbreviation is not available
         const studyAbbreviation = !!aApplication?.studyAbbreviation?.trim() ? aApplication?.studyAbbreviation : questionnaire?.study?.name;
         const controlledAccess = aApplication?.controlledAccess;
@@ -1041,7 +1042,6 @@ class Application {
             console.error(ERROR.APPLICATION_CONTROLLED_ACCESS_NOT_FOUND, ` id=${aApplication?._id}`);
         }
         const programName = aApplication?.programName ?? "NA";
-        const isPendingGPA = (questionnaire?.accessTypes?.includes("Controlled Access") && Boolean((!aApplication?.GPAName?.trim() || !aApplication?.GPAEmail?.trim())));
         const pendingGPA = PendingGPA.create(aApplication?.GPAName, aApplication?.GPAEmail, isPendingGPA);
         // Upon approval of the submission request, the data concierge is retrieved from the associated program.
         return await this.approvedStudiesService.storeApprovedStudies(
