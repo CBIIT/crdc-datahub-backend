@@ -20,6 +20,7 @@ const {UtilityService} = require("../services/utility");
 const InstitutionDAO = require("../dao/institution");
 const ApplicationDAO = require("../dao/application");
 const {SORT: SORT_ORDER} = require("../constants/db-constants");
+const {PendingGPA} = require("../domain/pending-gpa");
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_INSTITUTION_NAME_LENGTH = 100;
 const OrderByMap = {
@@ -561,7 +562,6 @@ class Application {
             history: [...(application.history || []), history]
         });
         const isDbGapMissing = (questionnaire?.accessTypes?.includes("Controlled Access") && !questionnaire?.study?.dbGaPPPHSNumber);
-        const isPendingGPA = (questionnaire?.accessTypes?.includes("Controlled Access") && Boolean((!updated?.GPAName?.trim() || !updated?.GPAEmail?.trim())));
         let promises = [];
 
         promises.push(this.institutionService.addNewInstitutions(application?.newInstitutions));
@@ -569,7 +569,7 @@ class Application {
         if (updated) {
             promises.unshift(this.getApplicationById(document._id));
             if(questionnaire) {
-                const approvedStudies = await this._saveApprovedStudies(application, questionnaire, document?.pendingModelChange);
+                const approvedStudies = await this._saveApprovedStudies(updated, questionnaire, document?.pendingModelChange);
                 // added approved studies into user collection
                 const { _id, ...updateUser } = context?.userInfo || {};
                 const currStudyIDs = context?.userInfo?.studies?.map((study)=> study?._id) || [];
@@ -1017,8 +1017,8 @@ class Application {
             console.error(ERROR.APPLICATION_CONTROLLED_ACCESS_NOT_FOUND, ` id=${aApplication?._id}`);
         }
         const programName = aApplication?.programName ?? "NA";
-        const pendingGPAInfo = {GPAName: aApplication?.GPAName, GPAEmail: aApplication?.GPAEmail, isPendingGPA: Boolean((aApplication?.GPAName?.trim() && aApplication?.GPAEmail?.trim()))};
-        const pendingGPA = isTrue(controlledAccess) ? pendingGPAInfo : null;
+        const isPendingGPA = (questionnaire?.accessTypes?.includes("Controlled Access") && Boolean((!aApplication?.GPAName?.trim() || !aApplication?.GPAEmail?.trim())));
+        const pendingGPA = PendingGPA.create(aApplication?.GPAName, aApplication?.GPAEmail, isPendingGPA);
         // Upon approval of the submission request, the data concierge is retrieved from the associated program.
         return await this.approvedStudiesService.storeApprovedStudies(
             aApplication?._id, aApplication?.studyName, studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name, controlledAccess, aApplication?.ORCID,

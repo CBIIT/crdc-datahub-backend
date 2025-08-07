@@ -28,6 +28,7 @@ const ProgramDAO = require("../dao/program");
 const UserDAO = require("../dao/user");
 const SubmissionDAO = require("../dao/submission");
 const ApplicationDAO = require("../dao/application");
+const {PendingGPA} = require("../domain/pending-gpa");
 class ApprovedStudiesService {
     constructor(approvedStudiesCollection, userCollection, organizationService, submissionCollection, authorizationService, notificationsService, emailParams) {
         this.approvedStudiesCollection = approvedStudiesCollection;
@@ -487,18 +488,6 @@ const getUserEmails = (users) => {
     return users
         ?.filter((aUser) => aUser?.email)
         ?.map((aUser)=> aUser.email);
-}
-
-class PendingGPA {
-    constructor(GPAName, GPAEmail, isPendingGPA) {
-        this.GPAEmail = GPAEmail;
-        this.GPAName = GPAName;
-        this.isPendingGPA = isTrue(isPendingGPA);
-    }
-
-    static create(GPAName, GPAEmail, isPendingGPA) {
-        return new PendingGPA(GPAName, GPAEmail, isPendingGPA);
-    }
 }
 
 module.exports = {
