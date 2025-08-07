@@ -208,7 +208,7 @@ class ApprovedStudiesService {
             acronym = name;
         }
 
-        this._validatePendingGPA(GPAName, GPAEmail, isPendingGPA);
+        this._validatePendingGPA(GPAName, GPAEmail, controlledAccess, isPendingGPA);
         const pendingGPA = PendingGPA.create(GPAName, GPAEmail, isPendingGPA);
         let newStudy = await this.storeApprovedStudies(null, name, acronym, dbGaPID, null, controlledAccess, ORCID, PI, openAccess, null, useProgramPC, pendingModelChange, primaryContactID, pendingGPA);
         // add new study to organization with name of "NA"
@@ -297,7 +297,7 @@ class ApprovedStudiesService {
             }
         }
 
-        this._setPendingGPA(updateStudy, isPendingGPA, (GPAName || updateStudy?.GPAName), (GPAEmail || updateStudy?.GPAEmail));
+        this._setPendingGPA(updateStudy, controlledAccess, isPendingGPA, (GPAName || updateStudy?.GPAName), (GPAEmail || updateStudy?.GPAEmail));
 
         updateStudy.primaryContactID = useProgramPC ? null : primaryContactID;
         updateStudy.updatedAt = getCurrentTime();
@@ -339,16 +339,35 @@ class ApprovedStudiesService {
         return getDataCommonsDisplayNamesForApprovedStudy(approvedStudy);
     }
 
-    _setPendingGPA (updateStudy, isPendingGPA, GPAName, GPAEmail) {
-        this._validatePendingGPA(GPAName, GPAEmail, isPendingGPA);
-        updateStudy.GPAName = GPAName;
-        updateStudy.GPAEmail = GPAEmail;
-        updateStudy.isPendingGPA = isPendingGPA;
+    _setPendingGPA (updateStudy, controlledAccess, isPendingGPA, GPAName, GPAEmail) {
+        if (isTrue(updateStudy.controlledAccess)) {
+            this._validatePendingGPA(GPAName, GPAEmail, controlledAccess, isPendingGPA);
+            updateStudy.GPAName = GPAName;
+            updateStudy.GPAEmail = GPAEmail;
+            updateStudy.isPendingGPA = isPendingGPA;
+        }
+
+        if (!isTrue(updateStudy.controlledAccess)) {
+            updateStudy.GPAName = null;
+            updateStudy.GPAEmail = null
+            updateStudy.isPendingGPA = false;
+        }
+
     }
 
-    _validatePendingGPA(GPAName, GPAEmail, isPendingGPA) {
-        if (isTrue(isPendingGPA) && (!GPAEmail?.trim() || !GPAName?.trim())) {
-            throw new Error(ERROR.INVALID_PENDING_GPA + ";GPA name or email is missing.");
+    _validatePendingGPA(GPAName, GPAEmail, controlledAccess, isPendingGPA) {
+        // has controlled, not setting pending GPA
+        if (isTrue(controlledAccess)) {
+            if (!isTrue(isPendingGPA)) {
+                throw new Error(ERROR.INVALID_PENDING_GPA + ";controlled Access requires pending GPA.");
+            }
+
+            if (isTrue(isPendingGPA) && (!GPAEmail?.trim() || !GPAName?.trim())) {
+                throw new Error(ERROR.INVALID_PENDING_GPA + ";GPA name or email is missing.");
+            }
+        }
+        if (!isTrue(controlledAccess) && isTrue(isPendingGPA)) {
+            throw new Error(ERROR.INVALID_PENDING_GPA);
         }
     }
 
