@@ -127,3 +127,13 @@ Commands:
         },
         { upsert: true }
       );
+
+  - add the default email notification configuration change CRDCDH-3032: |
+      db.users.updateMany(
+        {
+          role: {$in: ["Data Commons Personnel", "Submitter"]},
+        },
+        {
+          $addToSet: { notifications: "data_submission:cfg_changed" }
+        }
+      );
