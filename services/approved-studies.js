@@ -356,12 +356,6 @@ class ApprovedStudiesService {
     }
 
     _validatePendingGPA(GPAName, GPAEmail, controlledAccess, isPendingGPA) {
-        // has controlled, not setting pending GPA
-        if (isTrue(controlledAccess)) {
-            if (!isTrue(isPendingGPA)) {
-                throw new Error(ERROR.INVALID_PENDING_GPA + ";controlled Access requires pending GPA.");
-            }
-        }
         if (!isTrue(controlledAccess) && isTrue(isPendingGPA)) {
             throw new Error(ERROR.INVALID_PENDING_GPA);
         }
