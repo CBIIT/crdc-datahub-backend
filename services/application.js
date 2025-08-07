@@ -571,11 +571,16 @@ class Application {
             if(questionnaire) {
                 const approvedStudies = await this._saveApprovedStudies(application, questionnaire, document?.pendingModelChange);
                 // added approved studies into user collection
-                const { _id, ...updateUser } = context?.userInfo || {};
-                const currStudyIDs = context?.userInfo?.studies?.map((study)=> study?._id) || [];
-                const newStudiesIDs = [approvedStudies?._id].concat(currStudyIDs);
-                promises.push(this.userService.updateUserInfo(
-                    context?.userInfo, updateUser, _id, context?.userInfo?.userStatus, context?.userInfo?.role, newStudiesIDs));
+                const applicants = await this._findUsersByApplicantIDs([application]);
+                if (applicants?.length > 0) {
+                    const applicant = applicants[0];
+                    const { _id, ...updateUser } = applicant;
+                    const currStudyIDs = applicant?.studies?.map((study)=> study?._id) || [];
+                    const newStudiesIDs = [approvedStudies?._id].concat(currStudyIDs);
+                    promises.push(this.userService.updateUserInfo(
+                        applicant, updateUser, _id, applicant?.userStatus, applicant?.role, newStudiesIDs));
+                }
+
                 const [name, abbreviation, description] = [application?.programName, application?.programAbbreviation, application?.programDescription];
                 if (name?.trim()?.length > 0) {
                     const programs = await this.organizationService.findOneByProgramName(name);
