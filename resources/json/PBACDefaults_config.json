@@ -1,7 +1,7 @@
 {
     "_id": "06e527d4-0040-48cd-a4a1-bd8d850ab828",
     "type": "PBAC",
-    "version": "2.1.1",
+    "version": "2.2.0",
     "Defaults": [
       {
         "role": "Federal Lead",
