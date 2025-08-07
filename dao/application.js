@@ -56,6 +56,7 @@ class ApplicationDAO extends GenericDAO {
         let query = {};
         let orderBy = undefined;
         let take = undefined;
+        let skip = undefined;
         for (const stage of pipeline) {
             if (stage.$match) query = { ...query, ...stage.$match };
             if (stage.$sort) {
@@ -64,6 +65,7 @@ class ApplicationDAO extends GenericDAO {
                 }));
             }
             if (stage.$limit) take = stage.$limit;
+            if (stage.$skip) skip = stage.$skip;
         }
         query = convertMongoFilterToPrismaFilter(query);
 
@@ -82,7 +84,8 @@ class ApplicationDAO extends GenericDAO {
         const apps = await prisma.application.findMany({
             where: query,
             orderBy,
-            take
+            take,
+            skip
         });
         return apps.map(app => ({ ...app, _id: app.id }));
     }
