@@ -79,3 +79,4 @@ PV_REQUEST_SUBJECT: "Inquiry: New Permissive Value Request Submitted via CRDC Su
 PV_REQUEST_SUBJECT_CONTENT: "A new permissive value (PV) request has been submitted by a submitter through the CRDC Data Submission Portal. Below are the details:"
 PV_REQUEST_SUBJECT_SECOND_CONTENT: "Please review this request and take appropriate action. It is the responsibility of the Data Commons team to communicate with the submitter once a decision has been made regarding the inclusion of the new permissible value."
 CLEAR_PENDING_STATE_SUBJECT: "Your CRDC Submission Request Pending Condition Cleared"
+UPDATE_SUBMISSION_SUBJECT: "Your CRDC Data Submission Configuration Has Changed"

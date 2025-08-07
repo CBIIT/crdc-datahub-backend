@@ -1030,6 +1030,7 @@ type Mutation {
     ): AsyncProcessResult
 
     updateSubmissionModelVersion(_id: String!, version: String!): Submission
+    editSubmission(_id: String!, newName: String!): Submission
     updateInstitution(_id: ID!, name: String, status: String): Institution
     createInstitution(name: String!, status: String!): Institution
     requestPV(submissionID: String!, value: String!, nodeName: String!, property: String!, comment: String!): AsyncProcessResult

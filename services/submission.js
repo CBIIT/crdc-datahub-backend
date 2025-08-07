@@ -12,7 +12,7 @@ const {verifySubmissionAction} = require("../verifier/submission-verifier");
 const {formatName} = require("../utility/format-name");
 const ERROR = require("../constants/error-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
-const {SubmissionActionEvent, DeleteRecordEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
+const {SubmissionActionEvent, DeleteRecordEvent, UpdateSubmissionNameEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const {verifyBatch} = require("../verifier/batch-verifier");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
@@ -59,6 +59,7 @@ const SUBMISSION_ID = "Submission ID";
 const DATA_SUBMISSION_TYPE = "Data Submission Type";
 const DESTINATION_LOCATION = "Destination Location";
 const MAX_COMMENT_LENGTH = 500;
+const MAX_SUBMISSION_NAME_LENGTH = 100;
 // Set to array
 Set.prototype.toArray = function() {
     return Array.from(this);
@@ -1408,6 +1409,94 @@ class Submission {
         return collaborators.map((user) => {
            return getDataCommonsDisplayNamesForUser(user);
         });
+    }
+
+    async editSubmission(params, context) {
+        verifySession(context)
+            .verifyInitialized();
+
+        const {_id, newName} = params;
+        const userInfo = context?.userInfo;
+        const aSubmission = await this._findByID(_id);
+
+        this._validateEditSubmission(aSubmission, newName, context?.userInfo?._id);
+
+        if (aSubmission?.name === newName?.trim()) {
+            return aSubmission
+        }
+
+        const duplicateStudySubmission = await this.submissionDAO.findFirst({
+            studyID: aSubmission.studyID,
+            name: {
+                equals: newName?.trim(),
+                mode: 'insensitive',
+            },
+            id: {
+                not: aSubmission.id
+        }});
+
+        if (duplicateStudySubmission?._id) {
+            throw new Error(ERROR.DUPLICATE_STUDY_SUBMISSION_NAME);
+        }
+
+        const updated = await this.submissionDAO.update(aSubmission?._id, {name: newName});
+        if (!updated) {
+            throw new Error(ERROR.FAILED_UPDATE_SUBMISSION_NAME);
+        }
+
+        await this._notifyConfigurationChange(userInfo, aSubmission, updated?.name);
+
+        // Log for the modifying submission name
+        if (updated) {
+            await this.logCollection.insert(UpdateSubmissionNameEvent.create(
+                userInfo._id, userInfo.email, userInfo.IDP, updated._id, aSubmission?.name, newName));
+        }
+        return updated;
+    }
+
+    async _notifyConfigurationChange(userInfo, aSubmission, newSubmissionName) {
+        const users = await this.userDAO.getUsersByNotifications([EN.DATA_SUBMISSION.CHANGE_CONFIGURATION]);
+        const { submitterEmails, otherEmails } = (users || []).reduce(
+            (acc, u) => {
+                if (u?.email) {
+                    (u?._id === aSubmission?.submitterID ? acc.submitterEmails : acc.otherEmails).push(u.email);
+                }
+                return acc;
+            },
+            { submitterEmails: [], otherEmails: [] }
+        );
+
+        if (submitterEmails?.length > 0) {
+            const sent = await this.notificationService.updateSubmissionNotification(submitterEmails, [], otherEmails, {
+                firstName: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
+                portalURL: this.emailParams.url || NA,
+                submissionName: newSubmissionName,
+                studyName: aSubmission?.study?.studyName || NA
+            });
+
+            if (sent?.accepted?.length === 0) {
+                console.error(ERROR.FAILED_NOTIFY_SUBMISSION_UPDATE + ";submissionID" + `${aSubmission?._id}`);
+            }
+        }
+    }
+
+    _validateEditSubmission(aSubmission, newName, userID) {
+        if (!aSubmission){
+            throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
+        }
+
+        if (newName?.trim().length > MAX_SUBMISSION_NAME_LENGTH) {
+            throw new Error(`${ERROR.MAX_SUBMISSION_NAME_LIMIT};${newName}`);
+        }
+
+        if (!newName || newName?.trim()?.length === 0) {
+            throw new Error(`${ERROR.EMPTY_SUBMISSION_NAME}`);
+        }
+
+        // Only primary submitter can modify the submission name
+        if (userID !== aSubmission?.submitterID) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
     }
 
     /**
