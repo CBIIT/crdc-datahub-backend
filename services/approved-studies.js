@@ -28,6 +28,7 @@ const ProgramDAO = require("../dao/program");
 const UserDAO = require("../dao/user");
 const SubmissionDAO = require("../dao/submission");
 const ApplicationDAO = require("../dao/application");
+const {PendingGPA} = require("../domain/pending-gpa");
 class ApprovedStudiesService {
     constructor(approvedStudiesCollection, userCollection, organizationService, submissionCollection, authorizationService, notificationsService, emailParams) {
         this.approvedStudiesCollection = approvedStudiesCollection;
@@ -359,18 +360,12 @@ class ApprovedStudiesService {
     }
 
     _validatePendingGPA(GPAName, GPAEmail, controlledAccess, isPendingGPA) {
-        // has controlled, not setting pending GPA
-        if (isTrue(controlledAccess)) {
-            if (!isTrue(isPendingGPA)) {
-                throw new Error(ERROR.INVALID_PENDING_GPA + ";controlled Access requires pending GPA.");
-            }
-
-            if (isTrue(isPendingGPA) && (!GPAEmail?.trim() || !GPAName?.trim())) {
-                throw new Error(ERROR.INVALID_PENDING_GPA + ";GPA name or email is missing.");
-            }
-        }
         if (!isTrue(controlledAccess) && isTrue(isPendingGPA)) {
             throw new Error(ERROR.INVALID_PENDING_GPA);
+        }
+
+        if (isTrue(isPendingGPA) && (!GPAEmail?.trim() || !GPAName?.trim())) {
+            throw new Error(ERROR.INVALID_PENDING_GPA + ";GPA name or email is missing.");
         }
     }
 
@@ -491,18 +486,6 @@ const getUserEmails = (users) => {
     return users
         ?.filter((aUser) => aUser?.email)
         ?.map((aUser)=> aUser.email);
-}
-
-class PendingGPA {
-    constructor(GPAName, GPAEmail, isPendingGPA) {
-        this.GPAEmail = GPAEmail;
-        this.GPAName = GPAName;
-        this.isPendingGPA = isTrue(isPendingGPA);
-    }
-
-    static create(GPAName, GPAEmail, isPendingGPA) {
-        return new PendingGPA(GPAName, GPAEmail, isPendingGPA);
-    }
 }
 
 module.exports = {
