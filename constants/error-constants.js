@@ -233,7 +233,7 @@ const ERROR = {
     MAX_INSTITUTION_NAME_LIMIT: "Institution name cannot exceed 100 characters.",
     MAX_SUBMISSION_NAME_LIMIT: "Submission name cannot exceed 100 characters.",
     EMPTY_SUBMISSION_NAME: "Submission name cannot be empty.",
-    DUPLICATE_STUDY_SUBMISSION_NAME: "The same submission name exist in the same study; Please enter a different name.",
+    DUPLICATE_STUDY_SUBMISSION_NAME: "A submission with this name already exists for this study. Please choose a different submission name then try again.",
     FAILED_UPDATE_SUBMISSION_NAME: "Failed to update the submission name",
     FAILED_NOTIFY_SUBMISSION_UPDATE: "Failed to notify the configuration update",
     // Get Permission Scopes
