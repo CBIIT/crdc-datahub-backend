@@ -85,7 +85,7 @@ class ApplicationDAO extends GenericDAO {
             where: query,
             orderBy,
             take,
-            skip
+            ...(skip !== undefined ? { skip } : {})
         });
         return apps.map(app => ({ ...app, _id: app.id }));
     }
