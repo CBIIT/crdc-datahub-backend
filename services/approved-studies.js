@@ -359,6 +359,10 @@ class ApprovedStudiesService {
         if (!isTrue(controlledAccess) && isTrue(isPendingGPA)) {
             throw new Error(ERROR.INVALID_PENDING_GPA);
         }
+
+        if (isTrue(isPendingGPA) && (!GPAEmail?.trim() || !GPAName?.trim())) {
+            throw new Error(ERROR.INVALID_PENDING_GPA + ";GPA name or email is missing.");
+        }
     }
 
     async _notifyClearPendingState(updateStudy) {
