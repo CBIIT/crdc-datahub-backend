@@ -67,14 +67,14 @@ function makeDir(dirPath) {
  * @param {string} filename - The name of the output file.
  * @throws {Error} If the input is not an array or is empty.
  */
-function arrayOfObjectsToTSV(array, filename) {
+function arrayOfObjectsToTSV(array, filename, columns = null) {
   if (!Array.isArray(array) || array.length === 0) {
     console.error('Input must be a non-empty array');
     return;
   }
 
   // Extract headers from the first object
-  const headers = Object.keys(array[0]);
+  const headers = columns || Object.keys(array[0]);
   // Create a string for the headers
   const headerString = headers.join('\t') + '\n';
 

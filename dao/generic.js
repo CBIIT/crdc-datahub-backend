@@ -1,5 +1,5 @@
 const prisma = require("../prisma");
-const {convertMongoFilterToPrismaFilter} = require('./utils/orm-converter');
+const {convertMongoFilterToPrismaFilter, handleDotNotation} = require('./utils/orm-converter');
 
 class GenericDAO {
     constructor(modelName) {
@@ -81,6 +81,81 @@ class GenericDAO {
             distinct: arr
         });
         return res?.length || 0;
+    }
+     
+    /**
+     * Retrieves distinct values for a specified field from the collection based on the given filter.
+     *
+     * @param {string} field - The field to retrieve distinct values for (e.g., 'applicant.applicantName').
+     * @param {Object} filter - The filter conditions to apply (e.g., { status: 'SUBMITTED' }).
+     * @returns {Promise<Array>} - An array of distinct values for the specified field.
+     */
+    async distinct(field, filter = {}) {
+        filter = convertMongoFilterToPrismaFilter(filter);
+        handleDotNotation(filter);
+        // Handle dot notation for nested fields (e.g., "applicant.applicantName")
+        let select = {};
+        if (field.includes('.')) {
+            const [parent, child] = field.split('.');
+            select[parent] = { select: { [child]: true } };
+        } else {
+            select[field] = true;
+        }
+
+        const apps = await prisma.application.findMany({ where: filter, select });
+        // Flatten nested fields if needed
+        const values = field.includes('.')
+            ? apps.map(app => {
+                const [parent, child] = field.split('.');
+                return app[parent]?.[child];
+            })
+            : apps.map(app => app[field]);
+        return [...new Set(values)].filter(v => v !== undefined && v !== null);
+    }
+
+    /**
+     * Aggregates data based on the provided pipeline stages.
+     *
+     * @param {Array} pipeline - An array of aggregation stages (e.g., [{ $match: { status: 'SUBMITTED' } }]).
+     * @returns {Promise<Array>} - The aggregated results.
+     */
+    async aggregate(pipeline) {
+        // Only support simple $match, $sort, $limit for now
+        let query = {};
+        let orderBy = undefined;
+        let take = undefined;
+        let skip = undefined;
+        for (const stage of pipeline) {
+            if (stage.$match) query = { ...query, ...stage.$match };
+            if (stage.$sort) {
+                orderBy = Object.entries(stage.$sort).map(([field, dir]) => ({
+                    [field]: dir === -1 ? SORT.DESC : SORT.ASC
+                }));
+            }
+            if (stage.$limit) take = stage.$limit;
+            if (stage.$skip) skip = stage.$skip;
+        }
+        query = convertMongoFilterToPrismaFilter(query);
+
+        // Flatten dot notation for nested fields (e.g., "applicant.applicantID")
+        // Prisma expects: { applicant: { is: { applicantID: ... } } }
+        for (const key of Object.keys(query)) {
+            if (key.includes('.')) {
+                const [parent, child] = key.split('.');
+                // If already an object, merge
+                if (!query[parent]) query[parent] = {};
+                if (!query[parent].is) query[parent].is = {};
+                query[parent].is[child] = query[key];
+                delete query[key];
+            }
+        }
+        const apps = await prisma.application.findMany({
+            where: query,
+            ...(orderBy !== undefined ? { orderBy } : {}),
+            ...(take !== undefined ? { take } : {}),
+            ...(skip !== undefined ? { skip } : {})
+        });
+        return apps.map(app => ({ ...app, _id: app.id }));
     }
 }
 

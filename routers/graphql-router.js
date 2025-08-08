@@ -253,8 +253,9 @@ dbConnector.connect().then(async () => {
             );
             return await submissionService.requestPV({...params, ...sanitized}, context);
         },
-        downloadDBGaPLoadSheet : submissionService.downloadDBGaPLoadSheet.bind(submissionService),
-        getOMB : configurationService.getOMB.bind(configurationService)
+        downloadDBGaPLoadSheet: submissionService.downloadDBGaPLoadSheet.bind(submissionService),
+        getOMB: configurationService.getOMB.bind(configurationService),
+        downloadAllDSNodes: submissionService.downloadAllDSNodes.bind(submissionService)
     };
 });
 

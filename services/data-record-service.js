@@ -925,6 +925,88 @@ class DataRecordService {
         ]);
         return fileNodes || [];
     }
+
+    async retrieveAllDSNodes(aSubmission) {
+        const tempFolder = `logs/${aSubmission._id}_AllNodes`;
+        const AllNodesDir = `${aSubmission?.study?.studyAbbreviation}_AllNodes_${getFormatDateStr(getCurrentTime(), path.format = "YYYYMMDDHHmmss")}`;
+        const download_dir = path.join(tempFolder, AllNodesDir);
+        if (!fs.existsSync(download_dir)) {
+            fs.mkdirSync(download_dir, { recursive: true });
+        }
+        const nodeTypes = await this.dataRecordDAO.distinct("nodeType", {submissionID: aSubmission.id});
+        for (const nodeType of nodeTypes){
+            const nodeTypeTsv = `${download_dir}/${nodeType}.tsv`;
+            // Convert nodeType data to TSV format and save to file
+            await _saveNodesToTsv(nodeType, aSubmission.id, nodeTypeTsv);
+        }
+        return dsNodes;
+    }
+
+    async _saveNodesToTsv(nodeType, submissionID, filePath) {
+        // retrieve nodes by submissionID and nodeType 1000 by 1000
+        const limit = 1000;
+        let skip = 0;
+        let columns = new Set();
+        let nodes = [];
+        let originalFile = null;
+        let results = [];
+        do {
+            results = await this.dataRecordDAO.aggregate([{
+                $match: {
+                    submissionID: submissionID,
+                    nodeType: nodeType
+                }
+            }, {
+                $skip: skip
+            }, {
+                $limit: limit
+            }]);
+            if (results.length > 0) {
+                _processNodes(results, columns, nodes, originalFile);
+            }
+            skip += limit;
+        } while (results.length === limit);
+        if(nodes.length === 0) return;
+
+        arrayOfObjectsToTSV(nodes, filePath, this._sortColumns(columns, nodeType));
+    }
+
+    _sortColumns(columns) {
+        columns = [...columns].sort();
+        let oldIndex = columns.indexOf("type");
+        columns.splice(0, 0, columns.splice(oldIndex, 1)[0]);
+        return columns;
+    }
+
+    _processNodes(results, columns, nodes, originalFile) {
+        for (const node of results) {
+            // Add node fields to columns
+            if (originalFile !== node?.originalFileName) {
+                originalFile = node?.originalFileName;
+                Object.keys(node.props).forEach(key => columns.add(key));
+            }
+            const row = node.props;
+            if (node?.generatedProps) {
+                Object.keys(node.generatedProps).forEach(key => columns.add(key));
+                row = {...row, ...node.generatedProps};
+            }
+            if (node?.parents && node.parents.length > 0) {
+                const parentTypes = [...new Set(node.parents.map(item => item.parentType))];
+                for (const type of parentTypes) {
+                    const sameTypeParents = parents.filter(item => item.parentType === type);
+                    const relName = `${sameTypeParents[0]?.parentType}.${sameTypeParents[0]?.parentIDPropName}`;
+
+                    if (sameTypeParents.length === 1) {
+                        row[relName] = sameTypeParents[0]?.parentIDValue;
+                    } else {
+                        row[relName] = sameTypeParents.map(parent => parent.parentIDValue).join(" | ");
+                    }
+                    columns.add(relName);
+                }
+            }
+            nodes.push(row);
+        }
+    }
 }
 
 const sendSQSMessageWrapper = async (awsService, message, deDuplicationId, queueName, submissionID) => {
