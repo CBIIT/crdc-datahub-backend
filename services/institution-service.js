@@ -171,7 +171,7 @@ class InstitutionService {
         }
     }
 
-    // find one institution by a name
+    // note: prisma does not work for insensitive search
     async _findOneByCaseInsensitiveName(name) {
         const institutions = await this.institutionCollection.aggregate([{"$match": {$expr: {
             $eq: [
