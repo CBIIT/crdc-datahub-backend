@@ -927,7 +927,7 @@ class DataRecordService {
     }
 
     async retrieveAllDSNodes(aSubmission) {
-        const tempFolder = `logs/${aSubmission._id}_AllNodes`;
+        const tempFolder = `logs/${aSubmission.id}_AllNodes`;
         const AllNodesDir = `${aSubmission?.study?.studyAbbreviation}_AllNodes_${getFormatDateStr(getCurrentTime(), path.format = "YYYYMMDDHHmmss")}`;
         const download_dir = path.join(tempFolder, AllNodesDir);
         if (!fs.existsSync(download_dir)) {
@@ -937,9 +937,9 @@ class DataRecordService {
         for (const nodeType of nodeTypes){
             const nodeTypeTsv = `${download_dir}/${nodeType}.tsv`;
             // Convert nodeType data to TSV format and save to file
-            await _saveNodesToTsv(nodeType, aSubmission.id, nodeTypeTsv);
+            await this._saveNodesToTsv(nodeType, aSubmission.id, nodeTypeTsv);
         }
-        return dsNodes;
+        return download_dir;
     }
 
     async _saveNodesToTsv(nodeType, submissionID, filePath) {
@@ -962,7 +962,7 @@ class DataRecordService {
                 $limit: limit
             }]);
             if (results.length > 0) {
-                _processNodes(results, columns, nodes, originalFile);
+                this._processNodes(results, columns, nodes, originalFile);
             }
             skip += limit;
         } while (results.length === limit);
@@ -971,8 +971,8 @@ class DataRecordService {
         arrayOfObjectsToTSV(nodes, filePath, this._sortColumns(columns, nodeType));
     }
 
-    _sortColumns(columns) {
-        columns = [...columns].sort();
+    _sortColumns(columnSet) {
+        const columns = [...columnSet].sort();
         let oldIndex = columns.indexOf("type");
         columns.splice(0, 0, columns.splice(oldIndex, 1)[0]);
         return columns;
