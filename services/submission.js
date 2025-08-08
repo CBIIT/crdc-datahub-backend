@@ -1425,17 +1425,22 @@ class Submission {
             return aSubmission
         }
 
-        const duplicateStudySubmission = await this.submissionDAO.findFirst({
-            studyID: aSubmission.studyID,
-            name: {
-                equals: newName?.trim(),
-                mode: 'insensitive',
+        const duplicateStudySubmission = await this.submissionCollection.aggregate([
+            {
+                $match: {
+                    $expr: {
+                        $and: [
+                            { $eq: [ { $toLower: "$name" }, newName?.trim()?.toLowerCase() ] },
+                            { $eq: [ "$studyID", aSubmission?.studyID ] },
+                            { $ne: [ "$_id", aSubmission?.id ] }
+                        ]
+                    }
+                }
             },
-            id: {
-                not: aSubmission.id
-        }});
+            { $limit: 1 }
+        ]);
 
-        if (duplicateStudySubmission?._id) {
+        if (duplicateStudySubmission?.length > 0) {
             throw new Error(ERROR.DUPLICATE_STUDY_SUBMISSION_NAME);
         }
 

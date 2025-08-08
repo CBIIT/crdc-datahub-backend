@@ -94,6 +94,8 @@ describe('InstitutionService', () => {
   describe('createInstitution', () => {
     beforeEach(() => {
       service._getUserScope = jest.fn().mockResolvedValue(validUserScope);
+      // Patch: mock the aggregate method for _findOneByCaseInsensitiveName
+      service.institutionCollection.aggregate = jest.fn().mockResolvedValue([]);
     });
     it('creates institution successfully', async () => {
       mockInstitutionDAO.findFirst.mockResolvedValue(null);
@@ -113,7 +115,8 @@ describe('InstitutionService', () => {
       await expect(service.createInstitution({ name: 'foo', status: 'bad' }, validContext)).rejects.toThrow(ERROR.INVALID_INSTITUTION_STATUS.replace('$item$', 'bad'));
     });
     it('throws if institution name is duplicate', async () => {
-      mockInstitutionDAO.findFirst.mockResolvedValue({ _id: 'id1', name: 'foo' });
+      mockInstitutionDAO.findFirst.mockResolvedValue({ _id: 'id1', name: 'duplicate' });
+      service.institutionCollection.aggregate = jest.fn().mockResolvedValue([{name: "duplicate"}]);
       await expect(service.createInstitution({ name: 'foo' }, validContext)).rejects.toThrow(ERROR.DUPLICATE_INSTITUTION_NAME);
     });
     it('throws if name is too long', async () => {
@@ -131,12 +134,12 @@ describe('InstitutionService', () => {
   describe('updateInstitution', () => {
     beforeEach(() => {
       service._getUserScope = jest.fn().mockResolvedValue(validUserScope);
+      service.institutionCollection.aggregate = jest.fn().mockResolvedValue([]);
     });
     it('updates institution successfully', async () => {
       const params = { _id: 'id1', name: 'bar', status: INSTITUTION.STATUSES.ACTIVE };
       const existing = { _id: 'id1', name: 'foo', status: INSTITUTION.STATUSES.INACTIVE };
       mockInstitutionDAO.findFirst.mockResolvedValueOnce(existing); // getInstitutionByID
-      mockInstitutionDAO.findFirst.mockResolvedValueOnce(null); // _findOneByCaseInsensitiveName
       mockInstitutionDAO.updateMany.mockResolvedValue({ count: 1 });
       mockInstitutionDAO.findFirst.mockResolvedValueOnce({ ...existing, ...params }); // final fetch
       const result = await service.updateInstitution(params, validContext);
@@ -169,8 +172,9 @@ describe('InstitutionService', () => {
       await expect(service.updateInstitution({ _id: 'id1', name: 'a'.repeat(101) }, validContext)).rejects.toThrow(ERROR.MAX_INSTITUTION_NAME_LIMIT);
     });
     it('throws if duplicate name', async () => {
-      const existing = { _id: 'id1', name: 'foo', status: INSTITUTION.STATUSES.INACTIVE };
+      const existing = { _id: 'id1', name: 'duplicate', status: INSTITUTION.STATUSES.INACTIVE };
       mockInstitutionDAO.findFirst.mockResolvedValueOnce(existing);
+      service.institutionCollection.aggregate = jest.fn().mockResolvedValue([{name: "duplicate"}]);
       mockInstitutionDAO.findFirst.mockResolvedValueOnce({ _id: 'id2', name: 'bar' });
       await expect(service.updateInstitution({ _id: 'id1', name: 'bar' }, validContext)).rejects.toThrow(ERROR.DUPLICATE_INSTITUTION_NAME);
     });

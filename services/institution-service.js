@@ -173,12 +173,13 @@ class InstitutionService {
 
     // find one institution by a name
     async _findOneByCaseInsensitiveName(name) {
-        return await this.institutionDAO.findFirst({
-            name: {
-                equals: name?.trim(),
-                mode: 'insensitive', // case-insensitive match
-            },
-        });
+        const institutions = await this.institutionCollection.aggregate([{"$match": {$expr: {
+            $eq: [
+                { $toLower: "$name" },
+                name?.trim()?.toLowerCase()
+            ]
+        }}}, {"$limit": 1}]);
+        return institutions?.length > 0 ? institutions[0] : null;
     }
 
     async listInstitutions(params, context) {

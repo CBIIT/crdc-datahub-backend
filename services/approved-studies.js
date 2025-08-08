@@ -60,12 +60,14 @@ class ApprovedStudiesService {
      * @param {string} studyName
      * @returns {Promise<Object[]>} An array of ApprovedStudies
      */
+    // note: prisma does not work for insensitive search
     async findByStudyName(studyName) {
-        return await this.approvedStudyDAO.findManyStudy({studyName: {
-                equals: studyName?.trim(),
-                // case-insensitive match
-                mode: 'insensitive'
-            }});
+        return await this.approvedStudiesCollection.aggregate([{"$match": {$expr: {
+            $eq: [
+                { $toLower: "$studyName" },
+                studyName?.trim()?.toLowerCase()
+            ]
+        }}}, {"$limit": 1}]);
     }
 
     /**
