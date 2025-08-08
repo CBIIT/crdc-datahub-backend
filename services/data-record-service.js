@@ -799,7 +799,7 @@ class DataRecordService {
             const sampleID = sample.props?.biosample_accession? sample.props.biosample_accession: sample.nodeID;
             const sampleSite= sample.props?.sample_anatomic_site;
             const sampleTypeCategory = sample.props?.sample_type_category;
-            const sampleTumorStatus = (sample.props?.sample_tumor_status === "Tumor") ? 1 : 0;
+            const sampleTumorStatus = (sample.props?.sample_tumor_status === "Tumor") ? 1 : 2;
             return {[DATA_SHEET.SAMPLE_ID]: sampleID, [DATA_SHEET.BODY_SITE]: sampleSite, [DATA_SHEET.ANALYTE_TYPE]: sampleTypeCategory, 
                 [DATA_SHEET.IS_TUMOR]: sampleTumorStatus};
         });
