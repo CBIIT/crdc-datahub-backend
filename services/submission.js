@@ -2046,12 +2046,12 @@ class Submission {
 
             zipDir = await this.dataRecordService.retrieveAllDSNodes(aSubmission);
             if (!zipDir && !fs.existsSync(zipDir)) {
-                throw new Error(ERROR.FAILED_CREATE_LOAD_SHEET);
+                throw new Error(ERROR.FAILED_DOWNLOAD_ALL_DS_NODES);
             }
             zipFile = zipDir + ".zip";
             await zipFilesInDir(zipDir, zipFile);
             if (!fs.existsSync(zipFile)) {
-                throw new Error(ERROR.FAILED_CREATE_LOAD_SHEET);
+                throw new Error(ERROR.FAILED_DOWNLOAD_ALL_DS_NODES);
             }
             const zipFileName = path.basename(zipFile);
             // upload the zip file into s3 and create pre-signed download link
