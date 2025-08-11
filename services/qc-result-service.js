@@ -7,6 +7,7 @@ const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/cons
 const {verifySession} = require("../verifier/user-info-verifier");
 const {UserScope} = require("../domain/user-scope");
 const QCResultDAO = require("../dao/qcResult");
+const prisma = require("../prisma");
 
 function replaceNaN(results, replacement){
     results?.map((result) => {
@@ -168,11 +169,14 @@ class QcResultService{
     }
 
     async findBySubmissionErrorCodes(submissionID, errorCode) {
-        const result = await this.qcResultCollection.aggregate([
-            {"$match": { submissionID: submissionID, "errors.code": errorCode}},
-            {"$project": {submittedID: 1, submissionID: 1}}
-        ]);
-        return result || [];
+        return this.qcResultDAO.findMany({
+            submissionID: submissionID, errors: {some: {code: errorCode}}},
+            {
+                select: {
+                    submittedID: true,
+                    submissionID: true
+            }
+        });
     }
 
     async getQCResultsErrors(submissionID, errorType) {

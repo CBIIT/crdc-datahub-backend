@@ -74,13 +74,9 @@ class DataRecordService {
 
     async submissionStats(aSubmission) {
         const validNodeStatus = [VALIDATION_STATUS.NEW, VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING, VALIDATION_STATUS.ERROR];
-        const submissionQuery = this._getSubmissionStatQuery(aSubmission?._id, validNodeStatus);
         const res = await Promise.all([
-            this.dataRecordsCollection.aggregate(submissionQuery),
-            this.dataRecordsCollection.aggregate([
-                {"$match": {submissionID: aSubmission?._id, "s3FileInfo.status": {$in: validNodeStatus}}},
-                {"$project": {"s3FileInfo.status": 1,"s3FileInfo.fileName": 1,}}
-            ]),
+            this.dataRecordDAO.getStats(aSubmission?._id, validNodeStatus),
+            this.dataRecordDAO.getManyRecords(aSubmission, validNodeStatus),
             // submission's root path should be matched, otherwise the other file node count return wrong
             this.s3Service.listFileInDir(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}/`),
             // search for the orphaned file errors
@@ -602,7 +598,6 @@ class DataRecordService {
                         "$s3FileInfo" // otherwise leave unchanged
         ]}}}]);
     }
-
 
     _getSubmissionStatQuery(submissionID, validNodeStatus) {
         return [
