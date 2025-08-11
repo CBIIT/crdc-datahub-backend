@@ -1,5 +1,6 @@
 const prisma = require("../prisma");
 const {convertMongoFilterToPrismaFilter, handleDotNotation} = require('./utils/orm-converter');
+const {SORT} = require('../constants/db-constants');
 
 class GenericDAO {
     constructor(modelName) {
@@ -102,7 +103,7 @@ class GenericDAO {
             select[field] = true;
         }
 
-        const apps = await prisma.application.findMany({ where: filter, select });
+        const apps = await this.model.findMany({ where: filter, select });
         // Flatten nested fields if needed
         const values = field.includes('.')
             ? apps.map(app => {
@@ -149,7 +150,7 @@ class GenericDAO {
                 delete query[key];
             }
         }
-        const apps = await prisma.application.findMany({
+        const apps = await this.model.findMany({
             where: query,
             ...(orderBy !== undefined ? { orderBy } : {}),
             ...(take !== undefined ? { take } : {}),

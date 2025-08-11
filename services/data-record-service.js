@@ -981,11 +981,11 @@ class DataRecordService {
     _processNodes(results, columns, nodes, originalFile) {
         for (const node of results) {
             // Add node fields to columns
-            if (originalFile !== node?.originalFileName) {
-                originalFile = node?.originalFileName;
+            if (originalFile !== node?.orginalFileName) {
+                originalFile = node?.orginalFileName;
                 Object.keys(node.props).forEach(key => columns.add(key));
             }
-            const row = node.props;
+            let row = node.props;
             if (node?.generatedProps) {
                 Object.keys(node.generatedProps).forEach(key => columns.add(key));
                 row = {...row, ...node.generatedProps};
@@ -993,7 +993,7 @@ class DataRecordService {
             if (node?.parents && node.parents.length > 0) {
                 const parentTypes = [...new Set(node.parents.map(item => item.parentType))];
                 for (const type of parentTypes) {
-                    const sameTypeParents = parents.filter(item => item.parentType === type);
+                    const sameTypeParents = node.parents.filter(item => item.parentType === type);
                     const relName = `${sameTypeParents[0]?.parentType}.${sameTypeParents[0]?.parentIDPropName}`;
 
                     if (sameTypeParents.length === 1) {
