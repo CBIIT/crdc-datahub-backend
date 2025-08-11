@@ -46,7 +46,10 @@ function readJsonFile2Object(filePath) {
 async function zipFilesInDir(dirPath, zipFilePath) {
     const output = fs.createWriteStream(zipFilePath);
     const archive = archiver('zip', { zlib: { level: 9 } });
-    if (!output) return;
+    output.on('error', (err) => {
+        console.error(`Error writing to zip file: ${err.message}`);
+        throw err;
+    });
     archive.pipe(output);
     // Add all files in the temp folder to the zip archive
     archive.directory(dirPath, false);
