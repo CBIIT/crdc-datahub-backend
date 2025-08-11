@@ -57,6 +57,7 @@ const DATA_SHEET = {
     FILE_NAME: "file_name",
     MD5SUM: "md5sum"
 };
+const NODE_TYPE = "type";
 class DataRecordService {
     constructor(dataRecordsCollection, dataRecordArchiveCollection, releaseCollection, fileQueueName, metadataQueueName, awsService, s3Service, qcResultsService, exportQueue) {
         this.dataRecordsCollection = dataRecordsCollection;
@@ -962,33 +963,26 @@ class DataRecordService {
                 $limit: limit
             }]);
             if (results.length > 0) {
-                this._processNodes(results, columns, nodes, originalFile);
+                this._processNodes(nodeType, results, columns, nodes, originalFile);
             }
             skip += limit;
         } while (results.length === limit);
         if(nodes.length === 0) return;
 
-        arrayOfObjectsToTSV(nodes, filePath, this._sortColumns(columns, nodeType));
+        arrayOfObjectsToTSV(nodes, filePath, [NODE_TYPE, ...columns]);
     }
 
-    _sortColumns(columnSet) {
-        const columns = [...columnSet].sort();
-        let oldIndex = columns.indexOf("type");
-        columns.splice(0, 0, columns.splice(oldIndex, 1)[0]);
-        return columns;
-    }
-
-    _processNodes(results, columns, nodes, originalFile) {
+    _processNodes(nodeType, results, columns, nodes, originalFile) {
         for (const node of results) {
             // Add node fields to columns
             if (originalFile !== node?.orginalFileName) {
                 originalFile = node?.orginalFileName;
                 Object.keys(node.props).forEach(key => columns.add(key));
             }
-            let row = node.props;
+            let row = {[NODE_TYPE]: nodeType, ...node.props };
             if (node?.generatedProps) {
                 Object.keys(node.generatedProps).forEach(key => columns.add(key));
-                row = {...row, ...node.generatedProps};
+                row = { ...row, ...node.generatedProps};
             }
             if (node?.parents && node.parents.length > 0) {
                 const parentTypes = [...new Set(node.parents.map(item => item.parentType))];
