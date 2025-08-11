@@ -1999,8 +1999,8 @@ class Submission {
                 throw new Error(ERROR.FAILED_CREATE_LOAD_SHEET);
             }
             zipFile = zipDir + ".zip";
-            await zipFilesInDir(zipDir, zipFile);
-            if (!fs.existsSync(zipFile)) {
+            const result = await zipFilesInDir(zipDir, zipFile);
+            if (!result || !fs.existsSync(zipFile)) {
                 throw new Error(ERROR.FAILED_CREATE_LOAD_SHEET);
             }
             const zipFileName = path.basename(zipFile);
@@ -2043,13 +2043,13 @@ class Submission {
         let zipDir = null;
         let zipFile = null;
         try {
-
             zipDir = await this.dataRecordService.retrieveAllDSNodes(aSubmission);
             if (!zipDir || !fs.existsSync(zipDir)) {
                 throw new Error(ERROR.FAILED_DOWNLOAD_ALL_DS_NODES);
             }
             zipFile = zipDir + ".zip";
             await zipFilesInDir(zipDir, zipFile);
+            // Only check for file existence, not the return value of zipFilesInDir
             if (!fs.existsSync(zipFile)) {
                 throw new Error(ERROR.FAILED_DOWNLOAD_ALL_DS_NODES);
             }
