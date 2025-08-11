@@ -2045,7 +2045,7 @@ class Submission {
         try {
 
             zipDir = await this.dataRecordService.retrieveAllDSNodes(aSubmission);
-            if (!zipDir && !fs.existsSync(zipDir)) {
+            if (!zipDir || !fs.existsSync(zipDir)) {
                 throw new Error(ERROR.FAILED_DOWNLOAD_ALL_DS_NODES);
             }
             zipFile = zipDir + ".zip";
