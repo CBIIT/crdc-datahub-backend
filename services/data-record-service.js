@@ -575,14 +575,17 @@ class DataRecordService {
         IDPropName = (IDPropName) ? IDPropName : (result.total > 0)? result.results[0].IDPropName : null;
         return [result, IDPropName];
     }
+    // TODO
     async listSubmissionNodeTypes(submissionID){
         if (!submissionID){
             return []
         }
-        const filter = {
-            submissionID: submissionID
-        };
-        return await this.dataRecordsCollection.distinct("nodeType", filter);
+
+        const rows = await this.dataRecordDAO.findMany(
+            { submissionID },
+            {select: { nodeType: true }},
+        );
+        return [...new Set(rows.map(r => r?.nodeType).filter(Boolean))];
     }
     // This MongoDB schema is optimized for performance by reducing joins and leveraging document-based structure.
     async resetDataRecords(submissionID, status) {

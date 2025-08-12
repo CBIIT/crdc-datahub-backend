@@ -1,13 +1,12 @@
 const ERROR = require("../constants/error-constants");
-const {VALIDATION_STATUS, VALIDATION} = require("../constants/submission-constants");
+const {VALIDATION_STATUS} = require("../constants/submission-constants");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
 const {replaceErrorString} = require("../utility/string-util");
-const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {verifySession} = require("../verifier/user-info-verifier");
 const {UserScope} = require("../domain/user-scope");
 const QCResultDAO = require("../dao/qcResult");
-const prisma = require("../prisma");
+const SubmissionDAO = require("../dao/submission");
 
 function replaceNaN(results, replacement){
     results?.map((result) => {
@@ -40,6 +39,7 @@ class QcResultService{
         this.submissionCollection = submissionCollection;
         this.authorizationService = authorizationService;
         this.qcResultDAO = new QCResultDAO();
+        this.submissionDAO = new SubmissionDAO();
     }
 
     async submissionQCResultsAPI(params, context){
@@ -51,7 +51,7 @@ class QcResultService{
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         // Check that the specified submissionID exists
-        const submission = await this.submissionCollection.findOne(params._id);
+        const submission = await this.submissionDAO.findFirst({id: params._id});
         if(!submission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
@@ -160,10 +160,17 @@ class QcResultService{
             total: totalRecords || 0
         }
     }
-
+    // TODO
     async deleteQCResultBySubmissionID(submissionID, dataType, fileNames) {
-        const res = await this.qcResultCollection.deleteMany({"submissionID": submissionID, validationType: dataType, submittedID: { "$in": fileNames }});
-        if (!res.acknowledged || (res.deletedCount > 0 && fileNames.length !== res.deletedCount)) {
+        const res = await this.qcResultDAO.deleteMany({
+            submissionID: submissionID,
+            validationType: dataType,
+            submittedID: {
+                in: fileNames
+            }
+        });
+
+        if (res.count === 0 || (fileNames.length !== res.count)) {
             console.error("An error occurred while deleting the qcResult records", `submissionID: ${submissionID}`);
         }
     }
@@ -200,7 +207,7 @@ class QcResultService{
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         // Check that the specified submissionID exists
-        const submission = await this.submissionCollection.findOne(params.submissionID);
+        const submission = await this.submissionDAO.findFirst({id: params.submissionID});
         if(!submission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
