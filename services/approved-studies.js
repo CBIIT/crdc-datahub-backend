@@ -380,7 +380,7 @@ class ApprovedStudiesService {
             throw new Error(ERROR.INVALID_PENDING_GPA);
         }
 
-        if (!isTrue(isPendingGPA) && (!GPAEmail?.trim() || !GPAName?.trim())) {
+        if (isPendingGPA !== undefined && !isTrue(isPendingGPA) && (!GPAEmail?.trim() || !GPAName?.trim())) {
             throw new Error(ERROR.INVALID_PENDING_GPA + ";GPA name or email is missing.");
         }
     }
