@@ -202,165 +202,6 @@ class DataRecordService {
         return await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.exportQueue, submissionID);
     }
 
-    async submissionCrossValidationResults(submissionID, nodeTypes, batchIDs, severities, first, offset, orderBy, sortDirection){
-        let dataRecordQCResultsPipeline = [];
-        // Filter by submission ID
-        dataRecordQCResultsPipeline.push({
-            $match: {
-                submissionID: submissionID
-            }
-        });
-
-        // Filter by Batch IDs
-        if (!!batchIDs && batchIDs.length > 0) {
-            dataRecordQCResultsPipeline.push({
-                $match: {
-                    $expr: {
-                        $gt: [
-                            {
-                                $size: {
-                                    $setIntersection: ["$batchIDs", batchIDs]
-                                }
-                            },
-                            0
-                        ]
-                    }
-                }
-            });
-        }
-        // Collect all validation results
-        dataRecordQCResultsPipeline.push({
-            $set: {
-                results: {
-                    validation_type: BATCH.TYPE.METADATA,
-                    type: "$nodeType",
-                    submittedID: "$nodeID",
-                    additionalErrors: "$additionalErrors"
-                }
-            }
-        })
-        // Unwind validation results into individual documents
-        dataRecordQCResultsPipeline.push({
-            $unwind: "$results"
-        })
-        // Filter out empty validation results
-        dataRecordQCResultsPipeline.push({
-            $match: {
-                additionalErrors: {
-                    $exists: true,
-                    $not: {
-                        $size: 0,
-                    },
-                    $type: "array"
-                }
-            }
-        });
-        // Unwind additional errors and conflicting submissions
-        dataRecordQCResultsPipeline.push({
-            $unwind: {
-                path: "$additionalErrors"
-            }
-        });
-        dataRecordQCResultsPipeline.push({
-            $unwind: {
-                path: "$additionalErrors.conflictingSubmissions"
-            }
-        });
-        // Group errors by conflicting submission
-        dataRecordQCResultsPipeline.push({
-            $group: {
-                _id: {
-                    submissionID: "$submissionID",
-                    type: "$results.type",
-                    validationType: "$results.validation_type",
-                    batchID: "$latestBatchID",
-                    displayID: "$latestBatchDisplayID",
-                    submittedID: "$results.submittedID",
-                    uploadedDate: "$updatedAt",
-                    validatedDate: "$validatedAt",
-                    warnings: [],
-                    severity: VALIDATION_STATUS.ERROR,
-                    conflictingSubmission: "$additionalErrors.conflictingSubmissions"
-                },
-                errors: {
-                    $addToSet: "$additionalErrors"
-                }
-            }
-        });
-        // Reformatting
-        dataRecordQCResultsPipeline.push({
-            $set:{
-                "_id.errors": "$errors"
-            }
-        });
-        dataRecordQCResultsPipeline.push({
-            $replaceRoot: {
-                newRoot: "$_id"
-            }
-        });
-        // Filter by node types
-        if (!!nodeTypes && nodeTypes.length > 0) {
-            dataRecordQCResultsPipeline.push({
-                $match: {
-                    type: {
-                        $in: nodeTypes
-                    }
-                }
-            });
-        }
-        if (severities === ERROR){
-            severities = [ERROR];
-        }
-        else if (severities === WARNING){
-            severities = [WARNING];
-        }
-        else {
-            severities = [ERROR, WARNING];
-        }
-        dataRecordQCResultsPipeline.push({
-            $match: {
-                severity: {
-                    $in: severities
-                }
-            }
-        })
-        // Create count pipeline
-        let countPipeline = [...dataRecordQCResultsPipeline];
-        countPipeline.push({
-            $count: "total"
-        });
-        const countPipelineResult = await this.dataRecordsCollection.aggregate(countPipeline);
-        const totalRecords = countPipelineResult[0]?.total;
-
-        // Create page and sort steps
-        let pagedPipeline = [...dataRecordQCResultsPipeline];
-        const nodeType = "type";
-        let sortFields = {
-            [orderBy]: getSortDirection(sortDirection),
-        };
-        if (orderBy !== nodeType){
-            sortFields[nodeType] = 1
-        }
-        pagedPipeline.push({
-            $sort: sortFields
-        });
-        pagedPipeline.push({
-            $skip: offset
-        });
-        if (first > 0){
-            pagedPipeline.push({
-                $limit: first
-            });
-        }
-        // Query page of results
-        const pagedPipelineResult = await this.dataRecordsCollection.aggregate(pagedPipeline);
-        const dataRecords = this._replaceNaN(pagedPipelineResult, null);
-        return {
-            results: dataRecords || [],
-            total: totalRecords || 0
-        }
-    }
-
     async deleteMetadataByFilter(filter){
         return await this.dataRecordsCollection.deleteMany(filter);
     }
@@ -396,7 +237,7 @@ class DataRecordService {
         return await this.dataRecordsCollection.aggregate(pipeline);
     }
 
-    async NodeDetail(submissionID, nodeType, nodeID){
+    async nodeDetail(submissionID, nodeType, nodeID){
         const aNode = await this._getNode(submissionID, nodeType, nodeID);
         return {
             submissionID: aNode.submissionID,
@@ -437,8 +278,7 @@ class DataRecordService {
 
     async _getNodeChildren(submissionID, nodeType, nodeID){
         // get children
-        // TODO verify
-        const children = this.dataRecordDAO.findMany({
+        const children = await this.dataRecordDAO.findMany({
             parents: {
                 some: {
                     parentIDValue: nodeID,
@@ -459,7 +299,7 @@ class DataRecordService {
         return convertedChildren;
     }
 
-    async RelatedNodes(param){
+    async relatedNodes(param){
         const {
             submissionID, 
             nodeType, 
@@ -596,18 +436,6 @@ class DataRecordService {
                     stats: 1
             }}
         ]
-    }
-
-    _replaceNaN(results, replacement){
-        if (!Array.isArray(results)) return results;
-        results?.map((result) => {
-            Object.keys(result).forEach((key) => {
-                if (Object.is(result[key], Number.NaN)){
-                    result[key] = replacement;
-                }
-            })
-        });
-        return results;
     }
 
     async countNodesBySubmissionID(submissionID) {

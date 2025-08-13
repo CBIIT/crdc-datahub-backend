@@ -3,6 +3,7 @@ const {MODEL_NAME} = require("../constants/db-constants");
 const prisma = require("../prisma");
 const {VALIDATION_STATUS} = require("../constants/submission-constants");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
+const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const NODE_VIEW = {
     submissionID: "$submissionID",
     nodeType: "$nodeType",
@@ -20,6 +21,9 @@ const NODE_VIEW = {
     parents: "$parents",
     rawData: "$rawData"
 }
+
+const ERROR = "Error";
+const WARNING = "Warning";
 class DataRecordDAO extends GenericDAO {
     constructor(dataRecordsCollection) {
         super(MODEL_NAME.DATA_RECORDS);
@@ -137,6 +141,176 @@ class DataRecordDAO extends GenericDAO {
                     }
             }
         });
+    }
+    // note: use MongoDB because Prisma has to fetch all matching documents into memory before grouping and paginating
+    async submissionCrossValidationResults(submissionID, nodeTypes, batchIDs, severities, first, offset, orderBy, sortDirection){
+        let dataRecordQCResultsPipeline = [];
+        // Filter by submission ID
+        dataRecordQCResultsPipeline.push({
+            $match: {
+                submissionID: submissionID
+            }
+        });
+
+        // Filter by Batch IDs
+        if (!!batchIDs && batchIDs.length > 0) {
+            dataRecordQCResultsPipeline.push({
+                $match: {
+                    $expr: {
+                        $gt: [
+                            {
+                                $size: {
+                                    $setIntersection: ["$batchIDs", batchIDs]
+                                }
+                            },
+                            0
+                        ]
+                    }
+                }
+            });
+        }
+        // Collect all validation results
+        dataRecordQCResultsPipeline.push({
+            $set: {
+                results: {
+                    validation_type: BATCH.TYPE.METADATA,
+                    type: "$nodeType",
+                    submittedID: "$nodeID",
+                    additionalErrors: "$additionalErrors"
+                }
+            }
+        })
+        // Unwind validation results into individual documents
+        dataRecordQCResultsPipeline.push({
+            $unwind: "$results"
+        })
+        // Filter out empty validation results
+        dataRecordQCResultsPipeline.push({
+            $match: {
+                additionalErrors: {
+                    $exists: true,
+                    $not: {
+                        $size: 0,
+                    },
+                    $type: "array"
+                }
+            }
+        });
+        // Unwind additional errors and conflicting submissions
+        dataRecordQCResultsPipeline.push({
+            $unwind: {
+                path: "$additionalErrors"
+            }
+        });
+        dataRecordQCResultsPipeline.push({
+            $unwind: {
+                path: "$additionalErrors.conflictingSubmissions"
+            }
+        });
+        // Group errors by conflicting submission
+        dataRecordQCResultsPipeline.push({
+            $group: {
+                _id: {
+                    submissionID: "$submissionID",
+                    type: "$results.type",
+                    validationType: "$results.validation_type",
+                    batchID: "$latestBatchID",
+                    displayID: "$latestBatchDisplayID",
+                    submittedID: "$results.submittedID",
+                    uploadedDate: "$updatedAt",
+                    validatedDate: "$validatedAt",
+                    warnings: [],
+                    severity: VALIDATION_STATUS.ERROR,
+                    conflictingSubmission: "$additionalErrors.conflictingSubmissions"
+                },
+                errors: {
+                    $addToSet: "$additionalErrors"
+                }
+            }
+        });
+        // Reformatting
+        dataRecordQCResultsPipeline.push({
+            $set:{
+                "_id.errors": "$errors"
+            }
+        });
+        dataRecordQCResultsPipeline.push({
+            $replaceRoot: {
+                newRoot: "$_id"
+            }
+        });
+        // Filter by node types
+        if (!!nodeTypes && nodeTypes.length > 0) {
+            dataRecordQCResultsPipeline.push({
+                $match: {
+                    type: {
+                        $in: nodeTypes
+                    }
+                }
+            });
+        }
+        if (severities === ERROR){
+            severities = [ERROR];
+        }
+        else if (severities === WARNING){
+            severities = [WARNING];
+        }
+        else {
+            severities = [ERROR, WARNING];
+        }
+        dataRecordQCResultsPipeline.push({
+            $match: {
+                severity: {
+                    $in: severities
+                }
+            }
+        })
+        // Create count pipeline
+        let countPipeline = [...dataRecordQCResultsPipeline];
+        countPipeline.push({
+            $count: "total"
+        });
+        const countPipelineResult = await this.dataRecordsCollection.aggregate(countPipeline);
+        const totalRecords = countPipelineResult[0]?.total;
+
+        // Create page and sort steps
+        let pagedPipeline = [...dataRecordQCResultsPipeline];
+        const nodeType = "type";
+        let sortFields = {
+            [orderBy]: getSortDirection(sortDirection),
+        };
+        if (orderBy !== nodeType){
+            sortFields[nodeType] = 1
+        }
+        pagedPipeline.push({
+            $sort: sortFields
+        });
+        pagedPipeline.push({
+            $skip: offset
+        });
+        if (first > 0){
+            pagedPipeline.push({
+                $limit: first
+            });
+        }
+        // Query page of results
+        const pagedPipelineResult = await this.dataRecordsCollection.aggregate(pagedPipeline);
+        const dataRecords = this._replaceNaN(pagedPipelineResult, null);
+        return {
+            results: dataRecords || [],
+            total: totalRecords || 0
+        }
+    }
+    _replaceNaN(results, replacement){
+        if (!Array.isArray(results)) return results;
+        results?.map((result) => {
+            Object.keys(result).forEach((key) => {
+                if (Object.is(result[key], Number.NaN)){
+                    result[key] = replacement;
+                }
+            })
+        });
+        return results;
     }
 }
 

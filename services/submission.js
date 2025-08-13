@@ -711,7 +711,7 @@ class Submission {
         if (reviewScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION)
         }
-        return this.dataRecordService.submissionCrossValidationResults(params.submissionID, params.nodeTypes, params.batchIDs, params.severities, params.first, params.offset, params.orderBy, params.sortDirection);
+        return this.dataRecordDAO.submissionCrossValidationResults(params.submissionID, params.nodeTypes, params.batchIDs, params.severities, params.first, params.offset, params.orderBy, params.sortDirection);
     }
 
     async listSubmissionNodeTypes(params, context) {
@@ -927,7 +927,7 @@ class Submission {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
-        return await this.dataRecordService.NodeDetail(params.submissionID, params.nodeType, params.nodeID);
+        return await this.dataRecordService.nodeDetail(params.submissionID, params.nodeType, params.nodeID);
     }
     /**
      * API: getRelatedNodes to retrieve related nodes
@@ -952,7 +952,7 @@ class Submission {
         if (!NODE_RELATION_TYPES.includes(params.relationship)){
             throw new Error(ERROR.INVALID_NODE_RELATIONSHIP);
         }
-        const result = await this.dataRecordService.RelatedNodes(params);
+        const result = await this.dataRecordService.relatedNodes(params);
         return this._processSubmissionNodes(result[0], result[1]);
     }
 
