@@ -10,7 +10,6 @@ const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-
 const {getFormatDateStr} = require("../utility/string-util.js")
 const {arrayOfObjectsToTSV} = require("../utility/io-util.js")
 const DataRecordDAO = require("../dao/dataRecords");
-const {SORT} = require("../constants/db-constants");
 const BATCH_SIZE = 300;
 const ERROR = "Error";
 const WARNING = "Warning";
@@ -57,7 +56,6 @@ const DATA_SHEET = {
     FILE_NAME: "file_name",
     MD5SUM: "md5sum"
 };
-const NODE_TYPE = "type";
 class DataRecordService {
     constructor(dataRecordsCollection, dataRecordArchiveCollection, releaseCollection, fileQueueName, metadataQueueName, awsService, s3Service, qcResultsService, exportQueue) {
         this.dataRecordsCollection = dataRecordsCollection;
@@ -925,81 +923,6 @@ class DataRecordService {
             {$sort: {"s3FileInfo.size": 1}}
         ]);
         return fileNodes || [];
-    }
-
-    async retrieveAllDSNodes(aSubmission) {
-        const tempFolder = `logs/${aSubmission.id}_AllNodes`;
-        const AllNodesDir = `${aSubmission?.study?.studyAbbreviation}_AllNodes_${getFormatDateStr(getCurrentTime(), path.format = "YYYYMMDDHHmmss")}`;
-        const download_dir = path.join(tempFolder, AllNodesDir);
-        if (!fs.existsSync(download_dir)) {
-            fs.mkdirSync(download_dir, { recursive: true });
-        }
-        const nodeTypes = await this.dataRecordDAO.distinct("nodeType", {submissionID: aSubmission.id});
-        for (const nodeType of nodeTypes){
-            const nodeTypeTsv = `${download_dir}/${nodeType}.tsv`;
-            // Convert nodeType data to TSV format and save to file
-            await this._saveNodesToTsv(nodeType, aSubmission.id, nodeTypeTsv);
-        }
-        return download_dir;
-    }
-
-    async _saveNodesToTsv(nodeType, submissionID, filePath) {
-        // retrieve nodes by submissionID and nodeType 1000 by 1000
-        const limit = 1000;
-        let skip = 0;
-        let columns = new Set();
-        let nodes = [];
-        let originalFile = null;
-        let results = [];
-        do {
-            results = await this.dataRecordDAO.aggregate([{
-                $match: {
-                    submissionID: submissionID,
-                    nodeType: nodeType
-                }
-            }, {
-                $skip: skip
-            }, {
-                $limit: limit
-            }]);
-            if (results.length > 0) {
-                this._processNodes(nodeType, results, columns, nodes, originalFile);
-            }
-            skip += limit;
-        } while (results.length === limit);
-        if(nodes.length === 0) return;
-
-        arrayOfObjectsToTSV(nodes, filePath, [NODE_TYPE, ...columns]);
-    }
-
-    _processNodes(nodeType, results, columns, nodes, originalFile) {
-        for (const node of results) {
-            // Add node fields to columns
-            if (originalFile !== node?.orginalFileName) {
-                originalFile = node?.orginalFileName;
-                Object.keys(node.props).forEach(key => columns.add(key));
-            }
-            let row = {[NODE_TYPE]: nodeType, ...node.props };
-            if (node?.generatedProps) {
-                Object.keys(node.generatedProps).forEach(key => columns.add(key));
-                row = { ...row, ...node.generatedProps};
-            }
-            if (node?.parents && node.parents.length > 0) {
-                const parentTypes = [...new Set(node.parents.map(item => item.parentType))];
-                for (const type of parentTypes) {
-                    const sameTypeParents = node.parents.filter(item => item.parentType === type);
-                    const relName = `${sameTypeParents[0]?.parentType}.${sameTypeParents[0]?.parentIDPropName}`;
-
-                    if (sameTypeParents.length === 1) {
-                        row[relName] = sameTypeParents[0]?.parentIDValue;
-                    } else {
-                        row[relName] = sameTypeParents.map(parent => parent.parentIDValue).join(" | ");
-                    }
-                    columns.add(relName);
-                }
-            }
-            nodes.push(row);
-        }
     }
 }
 

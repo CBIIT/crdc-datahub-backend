@@ -911,7 +911,7 @@ type Query {
     downloadDBGaPLoadSheet(submissionID:String!):String #presigned url of s3
     getPendingPVs(submissionID: String!): [PendingPV]
     retrievePropsForNodeType(studyID: String!, dataCommonsDisplayName: String!, nodeType: String!): [nodeProp]
-    downloadAllDSNodes(submissionID: String!): String #presigned url of s3
+    downloadAllReleasedNodes(studyID: String!): String #presigned url of s3
 }
 type Mutation {
     "User initiated operations"

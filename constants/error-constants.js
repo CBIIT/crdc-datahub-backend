@@ -249,7 +249,8 @@ const ERROR = {
     FAILED_CREATE_LOAD_SHEET: "An unknown error occurred while generating the dbGaP Loading Sheets. Please try again later.",
     USER_NOT_EXIST: "The user does not exist.",
     NOT_SUPPORTED_DATA_COMMONS_FOR_LOAD_SHEET: "The current data commons is not supported for generating dbGaP Loading Sheets.",
-    FAILED_DOWNLOAD_ALL_DS_NODES: "Failed to download all data submission nodes",
+    FAILED_DOWNLOAD_ALL_RELEASED_NODES: "Failed to download all released nodes",
+    STUDY_NOT_EXIST: "The requested study does not exist."
 }
 
 module.exports = ERROR;

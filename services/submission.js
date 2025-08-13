@@ -2026,56 +2026,6 @@ class Submission {
         }
     }
 
-    async downloadAllDSNodes(params, context) {
-        verifySession(context)
-            .verifyInitialized();
-        const {
-            submissionID: submissionID
-        } = params;
-        const aSubmission = await this._findByID(submissionID);
-        if (!aSubmission) {
-            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
-        }
-        const userScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
-        if (userScope.isNoneScope()) {
-            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
-        }
-        let zipDir = null;
-        let zipFile = null;
-        try {
-            zipDir = await this.dataRecordService.retrieveAllDSNodes(aSubmission);
-            if (!zipDir || !fs.existsSync(zipDir)) {
-                throw new Error(ERROR.FAILED_DOWNLOAD_ALL_DS_NODES);
-            }
-            zipFile = zipDir + ".zip";
-            await zipFilesInDir(zipDir, zipFile);
-            // Only check for file existence, not the return value of zipFilesInDir
-            if (!fs.existsSync(zipFile)) {
-                throw new Error(ERROR.FAILED_DOWNLOAD_ALL_DS_NODES);
-            }
-            const zipFileName = path.basename(zipFile);
-            // upload the zip file into s3 and create pre-signed download link
-            await this.s3Service.uploadZipFile(aSubmission.bucketName, aSubmission.rootPath, zipFileName, zipFile);
-            return await this.s3Service.createDownloadSignedURL(aSubmission.bucketName, aSubmission.rootPath, zipFileName);
-        }
-        catch (e) {
-            console.error(e);
-            throw e;
-        }
-        finally {
-            if (zipFile && fs.existsSync(zipFile)) {
-                const downloadDir = path.dirname(zipFile);
-                if (downloadDir && fs.existsSync(downloadDir)) {
-                    try {
-                        fs.rmSync(downloadDir, {recursive: true, force: true });
-                    } catch (error) {
-                        console.error("Error during cleanup:", error);
-                    }
-                }
-            }
-        }
-    }
-
     async _findByID(id) {
         const aSubmission = await this.submissionDAO.findFirst(
             { id },

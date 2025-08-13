@@ -16,7 +16,8 @@ module.exports = Object.freeze({
         VALIDATION: "validation",
         DATA_RECORDS: "dataRecord",
         QC_RESULT: "qcResult",
-        BATCH: "batch"
+        BATCH: "batch",
+        RELEASE: "release"
     },
     OMB_INFO: "OMB_INFO"
 });

@@ -120,7 +120,7 @@ dbConnector.connect().then(async () => {
     userInitializationService = new UserInitializationService(userCollection, organizationCollection, approvedStudiesCollection, configurationService);
     authenticationService = new AuthenticationService(userCollection);
 
-    const releaseService = new Release(releaseCollection, authorizationService, dataModelService);
+    const releaseService = new Release(releaseCollection, authorizationService, dataModelService, s3Service, config);
     root = {
         version: () => {return config.version},
         saveApplication: dataInterface.saveApplication.bind(dataInterface),
@@ -255,7 +255,7 @@ dbConnector.connect().then(async () => {
         },
         downloadDBGaPLoadSheet: submissionService.downloadDBGaPLoadSheet.bind(submissionService),
         getOMB: configurationService.getOMB.bind(configurationService),
-        downloadAllDSNodes: submissionService.downloadAllDSNodes.bind(submissionService)
+        downloadAllReleasedNodes: releaseService.downloadAllReleasedNodes.bind(releaseService)
     };
 });
 
