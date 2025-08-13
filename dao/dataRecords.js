@@ -35,7 +35,7 @@ class DataRecordDAO extends GenericDAO {
         // set orderBy
         let sort = orderBy;
         if (!Object.keys(NODE_VIEW).includes(orderBy)) {
-            sort = orderBy.indexOf(".") > 0 ? `rawData.${orderBy.replace(".", "|")}` : sort = `props.${orderBy}`
+            sort = orderBy.indexOf(".") > 0 ? `rawData.${orderBy.replace(".", "|")}` : `props.${orderBy}`
         }
         let pipeline = [];
         pipeline.push({
