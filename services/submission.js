@@ -45,6 +45,7 @@ const ProgramDAO = require("../dao/program");
 const UserDAO = require("../dao/user");
 const ApprovedStudyDAO = require("../dao/approvedStudy");
 const ValidationDAO = require("../dao/validation");
+const DataRecordDAO = require("../dao/dataRecords");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -78,6 +79,7 @@ class Submission {
         this.organizationService = organizationService;
         this.notificationService = notificationService;
         this.dataRecordService = dataRecordService;
+        this.dataRecordDAO = new DataRecordDAO(this.dataRecordService.dataRecordsCollection)
         this.fetchDataModelInfo = fetchDataModelInfo;
         this.awsService = awsService;
         this.metadataQueueName = metadataQueueName;
@@ -757,15 +759,19 @@ class Submission {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
-        if(!["All", "New", "Error", "Passed", "Warning"].includes(status)){
+        if(![ALL_FILTER, VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING, VALIDATION_STATUS.NEW, VALIDATION_STATUS.ERROR].includes(status)){
             throw new Error(ERROR.INVALID_NODE_STATUS_NOT_FOUND);
         }
 
         if (params?.nodeType !== DATA_FILE) {
-            const query = {submissionID: submissionID, nodeType: nodeType};
-            if (status !== "All") query.status = status;
-            if (nodeID) query.nodeID = new RegExp(nodeID, 'i');
-            const result = await this.dataRecordService.submissionNodes(submissionID, nodeType, 
+            const query = {
+                submissionID,
+                nodeType,
+                ...(status !== ALL_FILTER && { status }),
+                ...(nodeID && { nodeID: new RegExp(nodeID, "i") })
+            };
+
+            const result = await this.dataRecordDAO.getSubmissionNodes(submissionID, nodeType,
                 first, offset, orderBy, sortDirection, query);
             return this._processSubmissionNodes(result);
         }

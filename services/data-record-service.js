@@ -11,26 +11,10 @@ const {getFormatDateStr} = require("../utility/string-util.js")
 const {arrayOfObjectsToTSV} = require("../utility/io-util.js")
 const DataRecordDAO = require("../dao/dataRecords");
 const {SORT} = require("../constants/db-constants");
+const ReleaseDAO = require("../dao/release");
 const BATCH_SIZE = 300;
 const ERROR = "Error";
 const WARNING = "Warning";
-const NODE_VIEW = {
-    submissionID: "$submissionID",
-    nodeType: "$nodeType",
-    nodeID: "$nodeID",
-    IDPropName: "$IDPropName",
-    status:  "$status",
-    createdAt: "$createdAt",
-    updatedAt: "$updatedAt",
-    validatedAt: "$validatedAt",
-    uploadedDate: "$updatedAt",
-    validatedDate: "$validatedAt",
-    orginalFileName:  "$orginalFileName",
-    lineNumber: "$lineNumber",
-    props: "$props",
-    parents: "$parents",
-    rawData: "$rawData"
-}
 const NODE_RELATION_TYPE_PARENT="parent";
 const NODE_RELATION_TYPE_CHILD="child";
 const NODE_RELATION_TYPES = [NODE_RELATION_TYPE_PARENT, NODE_RELATION_TYPE_CHILD];
@@ -68,7 +52,8 @@ class DataRecordService {
         this.qcResultsService = qcResultsService;
         this.exportQueue = exportQueue;
         this.releaseCollection = releaseCollection;
-        this.dataRecordDAO = new DataRecordDAO();
+        this.dataRecordDAO = new DataRecordDAO(this.dataRecordsCollection);
+        this.releaseDAO = new ReleaseDAO();
 
     }
 
@@ -392,67 +377,6 @@ class DataRecordService {
         
     }
 
-    async submissionNodes(submissionID, nodeType, first, offset, orderBy, sortDirection, query=null) {
-        // set orderBy
-        let sort = orderBy;
-        if ( !Object.keys(NODE_VIEW).includes(orderBy)) {
-            if ( orderBy.indexOf(".") > 0) 
-                sort = `rawData.${orderBy.replace(".", "|")}`;
-            else
-                sort = `props.${orderBy}`;
-        }
-        let pipeline = [];
-        pipeline.push({
-            $match: (!query)?{
-                submissionID: submissionID, 
-                nodeType: nodeType
-            }:query
-        });
-        pipeline.push({
-            $project: NODE_VIEW
-        });
-        let page_pipeline = [];
-        const nodeID= "nodeID";
-        let sortFields = {
-            [sort]: getSortDirection(sortDirection),
-        };
-        if (sort !== nodeID){
-            sortFields[nodeID] = 1
-        }
-        page_pipeline.push({
-            $sort: sortFields
-        });
-        // if -1, returns all data of given node & ignore offset
-        if (first !== -1) {
-            page_pipeline.push({
-                $skip: offset
-            });
-            page_pipeline.push({
-                $limit: first
-            });
-        }
-
-        pipeline.push({
-            $facet: {
-                total: [{
-                    $count: "total"
-                }],
-                results: page_pipeline
-            }
-        });
-        pipeline.push({
-            $set: {
-                total: {
-                    $first: "$total.total",
-                }
-            }
-        });
-        let dataRecords = await this.dataRecordsCollection.aggregate(pipeline);
-        dataRecords = dataRecords.length > 0 ? dataRecords[0] : {}
-        return {total: dataRecords.total || 0,
-            results: dataRecords.results || []}
-    }
-
     async submissionDataFiles(submissionID, s3FileNames) {
         let pipeline = [];
         pipeline.push({
@@ -474,7 +398,7 @@ class DataRecordService {
 
     async NodeDetail(submissionID, nodeType, nodeID){
         const aNode = await this._getNode(submissionID, nodeType, nodeID);
-        let nodeDetail = {
+        return {
             submissionID: aNode.submissionID,
             nodeID: aNode.nodeID,
             nodeType: aNode.nodeType,
@@ -482,22 +406,21 @@ class DataRecordService {
             parents: this._convertParents(aNode.parents),
             children: await this._getNodeChildren(submissionID, nodeType, nodeID)
         };
-        return nodeDetail
     }
     async _getNode(submissionID, nodeType, nodeID){
-        const aNodes = await this.dataRecordsCollection.aggregate([{
-            $match: {
+        const aNode = await this.dataRecordDAO.findFirst(
+            {
                 nodeID: nodeID,
                 nodeType: nodeType,
                 submissionID: submissionID
-            }},
-            {$limit: 1}
-        ]);
-        if(aNodes.length === 0){
+            }
+        );
+
+        if(!aNode){
             throw new Error(ERRORS.INVALID_NODE_NOT_FOUND);
         }
-        else 
-            return aNodes[0];
+
+        return aNode;
     }
     _convertParents(parents){
         parents = Array.isArray(parents) ? parents : [];
@@ -513,21 +436,25 @@ class DataRecordService {
     }
 
     async _getNodeChildren(submissionID, nodeType, nodeID){
-        let convertedChildren= [];
         // get children
-        const children = await this.dataRecordsCollection.aggregate([{
-            $match: {
-                "parents.parentIDValue": nodeID,
-                "parents.parentType": nodeType,
-                submissionID: submissionID
-            }}
-        ]);
+        // TODO verify
+        const children = this.dataRecordDAO.findMany({
+            parents: {
+                some: {
+                    parentIDValue: nodeID,
+                    parentType: nodeType
+                },
+            },
+            submissionID: submissionID
+        });
+
         let childTypes = new Set();
         for (let child of children){
             childTypes.add(child.nodeType)
         }
+        let convertedChildren= [];
         childTypes.forEach((childType) => {
-            convertedChildren.push({nodeType: childType, total:children.filter((child) => child.nodeType === childType).length});
+            convertedChildren.push({nodeType: childType, total: children.filter((child) => child.nodeType === childType).length});
         });
         return convertedChildren;
     }
@@ -571,7 +498,7 @@ class DataRecordService {
             default:
                 throw new Error(ERRORS.INVALID_NODE_RELATIONSHIP);
         }
-        const result = await this.submissionNodes(submissionID, nodeType, first, offset, orderBy, sortDirection, query); 
+        const result = await this.dataRecordDAO.getSubmissionNodes(submissionID, nodeType, first, offset, orderBy, sortDirection, query);
         IDPropName = (IDPropName) ? IDPropName : (result.total > 0)? result.results[0].IDPropName : null;
         return [result, IDPropName];
     }
@@ -706,21 +633,16 @@ class DataRecordService {
         }
         newNode.props = JSON.stringify(newNode.props);
 
-        // get release node
-        const query = {
+        const releaseNode =  await this.releaseDAO.findFirst({
             dataCommons: dataCommons,
             nodeType: nodeType,
             nodeID: nodeID,
             status: status
-        };
-        const results = await this.releaseCollection.aggregate([{
-            $match: query
-        }]);
+        });
 
-        if(results.length === 0){
+        if (!releaseNode) {
             throw new Error(ERRORS.INVALID_RELEASED_NODE_NOT_FOUND);
         }
-        const releaseNode = results[0];
         releaseNode.status = status;
         releaseNode.props = JSON.stringify(releaseNode.props);
         return [newNode, releaseNode]
