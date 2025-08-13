@@ -104,7 +104,7 @@ describe('DataRecordService', () => {
       'export-queue'
     );
 
-    dataRecordDAO = new DataRecordDAO();
+    dataRecordDAO = new DataRecordDAO(mockDataRecordsCollection);
 
     // Mock static methods - these are now handled by the jest.mock calls above
   });
@@ -396,38 +396,55 @@ describe('DataRecordService', () => {
 
 
   describe('_getNode', () => {
+    beforeEach(() => {
+      // Ensure dataRecordService.dataRecordDAO is set and mockable
+      dataRecordService.dataRecordDAO = {
+        findFirst: jest.fn()
+      };
+    });
+
     test('should throw error when node not found', async () => {
-      dataRecordDAO.findFirst = jest.fn().mockResolvedValue(null);
+      dataRecordService.dataRecordDAO.findFirst.mockResolvedValue(null);
 
       await expect(
         dataRecordService._getNode('submission-123', 'participant', 'p1')
       ).rejects.toThrow(ERRORS.INVALID_NODE_NOT_FOUND);
 
-      expect(dataRecordDAO.findFirst).toHaveBeenCalledWith({
-        submissionID: 'submission-123',
+      expect(dataRecordService.dataRecordDAO.findFirst).toHaveBeenCalledWith({
+        nodeID: 'p1',
         nodeType: 'participant',
-        nodeID: 'p1'
+        submissionID: 'submission-123'
       });
-    });
-
-    test('should throw error when node not found', async () => {
-      mockDataRecordsCollection.aggregate.mockResolvedValue([]);
-
-      await expect(dataRecordService._getNode('submission-123', 'participant', 'p1'))
-        .rejects.toThrow(ERRORS.INVALID_NODE_NOT_FOUND);
     });
   });
 
   describe('_getNodeChildren', () => {
+    beforeEach(() => {
+      // Mock the dataRecordDAO.findMany method used in _getNodeChildren
+      dataRecordService.dataRecordDAO = {
+        findMany: jest.fn()
+      };
+    });
+
     test('should return children grouped by type', async () => {
       const mockChildren = [
         { nodeType: 'sample' },
         { nodeType: 'sample' },
         { nodeType: 'file' }
       ];
-      mockDataRecordsCollection.aggregate.mockResolvedValue(mockChildren);
+      dataRecordService.dataRecordDAO.findMany.mockResolvedValue(mockChildren);
 
       const result = await dataRecordService._getNodeChildren('submission-123', 'participant', 'p1');
+
+      expect(dataRecordService.dataRecordDAO.findMany).toHaveBeenCalledWith({
+        parents: {
+          some: {
+            parentIDValue: 'p1',
+            parentType: 'participant'
+          }
+        },
+        submissionID: 'submission-123'
+      });
 
       expect(result).toEqual([
         { nodeType: 'sample', total: 2 },
@@ -436,9 +453,19 @@ describe('DataRecordService', () => {
     });
 
     test('should return empty array when no children found', async () => {
-      mockDataRecordsCollection.aggregate.mockResolvedValue([]);
+      dataRecordService.dataRecordDAO.findMany.mockResolvedValue([]);
 
       const result = await dataRecordService._getNodeChildren('submission-123', 'participant', 'p1');
+
+      expect(dataRecordService.dataRecordDAO.findMany).toHaveBeenCalledWith({
+        parents: {
+          some: {
+            parentIDValue: 'p1',
+            parentType: 'participant'
+          }
+        },
+        submissionID: 'submission-123'
+      });
 
       expect(result).toEqual([]);
     });

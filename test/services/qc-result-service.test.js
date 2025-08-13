@@ -10,6 +10,7 @@ jest.mock("../../domain/user-scope");
 
 const mockVerifySession = require("../../verifier/user-info-verifier");
 const mockUserScope = require("../../domain/user-scope");
+const QCResultDAO = require("../../dao/qcResult");
 
 describe('QcResultService', () => {
     let qcResultService;
@@ -78,6 +79,13 @@ describe('QcResultService', () => {
     });
 
     describe('submissionQCResultsAPI', () => {
+
+        // beforeEach(() => {
+        //     dataRecordService.dataRecordDAO = {
+        //         findFirst: jest.fn()
+        //       };
+        // });
+
         const mockParams = {
             _id: "test_submission_id",
             nodeTypes: ["Subject", "Sample"],
@@ -91,25 +99,35 @@ describe('QcResultService', () => {
         };
 
         it('should successfully return QC results when user has permissions', async () => {
-            // Setup mocks
-            mockSubmissionCollection.findOne.mockResolvedValue({ _id: "test_submission_id" });
-            mockQcResultCollection.aggregate
-                .mockResolvedValueOnce([{ total: 5 }]) // count pipeline
-                .mockResolvedValueOnce([{ type: "Subject", errors: [] }]); // data pipeline
+            // Patch: mock the DAO method if used instead of collection
+            qcResultService.qcResultDAO = {
+                submissionQCResults: jest.fn()
+            };
+            // If the service uses the DAO, mock its return value
+            qcResultService.qcResultDAO.submissionQCResults
+                .mockResolvedValueOnce({
+                    results: [{ type: "Subject", errors: [] }],
+                    total: 5
+                });
+
+            // Patch: mock submissionDAO.findFirst to simulate submission found
+            qcResultService.submissionDAO = {
+                findFirst: jest.fn().mockResolvedValue({ id: mockParams._id })
+            };
 
             const result = await qcResultService.submissionQCResultsAPI(mockParams, mockContext);
-
             expect(result).toEqual({
                 results: [{ type: "Subject", errors: [] }],
                 total: 5
             });
             expect(mockVerifySession.verifySession).toHaveBeenCalledWith(mockContext);
-            expect(mockSubmissionCollection.findOne).toHaveBeenCalledWith(mockParams._id);
+            expect(qcResultService.submissionDAO.findFirst).toHaveBeenCalledWith({ id: mockParams._id });
         });
 
         it('should throw error when submission not found', async () => {
-            mockSubmissionCollection.findOne.mockResolvedValue(null);
-
+            qcResultService.submissionDAO = {
+                findFirst: jest.fn().mockResolvedValue(null)
+            };
             await expect(qcResultService.submissionQCResultsAPI(mockParams, mockContext))
                 .rejects.toThrow(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         });
@@ -146,7 +164,7 @@ describe('QcResultService', () => {
                 .mockResolvedValueOnce(mockCountResult)
                 .mockResolvedValueOnce(mockDataResult);
 
-            const result = await qcResultService.submissionQCResults(
+            const result = await qcResultService.qcResultDAO.submissionQCResults(
                 "test_submission_id",
                 null,
                 null,
@@ -170,7 +188,7 @@ describe('QcResultService', () => {
                 .mockResolvedValueOnce(mockCountResult)
                 .mockResolvedValueOnce(mockDataResult);
 
-            const result = await qcResultService.submissionQCResults(
+            const result = await qcResultService.qcResultDAO.submissionQCResults(
                 "test_submission_id",
                 null,
                 null,
@@ -194,7 +212,7 @@ describe('QcResultService', () => {
                 .mockResolvedValueOnce(mockCountResult)
                 .mockResolvedValueOnce(mockDataResult);
 
-            const result = await qcResultService.submissionQCResults(
+            const result = await qcResultService.qcResultDAO.submissionQCResults(
                 "test_submission_id",
                 null,
                 ["batch1"],
@@ -218,7 +236,7 @@ describe('QcResultService', () => {
                 .mockResolvedValueOnce(mockCountResult)
                 .mockResolvedValueOnce(mockDataResult);
 
-            const result = await qcResultService.submissionQCResults(
+            const result = await qcResultService.qcResultDAO.submissionQCResults(
                 "test_submission_id",
                 ["Subject"],
                 null,
@@ -242,7 +260,7 @@ describe('QcResultService', () => {
                 .mockResolvedValueOnce(mockCountResult)
                 .mockResolvedValueOnce(mockDataResult);
 
-            const result = await qcResultService.submissionQCResults(
+            const result = await qcResultService.qcResultDAO.submissionQCResults(
                 "test_submission_id",
                 null,
                 null,
@@ -266,7 +284,7 @@ describe('QcResultService', () => {
                 .mockResolvedValueOnce(mockCountResult)
                 .mockResolvedValueOnce(mockDataResult);
 
-            const result = await qcResultService.submissionQCResults(
+            const result = await qcResultService.qcResultDAO.submissionQCResults(
                 "test_submission_id",
                 null,
                 null,
@@ -290,7 +308,7 @@ describe('QcResultService', () => {
                 .mockResolvedValueOnce(mockCountResult)
                 .mockResolvedValueOnce(mockDataResult);
 
-            const result = await qcResultService.submissionQCResults(
+            const result = await qcResultService.qcResultDAO.submissionQCResults(
                 "test_submission_id",
                 null,
                 null,
@@ -308,12 +326,16 @@ describe('QcResultService', () => {
     });
 
     describe('deleteQCResultBySubmissionID', () => {
-        it('should delete QC results successfully', async () => {
-            const mockDeleteResult = {
-                acknowledged: true,
-                deletedCount: 3
+        beforeEach(() => {
+            // Patch the DAO to use the mock collection's deleteMany
+            qcResultService.qcResultDAO = {
+                deleteMany: jest.fn()
             };
-            mockQcResultCollection.deleteMany.mockResolvedValue(mockDeleteResult);
+        });
+
+        it('should delete QC results successfully', async () => {
+            const mockDeleteResult = { count: 3 };
+            qcResultService.qcResultDAO.deleteMany.mockResolvedValue(mockDeleteResult);
 
             await qcResultService.deleteQCResultBySubmissionID(
                 "test_submission_id",
@@ -321,20 +343,17 @@ describe('QcResultService', () => {
                 ["file1.txt", "file2.txt", "file3.txt"]
             );
 
-            expect(mockQcResultCollection.deleteMany).toHaveBeenCalledWith({
+            expect(qcResultService.qcResultDAO.deleteMany).toHaveBeenCalledWith({
                 submissionID: "test_submission_id",
                 validationType: "data_file",
-                submittedID: { "$in": ["file1.txt", "file2.txt", "file3.txt"] }
+                submittedID: { in: ["file1.txt", "file2.txt", "file3.txt"] }
             });
         });
 
         it('should log error when deletion count mismatch', async () => {
             const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
-            const mockDeleteResult = {
-                acknowledged: true,
-                deletedCount: 2
-            };
-            mockQcResultCollection.deleteMany.mockResolvedValue(mockDeleteResult);
+            const mockDeleteResult = { count: 2 };
+            qcResultService.qcResultDAO.deleteMany.mockResolvedValue(mockDeleteResult);
 
             await qcResultService.deleteQCResultBySubmissionID(
                 "test_submission_id",
@@ -349,13 +368,10 @@ describe('QcResultService', () => {
             consoleSpy.mockRestore();
         });
 
-        it('should log error when deletion not acknowledged', async () => {
+        it('should log error when deletion not acknowledged (count is 0)', async () => {
             const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
-            const mockDeleteResult = {
-                acknowledged: false,
-                deletedCount: 0
-            };
-            mockQcResultCollection.deleteMany.mockResolvedValue(mockDeleteResult);
+            const mockDeleteResult = { count: 0 };
+            qcResultService.qcResultDAO.deleteMany.mockResolvedValue(mockDeleteResult);
 
             await qcResultService.deleteQCResultBySubmissionID(
                 "test_submission_id",
@@ -377,7 +393,10 @@ describe('QcResultService', () => {
                 { submittedID: "file1.txt", submissionID: "test_submission_id" },
                 { submittedID: "file2.txt", submissionID: "test_submission_id" }
             ];
-            mockQcResultCollection.aggregate.mockResolvedValue(mockResults);
+            // Patch: mock the DAO method instead of aggregate to avoid Prisma error
+            qcResultService.qcResultDAO = {
+                findMany: jest.fn().mockResolvedValue(mockResults)
+            };
 
             const result = await qcResultService.findBySubmissionErrorCodes(
                 "test_submission_id",
@@ -385,14 +404,22 @@ describe('QcResultService', () => {
             );
 
             expect(result).toEqual(mockResults);
-            expect(mockQcResultCollection.aggregate).toHaveBeenCalledWith([
-                { "$match": { submissionID: "test_submission_id", "errors.code": "E001" } },
-                { "$project": { submittedID: 1, submissionID: 1 } }
-            ]);
+            expect(qcResultService.qcResultDAO.findMany).toHaveBeenCalledWith(
+                { submissionID: "test_submission_id", errors: { some: { code: "E001" } } },
+                {
+                    select: {
+                        submittedID: true,
+                        submissionID: true
+                    }
+                }
+            );
         });
 
         it('should return empty array when no results found', async () => {
-            mockQcResultCollection.aggregate.mockResolvedValue([]);
+            // Patch: mock the DAO method instead of aggregate to avoid Prisma error
+            qcResultService.qcResultDAO = {
+                findMany: jest.fn().mockResolvedValue([])
+            };
 
             const result = await qcResultService.findBySubmissionErrorCodes(
                 "test_submission_id",
@@ -400,6 +427,15 @@ describe('QcResultService', () => {
             );
 
             expect(result).toEqual([]);
+            expect(qcResultService.qcResultDAO.findMany).toHaveBeenCalledWith(
+                { submissionID: "test_submission_id", errors: { some: { code: "E001" } } },
+                {
+                    select: {
+                        submittedID: true,
+                        submissionID: true
+                    }
+                }
+            );
         });
     });
 
@@ -452,13 +488,24 @@ describe('QcResultService', () => {
         };
 
         it('should successfully return aggregated QC results when user has permissions', async () => {
-            mockSubmissionCollection.findOne.mockResolvedValue({ _id: "test_submission_id" });
-            mockQcResultCollection.aggregate
-                .mockResolvedValueOnce([{ total: 3 }])
-                .mockResolvedValueOnce([
-                    { title: "Error 1", severity: "Error", code: "E001", count: 5 },
-                    { title: "Error 2", severity: "Error", code: "E002", count: 3 }
-                ]);
+            // Patch: mock the DAO method if used instead of collection
+            qcResultService.qcResultDAO = {
+                aggregatedSubmissionQCResults: jest.fn()
+            };
+            // If the service uses the DAO, mock its return value
+            qcResultService.qcResultDAO.aggregatedSubmissionQCResults
+                .mockResolvedValueOnce({
+                    results: [
+                        { title: "Error 1", severity: "Error", code: "E001", count: 5 },
+                        { title: "Error 2", severity: "Error", code: "E002", count: 3 }
+                    ],
+                    total: 3
+                });
+
+            // Patch: mock submissionDAO.findFirst to simulate submission found
+            qcResultService.submissionDAO = {
+                findFirst: jest.fn().mockResolvedValue({ id: mockParams.submissionID })
+            };
 
             const result = await qcResultService.aggregatedSubmissionQCResultsAPI(mockParams, mockContext);
 
@@ -469,11 +516,21 @@ describe('QcResultService', () => {
                     { title: "Error 2", severity: "Error", code: "E002", count: 3 }
                 ]
             });
+            expect(qcResultService.submissionDAO.findFirst).toHaveBeenCalledWith({ id: mockParams.submissionID });
+            expect(qcResultService.qcResultDAO.aggregatedSubmissionQCResults).toHaveBeenCalledWith(
+                mockParams.submissionID,
+                mockParams.severity,
+                mockParams.first,
+                mockParams.offset,
+                mockParams.orderBy,
+                mockParams.sortDirection
+            );
         });
 
         it('should throw error when submission not found', async () => {
-            mockSubmissionCollection.findOne.mockResolvedValue(null);
-
+            qcResultService.submissionDAO = {
+                findFirst: jest.fn().mockResolvedValue(null)
+            };
             await expect(qcResultService.aggregatedSubmissionQCResultsAPI(mockParams, mockContext))
                 .rejects.toThrow(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         });
@@ -481,16 +538,24 @@ describe('QcResultService', () => {
         it('should throw error when user has no permissions', async () => {
             const noneScope = {
                 isNoneScope: jest.fn().mockReturnValue(true),
-                isAllScope: jest.fn().mockReturnValue(false)
+                isAllScope: jest.fn().mockReturnValue(false),
+                isStudyScope: jest.fn().mockReturnValue(false),
+                isDCScope: jest.fn().mockReturnValue(false),
+                isOwnScope: jest.fn().mockReturnValue(false)
             };
             mockUserScope.UserScope.create.mockReturnValue(noneScope);
+
+            // Patch: mock submissionDAO.findFirst to simulate submission found
+            qcResultService.submissionDAO = {
+                findFirst: jest.fn().mockResolvedValue({ id: mockParams.submissionID })
+            };
 
             await expect(qcResultService.aggregatedSubmissionQCResultsAPI(mockParams, mockContext))
                 .rejects.toThrow(ERROR.VERIFY.INVALID_PERMISSION);
         });
     });
 
-    describe('aggregatedSubmissionQCResults', () => {
+    describe('qcResultDAO.aggregatedSubmissionQCResults', () => {
         it('should aggregate QC results by error severity', async () => {
             const mockCountResult = [{ total: 2 }];
             const mockDataResult = [
@@ -502,7 +567,7 @@ describe('QcResultService', () => {
                 .mockResolvedValueOnce(mockCountResult)
                 .mockResolvedValueOnce(mockDataResult);
 
-            const result = await qcResultService.aggregatedSubmissionQCResults(
+            const result = await qcResultService.qcResultDAO.aggregatedSubmissionQCResults(
                 "test_submission_id",
                 "error",
                 10,
@@ -524,7 +589,7 @@ describe('QcResultService', () => {
                 .mockResolvedValueOnce(mockCountResult)
                 .mockResolvedValueOnce(mockDataResult);
 
-            const result = await qcResultService.aggregatedSubmissionQCResults(
+            const result = await qcResultService.qcResultDAO.aggregatedSubmissionQCResults(
                 "test_submission_id",
                 "warning",
                 10,
@@ -548,7 +613,7 @@ describe('QcResultService', () => {
                 .mockResolvedValueOnce(mockCountResult)
                 .mockResolvedValueOnce(mockDataResult);
 
-            const result = await qcResultService.aggregatedSubmissionQCResults(
+            const result = await qcResultService.qcResultDAO.aggregatedSubmissionQCResults(
                 "test_submission_id",
                 null,
                 10,
@@ -569,7 +634,7 @@ describe('QcResultService', () => {
                 .mockResolvedValueOnce(mockCountResult)
                 .mockResolvedValueOnce(mockDataResult);
 
-            const result = await qcResultService.aggregatedSubmissionQCResults(
+            const result = await qcResultService.qcResultDAO.aggregatedSubmissionQCResults(
                 "test_submission_id",
                 "error",
                 1,
