@@ -505,8 +505,8 @@ class DataRecordService {
         let subjectSampleMapArr = sampleNodes.map((sampleNode) => {
             const parent = sampleNode.parents.find(p=>p.parentType === "participant");
             const subject = parent ? participants.find(p => p.nodeID === parent.parentIDValue) : null;
-            const subjectID = subject.props?.dbGaP_subject_id? subject.props.dbGaP_subject_id : subject.nodeID;
-            const sampleID = sampleNode.props?.biosample_accession? sampleNode.props.biosample_accession: sampleNode.nodeID;
+            const subjectID = subject?.props?.dbGaP_subject_id? subject.props.dbGaP_subject_id : subject?.nodeID;
+            const sampleID = sampleNode?.props?.biosample_accession? sampleNode.props.biosample_accession: sampleNode?.nodeID;
             return subjectID ? { [DATA_SHEET.SUBJECT_ID]: subjectID, [DATA_SHEET.SAMPLE_ID]: sampleID } : null;
         });
         subjectSampleMapArr = subjectSampleMapArr.filter((subjectSampleMap) => subjectSampleMap !== null);
@@ -547,7 +547,7 @@ class DataRecordService {
             const sampleID = sample.props?.biosample_accession? sample.props.biosample_accession: sample.nodeID;
             const sampleSite= sample.props?.sample_anatomic_site;
             const sampleTypeCategory = sample.props?.sample_type_category;
-            const sampleTumorStatus = (sample.props?.sample_tumor_status === "Tumor") ? 1 : 0;
+            const sampleTumorStatus = (sample.props?.sample_tumor_status === "Tumor") ? 1 : 2;
             return {[DATA_SHEET.SAMPLE_ID]: sampleID, [DATA_SHEET.BODY_SITE]: sampleSite, [DATA_SHEET.ANALYTE_TYPE]: sampleTypeCategory, 
                 [DATA_SHEET.IS_TUMOR]: sampleTumorStatus};
         });

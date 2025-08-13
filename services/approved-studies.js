@@ -303,7 +303,7 @@ class ApprovedStudiesService {
             }
         }
 
-        this._setPendingGPA(updateStudy, controlledAccess, isPendingGPA, (GPAName || updateStudy?.GPAName), (GPAEmail || updateStudy?.GPAEmail));
+        this._setPendingGPA(updateStudy, controlledAccess, isPendingGPA, GPAName, GPAEmail);
 
         updateStudy.primaryContactID = useProgramPC ? null : primaryContactID;
         updateStudy.updatedAt = getCurrentTime();
@@ -347,18 +347,32 @@ class ApprovedStudiesService {
 
     _setPendingGPA (updateStudy, controlledAccess, isPendingGPA, GPAName, GPAEmail) {
         if (isTrue(updateStudy.controlledAccess)) {
-            this._validatePendingGPA(GPAName, GPAEmail, controlledAccess, isPendingGPA);
-            updateStudy.GPAName = GPAName;
-            updateStudy.GPAEmail = GPAEmail;
+            // only editing GPAName
+            if (GPAName !== undefined) {
+                if (!isTrue(isPendingGPA) && !GPAName?.trim()) {
+                    throw new Error(ERROR.INVALID_PENDING_GPA + ";GPA name is missing.");
+                }
+            }
+            // only editing GPAEmail
+            if (GPAEmail !== undefined) {
+                if (!isTrue(isPendingGPA) && !GPAEmail?.trim()) {
+                    throw new Error(ERROR.INVALID_PENDING_GPA + ";GPA email is missing.");
+                }
+            }
             updateStudy.isPendingGPA = isPendingGPA;
         }
 
         if (!isTrue(updateStudy.controlledAccess)) {
-            updateStudy.GPAName = null;
-            updateStudy.GPAEmail = null
             updateStudy.isPendingGPA = false;
         }
 
+        if (GPAName !== undefined) {
+            updateStudy.GPAName = GPAName?.trim() || "";
+        }
+
+        if (GPAEmail !== undefined) {
+            updateStudy.GPAEmail = GPAEmail?.trim() || "";
+        }
     }
 
     _validatePendingGPA(GPAName, GPAEmail, controlledAccess, isPendingGPA) {
@@ -366,7 +380,7 @@ class ApprovedStudiesService {
             throw new Error(ERROR.INVALID_PENDING_GPA);
         }
 
-        if (isTrue(isPendingGPA) && (!GPAEmail?.trim() || !GPAName?.trim())) {
+        if (!isTrue(isPendingGPA) && (!GPAEmail?.trim() || !GPAName?.trim())) {
             throw new Error(ERROR.INVALID_PENDING_GPA + ";GPA name or email is missing.");
         }
     }
