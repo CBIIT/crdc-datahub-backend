@@ -2,6 +2,7 @@ const { DataRecordService } = require('../../services/data-record-service');
 const { VALIDATION_STATUS, VALIDATION, DATA_FILE } = require('../../constants/submission-constants');
 const ERRORS = require('../../constants/error-constants');
 const { BATCH } = require('../../crdc-datahub-database-drivers/constants/batch-constants');
+const DataRecordDAO = require("../../dao/dataRecords");
 
 const FILE = 'file';
 
@@ -54,6 +55,7 @@ describe('DataRecordService', () => {
   let mockAwsService;
   let mockS3Service;
   let mockQcResultsService;
+  let dataRecordDAO;
 
   beforeEach(() => {
     // Reset all mocks
@@ -101,6 +103,8 @@ describe('DataRecordService', () => {
       mockQcResultsService,
       'export-queue'
     );
+
+    dataRecordDAO = new DataRecordDAO();
 
     // Mock static methods - these are now handled by the jest.mock calls above
   });
@@ -178,7 +182,7 @@ describe('DataRecordService', () => {
         { value: 2, nanValue: 3 }
       ];
 
-      const replaced = dataRecordService._replaceNaN(results, null);
+      const replaced = dataRecordDAO._replaceNaN(results, null);
 
       expect(replaced[0].nanValue).toBe(null);
       expect(replaced[1].nanValue).toBe(3);
@@ -186,17 +190,17 @@ describe('DataRecordService', () => {
 
     test('should handle empty array', () => {
       const results = [];
-      const replaced = dataRecordService._replaceNaN(results, 0);
+      const replaced = dataRecordDAO._replaceNaN(results, 0);
       expect(replaced).toEqual([]);
     });
 
     test('should handle null input', () => {
-      const replaced = dataRecordService._replaceNaN(null, 0);
+      const replaced = dataRecordDAO._replaceNaN(null, 0);
       expect(replaced).toBeNull();
     });
 
     test('should handle undefined input', () => {
-      const replaced = dataRecordService._replaceNaN(undefined, 0);
+      const replaced = dataRecordDAO._replaceNaN(undefined, 0);
       expect(replaced).toBeUndefined();
     });
   });
@@ -266,12 +270,21 @@ describe('DataRecordService', () => {
 
   describe('listSubmissionNodeTypes', () => {
     test('should return distinct node types', async () => {
-      mockDataRecordsCollection.distinct.mockResolvedValue(['participant', 'sample', 'file']);
+      dataRecordService.dataRecordDAO = {
+        findMany: jest.fn().mockResolvedValue([
+          { nodeType: 'participant' },
+          { nodeType: 'sample' },
+          { nodeType: 'file' }
+        ])
+      };
 
       const result = await dataRecordService.listSubmissionNodeTypes('submission-123');
 
       expect(result).toEqual(['participant', 'sample', 'file']);
-      expect(mockDataRecordsCollection.distinct).toHaveBeenCalledWith('nodeType', { submissionID: 'submission-123' });
+      expect(dataRecordService.dataRecordDAO.findMany).toHaveBeenCalledWith(
+        { submissionID: 'submission-123' },
+        { select: { nodeType: true } }
+      );
     });
 
     test('should return empty array for null submissionID', async () => {
@@ -383,23 +396,18 @@ describe('DataRecordService', () => {
 
 
   describe('_getNode', () => {
-    test('should return node when found', async () => {
-      const mockNode = { _id: 'node1', nodeType: 'participant', nodeID: 'p1' };
-      mockDataRecordsCollection.aggregate.mockResolvedValue([mockNode]);
+    test('should throw error when node not found', async () => {
+      dataRecordDAO.findFirst = jest.fn().mockResolvedValue(null);
 
-      const result = await dataRecordService._getNode('submission-123', 'participant', 'p1');
+      await expect(
+        dataRecordService._getNode('submission-123', 'participant', 'p1')
+      ).rejects.toThrow(ERRORS.INVALID_NODE_NOT_FOUND);
 
-      expect(result).toEqual(mockNode);
-      expect(mockDataRecordsCollection.aggregate).toHaveBeenCalledWith([
-        {
-          $match: {
-            nodeID: 'p1',
-            nodeType: 'participant',
-            submissionID: 'submission-123'
-          }
-        },
-        { $limit: 1 }
-      ]);
+      expect(dataRecordDAO.findFirst).toHaveBeenCalledWith({
+        submissionID: 'submission-123',
+        nodeType: 'participant',
+        nodeID: 'p1'
+      });
     });
 
     test('should throw error when node not found', async () => {

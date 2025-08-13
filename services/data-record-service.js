@@ -342,7 +342,7 @@ class DataRecordService {
         IDPropName = (IDPropName) ? IDPropName : (result.total > 0)? result.results[0].IDPropName : null;
         return [result, IDPropName];
     }
-    // TODO
+
     async listSubmissionNodeTypes(submissionID){
         if (!submissionID){
             return []
