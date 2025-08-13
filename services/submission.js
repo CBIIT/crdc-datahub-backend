@@ -1587,7 +1587,7 @@ class Submission {
             });
 
             if (sent?.accepted?.length === 0) {
-                console.error(ERROR.FAILED_NOTIFY_SUBMISSION_UPDATE + ";updating model version;submissionID" + `${aSubmission?._id}`);
+                console.error(`${ERROR.FAILED_NOTIFY_SUBMISSION_UPDATE};updating model version;submissionID ${aSubmission?._id}`);
             }
         }
     }
