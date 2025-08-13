@@ -1557,8 +1557,39 @@ class Submission {
             console.error(msg)
             throw new Error(msg);
         }
+
+        await this._notifyConfigurationChange(userInfo, aSubmission, version);
+
         await this._resetValidation(aSubmission?._id);
         return updatedSubmission;
+    }
+
+    async _notifyConfigurationChange(userInfo, aSubmission, newModelVersion) {
+        const users = await this.userDAO.getUsersByNotifications([EN.DATA_SUBMISSION.CHANGE_CONFIGURATION]);
+        const { submitterEmails, otherEmails } = (users || []).reduce(
+            (acc, u) => {
+                if (u?.email) {
+                    (u?._id === aSubmission?.submitterID ? acc.submitterEmails : acc.otherEmails).push(u.email);
+                }
+                return acc;
+            },
+            { submitterEmails: [], otherEmails: [] }
+        );
+
+        if (submitterEmails?.length > 0) {
+            const sent = await this.notificationService.updateSubmissionNotification(submitterEmails, [], otherEmails, {
+                firstName: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
+                portalURL: this.emailParams.url || NA,
+                submissionName: aSubmission?.name,
+                studyName: aSubmission?.study?.studyName || NA,
+                prevModelVersion: aSubmission?.modelVersion,
+                newModelVersion: newModelVersion
+            });
+
+            if (sent?.accepted?.length === 0) {
+                console.error(ERROR.FAILED_NOTIFY_SUBMISSION_UPDATE + ";updating model version;submissionID" + `${aSubmission?._id}`);
+            }
+        }
     }
 
     async _resetValidation(aSubmissionID){
