@@ -120,28 +120,6 @@ class DataRecordDAO extends GenericDAO {
         return Object.entries(bySubmission).map(([id, stats]) => ({ submissionID: id, stats }));
     }
 
-
-    async getManyRecords(aSubmission, validNodeStatus) {
-        return this.findMany(
-            {
-                submissionID: aSubmission._id,
-                s3FileInfo: {
-                    is: {
-                        status: { in: validNodeStatus }
-                    }
-                }
-            },
-            {
-                select: {
-                    s3FileInfo: {
-                        select: {
-                            status: true,
-                            fileName: true
-                        }
-                    }
-            }
-        });
-    }
     // note: use MongoDB because Prisma has to fetch all matching documents into memory before grouping and paginating
     async submissionCrossValidationResults(submissionID, nodeTypes, batchIDs, severities, first, offset, orderBy, sortDirection){
         let dataRecordQCResultsPipeline = [];

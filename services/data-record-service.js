@@ -61,7 +61,25 @@ class DataRecordService {
         const validNodeStatus = [VALIDATION_STATUS.NEW, VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING, VALIDATION_STATUS.ERROR];
         const res = await Promise.all([
             this.dataRecordDAO.getStats(aSubmission?._id, validNodeStatus),
-            this.dataRecordDAO.getManyRecords(aSubmission, validNodeStatus),
+            this.dataRecordDAO.findMany(
+                {
+                    submissionID: aSubmission._id,
+                    s3FileInfo: {
+                        is: {
+                            status: { in: validNodeStatus }
+                        }
+                    }
+                },
+                {
+                    select: {
+                        s3FileInfo: {
+                            select: {
+                                status: true,
+                                fileName: true
+                            }
+                        }
+                    }
+            }),
             // submission's root path should be matched, otherwise the other file node count return wrong
             this.s3Service.listFileInDir(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}/`),
             // search for the orphaned file errors
