@@ -1238,7 +1238,7 @@ describe('Submission._sendEmailsDeletedSubmissions', () => {
         // Set up mocks
         mockUserService.getUserByID.mockResolvedValue(mockSubmitter);
         mockUserService.getUsersByNotifications.mockResolvedValue(mockBCCUsers);
-        mockApprovedStudyDAO.findFirst.mockResolvedValue([mockApprovedStudy]); // Return as array
+        mockApprovedStudyDAO.findFirst.mockResolvedValue(mockApprovedStudy); // Return as single object
 
         // Ensure the service has access to the mocked services
         submissionService.userService = mockUserService;

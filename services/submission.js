@@ -1377,7 +1377,7 @@ class Submission {
              await this.notificationService.deleteSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
                  firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`}, {
                  submissionName: `${aSubmission?.name},`,
-                 studyName: approvedStudy?.length > 0 ? (approvedStudy[0]?.studyName || NA) : NA,
+                 studyName: approvedStudy?.studyName || NA,
                  inactiveDays: this.emailParams.inactiveSubmissionDays,
                  contactName: `${aSubmission?.conciergeName || 'NA'}`,
                  contactEmail: `${aSubmission?.conciergeEmail || 'NA'}.`
