@@ -696,7 +696,11 @@ class Application {
             const history = HistoryEventBuilder.createEvent("", DELETED, this._DELETE_REVIEW_COMMENT);
             // Prisma does not support $set/$push like MongoDB. You need to update each application individually.
             const updated = await Promise.all(applications.map(async (app) => {
-                return this.applicationDAO.update({
+                const utilityService = new UtilityService();
+                if (utilityService.isEmptyApplication(app)) {
+                    return await this.applicationDAO.delete(app._id);
+                }
+                return await this.applicationDAO.update({
                     _id: app._id,
                     status: DELETED,
                     updatedAt: history.dateTime,
