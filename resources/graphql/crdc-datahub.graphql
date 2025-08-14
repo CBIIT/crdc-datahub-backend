@@ -414,6 +414,7 @@ type QCResult{
     severity: String # [Error, Warning]
     uploadedDate: Date
     validatedDate: Date
+    issueCount: Int
     errors: [ErrorMessage]
     warnings: [ErrorMessage]
 }

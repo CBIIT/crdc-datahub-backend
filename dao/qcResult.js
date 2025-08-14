@@ -2,7 +2,8 @@ const GenericDAO = require("./generic");
 const {MODEL_NAME} = require("../constants/db-constants");
 const {VALIDATION_STATUS} = require("../constants/submission-constants");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
-
+const ISSUE_COUNT = "issueCount";
+const ALL_FLAG = "All";
 class QCResultDAO extends GenericDAO {
     constructor(qcResultCollection) {
         super(MODEL_NAME.QC_RESULT);
@@ -118,7 +119,7 @@ class QCResultDAO extends GenericDAO {
             }
         });
         // Filter by severity
-        let arrayWithElements = {
+        const arrayWithElements = {
             $exists: true,
             $type: 'array',
             $ne: []
@@ -129,6 +130,12 @@ class QCResultDAO extends GenericDAO {
                     errors: arrayWithElements
                 }
             });
+            // Add error length
+            pipeline.push({
+                $set: {
+                    [ISSUE_COUNT]: { $size: "$errors" }
+                }
+            });
         }
         else if (severities === VALIDATION_STATUS.WARNING){
             pipeline.push({
@@ -136,7 +143,27 @@ class QCResultDAO extends GenericDAO {
                     warnings: arrayWithElements
                 }
             });
+            // Add warning length
+            pipeline.push({
+                $set: {
+                    [ISSUE_COUNT]: { $size: "$warnings" }
+                }
+            });
         }
+        // Setting all flag.
+        if (severities === ALL_FLAG){
+            pipeline.push({
+                $set: {
+                    [ISSUE_COUNT]: {
+                        $add: [
+                            { $size: { $ifNull: ["$warnings", []] } },
+                            { $size: { $ifNull: ["$errors", []] } }
+                        ]
+                    }
+                }
+            });
+        }
+
         // Filter by batch IDs
         if (!!batchIDs && batchIDs.length > 0){
             // If multiple batchIDs are specified, then only the first will be used for the filter
@@ -186,12 +213,15 @@ class QCResultDAO extends GenericDAO {
         // Create paginated pipeline
         let pagedPipeline = [...pipeline];
         const nodeType = "type";
-        let sortFields = {
-            [orderBy]: getSortDirection(sortDirection),
-        };
-        if (orderBy !== nodeType){
-            sortFields[nodeType] = 1
+        const dir = getSortDirection(sortDirection);
+        const primarySortBy = (orderBy === ISSUE_COUNT) ? ISSUE_COUNT : orderBy;
+
+        let sortFields = { [primarySortBy]: dir };
+        // add secondary sort by nodeType when primary isn't nodeType
+        if (primarySortBy !== nodeType) {
+            sortFields[nodeType] = 1;
         }
+
         pagedPipeline.push({
             $sort: sortFields
         });
