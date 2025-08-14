@@ -55,7 +55,8 @@ describe('Submission.getPendingPVs', () => {
                         Age: 'Age'
                     }
                 })
-            }
+            },
+            mockSubmissionCollection
         );
 
         // Mock dependencies

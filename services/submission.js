@@ -45,6 +45,7 @@ const ProgramDAO = require("../dao/program");
 const UserDAO = require("../dao/user");
 const ApprovedStudyDAO = require("../dao/approvedStudy");
 const ValidationDAO = require("../dao/validation");
+const DataRecordDAO = require("../dao/dataRecords");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -70,7 +71,7 @@ class Submission {
     constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService,
                 dataRecordService, fetchDataModelInfo, awsService, metadataQueueName, s3Service, emailParams, dataCommonsList,
                 hiddenDataCommonsList, validationCollection, sqsLoaderQueue, qcResultsService, uploaderCLIConfigs, 
-                submissionBucketName, configurationService, uploadingMonitor, dataCommonsBucketMap, authorizationService, dataModelService) {
+                submissionBucketName, configurationService, uploadingMonitor, dataCommonsBucketMap, authorizationService, dataModelService, dataRecordsCollection) {
         this.logCollection = logCollection;
         this.submissionCollection = submissionCollection;
         this.batchService = batchService;
@@ -78,6 +79,7 @@ class Submission {
         this.organizationService = organizationService;
         this.notificationService = notificationService;
         this.dataRecordService = dataRecordService;
+        this.dataRecordDAO = new DataRecordDAO(dataRecordsCollection)
         this.fetchDataModelInfo = fetchDataModelInfo;
         this.awsService = awsService;
         this.metadataQueueName = metadataQueueName;
@@ -709,7 +711,7 @@ class Submission {
         if (reviewScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION)
         }
-        return this.dataRecordService.submissionCrossValidationResults(params.submissionID, params.nodeTypes, params.batchIDs, params.severities, params.first, params.offset, params.orderBy, params.sortDirection);
+        return this.dataRecordDAO.submissionCrossValidationResults(params.submissionID, params.nodeTypes, params.batchIDs, params.severities, params.first, params.offset, params.orderBy, params.sortDirection);
     }
 
     async listSubmissionNodeTypes(params, context) {
@@ -757,15 +759,19 @@ class Submission {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
-        if(!["All", "New", "Error", "Passed", "Warning"].includes(status)){
+        if(![ALL_FILTER, VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING, VALIDATION_STATUS.NEW, VALIDATION_STATUS.ERROR].includes(status)){
             throw new Error(ERROR.INVALID_NODE_STATUS_NOT_FOUND);
         }
 
         if (params?.nodeType !== DATA_FILE) {
-            const query = {submissionID: submissionID, nodeType: nodeType};
-            if (status !== "All") query.status = status;
-            if (nodeID) query.nodeID = new RegExp(nodeID, 'i');
-            const result = await this.dataRecordService.submissionNodes(submissionID, nodeType, 
+            const query = {
+                submissionID,
+                nodeType,
+                ...(status !== ALL_FILTER && { status }),
+                ...(nodeID && { nodeID: new RegExp(nodeID, "i") })
+            };
+
+            const result = await this.dataRecordDAO.getSubmissionNodes(submissionID, nodeType,
                 first, offset, orderBy, sortDirection, query);
             return this._processSubmissionNodes(result);
         }
@@ -921,7 +927,7 @@ class Submission {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
-        return await this.dataRecordService.NodeDetail(params.submissionID, params.nodeType, params.nodeID);
+        return await this.dataRecordService.nodeDetail(params.submissionID, params.nodeType, params.nodeID);
     }
     /**
      * API: getRelatedNodes to retrieve related nodes
@@ -946,7 +952,7 @@ class Submission {
         if (!NODE_RELATION_TYPES.includes(params.relationship)){
             throw new Error(ERROR.INVALID_NODE_RELATIONSHIP);
         }
-        const result = await this.dataRecordService.RelatedNodes(params);
+        const result = await this.dataRecordService.relatedNodes(params);
         return this._processSubmissionNodes(result[0], result[1]);
     }
 
@@ -1372,16 +1378,23 @@ class Submission {
                     this._logDataRecord(context?.userInfo, aSubmission._id, VALIDATION.TYPES.DATA_FILE, deletedFiles),
                 ]);
                 // note: reset fileValidationStatus if the number of data files changed. No data files exists if null
-                const fileValidationStatus = submissionDataFiles.length > 0 ? VALIDATION_STATUS.NEW : null;
-                await this.submissionCollection.updateOne({_id: aSubmission?._id}, {fileValidationStatus: fileValidationStatus, dataFileSize, updatedAt: getCurrentTime()});
+                const fileValidationStatus = submissionDataFiles?.length > 0 ? VALIDATION_STATUS.NEW : null;
+                const res = await this.submissionDAO.update(aSubmission?._id, {
+                    fileValidationStatus,
+                    dataFileSize,
+                    updatedAt: getCurrentTime()
+                });
+                if (!res) {
+                    console.error(`failed to update submission data file info; submissionID: ${aSubmission?._id}`);
+                }
             }
             return ValidationHandler.success(`${deletedFiles.length} extra files deleted`)
         }
 
         const msg = {type: DELETE_METADATA, submissionID: params.submissionID, nodeType: params.nodeType, nodeIDs: params.nodeIDs}
         const success = await this._requestDeleteDataRecords(msg, this.sqsLoaderQueue, params.submissionID, params.submissionID);
-        const updated = await this.submissionCollection.updateOne({_id: aSubmission?._id}, {deletingData: isTrue(success?.success), updatedAt: getCurrentTime()});
-        if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
+        const updated = await this.submissionDAO.update(aSubmission?._id, {deletingData: isTrue(success?.success), updatedAt: getCurrentTime()});
+        if (!updated) {
             console.error(ERROR.FAILED_UPDATE_DELETE_STATUS, aSubmission?._id);
             throw new Error(ERROR.FAILED_UPDATE_DELETE_STATUS);
         }
@@ -1610,7 +1623,7 @@ class Submission {
             nodeID,
             status
         } = params; // all three parameters are required in GraphQL API
-        const submission = await this.submissionCollection.findOne(submissionID);
+        const submission = await this._findByID(submissionID);
         if (!submission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
@@ -1620,18 +1633,18 @@ class Submission {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
-        const results = await this.dataRecordService.getReleasedAndNewNode(submissionID, submission.dataCommons, nodeType, nodeID, status);
         // the results is array of nodes, [new, release]
-        if(results && results.length === 2)  
-        {
-            return results.map((releasedNode) => {
-               return getDataCommonsDisplayNamesForReleasedNode(releasedNode);
-            });
-        }
-        else
-        {
-            return null;
-        }
+        const results = await this.dataRecordService.getReleasedAndNewNode(
+            submissionID,
+            submission.dataCommons,
+            nodeType,
+            nodeID,
+            status
+        );
+
+        return (results?.length === 2)
+            ? results.map(getDataCommonsDisplayNamesForReleasedNode)
+            : null;
     }
 
     async verifyTempCredential(submissionID, userInfo) {

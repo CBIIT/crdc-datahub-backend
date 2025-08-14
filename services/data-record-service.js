@@ -11,26 +11,10 @@ const {getFormatDateStr} = require("../utility/string-util.js")
 const {arrayOfObjectsToTSV} = require("../utility/io-util.js")
 const DataRecordDAO = require("../dao/dataRecords");
 const {SORT} = require("../constants/db-constants");
+const ReleaseDAO = require("../dao/release");
 const BATCH_SIZE = 300;
 const ERROR = "Error";
 const WARNING = "Warning";
-const NODE_VIEW = {
-    submissionID: "$submissionID",
-    nodeType: "$nodeType",
-    nodeID: "$nodeID",
-    IDPropName: "$IDPropName",
-    status:  "$status",
-    createdAt: "$createdAt",
-    updatedAt: "$updatedAt",
-    validatedAt: "$validatedAt",
-    uploadedDate: "$updatedAt",
-    validatedDate: "$validatedAt",
-    orginalFileName:  "$orginalFileName",
-    lineNumber: "$lineNumber",
-    props: "$props",
-    parents: "$parents",
-    rawData: "$rawData"
-}
 const NODE_RELATION_TYPE_PARENT="parent";
 const NODE_RELATION_TYPE_CHILD="child";
 const NODE_RELATION_TYPES = [NODE_RELATION_TYPE_PARENT, NODE_RELATION_TYPE_CHILD];
@@ -68,19 +52,34 @@ class DataRecordService {
         this.qcResultsService = qcResultsService;
         this.exportQueue = exportQueue;
         this.releaseCollection = releaseCollection;
-        this.dataRecordDAO = new DataRecordDAO();
+        this.dataRecordDAO = new DataRecordDAO(this.dataRecordsCollection);
+        this.releaseDAO = new ReleaseDAO();
 
     }
 
     async submissionStats(aSubmission) {
         const validNodeStatus = [VALIDATION_STATUS.NEW, VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING, VALIDATION_STATUS.ERROR];
-        const submissionQuery = this._getSubmissionStatQuery(aSubmission?._id, validNodeStatus);
         const res = await Promise.all([
-            this.dataRecordsCollection.aggregate(submissionQuery),
-            this.dataRecordsCollection.aggregate([
-                {"$match": {submissionID: aSubmission?._id, "s3FileInfo.status": {$in: validNodeStatus}}},
-                {"$project": {"s3FileInfo.status": 1,"s3FileInfo.fileName": 1,}}
-            ]),
+            this.dataRecordDAO.getStats(aSubmission?._id, validNodeStatus),
+            this.dataRecordDAO.findMany(
+                {
+                    submissionID: aSubmission._id,
+                    s3FileInfo: {
+                        is: {
+                            status: { in: validNodeStatus }
+                        }
+                    }
+                },
+                {
+                    select: {
+                        s3FileInfo: {
+                            select: {
+                                status: true,
+                                fileName: true
+                            }
+                        }
+                    }
+            }),
             // submission's root path should be matched, otherwise the other file node count return wrong
             this.s3Service.listFileInDir(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}/`),
             // search for the orphaned file errors
@@ -221,165 +220,6 @@ class DataRecordService {
         return await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.exportQueue, submissionID);
     }
 
-    async submissionCrossValidationResults(submissionID, nodeTypes, batchIDs, severities, first, offset, orderBy, sortDirection){
-        let dataRecordQCResultsPipeline = [];
-        // Filter by submission ID
-        dataRecordQCResultsPipeline.push({
-            $match: {
-                submissionID: submissionID
-            }
-        });
-
-        // Filter by Batch IDs
-        if (!!batchIDs && batchIDs.length > 0) {
-            dataRecordQCResultsPipeline.push({
-                $match: {
-                    $expr: {
-                        $gt: [
-                            {
-                                $size: {
-                                    $setIntersection: ["$batchIDs", batchIDs]
-                                }
-                            },
-                            0
-                        ]
-                    }
-                }
-            });
-        }
-        // Collect all validation results
-        dataRecordQCResultsPipeline.push({
-            $set: {
-                results: {
-                    validation_type: BATCH.TYPE.METADATA,
-                    type: "$nodeType",
-                    submittedID: "$nodeID",
-                    additionalErrors: "$additionalErrors"
-                }
-            }
-        })
-        // Unwind validation results into individual documents
-        dataRecordQCResultsPipeline.push({
-            $unwind: "$results"
-        })
-        // Filter out empty validation results
-        dataRecordQCResultsPipeline.push({
-            $match: {
-                additionalErrors: {
-                    $exists: true,
-                    $not: {
-                        $size: 0,
-                    },
-                    $type: "array"
-                }
-            }
-        });
-        // Unwind additional errors and conflicting submissions
-        dataRecordQCResultsPipeline.push({
-            $unwind: {
-                path: "$additionalErrors"
-            }
-        });
-        dataRecordQCResultsPipeline.push({
-            $unwind: {
-                path: "$additionalErrors.conflictingSubmissions"
-            }
-        });
-        // Group errors by conflicting submission
-        dataRecordQCResultsPipeline.push({
-            $group: {
-                _id: {
-                    submissionID: "$submissionID",
-                    type: "$results.type",
-                    validationType: "$results.validation_type",
-                    batchID: "$latestBatchID",
-                    displayID: "$latestBatchDisplayID",
-                    submittedID: "$results.submittedID",
-                    uploadedDate: "$updatedAt",
-                    validatedDate: "$validatedAt",
-                    warnings: [],
-                    severity: VALIDATION_STATUS.ERROR,
-                    conflictingSubmission: "$additionalErrors.conflictingSubmissions"
-                },
-                errors: {
-                    $addToSet: "$additionalErrors"
-                }
-            }
-        });
-        // Reformatting
-        dataRecordQCResultsPipeline.push({
-            $set:{
-                "_id.errors": "$errors"
-            }
-        });
-        dataRecordQCResultsPipeline.push({
-            $replaceRoot: {
-                newRoot: "$_id"
-            }
-        });
-        // Filter by node types
-        if (!!nodeTypes && nodeTypes.length > 0) {
-            dataRecordQCResultsPipeline.push({
-                $match: {
-                    type: {
-                        $in: nodeTypes
-                    }
-                }
-            });
-        }
-        if (severities === ERROR){
-            severities = [ERROR];
-        }
-        else if (severities === WARNING){
-            severities = [WARNING];
-        }
-        else {
-            severities = [ERROR, WARNING];
-        }
-        dataRecordQCResultsPipeline.push({
-            $match: {
-                severity: {
-                    $in: severities
-                }
-            }
-        })
-        // Create count pipeline
-        let countPipeline = [...dataRecordQCResultsPipeline];
-        countPipeline.push({
-            $count: "total"
-        });
-        const countPipelineResult = await this.dataRecordsCollection.aggregate(countPipeline);
-        const totalRecords = countPipelineResult[0]?.total;
-
-        // Create page and sort steps
-        let pagedPipeline = [...dataRecordQCResultsPipeline];
-        const nodeType = "type";
-        let sortFields = {
-            [orderBy]: getSortDirection(sortDirection),
-        };
-        if (orderBy !== nodeType){
-            sortFields[nodeType] = 1
-        }
-        pagedPipeline.push({
-            $sort: sortFields
-        });
-        pagedPipeline.push({
-            $skip: offset
-        });
-        if (first > 0){
-            pagedPipeline.push({
-                $limit: first
-            });
-        }
-        // Query page of results
-        const pagedPipelineResult = await this.dataRecordsCollection.aggregate(pagedPipeline);
-        const dataRecords = this._replaceNaN(pagedPipelineResult, null);
-        return {
-            results: dataRecords || [],
-            total: totalRecords || 0
-        }
-    }
-
     async deleteMetadataByFilter(filter){
         return await this.dataRecordsCollection.deleteMany(filter);
     }
@@ -394,67 +234,6 @@ class DataRecordService {
         // Step 2: Execute all promises in parallel
         return await Promise.all(promiseArray);
         
-    }
-
-    async submissionNodes(submissionID, nodeType, first, offset, orderBy, sortDirection, query=null) {
-        // set orderBy
-        let sort = orderBy;
-        if ( !Object.keys(NODE_VIEW).includes(orderBy)) {
-            if ( orderBy.indexOf(".") > 0) 
-                sort = `rawData.${orderBy.replace(".", "|")}`;
-            else
-                sort = `props.${orderBy}`;
-        }
-        let pipeline = [];
-        pipeline.push({
-            $match: (!query)?{
-                submissionID: submissionID, 
-                nodeType: nodeType
-            }:query
-        });
-        pipeline.push({
-            $project: NODE_VIEW
-        });
-        let page_pipeline = [];
-        const nodeID= "nodeID";
-        let sortFields = {
-            [sort]: getSortDirection(sortDirection),
-        };
-        if (sort !== nodeID){
-            sortFields[nodeID] = 1
-        }
-        page_pipeline.push({
-            $sort: sortFields
-        });
-        // if -1, returns all data of given node & ignore offset
-        if (first !== -1) {
-            page_pipeline.push({
-                $skip: offset
-            });
-            page_pipeline.push({
-                $limit: first
-            });
-        }
-
-        pipeline.push({
-            $facet: {
-                total: [{
-                    $count: "total"
-                }],
-                results: page_pipeline
-            }
-        });
-        pipeline.push({
-            $set: {
-                total: {
-                    $first: "$total.total",
-                }
-            }
-        });
-        let dataRecords = await this.dataRecordsCollection.aggregate(pipeline);
-        dataRecords = dataRecords.length > 0 ? dataRecords[0] : {}
-        return {total: dataRecords.total || 0,
-            results: dataRecords.results || []}
     }
 
     async submissionDataFiles(submissionID, s3FileNames) {
@@ -476,9 +255,9 @@ class DataRecordService {
         return await this.dataRecordsCollection.aggregate(pipeline);
     }
 
-    async NodeDetail(submissionID, nodeType, nodeID){
+    async nodeDetail(submissionID, nodeType, nodeID){
         const aNode = await this._getNode(submissionID, nodeType, nodeID);
-        let nodeDetail = {
+        return {
             submissionID: aNode.submissionID,
             nodeID: aNode.nodeID,
             nodeType: aNode.nodeType,
@@ -486,22 +265,21 @@ class DataRecordService {
             parents: this._convertParents(aNode.parents),
             children: await this._getNodeChildren(submissionID, nodeType, nodeID)
         };
-        return nodeDetail
     }
     async _getNode(submissionID, nodeType, nodeID){
-        const aNodes = await this.dataRecordsCollection.aggregate([{
-            $match: {
+        const aNode = await this.dataRecordDAO.findFirst(
+            {
                 nodeID: nodeID,
                 nodeType: nodeType,
                 submissionID: submissionID
-            }},
-            {$limit: 1}
-        ]);
-        if(aNodes.length === 0){
+            }
+        );
+
+        if(!aNode){
             throw new Error(ERRORS.INVALID_NODE_NOT_FOUND);
         }
-        else 
-            return aNodes[0];
+
+        return aNode;
     }
     _convertParents(parents){
         parents = Array.isArray(parents) ? parents : [];
@@ -517,26 +295,29 @@ class DataRecordService {
     }
 
     async _getNodeChildren(submissionID, nodeType, nodeID){
-        let convertedChildren= [];
         // get children
-        const children = await this.dataRecordsCollection.aggregate([{
-            $match: {
-                "parents.parentIDValue": nodeID,
-                "parents.parentType": nodeType,
-                submissionID: submissionID
-            }}
-        ]);
+        const children = await this.dataRecordDAO.findMany({
+            parents: {
+                some: {
+                    parentIDValue: nodeID,
+                    parentType: nodeType
+                },
+            },
+            submissionID: submissionID
+        });
+
         let childTypes = new Set();
         for (let child of children){
             childTypes.add(child.nodeType)
         }
+        let convertedChildren= [];
         childTypes.forEach((childType) => {
-            convertedChildren.push({nodeType: childType, total:children.filter((child) => child.nodeType === childType).length});
+            convertedChildren.push({nodeType: childType, total: children.filter((child) => child.nodeType === childType).length});
         });
         return convertedChildren;
     }
 
-    async RelatedNodes(param){
+    async relatedNodes(param){
         const {
             submissionID, 
             nodeType, 
@@ -575,18 +356,21 @@ class DataRecordService {
             default:
                 throw new Error(ERRORS.INVALID_NODE_RELATIONSHIP);
         }
-        const result = await this.submissionNodes(submissionID, nodeType, first, offset, orderBy, sortDirection, query); 
+        const result = await this.dataRecordDAO.getSubmissionNodes(submissionID, nodeType, first, offset, orderBy, sortDirection, query);
         IDPropName = (IDPropName) ? IDPropName : (result.total > 0)? result.results[0].IDPropName : null;
         return [result, IDPropName];
     }
+
     async listSubmissionNodeTypes(submissionID){
         if (!submissionID){
             return []
         }
-        const filter = {
-            submissionID: submissionID
-        };
-        return await this.dataRecordsCollection.distinct("nodeType", filter);
+
+        const rows = await this.dataRecordDAO.findMany(
+            { submissionID },
+            {select: { nodeType: true }},
+        );
+        return [...new Set(rows.map(r => r?.nodeType).filter(Boolean))];
     }
     // This MongoDB schema is optimized for performance by reducing joins and leveraging document-based structure.
     async resetDataRecords(submissionID, status) {
@@ -602,7 +386,6 @@ class DataRecordService {
                         "$s3FileInfo" // otherwise leave unchanged
         ]}}}]);
     }
-
 
     _getSubmissionStatQuery(submissionID, validNodeStatus) {
         return [
@@ -673,18 +456,6 @@ class DataRecordService {
         ]
     }
 
-    _replaceNaN(results, replacement){
-        if (!Array.isArray(results)) return results;
-        results?.map((result) => {
-            Object.keys(result).forEach((key) => {
-                if (Object.is(result[key], Number.NaN)){
-                    result[key] = replacement;
-                }
-            })
-        });
-        return results;
-    }
-
     async countNodesBySubmissionID(submissionID) {
         const countNodes = await this.dataRecordDAO.count({
             submissionID: submissionID,
@@ -708,21 +479,16 @@ class DataRecordService {
         }
         newNode.props = JSON.stringify(newNode.props);
 
-        // get release node
-        const query = {
+        const releaseNode =  await this.releaseDAO.findFirst({
             dataCommons: dataCommons,
             nodeType: nodeType,
             nodeID: nodeID,
             status: status
-        };
-        const results = await this.releaseCollection.aggregate([{
-            $match: query
-        }]);
+        });
 
-        if(results.length === 0){
+        if (!releaseNode) {
             throw new Error(ERRORS.INVALID_RELEASED_NODE_NOT_FOUND);
         }
-        const releaseNode = results[0];
         releaseNode.status = status;
         releaseNode.props = JSON.stringify(releaseNode.props);
         return [newNode, releaseNode]

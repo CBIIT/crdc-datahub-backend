@@ -14,6 +14,7 @@ module.exports = Object.freeze({
         INSTITUTIONS: "institution",
         CONFIGURATION: "configuration",
         VALIDATION: "validation",
+        RELEASE: "release",
         DATA_RECORDS: "dataRecord",
         QC_RESULT: "qcResult",
         BATCH: "batch"
