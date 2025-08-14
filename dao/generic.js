@@ -45,7 +45,10 @@ class GenericDAO {
     async findMany(filter, option = {}) {
         filter = convertMongoFilterToPrismaFilter(filter);
         const result = await this.model.findMany({ where: filter, ...option });
-        return result.map(item => ({ ...item, _id: item.id }));
+        return result.map(item => ({
+            ...item,
+            ...(item.id ? { _id: item.id } : {})
+        }));
     }
 
     async update(id, data) {

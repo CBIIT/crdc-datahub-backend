@@ -3,12 +3,13 @@ require('aws-sdk/lib/maintenance_mode_message').suppress = true;
 const {v4} = require('uuid');
 const config = require('../config');
 const ERROR = require("../constants/error-constants");
-
+const TEMP_TOKEN_DURATION_HOURS = 'temp_token_duration_hours';
 /**
  * This class provides services for aWS requests
  */
 class AWSService {
-    constructor() {
+    constructor(configurationService) {
+        this.configurationService = configurationService;
         this.s3 = new AWS.S3();
         this.sqs = new AWS.SQS();
         this.sts = new AWS.STS();
@@ -27,6 +28,7 @@ class AWSService {
         // Initialize an STS object
         const sts = new AWS.STS();
         const timestamp = (new Date()).getTime();
+        const duration_hours = this.configurationService.findByType(TEMP_TOKEN_DURATION_HOURS)?.value || 1;
         //add s3 object access policy
         const policy = {
             Version: '2012-10-17',
@@ -41,9 +43,10 @@ class AWSService {
         const s3Params = {
             RoleArn: config.role_arn,
             RoleSessionName: `Temp_Session_${timestamp}`,
-            Policy: JSON.stringify(policy)
+            DurationSeconds: duration_hours * 3600,
+            Policy: JSON.stringify(policy), 
         };
-        return new Promise((resolve, reject) => {
+        const result = await new Promise((resolve, reject) => {
             sts.assumeRole(s3Params, (err, data) => {
                 if (err) reject(err);
                 else {
@@ -51,10 +54,21 @@ class AWSService {
                         accessKeyId: data.Credentials.AccessKeyId,
                         secretAccessKey: data.Credentials.SecretAccessKey,
                         sessionToken: data.Credentials.SessionToken,
+                        expiration: data.Credentials.Expiration
                     });
                 }
             });
         });
+
+        const expiration = result?.expiration;
+        if (expiration) {
+            console.debug("Temporary credentials obtained successfully");
+            const now = new Date();
+            const durationHours =
+                (expiration.getTime() - now.getTime()) / 1000 / 3600;
+            console.debug("Token is valid for:", durationHours.toFixed(2), "hours");
+        }
+        return result;
     }
 
     /**

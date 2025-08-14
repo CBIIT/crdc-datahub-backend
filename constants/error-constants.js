@@ -74,7 +74,7 @@ const ERROR = {
     MISSING_CREATE_SUBMISSION_DBGAPID: "dbGapID is required for controlled-access studies.",
     MISSING_CREATE_SUBMISSION_PENDING_GPA: "Submission cannot be created while GPA approval is pending for this controlled-access study.",
     PENDING_APPROVED_STUDY: "The Data Commons team is reviewing this study for potential data model changes. Data submissions cannot be created until any required model updates are released.",
-    PENDING_APPROVED_STUDY_NO_GPA_INFO: "GPA(Genomic Program Administrator) info is missing for controlled-access studies.",
+    PENDING_APPROVED_STUDY_NO_GPA_INFO: "Data submissions cannot be created until the required GPA updates are provided.",
     // List Submissions
     LIST_SUBMISSION_INVALID_STATUS_FILTER: "The status filter is invalid",
     INVALID_SUBMISSION_PERMISSION: "You do not have the correct permissions to list submissions",

@@ -193,7 +193,7 @@ type OMBConfiguration{
     expirationDate: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
     type: String
 }
-type ApplicationFromVersion{
+type ApplicationFormVersion{
     _id: ID
     type: String
     current: String
@@ -273,6 +273,7 @@ type TempCredentials {
     accessKeyId: String
     secretAccessKey: String
     sessionToken: String
+    expiration: Date
 }
 
 type ReleasedStudy {
@@ -413,6 +414,7 @@ type QCResult{
     severity: String # [Error, Warning]
     uploadedDate: Date
     validatedDate: Date
+    issueCount: Int
     errors: [ErrorMessage]
     warnings: [ErrorMessage]
 }
@@ -884,7 +886,7 @@ type Query {
 
     downloadMetadataFile(batchID: String!, fileName: String):String # download metadata file from S3 with presigned URL
 
-    getApplicationFromVersion: ApplicationFromVersion
+    getApplicationFormVersion: ApplicationFormVersion
     retrieveCLIUploaderVersion: String @public
     isMaintenanceMode: Boolean @public
     userIsPrimaryContact(userID: ID!): Boolean

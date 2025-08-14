@@ -81,7 +81,7 @@ dbConnector.connect().then(async () => {
     const userService = new UserService(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, approvedStudiesService, config.inactive_user_days, configurationService, institutionService, authorizationService);
     const s3Service = new S3Service();
     const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
-    const awsService = new AWSService();
+    const awsService = new AWSService(configurationService);
 
     const utilityService = new UtilityService();
     const fetchDataModelInfo = async () => {
@@ -113,7 +113,7 @@ dbConnector.connect().then(async () => {
     const submissionService = new Submission(logCollection, submissionCollection, batchService, userService,
         organizationService, notificationsService, dataRecordService, fetchDataModelInfo, awsService, config.export_queue,
         s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService, config.uploaderCLIConfigs,
-        config.submission_bucket, configurationService, uploadingMonitor, config.dataCommonsBucketMap, authorizationService, dataModelService);
+        config.submission_bucket, configurationService, uploadingMonitor, config.dataCommonsBucketMap, authorizationService, dataModelService, dataRecordArchiveCollection);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService, configurationService, authorizationService);
 
     const dashboardService = new DashboardService(userService, awsService, configurationService, {sessionTimeout: config.dashboardSessionTimeout}, authorizationService);
@@ -237,7 +237,7 @@ dbConnector.connect().then(async () => {
         retrievePBACDefaults: configurationService.getPBACDefaults.bind(configurationService),
         downloadMetadataFile: submissionService.getMetadataFile.bind(submissionService),
         retrieveCLIUploaderVersion: configurationService.retrieveCLIUploaderVersion.bind(configurationService),
-        getApplicationFromVersion: configurationService.getApplicationFromVersion.bind(configurationService),
+        getApplicationFormVersion: configurationService.getApplicationFormVersion.bind(configurationService),
         userIsPrimaryContact: userService.isUserPrimaryContact.bind(userService),
         isMaintenanceMode: configurationService.isMaintenanceMode.bind(configurationService),
         getSubmissionAttributes: submissionService.getSubmissionAttributes.bind(submissionService),
