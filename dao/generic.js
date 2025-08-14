@@ -7,83 +7,181 @@ class GenericDAO {
     }
 
     async create(data) {
-        const res = await this.model.create({ data });
-        return { ...res, _id: res.id };
+        try {
+            const res = await this.model.create({ data });
+            return { ...res, _id: res.id };
+        } catch (error) {
+            console.error(`GenericDAO.create failed for ${this.model.name}:`, {
+                error: error.message,
+                data: JSON.stringify(data),
+                stack: error.stack
+            });
+            throw new Error(`Failed to create ${this.model.name}`);
+        }
     }
 
     async createMany(data) {
-        return await this.model.createMany({data});
+        try {
+            return await this.model.createMany({data});
+        } catch (error) {
+            console.error(`GenericDAO.createMany failed for ${this.model.name}:`, {
+                error: error.message,
+                dataCount: Array.isArray(data) ? data.length : 0,
+                stack: error.stack
+            });
+            throw new Error(`Failed to create many ${this.model.name}`);
+        }
     }
 
     async findById(id) {
-        const result = await this.model.findUnique({ where: { id } });
-        if (!result) {
-            return null;
+        try {
+            const result = await this.model.findUnique({ where: { id } });
+            if (!result) {
+                return null;
+            }
+            return { ...result, _id: result.id };
+        } catch (error) {
+            console.error(`GenericDAO.findById failed for ${this.model.name}:`, {
+                error: error.message,
+                id,
+                stack: error.stack
+            });
+            throw new Error(`Failed to find ${this.model.name} by ID`);
         }
-        return { ...result, _id: result.id };
     }
 
     async findAll() {
-        const result = await this.model.findMany();
-        return result.map(item => ({ ...item, _id: item.id }));
+        try {
+            const result = await this.model.findMany();
+            return result.map(item => ({ ...item, _id: item.id }));
+        } catch (error) {
+            console.error(`GenericDAO.findAll failed for ${this.model.name}:`, {
+                error: error.message,
+                stack: error.stack
+            });
+            throw new Error(`Failed to find all ${this.model.name}`);
+        }
     }
 
     async findFirst(where, option = {}) {
-        where = convertMongoFilterToPrismaFilter(where);
-        const result = await this.model.findFirst({
-            where,
-            ...option
-        });
-        if (!result) {
-            return null;
+        try {
+            where = convertMongoFilterToPrismaFilter(where);
+            const result = await this.model.findFirst({
+                where,
+                ...option
+            });
+            if (!result) {
+                return null;
+            }
+            return { ...result, _id: result.id };
+        } catch (error) {
+            console.error(`GenericDAO.findFirst failed for ${this.model.name}:`, {
+                error: error.message,
+                where: JSON.stringify(where),
+                options: JSON.stringify(option),
+                stack: error.stack
+            });
+            throw new Error(`Failed to find first ${this.model.name}`);
         }
-        return { ...result, _id: result.id };
     }
+
     async findMany(filter, option = {}) {
-        filter = convertMongoFilterToPrismaFilter(filter);
-        const result = await this.model.findMany({ where: filter, ...option });
-        return result.map(item => ({
-            ...item,
-            ...(item.id ? { _id: item.id } : {})
-        }));
+        try {
+            filter = convertMongoFilterToPrismaFilter(filter);
+            const result = await this.model.findMany({ where: filter, ...option });
+            return result.map(item => ({
+                ...item,
+                ...(item.id ? { _id: item.id } : {})
+            }));
+        } catch (error) {
+            console.error(`GenericDAO.findMany failed for ${this.model.name}:`, {
+                error: error.message,
+                filter: JSON.stringify(filter),
+                options: JSON.stringify(option),
+                stack: error.stack
+            });
+            throw new Error(`Failed to find many ${this.model.name}`);
+        }
     }
 
     async update(id, data) {
-        // Patch: If id is not provided, try to extract from data._id or data.id
-        if (!id) {
-            id = data._id || data.id;
+        try {
+            // Patch: If id is not provided, try to extract from data._id or data.id
+            if (!id) {
+                id = data._id || data.id;
+            }
+            // Accidental _id or id fields should be excluded.
+            const { _id, id: dataId, ...updateData } = data;
+            const res = await this.model.update({ where: { id }, data: updateData });
+            return { ...res, _id: res.id };
+        } catch (error) {
+            console.error(`GenericDAO.update failed for ${this.model.name}:`, {
+                error: error.message,
+                id,
+                updateData: JSON.stringify(data),
+                stack: error.stack
+            });
+            throw new Error(`Failed to update ${this.model.name}`);
         }
-        // Accidental _id or id fields should be excluded.
-        const { _id, id: dataId, ...updateData } = data;
-        const res = await this.model.update({ where: { id }, data: updateData });
-        return { ...res, _id: res.id };
     }
 
     async updateMany(condition, data){
-        return await this.model.updateMany({ where: { ...condition }, data: { ...data }});
+        try {
+            return await this.model.updateMany({ where: { ...condition }, data: { ...data }});
+        } catch (error) {
+            console.error(`GenericDAO.updateMany failed for ${this.model.name}:`, {
+                error: error.message,
+                condition: JSON.stringify(condition),
+                data: JSON.stringify(data),
+                stack: error.stack
+            });
+            throw new Error(`Failed to update many ${this.model.name}`);
+        }
     }
 
     async deleteMany(where) {
-        return await this.model.deleteMany({ where});
+        try {
+            return await this.model.deleteMany({ where});
+        } catch (error) {
+            console.error(`GenericDAO.deleteMany failed for ${this.model.name}:`, {
+                error: error.message,
+                where: JSON.stringify(where),
+                stack: error.stack
+            });
+            throw new Error(`Failed to delete many ${this.model.name}`);
+        }
     }
 
     async delete(id) {
-        return await this.model.delete({ where: { id } });
+        try {
+            return await this.model.delete({ where: { id } });
+        } catch (error) {
+            console.error(`GenericDAO.delete failed for ${this.model.name}:`, {
+                error: error.message,
+                id,
+                stack: error.stack
+            });
+            throw new Error(`Failed to delete ${this.model.name}`);
+        }
     }
+
     /**
-     * Counts the number of documents in the collection based on the given filter and optional distinct fields.
+     * Counts the number of documents in the collection based on the given filter.
      *
      * @param {Object} where - The filter conditions to apply (e.g., { status: 'SUBMITTED' }).
-     * @param {string|string[]} distinct - A single field or an array of fields to count distinct values for.
-     * @returns {Promise<number>} - The count of matching documents (optionally distinct).
+     * @returns {Promise<number>} - The count of matching documents.
      */
-    async count(where, distinct) {
-        const arr = !Array.isArray(distinct) ? [distinct] : distinct;
-        const res = await this.model.findMany({
-            where,
-            distinct: arr
-        });
-        return res?.length || 0;
+    async count(where) {
+        try {
+            return await this.model.count({ where });
+        } catch (error) {
+            console.error(`GenericDAO.count failed for ${this.model.name}:`, {
+                error: error.message,
+                where: JSON.stringify(where),
+                stack: error.stack
+            });
+            throw new Error(`Failed to count ${this.model.name}`);
+        }
     }
 }
 
