@@ -1,5 +1,7 @@
 const prisma = require("../prisma");
-const {convertMongoFilterToPrismaFilter, handleDotNotation} = require('./utils/orm-converter');
+const {convertMongoFilterToPrismaFilter, 
+    handleDotNotation,
+    mongoSortToPrismaOrderBy} = require('./utils/orm-converter');
 const {SORT} = require('../constants/db-constants');
 
 class GenericDAO {
@@ -129,9 +131,7 @@ class GenericDAO {
         for (const stage of pipeline) {
             if (stage.$match) query = { ...query, ...stage.$match };
             if (stage.$sort) {
-                orderBy = Object.entries(stage.$sort).map(([field, dir]) => ({
-                    [field]: dir === -1 ? SORT.DESC : SORT.ASC
-                }));
+                orderBy = mongoSortToPrismaOrderBy(stage.$sort);
             }
             if (stage.$limit) take = stage.$limit;
             if (stage.$skip) skip = stage.$skip;
@@ -158,6 +158,7 @@ class GenericDAO {
         });
         return apps.map(app => ({ ...app, _id: app.id }));
     }
+
 }
 
 module.exports = GenericDAO;
