@@ -1,14 +1,36 @@
 const ERROR = require("../../constants/error-constants");
-const {MongoDBCollection} = require("../../crdc-datahub-database-drivers/mongodb-collection");
 const {Application} = require("../../services/application");
 const {TEST_SESSION, TEST_APPLICATION} = require("../test-constants");
 const {v4} = require("uuid");
 const {IN_PROGRESS} = require("../../constants/application-constants");
 
-jest.mock("../../crdc-datahub-database-drivers/mongodb-collection");
-const applicationCollection = new MongoDBCollection();
-const logCollection = new MongoDBCollection();
-const dataInterface = new Application(logCollection,applicationCollection);
+// Mock Prisma
+jest.mock("../../prisma", () => {
+    const mockPrismaModel = {
+        create: jest.fn(),
+        createMany: jest.fn(),
+        findUnique: jest.fn(),
+        findMany: jest.fn(),
+        findFirst: jest.fn(),
+        update: jest.fn(),
+        updateMany: jest.fn(),
+        deleteMany: jest.fn(),
+        delete: jest.fn(),
+        count: jest.fn(),
+        name: 'MockModel'
+    };
+
+    return {
+        application: mockPrismaModel,
+        log: mockPrismaModel
+    };
+});
+
+// Mock collections using Prisma models
+const mockPrisma = require("../../prisma");
+const applicationCollection = mockPrisma.application;
+const logCollection = mockPrisma.log;
+const dataInterface = new Application(logCollection, applicationCollection);
 
 describe('saveApplication API test', () => {
 

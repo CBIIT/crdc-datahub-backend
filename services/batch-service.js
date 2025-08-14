@@ -16,9 +16,8 @@ const LOAD_METADATA = "Load Metadata";
 const OMIT_DCF_PREFIX = 'omit-DCF-prefix';
 const ID = "id";
 class BatchService {
-    constructor(s3Service, batchCollection, sqsLoaderQueue, awsService, prodURL, fetchDataModelInfo) {
+    constructor(s3Service, sqsLoaderQueue, awsService, prodURL, fetchDataModelInfo) {
         this.s3Service = s3Service;
-        this.batchCollection = batchCollection;
         this.sqsLoaderQueue = sqsLoaderQueue;
         this.awsService = awsService;
         this.prodURL = prodURL;
@@ -57,7 +56,7 @@ class BatchService {
     }
 
     async findOneBatchByStatus(submissionID, status) {
-        return await this.batchCollection.aggregate([{ "$match": { submissionID, status } }, { "$limit": 1 }]) || [];
+        return await this.batchDAO.findByStatus(submissionID, status);
     }
 
     async updateBatch(aBatch, bucketName, files) {
@@ -139,7 +138,7 @@ class BatchService {
             }
             aBatch.errors = Array.from(new Set(aBatch.errors || []));
         }
-        await asyncUpdateBatch(this.awsService, this.batchCollection, aBatch, this.sqsLoaderQueue, isAllUploaded, isAllSkipped);
+        await asyncUpdateBatch(this.awsService, this.batchDAO, aBatch, this.sqsLoaderQueue, isAllUploaded, isAllSkipped);
         return await this.findByID(aBatch._id);
     }
 
@@ -148,7 +147,7 @@ class BatchService {
         const pagination = new PrismaPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
         const [batches, count] = await Promise.all([
             this.batchDAO.findMany(where, pagination.getPagination()),
-            this.batchDAO.count(where, ID)
+            this.batchDAO.count(where)
         ]);
 
         return {
@@ -158,7 +157,7 @@ class BatchService {
     }
 
     async deleteBatchByFilter(filter) {
-        return await this.batchCollection.deleteMany(filter);
+        return await this.batchDAO.deleteByFilter(filter);
     }
 
     async findByID(id) {
@@ -166,10 +165,7 @@ class BatchService {
     }
     // private function
     async _getBatchDisplayID(submissionID) {
-        const pipeline = [{$match: {submissionID}}, {$count: "total"}];
-        const batches = await this.batchCollection.aggregate(pipeline);
-        const totalDocs = batches.pop();
-        return totalDocs?.total + 1 || 1;
+        return await this.batchDAO.getNextDisplayID(submissionID);
     }
     /**
      * getLastFileBatchID
@@ -178,17 +174,7 @@ class BatchService {
      * @returns int
      */
     async getLastFileBatchID(submissionID, fileName){
-        const pipeline = [
-            {$match: {submissionID: submissionID, type: "data file", "files.fileName": fileName, status: "Uploaded"}},
-            {$project: {
-                _id: 0,
-                batchID: "$displayID"
-            }},
-            {$sort: {displayID: -1}},
-            {$limit: 1}
-        ];
-        const batches = await this.batchCollection.aggregate(pipeline);
-        return (batches && batches.length > 0)? batches[0].batchID : null;
+        return await this.batchDAO.getLastFileBatchID(submissionID, fileName);
     }
     /**
      * getMetadataFile
@@ -254,10 +240,10 @@ class BatchService {
     }
 }
 
-const asyncUpdateBatch = async (awsService, batchCollection, aBatch, sqsLoaderQueue, isAllUploaded, isAllSkipped) => {
+const asyncUpdateBatch = async (awsService, batchDAO, aBatch, sqsLoaderQueue, isAllUploaded, isAllSkipped) => {
     aBatch.updatedAt = getCurrentTime();
-    const updated = await batchCollection.update(aBatch);
-    if (!updated?.acknowledged){
+    const updated = await batchDAO.update(aBatch._id, aBatch);
+    if (!updated){
         const error = ERROR.FAILED_BATCH_UPDATE;
         console.error(error);
         throw new Error(error);
@@ -287,20 +273,20 @@ const createPrefix = (params, rootPath) => {
 const UPLOADING_BATCH_POOL_FILE = "./logs/uploading_batch_pool.json";
 class UploadingMonitor {
     static instance;
-    constructor(batchCollection, configurationService) {
-        this.batchCollection = batchCollection;
+    constructor(batchDAO, configurationService) {
+        this.batchDAO = batchDAO;
         this._initialize(configurationService);
     }
 
     /**
      * getInstance
-     * @param {*} batchCollection
+     * @param {*} batchDAO
      * @param {*} configurationService
      * @returns UploadingChecker
      */
-    static getInstance(batchCollection, configurationService) {
+    static getInstance(batchDAO, configurationService) {
         if (!UploadingMonitor.instance) {
-            UploadingMonitor.instance = new UploadingMonitor(batchCollection, configurationService);
+            UploadingMonitor.instance = new UploadingMonitor(batchDAO, configurationService);
         }
         return UploadingMonitor.instance;
     }
@@ -383,9 +369,12 @@ class UploadingMonitor {
 
     async setUploadingFailed(batchID, status, error, throwable = false) {
         try {
-            const response = await this.batchCollection.update({"_id": batchID},
-                {$set: {"status": status, "errors": [error],"updatedAt": new Date()}});
-            if (!response?.acknowledged) {
+            const response = await this.batchDAO.update(batchID, {
+                status: status, 
+                errors: [error],
+                updatedAt: new Date()
+            });
+            if (!response) {
                 console.error(ERROR.FAILED_UPDATE_BATCH_STATUS);
                 throw new Error(ERROR.FAILED_UPDATE_BATCH_STATUS);
             }

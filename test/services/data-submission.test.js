@@ -4,7 +4,6 @@ const {ValidationHandler} = require("../../utility/validation-handler");
 const {ROLE} = require("../../constants/permission-scope-constants");
 const {replaceErrorString} = require("../../utility/string-util");
 const {Organization} = require("../../crdc-datahub-database-drivers/services/organization");
-const {MongoDBCollection} = require("../../crdc-datahub-database-drivers/mongodb-collection");
 const {INTENTION, DATA_TYPE, IN_PROGRESS, SUBMITTED, RELEASED, REJECTED, WITHDRAWN,
     NEW,
     COLLABORATOR_PERMISSIONS,
@@ -18,7 +17,37 @@ const {INTENTION, DATA_TYPE, IN_PROGRESS, SUBMITTED, RELEASED, REJECTED, WITHDRA
 const {getDataCommonsDisplayNamesForSubmission} = require("../../utility/data-commons-remapper");
 const USER_PERMISSION_CONSTANTS = require("../../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {USER} = require("../../crdc-datahub-database-drivers/constants/user-constants"); // ← adjust path if needed
-jest.mock("../../crdc-datahub-database-drivers/mongodb-collection");
+
+// Mock Prisma
+jest.mock("../../prisma", () => {
+    const mockPrismaModel = {
+        create: jest.fn(),
+        createMany: jest.fn(),
+        findUnique: jest.fn(),
+        findMany: jest.fn(),
+        findFirst: jest.fn(),
+        update: jest.fn(),
+        updateMany: jest.fn(),
+        deleteMany: jest.fn(),
+        delete: jest.fn(),
+        count: jest.fn(),
+        aggregate: jest.fn(),
+        name: 'MockModel'
+    };
+
+    return {
+        organization: mockPrismaModel,
+        submission: mockPrismaModel,
+        user: mockPrismaModel,
+        log: mockPrismaModel,
+        dataRecord: mockPrismaModel,
+        batch: mockPrismaModel,
+        qcResult: mockPrismaModel,
+        release: mockPrismaModel,
+        validation: mockPrismaModel
+    };
+});
+
 jest.mock('../../verifier/user-info-verifier', () => ({
     verifySession: jest.fn(() => ({
         verifyInitialized: jest.fn()
@@ -37,7 +66,10 @@ describe('Submission.getPendingPVs', () => {
         const mockSubmissionCollection = {
             aggregate: mockAggregate
         };
-        const organizationService = new Organization(new MongoDBCollection())
+        
+        // Mock organization service using Prisma
+        const mockPrisma = require("../../prisma");
+        const organizationService = new Organization(mockPrisma.organization);
 
         // Instantiate Submission with mocked submissionCollection
         service = new Submission(

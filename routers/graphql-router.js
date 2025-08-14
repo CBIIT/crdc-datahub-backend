@@ -7,7 +7,7 @@ const {AWSService} = require("../services/aws-request");
 const {CDE} = require("../services/CDEService");
 const {MongoQueries} = require("../crdc-datahub-database-drivers/mongo-queries");
 const {DATABASE_NAME, APPLICATION_COLLECTION, SUBMISSIONS_COLLECTION, USER_COLLECTION, ORGANIZATION_COLLECTION, LOG_COLLECTION,
-    APPROVED_STUDIES_COLLECTION, BATCH_COLLECTION,
+    APPROVED_STUDIES_COLLECTION,
     DATA_RECORDS_COLLECTION,
     INSTITUTION_COLLECTION,
     VALIDATION_COLLECTION,
@@ -80,14 +80,13 @@ dbConnector.connect().then(async () => {
     const institutionService = new InstitutionService(institutionCollection, authorizationService);
     const userService = new UserService(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, approvedStudiesService, config.inactive_user_days, configurationService, institutionService, authorizationService);
     const s3Service = new S3Service();
-    const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
     const awsService = new AWSService(configurationService);
 
     const utilityService = new UtilityService();
     const fetchDataModelInfo = async () => {
         return utilityService.fetchJsonFromUrl(config.model_url)
     };
-    const batchService = new BatchService(s3Service, batchCollection, config.sqs_loader_queue, awsService, config.prod_url, fetchDataModelInfo);
+    const batchService = new BatchService(s3Service, config.sqs_loader_queue, awsService, config.prod_url, fetchDataModelInfo);
 
 
     const qcResultCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, QC_RESULTS_COLLECTION);
@@ -106,7 +105,7 @@ dbConnector.connect().then(async () => {
         completedSubmissionDays: config.completed_submission_days, inactiveSubmissionDays: config.inactive_submission_days, finalRemindSubmissionDay: config.inactive_submission_days,
         inactiveApplicationNotifyDays: config.inactiveApplicationNotifyDays};
         
-    const uploadingMonitor = UploadingMonitor.getInstance(batchCollection, configurationService);
+    const uploadingMonitor = UploadingMonitor.getInstance(batchService.batchDAO, configurationService);
 
     const cdeService = new CDE();
     const dataModelService = new DataModelService(fetchDataModelInfo, config.model_url);
