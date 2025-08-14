@@ -84,17 +84,17 @@ class ConfigurationService {
     }
 
     /**
-     * API: retrieveApplicationFromVersion
+     * API: retrieveApplicationFormVersion
      * @param {*} params 
      * @param {*} context 
      * @returns 
      */
-    async getApplicationFromVersion(params, context) {
-        const applicationFromVersion = await this.configurationDAO.findByType(APPLICATION_FORM_VERSIONS);
-        if (!applicationFromVersion) {
+    async getApplicationFormVersion(params, context) {
+        const applicationFormVersion = await this.configurationDAO.findByType(APPLICATION_FORM_VERSIONS);
+        if (!applicationFormVersion) {
             throw new Error(ERROR.APPLICATION_FORM_VERSIONS_NOT_FOUND);
         }
-        return {...applicationFromVersion, _id: applicationFromVersion.id}
+        return {...applicationFormVersion, _id: applicationFormVersion.id}
     }
 
     /**
