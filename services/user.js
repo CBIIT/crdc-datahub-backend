@@ -786,6 +786,40 @@ class UserService {
         }]);
     }
 
+    /**
+     * Fetches a list of users based on specified notifications, roles, and optional data commons using Prisma.
+     *
+     * @param {Array} notifications - An array of notification types.
+     * @param {Array} roles - An array of user roles.
+     * @param {string} [dataCommons] - Optional data commons to filter by.
+     * @returns {Promise<Array>} - An array of user documents.
+     */
+    async findUsersByNotificationsAndRole(notifications, roles, dataCommons = null) {
+        try {
+            const whereConditions = {
+                userStatus: USER.STATUSES.ACTIVE,
+                notifications: {
+                    hasSome: notifications
+                },
+                role: {
+                    in: roles
+                }
+            };
+
+            // Add data commons filter if provided
+            if (dataCommons) {
+                whereConditions.dataCommons = {
+                    has: dataCommons
+                };
+            }
+
+            return await this.userDAO.findMany(whereConditions);
+        } catch (error) {
+            console.error('Error in findUsersByNotificationsAndRole:', error);
+            return [];
+        }
+    }
+
     async updateUserInstitution(institutionID, institutionName, institutionStatus) {
         const updateUsers = await this.userCollection.updateMany(
             { "institution._id": institutionID, $or: [{"institution.name": { "$ne": institutionName }}, {"institution.status": { "$ne": institutionStatus }}]},

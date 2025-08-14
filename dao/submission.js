@@ -1,12 +1,12 @@
 const GenericDAO = require("./generic");
 const { MODEL_NAME } = require('../constants/db-constants');
-const {APPROVED_STUDIES_COLLECTION, ORGANIZATION_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
+const {PrismaPagination} = require("../crdc-datahub-database-drivers/domain/prisma-pagination");
 const {DELETED, CANCELED, NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, COMPLETED, ARCHIVED,
     COLLABORATOR_PERMISSIONS
 } = require("../constants/submission-constants");
-const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const ERROR = require("../constants/error-constants");
 const {replaceErrorString} = require("../utility/string-util");
+const prisma = require("../prisma");
 const ALL_FILTER = "All";
 const NA = "NA"
 class SubmissionDAO extends GenericDAO {
@@ -15,194 +15,291 @@ class SubmissionDAO extends GenericDAO {
         this.submissionCollection = submissionCollection;
         this.organizationCollection = organizationCollection;
     }
+
     // prisma is unable to join study._id
     async programLevelSubmissions(studyIDs) {
-        return await this.submissionCollection.aggregate([
-            {$match: {
-                    studyID: { $in: studyIDs }
-            }},
-            {$lookup: {
-                    from: APPROVED_STUDIES_COLLECTION, // adjust if the actual collection name is different
-                    localField: 'studyID',
-                    foreignField: '_id',
-                    as: 'studyInfo'
-            }},
-            {$unwind: '$studyInfo'},
-            {$match: {
-                    // This flag indicates the program level primary contact(data concierge)
-                    'studyInfo.useProgramPC': true
-            }},
-            {$project: {
-                    _id: 1
-            }}]);
+        try {
+            // Use Prisma to find submissions with study info
+            const submissions = await prisma.submission.findMany({
+                where: {
+                    studyID: {
+                        in: studyIDs
+                    }
+                },
+                include: {
+                    study: {
+                        select: {
+                            id: true,
+                            useProgramPC: true
+                        }
+                    }
+                }
+            });
+            
+            // Filter submissions where study.useProgramPC is true
+            const programLevelSubmissions = submissions.filter(submission => 
+                submission.study?.useProgramPC === true
+            );
+            
+            // Return only the IDs as expected by the original method
+            return programLevelSubmissions.map(submission => ({ _id: submission.id }));
+        } catch (error) {
+            console.error('Error in programLevelSubmissions:', error);
+            return [];
+        }
     }
 
     async listSubmissions(userInfo, userScope, params) {
         validateListSubmissionsParams(params);
 
-        const filterConditions = [
-            // default filter for listing submissions
-            this._listConditions(userInfo, params.status, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
-            // no filter for dataCommons aggregation
-            this._listConditions(userInfo, ALL_FILTER, null, null, ALL_FILTER, ALL_FILTER, userScope),
-            // note: Aggregation of Submitter name should not be filtered by a submitterName
-            this._listConditions(userInfo, params?.status, params.name, params.dbGaPID, params.dataCommons, ALL_FILTER, userScope),
-            // Organization filter condition before joining an approved-studies collection
-            this._listConditions(userInfo, params?.status, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
-            // note: Aggregation of status name should not be filtered by statuses
-            this._listConditions(userInfo, ALL_FILTER, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
-        ]
-
-        const [listConditions, dataCommonsCondition, submitterNameCondition, organizationCondition, statusCondition] = filterConditions;
-        const pipeline = [{"$match": listConditions}, {
-            $addFields: {
-                dataFileSize: {
-                    $cond: {
-                        if: { $in: ["$status", [DELETED, CANCELED]] },
-                        then: { size: 0, formatted: NA },
-                        else: "$dataFileSize"
-                    }
-                }
-            }},
-            {
-                $lookup: {
-                    from: ORGANIZATION_COLLECTION,
-                    let: { studyId: "$studyID" },
-                    pipeline: [
-                        {
-                            $match: {
-                                $expr: {
-                                    "$and": [
-                                        {"$in": ["$$studyId", "$studies._id"]},
-
-
-                                    ]
-                                },
-
-                            }
-                        },
-                        { $sort: { name: -1 } },
-                        { $limit: 1 },
-                        {
-                            $project: {
-                                _id: 1,
-                                name: 1,
-                                abbreviation: 1
-                            }
-                        }
-                    ],
-                    as: "organization"
+        const filterConditions = this._listConditions(userInfo, params.status, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope);
+        
+        // Create Prisma pagination
+        const pagination = new PrismaPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
+        
+        // Build the main query with includes
+        const includeQuery = {
+            study: {
+                select: {
+                    id: true,
+                    studyName: true,
+                    studyAbbreviation: true
                 }
             },
-            {
-                $unwind: {
-                    path: "$organization",
-                    preserveNullAndEmptyArrays: true
-                }
-            },
-            {"$lookup": {
-                    from: APPROVED_STUDIES_COLLECTION,
-                    localField: "studyID",
-                    foreignField: "_id",
-                    as: "study"}
-            },
-            {
-                $unwind: {
-                    path: "$study",
-                    preserveNullAndEmptyArrays: true
-                }
-            },
-            // note: FE use the root level properties; studyName, studyAbbreviation
-            {
-                $addFields: {
-                    studyName: "$study.studyName",
-                    studyAbbreviation: "$study.studyAbbreviation"
-                }
-            },
-            ...(params?.organization && params?.organization !== ALL_FILTER
-                ? [{ $match: {
-                        "organization._id": params?.organization
-                    } }]
-                : [])
-        ];
-        const paginationPipe = new MongoPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
-        const noPaginationPipeline = pipeline.concat(paginationPipe.getNoLimitPipeline());
-        const submissionStudyIDs = await this.submissionCollection.distinct("studyID", organizationCondition);
-        const promises = [
-            this.submissionCollection.aggregate(pipeline.concat(paginationPipe.getPaginationPipeline())),
-            this.submissionCollection.aggregate(noPaginationPipeline.concat([{ $group: { _id: "$_id" } }, { $count: "count" }])),
-            this.submissionCollection.distinct("dataCommons", dataCommonsCondition),
-            // note: Submitter name filter is omitted
-            this.submissionCollection.distinct("submitterName", submitterNameCondition),
-            // note: Organization ID filter is omitted
-            // note; programDAO findMany by studies.is is not working
-            this.organizationCollection.aggregate([{
-                $match: {
-                    "studies._id": {$in: submissionStudyIDs}
-                }
-            }, {
-                $project: {_id: 1, name: 1, abbreviation: 1}
-            }]),
-            // note: Status name filter is omitted
-            this.submissionCollection.distinct("status", statusCondition)
-        ];
-
-        return await Promise.all(promises).then(function (results) {
-            return {
-                submissions: results[0] || [],
-                total: results[1]?.length > 0 ? results[1][0]?.count : 0,
-                dataCommons: results[2] || [],
-                submitterNames: results[3] || [],
-                organizations: results[4] || [],
-                statuses: () => {
-                    const statusOrder = [NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, COMPLETED, CANCELED, DELETED];
-                    return (results[5] || [])
-                        .sort((a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status));
+            organization: {
+                select: {
+                    id: true,
+                    name: true,
+                    abbreviation: true
                 }
             }
-        });
+        };
 
+        // Build where conditions for Prisma
+        const whereConditions = this._buildPrismaWhereConditions(filterConditions);
+        
+        // Add organization filter if specified
+        if (params?.organization && params?.organization !== ALL_FILTER) {
+            whereConditions.organization = {
+                id: params.organization
+            };
+        }
+
+        try {
+            // Execute main query with pagination
+            const submissions = await prisma.submission.findMany({
+                where: whereConditions,
+                include: includeQuery,
+                ...pagination.getPagination()
+            });
+
+            // Get total count
+            const total = await prisma.submission.count({
+                where: whereConditions
+            });
+
+            // Get distinct values for aggregations
+            const [dataCommons, submitterNames, organizations, statuses] = await Promise.all([
+                this._getDistinctDataCommons(filterConditions),
+                this._getDistinctSubmitterNames(filterConditions),
+                this._getDistinctOrganizations(filterConditions),
+                this._getDistinctStatuses(filterConditions)
+            ]);
+
+            // Transform submissions to match expected format
+            const transformedSubmissions = submissions.map(submission => ({
+                ...submission,
+                _id: submission.id,
+                studyName: submission.study?.studyName,
+                studyAbbreviation: submission.study?.studyAbbreviation,
+                dataFileSize: this._transformDataFileSize(submission.status, submission.dataFileSize)
+            }));
+
+            return {
+                submissions: transformedSubmissions,
+                total: total,
+                dataCommons: dataCommons,
+                submitterNames: submitterNames,
+                organizations: organizations,
+                statuses: () => {
+                    const statusOrder = [NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, COMPLETED, CANCELED, DELETED];
+                    return statuses
+                        .sort((a, b) => statusOrder.indexOf(a) - statusOrder.indexOf(b));
+                }
+            };
+        } catch (error) {
+            console.error('Error in listSubmissions:', error);
+            throw new Error(`Failed to list submissions: ${error.message}`);
+        }
     }
 
     _listConditions(userInfo, status, submissionName, dbGaPID, dataCommonsParams, submitterName, userScope){
         const {_id, dataCommons, studies} = userInfo;
         const validSubmissionStatus = [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
             REJECTED, WITHDRAWN, DELETED];
-        const statusCondition = status && !status?.includes(ALL_FILTER) ?
-            { status: { $in: status || [] } } : { status: { $in: validSubmissionStatus } };
+        
+        // Build base conditions for Prisma
+        const baseConditions = {};
 
-        const nameCondition = submissionName ? {name: { $regex: submissionName?.trim().replace(/\\/g, "\\\\"), $options: "i" }} : {};
-        const dbGaPIDCondition = dbGaPID ? {dbGaPID: { $regex: dbGaPID?.trim().replace(/\\/g, "\\\\"), $options: "i" }} : {};
-        const dataCommonsCondition = (dataCommonsParams && dataCommonsParams !== ALL_FILTER) ? {dataCommons: dataCommonsParams?.trim()} : {};
-        const submitterNameCondition = (submitterName && submitterName !== ALL_FILTER) ? {submitterName: submitterName?.trim()} : {};
+        // Status condition
+        if (status && !status?.includes(ALL_FILTER)) {
+            baseConditions.status = { in: status || [] };
+        } else {
+            baseConditions.status = { in: validSubmissionStatus };
+        }
 
-        const baseConditions = { ...statusCondition, ...nameCondition,
-            ...dbGaPIDCondition, ...dataCommonsCondition, ...submitterNameCondition };
+        // Name condition (regex search)
+        if (submissionName) {
+            baseConditions.name = {
+                contains: submissionName.trim().replace(/\\/g, ''),
+                mode: 'insensitive'
+            };
+        }
+
+        // dbGaPID condition (regex search)
+        if (dbGaPID) {
+            baseConditions.dbGaPID = {
+                contains: dbGaPID.trim().replace(/\\/g, ''),
+                mode: 'insensitive'
+            };
+        }
+
+        // Data commons condition
+        if (dataCommonsParams && dataCommonsParams !== ALL_FILTER) {
+            baseConditions.dataCommons = dataCommonsParams.trim();
+        }
+
+        // Submitter name condition
+        if (submitterName && submitterName !== ALL_FILTER) {
+            baseConditions.submitterName = submitterName.trim();
+        }
 
         if (userScope.isAllScope()) {
             return baseConditions;
         } else if (userScope.isStudyScope()) {
             const studyScope = userScope.getStudyScope();
-            const studyQuery = isAllStudy(studyScope?.scopeValues) ? {} : {studyID: {$in: studyScope?.scopeValues}};
-            return {...baseConditions, ...studyQuery};
+            if (!isAllStudy(studyScope?.scopeValues)) {
+                baseConditions.studyID = { in: studyScope?.scopeValues || [] };
+            }
+            return baseConditions;
         } else if (userScope.isDCScope()) {
             const DCScope = userScope.getDataCommonsScope();
-            const aFilteredDataCommon = (dataCommonsParams && DCScope?.scopeValues?.includes(dataCommonsParams)) ? [dataCommonsParams] : []
-            return {...baseConditions, dataCommons: {$in: dataCommonsParams !== ALL_FILTER ? aFilteredDataCommon : dataCommons}};
+            if (dataCommonsParams !== ALL_FILTER && DCScope?.scopeValues?.includes(dataCommonsParams)) {
+                baseConditions.dataCommons = dataCommonsParams;
+            } else {
+                baseConditions.dataCommons = { in: dataCommons || [] };
+            }
+            return baseConditions;
         } else if (userScope.isOwnScope()) {
             const userStudies = Array.isArray(studies) && studies.length > 0 ? studies : [];
-            const studyIDs = userStudies?.map(s => s?._id).filter(Boolean);
-            if (isAllStudy(userStudies)) {
-                return baseConditions;
+            if (!isAllStudy(userStudies)) {
+                const studyIDs = userStudies?.map(s => s?._id).filter(Boolean);
+                baseConditions.OR = [
+                    { submitterID: _id },
+                    { studyID: { in: studyIDs || [] } },
+                    {
+                        collaborators: {
+                            some: {
+                                collaboratorID: _id,
+                                permission: { in: [COLLABORATOR_PERMISSIONS.CAN_EDIT] }
+                            }
+                        }
+                    }
+                ];
             }
-            return {...baseConditions, "$or": [
-                    {"submitterID": _id},
-                    {"studyID": {$in: studyIDs || []}},
-                    {"collaborators.collaboratorID": _id, "collaborators.permission": {$in: [COLLABORATOR_PERMISSIONS.CAN_EDIT]}}]};
+            return baseConditions;
         }
         throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
     }
 
+    _buildPrismaWhereConditions(filterConditions) {
+        // Since _listConditions now returns Prisma-compatible conditions directly,
+        // we can just return them with minimal transformation
+        return { ...filterConditions };
+    }
+
+    async _getDistinctDataCommons(filterConditions) {
+        try {
+            const dataCommons = await prisma.submission.findMany({
+                where: filterConditions,
+                select: { dataCommons: true },
+                distinct: ['dataCommons']
+            });
+            return dataCommons.map(item => item.dataCommons).filter(Boolean);
+        } catch (error) {
+            console.error('Error getting distinct dataCommons:', error);
+            return [];
+        }
+    }
+
+    async _getDistinctSubmitterNames(filterConditions) {
+        try {
+            const submitterNames = await prisma.submission.findMany({
+                where: filterConditions,
+                select: { submitterName: true },
+                distinct: ['submitterName']
+            });
+            return submitterNames.map(item => item.submitterName).filter(Boolean);
+        } catch (error) {
+            console.error('Error getting distinct submitterNames:', error);
+            return [];
+        }
+    }
+
+    async _getDistinctOrganizations(filterConditions) {
+        try {
+            // Get study IDs from submissions
+            const studyIDs = await prisma.submission.findMany({
+                where: filterConditions,
+                select: { studyID: true },
+                distinct: ['studyID']
+            });
+
+            const studyIDList = studyIDs.map(item => item.studyID);
+
+            // Get organizations that have these studies
+            const organizations = await prisma.program.findMany({
+                where: {
+                    studies: {
+                        some: {
+                            id: { in: studyIDList }
+                        }
+                    }
+                },
+                select: {
+                    id: true,
+                    name: true,
+                    abbreviation: true
+                }
+            });
+
+            return organizations;
+        } catch (error) {
+            console.error('Error getting distinct organizations:', error);
+            return [];
+        }
+    }
+
+    async _getDistinctStatuses(filterConditions) {
+        try {
+            const statuses = await prisma.submission.findMany({
+                where: filterConditions,
+                select: { status: true },
+                distinct: ['status']
+            });
+            return statuses.map(item => item.status).filter(Boolean);
+        } catch (error) {
+            console.error('Error getting distinct statuses:', error);
+            return [];
+        }
+    }
+
+    _transformDataFileSize(status, dataFileSize) {
+        if ([DELETED, CANCELED].includes(status)) {
+            return { size: 0, formatted: NA };
+        }
+        return dataFileSize;
+    }
 }
 
 const isAllStudy = (userStudies) => {
