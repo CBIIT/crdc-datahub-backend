@@ -41,6 +41,7 @@ const {zipFilesInDir} = require("../utility/io-util");
 const PendingPVDAO = require("../dao/pendingPV");
 const sanitizeHtml = require("sanitize-html");
 const {SORT: PRISMA_SORT} = require("../constants/db-constants");
+const prisma = require("../prisma");
 const ProgramDAO = require("../dao/program");
 const UserDAO = require("../dao/user");
 const ApprovedStudyDAO = require("../dao/approvedStudy");
@@ -1735,7 +1736,6 @@ class Submission {
                 localtime: new Date()
             };
             
-            const prisma = require("../prisma");
             const createdLog = await prisma.log.create({
                 data: logData
             });
@@ -2175,7 +2175,6 @@ class Submission {
      */
     async _createLogEntry(logData) {
         try {
-            const prisma = require("../prisma");
             const createdLog = await prisma.log.create({
                 data: logData
             });
@@ -2217,7 +2216,6 @@ class Submission {
                 localtime: new Date()
             };
             
-            const prisma = require("../prisma");
             const createdLog = await prisma.log.create({
                 data: logData
             });
