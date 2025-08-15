@@ -399,21 +399,28 @@ class Submission {
                   if (userIDs.length > 0) {
                       const uniqueUserIDs = [...new Set(userIDs)];
                       
-                      // Fetch all users by their IDs in a batch call
-                      const users = await this.userService.getUsersByIDs(uniqueUserIDs);
-                      
-                      const userMap = {};
-                      users.forEach(user => {
-                          if (user) {
-                              userMap[user._id] = `${user.firstName} ${user.lastName}`;
-                          }
-                      });
-                      
-                      aSubmission.history.forEach(history => {
-                          if (!history?.userName && history?.userID && userMap[history.userID]) {
-                              history.userName = userMap[history.userID];
-                          }
-                      });
+                      try {
+                          // Fetch all users by their IDs in a batch call
+                          const users = await this.userService.getUsersByIDs(uniqueUserIDs);
+                          
+                          const userMap = {};
+                          users.forEach(user => {
+                              if (user) {
+                                  userMap[user._id] = `${user.firstName} ${user.lastName}`;
+                              }
+                          });
+                          
+                          aSubmission.history.forEach(history => {
+                              if (!history?.userName && history?.userID && userMap[history.userID]) {
+                                  history.userName = userMap[history.userID];
+                              }
+                          });
+                      } catch (error) {
+                          // Log error but don't fail the entire operation
+                          // History entries will remain without userNames populated
+                          console.error(`Failed to fetch user names for history entries in submission ${aSubmission._id}:`, error);
+                          console.error(`Affected userIDs:`, uniqueUserIDs);
+                      }
                   }
               }
             })()
