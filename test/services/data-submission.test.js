@@ -1665,6 +1665,12 @@ describe('Submission.updateSubmissionModelVersion', () => {
         mockSubmissionDAO.update.mockResolvedValue(updatedSubmission);
         submissionService._resetValidation.mockResolvedValue();
 
+        // Mock logCollection.insert to avoid TypeError
+        submissionService.logCollection = { insert: jest.fn().mockResolvedValue() };
+
+        // Also mock _notifyConfigurationChange since it is awaited
+        submissionService._notifyConfigurationChange = jest.fn().mockResolvedValue();
+
         const result = await submissionService.updateSubmissionModelVersion(mockParams, mockContext);
 
         expect(submissionService._findByID).toHaveBeenCalledWith('sub1');
@@ -1680,6 +1686,8 @@ describe('Submission.updateSubmissionModelVersion', () => {
             updatedAt: expect.any(Date)
         });
         expect(submissionService._resetValidation).toHaveBeenCalledWith('sub1');
+        expect(submissionService.logCollection.insert).toHaveBeenCalled(); // Ensure log is called
+        expect(submissionService._notifyConfigurationChange).toHaveBeenCalled(); // Ensure notification is called
         expect(result).toEqual(updatedSubmission);
     });
 
@@ -1809,8 +1817,14 @@ describe('Submission.updateSubmissionModelVersion', () => {
         mockSubmissionDAO.update.mockResolvedValue(updatedSubmission);
         submissionService._resetValidation.mockResolvedValue();
 
+        // Mock logCollection.insert to avoid TypeError and to assert it is called
+        submissionService.logCollection = {
+            insert: jest.fn().mockResolvedValue()
+        };
+
         const result = await submissionService.updateSubmissionModelVersion(mockParams, userWithMultipleCommons);
 
         expect(result).toEqual(updatedSubmission);
+        expect(submissionService.logCollection.insert).toHaveBeenCalled();
     });
 });
