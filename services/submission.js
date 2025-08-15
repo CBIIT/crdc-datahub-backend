@@ -106,6 +106,20 @@ class Submission {
         this.validationDAO = new ValidationDAO();
     }
 
+    /**
+     * Helper method to create update data objects with common fields
+     * @param {Object} data - The data to include in the update
+     * @param {boolean|Date} includeTimestamp - Whether to include updatedAt timestamp (default: true) or custom Date object
+     * @returns {Object} - The prepared update data object
+     */
+    _prepareUpdateData(data = {}, includeTimestamp = true) {
+        const updateData = { ...data };
+        if (includeTimestamp) {
+            updateData.updatedAt = includeTimestamp === true ? getCurrentTime() : includeTimestamp;
+        }
+        return updateData;
+    }
+
     async createSubmission(params, context) {
         verifySession(context)
             .verifyInitialized();
@@ -279,10 +293,9 @@ class Submission {
         // new status is ready for the validation
         if (res.status === BATCH.STATUSES.UPLOADED) {
             // Prepare update data for Prisma
-            const updateData = {
-                ...(res?.type === VALIDATION.TYPES.DATA_FILE ? {fileValidationStatus: VALIDATION_STATUS.NEW} : {}),
-                updatedAt: getCurrentTime()
-            };
+            const updateData = this._prepareUpdateData({
+                ...(res?.type === VALIDATION.TYPES.DATA_FILE ? {fileValidationStatus: VALIDATION_STATUS.NEW} : {})
+            });
             
             // Update submission using Prisma DAO instead of MongoDB collection
             const updatedSubmission = await this.submissionDAO.update(aSubmission._id, updateData);
@@ -331,7 +344,7 @@ class Submission {
                 const dataFileSize = await this._getS3DirectorySize(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/`);
                 const isDataFileChanged = aSubmission?.dataFileSize?.size !== dataFileSize.size || aSubmission?.dataFileSize?.formatted !== dataFileSize.formatted;
                 if (isDataFileChanged) {
-                    const updatedSubmission = await this.submissionDAO.update(aSubmission?._id, {dataFileSize, updatedAt: getCurrentTime()});
+                    const updatedSubmission = await this.submissionDAO.update(aSubmission?._id, this._prepareUpdateData({dataFileSize}));
                     if (!updatedSubmission) {
                         throw new Error(ERROR.FAILED_RECORD_FILESIZE_PROPERTY, `SubmissionID: ${aSubmission?._id}`);
                     }
@@ -368,7 +381,7 @@ class Submission {
               if (!aSubmission?.archived) {
                   const submissionNodeCount = await this.dataRecordService.countNodesBySubmissionID(aSubmission?._id);
                   if (aSubmission.nodeCount !== submissionNodeCount) {
-                      const updatedNodeCount = await this.submissionDAO.update(aSubmission?._id, {updatedAt: getCurrentTime(), nodeCount: submissionNodeCount});
+                      const updatedNodeCount = await this.submissionDAO.update(aSubmission?._id, this._prepareUpdateData({nodeCount: submissionNodeCount}));
                       if (!updatedNodeCount) {
                           console.error(`Failed to update the node count; submissionID: ${aSubmission?._id}`);
                       }
@@ -482,12 +495,11 @@ class Submission {
         }
         
         // Prepare update data for Prisma
-        const updateData = {
+        const updateData = this._prepareUpdateData({
             status: newStatus,
             history: events,
-            updatedAt: getCurrentTime(),
             reviewComment: submission?.reviewComment || ""
-        };
+        });
         
         // Add dataFileSize if status is COMPLETED
         if (newStatus === COMPLETED) {
@@ -1132,7 +1144,7 @@ class Submission {
             collaborator.collaboratorName = user.lastName + ", " + user.firstName ;
             collaborator.Organization = user.organization;
         }
-        const result = await this.submissionDAO.update(aSubmission?._id, {collaborators, updatedAt: getCurrentTime()});
+        const result = await this.submissionDAO.update(aSubmission?._id, this._prepareUpdateData({collaborators}));
         if (result) {
             return getDataCommonsDisplayNamesForSubmission(result);
         }
@@ -1200,7 +1212,7 @@ class Submission {
 
     async _deleteDataFiles(existingFiles, aSubmission) {
         // Set a flag when initiating the deletion of S3 files.
-        await this.submissionDAO.update(aSubmission._id, {updatedAt: getCurrentTime(), deletingData: true});
+        await this.submissionDAO.update(aSubmission._id, this._prepareUpdateData({deletingData: true}));
         const existingFilesArr = Array.from(existingFiles.values());
         const promises = existingFilesArr.map(fileKey => this.s3Service.deleteFile(aSubmission?.bucketName, fileKey));
         const res = await Promise.allSettled(promises);
@@ -1227,7 +1239,7 @@ class Submission {
             const deletedFile = existingFiles.get(fileError?.submittedID);
             return notDeletedErrorFiles.includes(fileError.submittedID) || !deletedFile;
         }) || [];
-        await this.submissionDAO.update(aSubmission._id, {updatedAt: getCurrentTime(), fileErrors : errors, deletingData: false});
+        await this.submissionDAO.update(aSubmission._id, this._prepareUpdateData({fileErrors : errors, deletingData: false}));
         return deletedFiles;
     }
 
@@ -1275,7 +1287,7 @@ class Submission {
         if (result === true) {
             await this.dataRecordService.archiveMetadataByFilter({"submissionID": submissionID});
             await this.batchService.deleteBatchByFilter({"submissionID": submissionID});
-            await this.submissionDAO.update(submissionID, {"archived": true, "updatedAt": new Date()});
+            await this.submissionDAO.update(submissionID, this._prepareUpdateData({"archived": true}, new Date()));
         } else {
             console.error(`Failed to delete files in the s3 bucket. SubmissionID: ${submissionID}.`);
         }
@@ -1311,7 +1323,7 @@ class Submission {
                     if (result === true) {
                         await this.dataRecordService.deleteMetadataByFilter({"submissionID": sub._id});
                         await this.batchService.deleteBatchByFilter({"submissionID": sub._id});
-                        await this.submissionDAO.update(sub._id, {"status" : DELETED, "updatedAt": new Date()});
+                        await this.submissionDAO.update(sub._id, this._prepareUpdateData({"status" : DELETED}, new Date()));
                         deletedSubmissions.push(sub);
                         console.debug(`Successfully deleted inactive submissions: ${sub._id}.`);
                     }
@@ -1446,11 +1458,10 @@ class Submission {
                 ]);
                 // note: reset fileValidationStatus if the number of data files changed. No data files exists if null
                 const fileValidationStatus = submissionDataFiles?.length > 0 ? VALIDATION_STATUS.NEW : null;
-                const res = await this.submissionDAO.update(aSubmission?._id, {
+                const res = await this.submissionDAO.update(aSubmission?._id, this._prepareUpdateData({
                     fileValidationStatus,
-                    dataFileSize,
-                    updatedAt: getCurrentTime()
-                });
+                    dataFileSize
+                }));
                 if (!res) {
                     console.error(`failed to update submission data file info; submissionID: ${aSubmission?._id}`);
                 }
@@ -1460,7 +1471,7 @@ class Submission {
 
         const msg = {type: DELETE_METADATA, submissionID: params.submissionID, nodeType: params.nodeType, nodeIDs: params.nodeIDs}
         const success = await this._requestDeleteDataRecords(msg, this.sqsLoaderQueue, params.submissionID, params.submissionID);
-        const updated = await this.submissionDAO.update(aSubmission?._id, {deletingData: isTrue(success?.success), updatedAt: getCurrentTime()});
+        const updated = await this.submissionDAO.update(aSubmission?._id, this._prepareUpdateData({deletingData: isTrue(success?.success)}));
         if (!updated) {
             console.error(ERROR.FAILED_UPDATE_DELETE_STATUS, aSubmission?._id);
             throw new Error(ERROR.FAILED_UPDATE_DELETE_STATUS);
@@ -1778,7 +1789,7 @@ class Submission {
             return;
         }
 
-        const updated = await this.submissionDAO.update(aSubmission?._id, {...typesToUpdate, updatedAt: updatedTime, validationEnded: getCurrentTime()})
+        const updated = await this.submissionDAO.update(aSubmission?._id, this._prepareUpdateData({...typesToUpdate, validationEnded: getCurrentTime()}, false))
         if (validationRecord) {
             validationRecord["ended"] = new Date();
             validationRecord["status"] = "Error";
@@ -1811,10 +1822,9 @@ class Submission {
         }
         const dataValidation = DataValidation.createDataValidation(metadataTypes, validationRecord.scope, validationRecord.started);
         const updated = await this.submissionDAO.update(submissionID,
-            {
-                ...dataValidation,
-                updatedAt: getCurrentTime(),
-        });
+            this._prepareUpdateData({
+                ...dataValidation
+            }));
 
         if (!updated) {
             throw new Error(ERROR.FAILED_RECORD_VALIDATION_PROPERTY);
