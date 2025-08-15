@@ -50,68 +50,6 @@ class ApplicationDAO extends GenericDAO {
         });
         return { matchedCount: result.count, modifiedCount: result.count };
     }
-
-    async aggregate(pipeline) {
-        // Only support simple $match, $sort, $limit for now
-        let query = {};
-        let orderBy = undefined;
-        let take = undefined;
-        let skip = undefined;
-        for (const stage of pipeline) {
-            if (stage.$match) query = { ...query, ...stage.$match };
-            if (stage.$sort) {
-                orderBy = Object.entries(stage.$sort).map(([field, dir]) => ({
-                    [field]: dir === -1 ? SORT.DESC : SORT.ASC
-                }));
-            }
-            if (stage.$limit) take = stage.$limit;
-            if (stage.$skip) skip = stage.$skip;
-        }
-        query = convertMongoFilterToPrismaFilter(query);
-
-        // Flatten dot notation for nested fields (e.g., "applicant.applicantID")
-        // Prisma expects: { applicant: { is: { applicantID: ... } } }
-        for (const key of Object.keys(query)) {
-            if (key.includes('.')) {
-                const [parent, child] = key.split('.');
-                // If already an object, merge
-                if (!query[parent]) query[parent] = {};
-                if (!query[parent].is) query[parent].is = {};
-                query[parent].is[child] = query[key];
-                delete query[key];
-            }
-        }
-        const apps = await prisma.application.findMany({
-            where: query,
-            orderBy,
-            take,
-            ...(skip !== undefined ? { skip } : {})
-        });
-        return apps.map(app => ({ ...app, _id: app.id }));
-    }
-
-    async distinct(field, filter = {}) {
-        filter = convertMongoFilterToPrismaFilter(filter);
-        handleDotNotation(filter);
-        // Handle dot notation for nested fields (e.g., "applicant.applicantName")
-        let select = {};
-        if (field.includes('.')) {
-            const [parent, child] = field.split('.');
-            select[parent] = { select: { [child]: true } };
-        } else {
-            select[field] = true;
-        }
-
-        const apps = await prisma.application.findMany({ where: filter, select });
-        // Flatten nested fields if needed
-        const values = field.includes('.')
-            ? apps.map(app => {
-                const [parent, child] = field.split('.');
-                return app[parent]?.[child];
-            })
-            : apps.map(app => app[field]);
-        return [...new Set(values)].filter(v => v !== undefined && v !== null);
-    }
 }
 
 module.exports = ApplicationDAO;

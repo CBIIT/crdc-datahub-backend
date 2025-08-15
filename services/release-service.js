@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const {verifySession} = require("../verifier/user-info-verifier");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {UserScope} = require("../domain/user-scope");
@@ -8,21 +10,32 @@ const {getDataCommonsDisplayName, getDataCommonsOrigin} = require("../utility/da
 const {APPROVED_STUDIES_COLLECTION, DATA_COMMONS_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {SORT, DIRECTION} = require("../crdc-datahub-database-drivers/constants/monogodb-constants");
 const {getSortDirection} = require("../crdc-datahub-database-drivers/utility/mongodb-utility");
+const ReleaseDAO = require("../dao/release");
+const ApprovedStudyDAO = require("../dao/approvedStudy")
+const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
+const {getFormatDateStr} = require("../utility/string-util.js")
+const {arrayOfObjectsToTSV} = require("../utility/io-util.js")
+const {zipFilesInDir} = require("../utility/io-util");
 const PROP_GROUPS = {
     MODEL_DEFINED: "model_defined",
     NOT_DEFINED: "not_defined",
     INTERNAL: "internal"
 };
+const NODE_TYPE = "type";
 
 const DATA_COMMONS_DISPLAY_NAMES = "dataCommonsDisplayNames";
 
 class ReleaseService {
     _ALL_FILTER = "All";
     _STUDY_NODE = "study";
-    constructor(releaseCollection, authorizationService, dataModelService) {
+    constructor(releaseCollection, authorizationService, dataModelService, s3Service, config) {
         this.releaseCollection = releaseCollection;
         this.authorizationService = authorizationService;
-         this.dataModelService = dataModelService;
+        this.dataModelService = dataModelService;
+        this.releaseDAO = new ReleaseDAO();
+        this.approvedStudyDAO = new ApprovedStudyDAO();
+        this.s3Service = s3Service;
+        this.config = config;
     }
 
     async listReleasedStudies(params, context) {
@@ -484,6 +497,151 @@ class ReleaseService {
         const originDataCommons = getDataCommonsOrigin(dataCommonsDisplayName) || dataCommonsDisplayName;
 
         return await this._getPropsByStudyDataCommonNodeType(studyID, originDataCommons, nodeType);
+    }
+    /**
+     * API: Downloads all released nodes for a specific study.
+     * @param {*} params 
+     * @param {*} context 
+     * @returns 
+     */
+    async downloadAllReleasedNodes(params, context) {
+        verifySession(context)
+            .verifyInitialized();
+        const {
+            studyID: studyID
+        } = params;
+        const aStudy = await this.approvedStudyDAO.getApprovedStudyByID(studyID);
+        if (!aStudy) {
+            throw new Error(ERROR.STUDY_NOT_EXIST);
+        }
+         const userScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+        let zipDir = null;
+        let zipFile = null;
+        try {
+            zipDir = await this._retrieveAllReleasedNodes(aStudy);
+            if (!zipDir || !fs.existsSync(zipDir)) {
+                throw new Error(ERROR.FAILED_DOWNLOAD_ALL_RELEASED_NODES);
+            }
+            zipFile = zipDir + ".zip";
+            await zipFilesInDir(zipDir, zipFile);
+            // Only check for file existence, not the return value of zipFilesInDir
+            if (!fs.existsSync(zipFile)) {
+                throw new Error(ERROR.FAILED_DOWNLOAD_ALL_RELEASED_NODES);
+            }
+            const zipFileName = path.basename(zipFile);
+            // upload the zip file into s3 and create pre-signed download link
+            const s3_bucket = this.config.submission_bucket;
+            const root_path = "released_study/" + studyID;
+            await this.s3Service.uploadZipFile(s3_bucket, root_path, zipFileName, zipFile);
+            return await this.s3Service.createDownloadSignedURL(s3_bucket, root_path, zipFileName);
+        }
+        catch (e) {
+            console.error(e);
+            throw e;
+        }
+        finally {
+            if (zipFile && fs.existsSync(zipFile)) {
+                const downloadDir = path.dirname(zipFile);
+                if (downloadDir && fs.existsSync(downloadDir)) {
+                    try {
+                        fs.rmSync(downloadDir, {recursive: true, force: true });
+                    } catch (error) {
+                        console.error("Error during cleanup:", error);
+                    }
+                }
+            }
+        }
+    }
+    /**
+     * Retrieves all released nodes for a specific study.
+     * @param {*} aStudy 
+     * @returns String
+     */
+    async _retrieveAllReleasedNodes(aStudy) {
+        const tempFolder = `logs/${aStudy.id}_AllNodes`;
+        const AllNodesDir = `${aStudy?.studyAbbreviation}_AllNodes_${getFormatDateStr(getCurrentTime(), path.format = "YYYYMMDDHHmmss")}`;
+        const download_dir = path.join(tempFolder, AllNodesDir);
+        const nodeTypes = await this.releaseDAO.distinct("nodeType", {studyID: aStudy.id});
+        if (!nodeTypes || nodeTypes.length === 0) {
+            throw new Error(ERROR.FAILED_DOWNLOAD_ALL_RELEASED_NODES);
+        }
+         if (!fs.existsSync(download_dir)) {
+            fs.mkdirSync(download_dir, { recursive: true });
+        }
+        for (const nodeType of nodeTypes){
+            const nodeTypeTsv = `${download_dir}/${nodeType}.tsv`;
+            // Convert nodeType data to TSV format and save to file
+            await this._saveNodesToTsv(nodeType, aStudy.id, nodeTypeTsv);
+        }
+        return download_dir;
+    }
+    /**
+     * Saves nodes to a TSV file.
+     * @param {*} nodeType 
+     * @param {*} studyID 
+     * @param {*} filePath 
+     */
+    async _saveNodesToTsv(nodeType, studyID, filePath) {
+        // retrieve nodes by studyID and nodeType 1000 by 1000
+        const limit = 1000;
+        let skip = 0;
+        let columns = new Set();
+        let nodes = [];
+        let results = [];
+        do {
+            results = await this.releaseDAO.aggregate([{
+                $match: {
+                    studyID: studyID,
+                    nodeType: nodeType
+                }
+            }, {
+                $skip: skip
+            }, {
+                $limit: limit
+            }]);
+            if (results.length > 0) {
+                this._processNodes(nodeType, results, columns, nodes);
+            }
+            skip += limit;
+        } while (results.length === limit);
+        if(nodes.length === 0) return;
+
+        arrayOfObjectsToTSV(nodes, filePath, [NODE_TYPE, ...columns]);
+    }
+    /**
+     * Processes the nodes for a specific node type.
+     * @param {*} nodeType 
+     * @param {*} results 
+     * @param {*} columns 
+     * @param {*} nodes 
+     */
+    _processNodes(nodeType, results, columns, nodes) {
+        for (const node of results) {
+            // Add node fields to columns
+            Object.keys(node.props).forEach(key => columns.add(key));
+            let row = {[NODE_TYPE]: nodeType, ...node.props };
+            if (node?.generatedProps) {
+                Object.keys(node.generatedProps).forEach(key => columns.add(key));
+                row = {...row, ...node.generatedProps};
+            }
+            if (node?.parents && node.parents.length > 0) {
+                const parentTypes = [...new Set(node.parents.map(item => item.parentType))];
+                for (const type of parentTypes) {
+                    const sameTypeParents = node.parents.filter(item => item.parentType === type);
+                    const relName = `${sameTypeParents[0]?.parentType}.${sameTypeParents[0]?.parentIDPropName}`;
+                    if (sameTypeParents.length === 1) {
+                        row[relName] = sameTypeParents[0]?.parentIDValue;
+                    } else {
+                        row[relName] = sameTypeParents.map(parent => parent.parentIDValue).join(" | ");
+                    }
+                    columns.add(relName);
+                }
+            }
+            nodes.push(row);
+        }
     }
     /**
      * _getPropsByStudyDataCommonNodeType

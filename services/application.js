@@ -29,7 +29,8 @@ const OrderByMap = {
     "Study": "studyName",
     "Program": "programName",
     "Status": "status",
-    "Submitted Date": "submittedDate"
+    "Submitted Date": "submittedDate",
+    "Last Updated Date": "updatedAt"
 };
 class Application {
     _DELETE_REVIEW_COMMENT="This Submission Request has been deleted by the system due to inactivity.";
