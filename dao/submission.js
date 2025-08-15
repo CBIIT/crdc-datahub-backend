@@ -75,8 +75,8 @@ class SubmissionDAO extends GenericDAO {
             }
         };
 
-        // Build where conditions for Prisma
-        const whereConditions = this._buildPrismaWhereConditions(filterConditions);
+        // Build where conditions for Prisma (directly use filterConditions)
+        const whereConditions = { ...filterConditions };
         
         // Add organization filter if specified
         if (params?.organization && params?.organization !== ALL_FILTER) {
@@ -212,11 +212,7 @@ class SubmissionDAO extends GenericDAO {
         throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
     }
 
-    _buildPrismaWhereConditions(filterConditions) {
-        // Since _listConditions now returns Prisma-compatible conditions directly,
-        // we can just return them with minimal transformation
-        return { ...filterConditions };
-    }
+
 
     async _getDistinctDataCommons(filterConditions) {
         try {
