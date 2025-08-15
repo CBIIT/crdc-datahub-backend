@@ -88,47 +88,30 @@ class BatchDAO extends GenericDAO {
      */
     async getLastFileBatchID(submissionID, fileName, maxBatches = 10) {
         try {
-            // Since files is a JSON array, we need to fetch multiple batches and filter in JavaScript
-            // We'll fetch batches in descending order by displayID to find the latest one first
-            // Limit the number of batches to search through for performance
-            const batches = await this.model.findMany({
+            // Use Prisma's array operations for MongoDB-optimized queries
+            // This eliminates the need to fetch and iterate through batches in JavaScript
+            const result = await this.model.findFirst({
                 where: {
                     submissionID: submissionID,
                     type: "data file",
-                    status: "Uploaded"
+                    status: "Uploaded",
+                    // Prisma array contains operator for MongoDB
+                    files: {
+                        array_contains: [{
+                            fileName: fileName,
+                            status: 'Uploaded'
+                        }]
+                    }
                 },
                 select: {
-                    displayID: true,
-                    files: true
+                    displayID: true
                 },
                 orderBy: {
                     displayID: 'desc'
-                },
-                take: maxBatches // Limit the number of batches to search
+                }
             });
             
-            if (!batches || batches.length === 0) {
-                return null;
-            }
-            
-            // Search through batches in order (highest displayID first) to find the file
-            for (const batch of batches) {
-                if (batch.files && Array.isArray(batch.files)) {
-                    // Check if this batch contains the file we're looking for
-                    const hasFile = batch.files.some(file => 
-                        file && 
-                        file.fileName === fileName && 
-                        file.status === 'Uploaded' // Additional check for file status
-                    );
-                    
-                    if (hasFile) {
-                        return batch.displayID;
-                    }
-                }
-            }
-            
-            // File not found in any batch
-            return null;
+            return result ? result.displayID : null;
         } catch (error) {
             console.error('BatchDAO.getLastFileBatchID failed:', {
                 error: error.message,
@@ -140,6 +123,8 @@ class BatchDAO extends GenericDAO {
             throw new Error(`Failed to get last file batch ID`);
         }
     }
+
+
 }
 
 module.exports = BatchDAO

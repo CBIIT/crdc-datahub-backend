@@ -155,12 +155,13 @@ describe('BatchDAO Error Handling', () => {
     });
 
     describe('getLastFileBatchID method', () => {
-        it('should handle Prisma findMany errors gracefully', async () => {
+        it('should handle Prisma findFirst errors gracefully', async () => {
             const submissionID = 'sub-123';
             const fileName = 'test.csv';
             const prismaError = new Error('Query execution failed');
             
-            mockPrismaModel.findMany.mockRejectedValue(prismaError);
+            // Mock findFirst to fail (MongoDB array query fails)
+            mockPrismaModel.findFirst.mockRejectedValue(prismaError);
 
             await expect(batchDAO.getLastFileBatchID(submissionID, fileName)).rejects.toThrow('Failed to get last file batch ID');
             
@@ -178,7 +179,7 @@ describe('BatchDAO Error Handling', () => {
             const fileName = 'test.csv';
             const connectionError = new Error('Connection timeout');
             
-            mockPrismaModel.findMany.mockRejectedValue(connectionError);
+            mockPrismaModel.findFirst.mockRejectedValue(connectionError);
 
             await expect(batchDAO.getLastFileBatchID(submissionID, fileName)).rejects.toThrow('Failed to get last file batch ID');
         });
@@ -188,7 +189,7 @@ describe('BatchDAO Error Handling', () => {
             const fileName = 'test.csv';
             const parameterError = new Error('Invalid parameters');
             
-            mockPrismaModel.findMany.mockRejectedValue(parameterError);
+            mockPrismaModel.findFirst.mockRejectedValue(parameterError);
 
             await expect(batchDAO.getLastFileBatchID(submissionID, fileName)).rejects.toThrow('Failed to get last file batch ID');
         });
@@ -199,7 +200,7 @@ describe('BatchDAO Error Handling', () => {
             const maxBatches = 5;
             const limitError = new Error('Query limit exceeded');
             
-            mockPrismaModel.findMany.mockRejectedValue(limitError);
+            mockPrismaModel.findFirst.mockRejectedValue(limitError);
 
             await expect(batchDAO.getLastFileBatchID(submissionID, fileName, maxBatches)).rejects.toThrow('Failed to get last file batch ID');
         });
@@ -320,7 +321,7 @@ describe('BatchDAO Error Handling', () => {
             const fileName = 'test.tsv';
             const prismaError = new Error('Query failed');
             
-            mockPrismaModel.findMany.mockRejectedValue(prismaError);
+            mockPrismaModel.findFirst.mockRejectedValue(prismaError);
 
             try {
                 await batchDAO.getLastFileBatchID(submissionID, fileName);
