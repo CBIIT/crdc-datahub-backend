@@ -1610,7 +1610,7 @@ class Submission {
                 ...(isVersionChanged ? {newModelVersion: newModelVersion || NA} : {}),
                 // Changing the submitter
                 ...(isSubmitterChanged ? { prevSubmitterName: getEmailUserName(prevSubmitter) || NA } : {}),
-                ...(isSubmitterChanged ? { newSubmitterName: getEmailUserName(newSubmitter) } || NA : {})
+                ...(isSubmitterChanged ? { newSubmitterName: getEmailUserName(newSubmitter) || NA } : {})
             });
 
             if (sent?.accepted?.length === 0) {
