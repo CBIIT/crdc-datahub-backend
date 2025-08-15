@@ -40,6 +40,25 @@ class UserDAO extends GenericDAO {
         }});
         return users.map(user => ({ ...user, _id: user.id }));
     }
+
+    /**
+     * Fetch multiple users by their IDs in a single database query
+     * @param {string[]} userIDs - Array of user IDs to fetch
+     * @returns {Promise<Array>} - Array of user objects
+     */
+    async findManyByIds(userIDs) {
+        if (!userIDs || userIDs.length === 0) {
+            return [];
+        }
+        
+        const users = await prisma.user.findMany({
+            where: {
+                id: { in: userIDs }
+            }
+        });
+        
+        return users.map(user => ({ ...user, _id: user.id }));
+    }
 }
 
 module.exports = UserDAO

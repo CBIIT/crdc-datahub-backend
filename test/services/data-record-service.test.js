@@ -238,32 +238,38 @@ describe('DataRecordService', () => {
   });
 
   describe('countNodesBySubmissionID', () => {
-    test('should return correct count of nodes', async () => {
-      // The implementation uses dataRecordDAO.count, not aggregate
+    test('should return correct count of distinct node types', async () => {
+      // The implementation now uses dataRecordDAO.findMany to get distinct nodeTypes
       dataRecordService.dataRecordDAO = {
-        count: jest.fn().mockResolvedValue(5)
+        findMany: jest.fn().mockResolvedValue([
+          { nodeType: 'participant' },
+          { nodeType: 'sample' },
+          { nodeType: 'file' },
+          { nodeType: 'participant' }, // Duplicate to test distinct counting
+          { nodeType: 'sample' }       // Duplicate to test distinct counting
+        ])
       };
 
       const result = await dataRecordService.countNodesBySubmissionID('submission-123');
 
-      expect(result).toBe(5);
-      expect(dataRecordService.dataRecordDAO.count).toHaveBeenCalledWith(
+      expect(result).toBe(3); // Should count unique nodeTypes, not total nodes
+      expect(dataRecordService.dataRecordDAO.findMany).toHaveBeenCalledWith(
         { submissionID: 'submission-123' },
-        ['nodeType']
+        { select: { nodeType: true } }
       );
     });
 
     test('should return 0 when no nodes found', async () => {
       dataRecordService.dataRecordDAO = {
-        count: jest.fn().mockResolvedValue(0)
+        findMany: jest.fn().mockResolvedValue([])
       };
 
       const result = await dataRecordService.countNodesBySubmissionID('submission-123');
 
       expect(result).toBe(0);
-      expect(dataRecordService.dataRecordDAO.count).toHaveBeenCalledWith(
+      expect(dataRecordService.dataRecordDAO.findMany).toHaveBeenCalledWith(
         { submissionID: 'submission-123' },
-        ['nodeType']
+        { select: { nodeType: true } }
       );
     });
   });

@@ -41,6 +41,7 @@ const {zipFilesInDir} = require("../utility/io-util");
 const PendingPVDAO = require("../dao/pendingPV");
 const sanitizeHtml = require("sanitize-html");
 const {SORT: PRISMA_SORT} = require("../constants/db-constants");
+const prisma = require("../prisma");
 const ProgramDAO = require("../dao/program");
 const UserDAO = require("../dao/user");
 const ApprovedStudyDAO = require("../dao/approvedStudy");
@@ -103,6 +104,20 @@ class Submission {
         this.userDAO = new UserDAO();
         this.approvedStudyDAO = new ApprovedStudyDAO();
         this.validationDAO = new ValidationDAO();
+    }
+
+    /**
+     * Helper method to create update data objects with common fields
+     * @param {Object} data - The data to include in the update
+     * @param {boolean|Date} includeTimestamp - Whether to include updatedAt timestamp (default: true) or custom Date object
+     * @returns {Object} - The prepared update data object
+     */
+    _prepareUpdateData(data = {}, includeTimestamp = true) {
+        const updateData = { ...data };
+        if (includeTimestamp) {
+            updateData.updatedAt = includeTimestamp === true ? getCurrentTime() : includeTimestamp;
+        }
+        return updateData;
     }
 
     async createSubmission(params, context) {
@@ -227,7 +242,7 @@ class Submission {
         const result = await this.batchService.createBatch(params, aSubmission, userInfo);
         // The submission status needs to be updated after createBatch
         if ([NEW, WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
-            await updateSubmissionStatus(this.submissionCollection, aSubmission, userInfo, IN_PROGRESS);
+            await updateSubmissionStatus(this.submissionDAO, aSubmission, userInfo, IN_PROGRESS);
         }
         return result;
     }
@@ -277,12 +292,16 @@ class Submission {
         const res = await this.batchService.updateBatch(aBatch, aSubmission?.bucketName, params?.files);
         // new status is ready for the validation
         if (res.status === BATCH.STATUSES.UPLOADED) {
-            const updateSubmission = {
-                _id: aSubmission._id,
-                ...(res?.type === VALIDATION.TYPES.DATA_FILE ? {fileValidationStatus: VALIDATION_STATUS.NEW} : {}),
-                updatedAt: getCurrentTime()
+            // Prepare update data for Prisma
+            const updateData = this._prepareUpdateData({
+                ...(res?.type === VALIDATION.TYPES.DATA_FILE ? {fileValidationStatus: VALIDATION_STATUS.NEW} : {})
+            });
+            
+            // Update submission using Prisma DAO instead of MongoDB collection
+            const updatedSubmission = await this.submissionDAO.update(aSubmission._id, updateData);
+            if (!updatedSubmission) {
+                throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
             }
-            await this.submissionCollection.update(updateSubmission);
         }
         return res;
     }
@@ -325,14 +344,14 @@ class Submission {
                 const dataFileSize = await this._getS3DirectorySize(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/`);
                 const isDataFileChanged = aSubmission?.dataFileSize?.size !== dataFileSize.size || aSubmission?.dataFileSize?.formatted !== dataFileSize.formatted;
                 if (isDataFileChanged) {
-                    const updatedSubmission = await this.submissionDAO.update(aSubmission?._id, {dataFileSize, updatedAt: getCurrentTime()});
-                    // const updatedSubmission = await this.submissionCollection.findOneAndUpdate({_id: aSubmission?._id}, {dataFileSize, updatedAt: getCurrentTime()}, {returnDocument: 'after', upsert: true});
+                    const updatedSubmission = await this.submissionDAO.update(aSubmission?._id, this._prepareUpdateData({dataFileSize}));
                     if (!updatedSubmission) {
                         throw new Error(ERROR.FAILED_RECORD_FILESIZE_PROPERTY, `SubmissionID: ${aSubmission?._id}`);
                     }
                 }
                 aSubmission.dataFileSize = dataFileSize;
             })(),
+            // Get other submissions for the same study
             (async () => {
                 if (aSubmission?.studyID) {
                     const submissions = await this.submissionDAO.findMany({
@@ -341,7 +360,7 @@ class Submission {
                             in: [IN_PROGRESS, SUBMITTED, RELEASED, REJECTED, WITHDRAWN],
                         },
                         NOT: {
-                            id: params._id, // assuming your `_id` is mapped to `id` in Prisma
+                            id: params._id,
                         },
                     });
                     const otherSubmissions = {
@@ -362,7 +381,7 @@ class Submission {
               if (!aSubmission?.archived) {
                   const submissionNodeCount = await this.dataRecordService.countNodesBySubmissionID(aSubmission?._id);
                   if (aSubmission.nodeCount !== submissionNodeCount) {
-                      const updatedNodeCount = await this.submissionDAO.update(aSubmission?._id, {updatedAt: getCurrentTime(), nodeCount: submissionNodeCount});
+                      const updatedNodeCount = await this.submissionDAO.update(aSubmission?._id, this._prepareUpdateData({nodeCount: submissionNodeCount}));
                       if (!updatedNodeCount) {
                           console.error(`Failed to update the node count; submissionID: ${aSubmission?._id}`);
                       }
@@ -370,14 +389,38 @@ class Submission {
                   }
               }
             })(),
+            // add userName in each history
             (async () => {
-              // add userName in each history
-              for (const history of aSubmission?.history) {
-                  if (history?.userName) continue;
-                  if (!history?.userID) continue;
-                  const user = await this.userService.getUserByID(history?.userID);
-                  if (user) {
-                      history.userName = user?.firstName + " " + user?.lastName;
+              if (aSubmission?.history && Array.isArray(aSubmission.history)) {
+                  const userIDs = aSubmission.history
+                      .filter(history => !history?.userName && history?.userID)
+                      .map(history => history.userID);
+                  
+                  if (userIDs.length > 0) {
+                      const uniqueUserIDs = [...new Set(userIDs)];
+                      
+                      try {
+                          // Fetch all users by their IDs in a batch call
+                          const users = await this.userService.getUsersByIDs(uniqueUserIDs);
+                          
+                          const userMap = {};
+                          users.forEach(user => {
+                              if (user) {
+                                  userMap[user._id] = `${user.firstName} ${user.lastName}`;
+                              }
+                          });
+                          
+                          aSubmission.history.forEach(history => {
+                              if (!history?.userName && history?.userID && userMap[history.userID]) {
+                                  history.userName = userMap[history.userID];
+                              }
+                          });
+                      } catch (error) {
+                          // Log error but don't fail the entire operation
+                          // History entries will remain without userNames populated
+                          console.error(`Failed to fetch user names for history entries in submission ${aSubmission._id}:`, error);
+                          console.error(`Affected userIDs:`, uniqueUserIDs);
+                      }
                   }
               }
             })()
@@ -389,7 +432,9 @@ class Submission {
             const everyReminderDays = this._getEveryReminderQuery(this.emailParams.remindSubmissionDay, false);
             await this.submissionDAO.update(aSubmission?._id, {accessedAt: getCurrentTime(), ...everyReminderDays});
         }
-        // Returning the updated document might miss the organization.
+
+        // The organization is already fetched in _findByID, so no need to fetch again
+        // unless it's missing for some reason
         if (aSubmission.programID && !aSubmission.organization) {
             aSubmission.organization = await this.programDAO.findById(aSubmission.programID);
         }
@@ -455,18 +500,28 @@ class Submission {
         if (newStatus === COMPLETED) {
             submission.dataFileSize = dataFileSize;
         }
-        submission = {
-            ...submission,
+        
+        // Prepare update data for Prisma
+        const updateData = this._prepareUpdateData({
             status: newStatus,
             history: events,
-            updatedAt: getCurrentTime(),
             reviewComment: submission?.reviewComment || ""
+        });
+        
+        // Add dataFileSize if status is COMPLETED
+        if (newStatus === COMPLETED) {
+            updateData.dataFileSize = dataFileSize;
         }
-        submission = getDataCommonsDisplayNamesForSubmission(submission);
-        const updated = await this.submissionCollection.update(submission);
-        if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
+        
+        // Update submission using Prisma DAO
+        const updatedSubmission = await this.submissionDAO.update(submission._id, updateData);
+        if (!updatedSubmission) {
             throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
         }
+        
+        // Transform the updated submission to match expected format
+        submission = getDataCommonsDisplayNamesForSubmission(updatedSubmission);
+        
         // Send complete action
         const completePromise = [];
         if (action === ACTIONS.COMPLETE) {
@@ -482,8 +537,24 @@ class Submission {
 
         //log event and send notification
         const logEvent = SubmissionActionEvent.create(userInfo._id, userInfo.email, userInfo.IDP, submission._id, action, verifier.getPrevStatus(), newStatus);
+        
+        // Create log entry using Prisma
+        const logData = {
+            userID: logEvent.userID,
+            userEmail: logEvent.userEmail,
+            userIDP: logEvent.userIDP,
+            userName: logEvent.userName,
+            eventType: logEvent.eventType,
+            submissionID: logEvent.submissionID,
+            action: logEvent.action,
+            prevState: logEvent.prevState,
+            newState: logEvent.newState,
+            timestamp: Date.now() / 1000,
+            localtime: new Date()
+        };
+        
         await Promise.all([
-            this.logCollection.insert(logEvent),
+            this._createLogEntry(logData),
             submissionActionNotification(userInfo, action, submission, this.userService, this.organizationService, this.notificationService, this.emailParams, this.dataCommonsBucketMap),
             this._archiveCancelSubmission(action, submissionID, submission?.bucketName, submission?.rootPath)
         ].concat(completePromise));
@@ -510,11 +581,13 @@ class Submission {
             }));
             const submissionIDs = finalInactiveSubmissions
                 .map(submission => submission._id);
-            const query = {_id: {$in: submissionIDs}};
             // Disable all reminders to ensure no notifications are sent.
             const everyReminderDays = this._getEveryReminderQuery(this.emailParams.remindSubmissionDay, true);
-            const updatedReminder = await this.submissionCollection.updateMany(query, everyReminderDays);
-            if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
+            const updatedReminder = await this.submissionDAO.updateMany(
+                { id: { in: submissionIDs } }, 
+                everyReminderDays
+            );
+            if (!updatedReminder?.count || updatedReminder?.count === 0) {
                 console.error("The email reminder flag intended to notify the inactive submission user (FINAL) is not being stored", `submissionIDs: ${submissionIDs.join(', ')}`);
             }
         }
@@ -570,8 +643,8 @@ class Submission {
                     acc[`${INACTIVE_REMINDER}_${day}`] = true;
                     return acc;
                 }, {});
-                const updatedReminder = await this.submissionCollection.update({_id: submissionID, ...reminderFilter});
-                if (!updatedReminder?.modifiedCount || updatedReminder?.modifiedCount === 0) {
+                const updatedReminder = await this.submissionDAO.update(submissionID, reminderFilter);
+                if (!updatedReminder) {
                     console.error("The email reminder flag intended to notify the inactive submission user is not being stored", submissionID);
                 }
             }
@@ -582,20 +655,25 @@ class Submission {
     async _getInactiveSubmissions(inactiveDays, inactiveFlagField) {
         const remindCondition = {
             accessedAt: {
-                $lt: subtractDaysFromNow(inactiveDays),
+                lt: subtractDaysFromNow(inactiveDays),
             },
             status: {
-                $in: [NEW, IN_PROGRESS, REJECTED, WITHDRAWN]
+                in: [NEW, IN_PROGRESS, REJECTED, WITHDRAWN]
             },
             // Tracks whether the notification has already been sent
-            [inactiveFlagField]: {$ne: true}
+            [inactiveFlagField]: { not: true }
         };
-        return await this.submissionCollection.aggregate([{$match: remindCondition}]);
+        return await this.submissionDAO.findMany(remindCondition);
     }
 
     async _isValidReleaseAction(action, submissionID, studyID, crossSubmissionStatus) {
         if (action?.toLowerCase() === ACTIONS.RELEASE.toLowerCase()) {
-            const submissions = await this.submissionCollection.aggregate([{"$match": {_id: {"$ne": submissionID}, studyID: studyID}}]);
+            const submissions = await this.submissionDAO.findMany({
+                studyID: studyID,
+                NOT: {
+                    id: submissionID
+                }
+            });
             // Throw error if other submissions associated with the same study
             // are some of them are in "Submitted" status if cross submission validation is not Passed.
             if (submissions?.some(i => i?.status === SUBMITTED) && crossSubmissionStatus !== VALIDATION_STATUS.PASSED) {
@@ -1073,7 +1151,7 @@ class Submission {
             collaborator.collaboratorName = user.lastName + ", " + user.firstName ;
             collaborator.Organization = user.organization;
         }
-        const result = await this.submissionDAO.update(aSubmission?._id, {collaborators, updatedAt: getCurrentTime()});
+        const result = await this.submissionDAO.update(aSubmission?._id, this._prepareUpdateData({collaborators}));
         if (result) {
             return getDataCommonsDisplayNamesForSubmission(result);
         }
@@ -1141,7 +1219,7 @@ class Submission {
 
     async _deleteDataFiles(existingFiles, aSubmission) {
         // Set a flag when initiating the deletion of S3 files.
-        await this.submissionCollection.update({_id: aSubmission?._id, updatedAt: getCurrentTime(), deletingData: true});
+        await this.submissionDAO.update(aSubmission._id, this._prepareUpdateData({deletingData: true}));
         const existingFilesArr = Array.from(existingFiles.values());
         const promises = existingFilesArr.map(fileKey => this.s3Service.deleteFile(aSubmission?.bucketName, fileKey));
         const res = await Promise.allSettled(promises);
@@ -1168,7 +1246,7 @@ class Submission {
             const deletedFile = existingFiles.get(fileError?.submittedID);
             return notDeletedErrorFiles.includes(fileError.submittedID) || !deletedFile;
         }) || [];
-        await this.submissionCollection.update({_id: aSubmission?._id, updatedAt: getCurrentTime(), fileErrors : errors, deletingData: false});
+        await this.submissionDAO.update(aSubmission._id, this._prepareUpdateData({fileErrors : errors, deletingData: false}));
         return deletedFiles;
     }
 
@@ -1179,9 +1257,14 @@ class Submission {
     async archiveCompletedSubmissions(){
         const targetRetentionDate = new Date();
         targetRetentionDate.setDate(targetRetentionDate.getDate() - this.emailParams.completedSubmissionDays);
-        const query = [{"$match": {"status": COMPLETED, "updatedAt": { "$lte": targetRetentionDate}}}];
+        const query = {
+            status: COMPLETED,
+            updatedAt: {
+                lte: targetRetentionDate
+            }
+        };
         try {
-            const archiveSubs = await this.submissionCollection.aggregate(query);
+            const archiveSubs = await this.submissionDAO.findMany(query);
             if (!archiveSubs || archiveSubs.length === 0) {
                 console.debug("No completed submissions need to be archived.")
                 return "No completed submissions need to be archived";
@@ -1211,7 +1294,7 @@ class Submission {
         if (result === true) {
             await this.dataRecordService.archiveMetadataByFilter({"submissionID": submissionID});
             await this.batchService.deleteBatchByFilter({"submissionID": submissionID});
-            await this.submissionCollection.updateOne({"_id": submissionID}, {"archived": true, "updatedAt": new Date()});
+            await this.submissionDAO.update(submissionID, this._prepareUpdateData({"archived": true}, new Date()));
         } else {
             console.error(`Failed to delete files in the s3 bucket. SubmissionID: ${submissionID}.`);
         }
@@ -1222,11 +1305,18 @@ class Submission {
      * description: overnight job to set inactive submission status to "Deleted", delete related data and files
      */
      async deleteInactiveSubmissions(){
-        const query = [{"$match": {
-                "status": {"$in":[IN_PROGRESS, NEW, REJECTED, WITHDRAWN]},
-                "accessedAt": {"$exists": true, "$ne": null, "$lt": subtractDaysFromNow(this.emailParams.inactiveSubmissionDays)}}}];
+        const query = {
+            status: {
+                in: [IN_PROGRESS, NEW, REJECTED, WITHDRAWN]
+            },
+            accessedAt: {
+                exists: true,
+                not: null,
+                lt: subtractDaysFromNow(this.emailParams.inactiveSubmissionDays)
+            }
+        };
         try {
-            const inactiveSubs = await this.submissionCollection.aggregate(query);
+            const inactiveSubs = await this.submissionDAO.findMany(query);
             if (!inactiveSubs || inactiveSubs.length === 0) {
                 console.debug("No inactive submission found.")
                 return "No inactive submissions";
@@ -1240,7 +1330,7 @@ class Submission {
                     if (result === true) {
                         await this.dataRecordService.deleteMetadataByFilter({"submissionID": sub._id});
                         await this.batchService.deleteBatchByFilter({"submissionID": sub._id});
-                        await this.submissionCollection.updateOne({"_id": sub._id}, {"status" : DELETED, "updatedAt": new Date()});
+                        await this.submissionDAO.update(sub._id, this._prepareUpdateData({"status" : DELETED}, new Date()));
                         deletedSubmissions.push(sub);
                         console.debug(`Successfully deleted inactive submissions: ${sub._id}.`);
                     }
@@ -1263,20 +1353,16 @@ class Submission {
 
     async _remindPrimaryContactEmail(aSubmission, approvedStudy, aProgram) {
         const [dcpUsers, CCUsers] = await Promise.all([
-            this.userService.userCollection.aggregate([{"$match": {
-                    "userStatus": USER.STATUSES.ACTIVE,
-                    "notifications": {"$in": [EN.DATA_SUBMISSION.CREATE]},
-                    "role": USER.ROLES.DATA_COMMONS_PERSONNEL,
-                    "dataCommons": {"$in": [aSubmission?.dataCommons]}
-
-                }}]) || [],
-            this.userService.userCollection.aggregate([{"$match": {
-                    "userStatus": USER.STATUSES.ACTIVE,
-                    "notifications": {"$in": [EN.DATA_SUBMISSION.CREATE]},
-                    "$or": [{"role": USER.ROLES.ADMIN}, {"role": USER.ROLES.FEDERAL_LEAD}]
-                }}]) || []
+            this.userService.findUsersByNotificationsAndRole(
+                [EN.DATA_SUBMISSION.CREATE],
+                [USER.ROLES.DATA_COMMONS_PERSONNEL],
+                aSubmission?.dataCommons
+            ),
+            this.userService.findUsersByNotificationsAndRole(
+                [EN.DATA_SUBMISSION.CREATE],
+                [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD]
+            )
         ]);
-
 
         if (dcpUsers?.length > 0) {
             const primaryContactName = aSubmission?.conciergeName?.trim();
@@ -1297,7 +1383,7 @@ class Submission {
             this.userService.getUserByID(aSubmission?.submitterID),
             this.userService.getUsersByNotifications([EN.DATA_SUBMISSION.DELETE],
                 [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]),
-            this.userService.approvedStudiesCollection.find(aSubmission?.studyID)
+            this.approvedStudyDAO.findFirst({ id: aSubmission?.studyID })
          ]);
          if (!aSubmitter?.email) {
             console.error(ERROR.NO_SUBMISSION_RECEIVER, "Delete", `id=${aSubmission?._id}`);
@@ -1311,7 +1397,7 @@ class Submission {
              await this.notificationService.deleteSubmissionNotification(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
                  firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`}, {
                  submissionName: `${aSubmission?.name},`,
-                 studyName: approvedStudy?.length > 0 ? (approvedStudy[0]?.studyName || NA) : NA,
+                 studyName: approvedStudy?.studyName || NA,
                  inactiveDays: this.emailParams.inactiveSubmissionDays,
                  contactName: `${aSubmission?.conciergeName || 'NA'}`,
                  contactEmail: `${aSubmission?.conciergeEmail || 'NA'}.`
@@ -1379,11 +1465,10 @@ class Submission {
                 ]);
                 // note: reset fileValidationStatus if the number of data files changed. No data files exists if null
                 const fileValidationStatus = submissionDataFiles?.length > 0 ? VALIDATION_STATUS.NEW : null;
-                const res = await this.submissionDAO.update(aSubmission?._id, {
+                const res = await this.submissionDAO.update(aSubmission?._id, this._prepareUpdateData({
                     fileValidationStatus,
-                    dataFileSize,
-                    updatedAt: getCurrentTime()
-                });
+                    dataFileSize
+                }));
                 if (!res) {
                     console.error(`failed to update submission data file info; submissionID: ${aSubmission?._id}`);
                 }
@@ -1393,7 +1478,7 @@ class Submission {
 
         const msg = {type: DELETE_METADATA, submissionID: params.submissionID, nodeType: params.nodeType, nodeIDs: params.nodeIDs}
         const success = await this._requestDeleteDataRecords(msg, this.sqsLoaderQueue, params.submissionID, params.submissionID);
-        const updated = await this.submissionDAO.update(aSubmission?._id, {deletingData: isTrue(success?.success), updatedAt: getCurrentTime()});
+        const updated = await this.submissionDAO.update(aSubmission?._id, this._prepareUpdateData({deletingData: isTrue(success?.success)}));
         if (!updated) {
             console.error(ERROR.FAILED_UPDATE_DELETE_STATUS, aSubmission?._id);
             throw new Error(ERROR.FAILED_UPDATE_DELETE_STATUS);
@@ -1438,22 +1523,10 @@ class Submission {
             return aSubmission
         }
 
-        const duplicateStudySubmission = await this.submissionCollection.aggregate([
-            {
-                $match: {
-                    $expr: {
-                        $and: [
-                            { $eq: [ { $toLower: "$name" }, newName?.trim()?.toLowerCase() ] },
-                            { $eq: [ "$studyID", aSubmission?.studyID ] },
-                            { $ne: [ "$_id", aSubmission?.id ] }
-                        ]
-                    }
-                }
-            },
-            { $limit: 1 }
-        ]);
+        // Check for duplicate submission names using Prisma instead of MongoDB aggregation
+        const duplicateStudySubmission = await this._checkDuplicateSubmissionName(newName?.trim(), aSubmission?.studyID, aSubmission?.id);
 
-        if (duplicateStudySubmission?.length > 0) {
+        if (duplicateStudySubmission) {
             throw new Error(ERROR.DUPLICATE_STUDY_SUBMISSION_NAME);
         }
 
@@ -1462,10 +1535,11 @@ class Submission {
             throw new Error(ERROR.FAILED_UPDATE_SUBMISSION_NAME);
         }
 
-        // Log for the modifying submission name
+        await this._notifyConfigurationChange(userInfo, aSubmission, updated?.name);
+
+        // Log for the modifying submission name using Prisma
         if (updated) {
-            await this.logCollection.insert(UpdateSubmissionNameEvent.create(
-                userInfo._id, userInfo.email, userInfo.IDP, updated._id, aSubmission?.name, newName));
+            await this._createUpdateSubmissionNameLog(userInfo, updated._id, aSubmission?.name, newName);
         }
         return updated;
     }
@@ -1711,9 +1785,31 @@ class Submission {
     }
 
     async _logDataRecord(userInfo, submissionID, nodeType, nodeIDs) {
-        const userName = `${userInfo?.lastName ? userInfo?.lastName + ',' : ''} ${userInfo?.firstName || NA}`;
-        const logEvent = DeleteRecordEvent.create(userInfo._id, userInfo.email, userName, submissionID, nodeType, nodeIDs);
-        await this.logCollection.insert(logEvent);
+        try {
+            const userName = `${userInfo?.lastName ? userInfo?.lastName + ',' : ''} ${userInfo?.firstName || NA}`;
+            const logEvent = DeleteRecordEvent.create(userInfo._id, userInfo.email, userName, submissionID, nodeType, nodeIDs);
+            
+            // Create log entry using Prisma
+            const logData = {
+                userID: logEvent.userID,
+                userEmail: logEvent.userEmail,
+                userIDP: logEvent.userIDP,
+                userName: logEvent.userName,
+                eventType: logEvent.eventType,
+                submissionID: logEvent.submissionID,
+                timestamp: Date.now() / 1000,
+                localtime: new Date()
+            };
+            
+            const createdLog = await prisma.log.create({
+                data: logData
+            });
+            return createdLog;
+        } catch (error) {
+            console.error('Error creating log entry:', error);
+            // Don't throw error for logging failures as it shouldn't break the main flow
+            return null;
+        }
     }
 
     async _requestDeleteDataRecords(message, queueName, deDuplicationId, submissionID) {
@@ -1747,7 +1843,7 @@ class Submission {
             return;
         }
 
-        const updated = await this.submissionDAO.update(aSubmission?._id, {...typesToUpdate, updatedAt: updatedTime, validationEnded: getCurrentTime()})
+        const updated = await this.submissionDAO.update(aSubmission?._id, this._prepareUpdateData({...typesToUpdate, validationEnded: getCurrentTime()}, false))
         if (validationRecord) {
             validationRecord["ended"] = new Date();
             validationRecord["status"] = "Error";
@@ -1780,10 +1876,9 @@ class Submission {
         }
         const dataValidation = DataValidation.createDataValidation(metadataTypes, validationRecord.scope, validationRecord.started);
         const updated = await this.submissionDAO.update(submissionID,
-            {
-                ...dataValidation,
-                updatedAt: getCurrentTime(),
-        });
+            this._prepareUpdateData({
+                ...dataValidation
+            }));
 
         if (!updated) {
             throw new Error(ERROR.FAILED_RECORD_VALIDATION_PROPERTY);
@@ -2085,41 +2180,123 @@ class Submission {
     }
 
     async _findByID(id) {
-        const aSubmission = await this.submissionDAO.findFirst(
-            { id },
-            {include: { study: true }}
-        );
-        // Prisma performs relation joins using multiple queries, so you can't sort by a related field directly.
-        if (aSubmission?.programID) {
-            aSubmission.organization = await this.programDAO.findFirst(
-                {id: aSubmission?.programID},
+        try {
+            // Use a single Prisma query with includes to fetch submission and related data
+            const aSubmission = await this.submissionDAO.findFirst(
+                { id },
                 {
-                    orderBy: {name: PRISMA_SORT.DESC},
-                    take: 1,
-                    select: {
-                        id: true,
-                        name: true,
-                        abbreviation: true,
+                    include: { 
+                        study: {
+                            select: {
+                                id: true,
+                                studyName: true,
+                                studyAbbreviation: true
+                            }
+                        }
                     }
                 }
             );
-        }
 
-        if (aSubmission?.study?.id) {
-            aSubmission.study._id = aSubmission?.study?.id;
-            // note: FE use the root level properties; studyName, studyAbbreviation
-            aSubmission.studyName = aSubmission?.study?.studyName;
-            aSubmission.studyAbbreviation = aSubmission?.study?.studyAbbreviation;
+            if (!aSubmission) {
+                return null;
+            }
+
+            // Fetch organization data if programID exists
+            if (aSubmission?.programID) {
+                aSubmission.organization = await this.programDAO.findFirst(
+                    {id: aSubmission.programID},
+                    {
+                        orderBy: {name: PRISMA_SORT.DESC},
+                        take: 1,
+                        select: {
+                            id: true,
+                            name: true,
+                            abbreviation: true,
+                        }
+                    }
+                );
+            }
+
+            // Transform study data to match expected format
+            if (aSubmission?.study?.id) {
+                aSubmission.study._id = aSubmission.study.id;
+                // note: FE use the root level properties; studyName, studyAbbreviation
+                aSubmission.studyName = aSubmission.study.studyName;
+                aSubmission.studyAbbreviation = aSubmission.study.studyAbbreviation;
+            }
+
+            return aSubmission;
+        } catch (error) {
+            console.error('Error in _findByID:', error);
+            throw new Error(`Failed to find submission by ID: ${error.message}`);
         }
-        return aSubmission;
+    }
+
+    /**
+     * Create a log entry using Prisma
+     * @param {Object} logData - The log data to create
+     * @returns {Promise<Object>} The created log entry
+     */
+    async _createLogEntry(logData) {
+        try {
+            const createdLog = await prisma.log.create({
+                data: logData
+            });
+            return createdLog;
+        } catch (error) {
+            console.error('Error creating log entry:', error);
+            // Don't throw error for logging failures as it shouldn't break the main flow
+            return null;
+        }
+    }
+
+    async _checkDuplicateSubmissionName(newName, studyID, submissionID) {
+        return await this.submissionDAO.findFirst({
+            where: {
+                name: newName,
+                studyID: studyID,
+                NOT: {
+                    id: submissionID
+                }
+            }
+        });
+    }
+
+    async _createUpdateSubmissionNameLog(userInfo, submissionID, oldName, newName) {
+        try {
+            const logEvent = UpdateSubmissionNameEvent.create(
+                userInfo._id, userInfo.email, userInfo.IDP, submissionID, oldName, newName
+            );
+            
+            // Create log entry using Prisma
+            const logData = {
+                userID: logEvent.userID,
+                userEmail: logEvent.userEmail,
+                userIDP: logEvent.userIDP,
+                userName: logEvent.userName,
+                eventType: logEvent.eventType,
+                submissionID: logEvent.submissionID,
+                timestamp: Date.now() / 1000,
+                localtime: new Date()
+            };
+            
+            const createdLog = await prisma.log.create({
+                data: logData
+            });
+            return createdLog;
+        } catch (error) {
+            console.error('Error creating update submission name log entry:', error);
+            // Don't throw error for logging failures as it shouldn't break the main flow
+            return null;
+        }
     }
 }
 
-const updateSubmissionStatus = async (submissionCollection, aSubmission, userInfo, newStatus) => {
+const updateSubmissionStatus = async (submissionDAO, aSubmission, userInfo, newStatus) => {
     const newHistory = HistoryEventBuilder.createEvent(userInfo?._id, newStatus, null);
     aSubmission.history = [...(aSubmission.history || []), newHistory];
-    const updated = await submissionCollection.update({...aSubmission, status: newStatus, updatedAt: getCurrentTime()});
-    if (!updated?.modifiedCount || updated?.modifiedCount < 1) {
+    const updated = await submissionDAO.update(aSubmission._id, {status: newStatus, updatedAt: getCurrentTime()});
+    if (!updated) {
         console.error(ERROR.UPDATE_SUBMISSION_ERROR, aSubmission?._id);
         throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
     }

@@ -7,7 +7,6 @@ jest.mock('../../dao/batch');
 describe('BatchService', () => {
     let batchService;
     let mockS3Service;
-    let mockBatchCollection;
     let mockSqsLoaderQueue;
     let mockAwsService;
     let mockFetchDataModelInfo;
@@ -22,11 +21,7 @@ describe('BatchService', () => {
             createDownloadSignedURL: jest.fn()
         };
 
-        mockBatchCollection = {
-            aggregate: jest.fn(),
-            update: jest.fn(),
-            deleteMany: jest.fn()
-        };
+
 
         mockSqsLoaderQueue = 'test-queue';
 
@@ -47,13 +42,16 @@ describe('BatchService', () => {
             findMany: jest.fn(),
             count: jest.fn(),
             findById: jest.fn(),
-            update: jest.fn()
+            update: jest.fn(),
+            deleteByFilter: jest.fn(),
+            findByStatus: jest.fn(),
+            getNextDisplayID: jest.fn(),
+            getLastFileBatchID: jest.fn()
         };
         BatchDAO.mockImplementation(() => mockBatchDAO);
 
         batchService = new BatchService(
             mockS3Service,
-            mockBatchCollection,
             mockSqsLoaderQueue,
             mockAwsService,
             'https://api.example.com',
@@ -83,7 +81,7 @@ describe('BatchService', () => {
                 files: ['file1.tsv', 'file2.tsv']
             };
 
-            mockBatchCollection.aggregate.mockResolvedValue([{total: 2}]);
+            mockBatchDAO.getNextDisplayID.mockResolvedValue(3);
             mockS3Service.createPreSignedURL.mockResolvedValue('https://signed-url.com/file');
             mockBatchDAO.create.mockResolvedValue({
                 _id: 'batch1',
@@ -97,10 +95,7 @@ describe('BatchService', () => {
 
             const result = await batchService.createBatch(params, mockSubmission, mockUser);
 
-            expect(mockBatchCollection.aggregate).toHaveBeenCalledWith([
-                {$match: {submissionID: 'sub1'}},
-                {$count: 'total'}
-            ]);
+            expect(mockBatchDAO.getNextDisplayID).toHaveBeenCalledWith('sub1');
             expect(mockS3Service.createPreSignedURL).toHaveBeenCalledTimes(2);
             expect(mockBatchDAO.create).toHaveBeenCalled();
             expect(result.type).toBe('metadata');
@@ -114,7 +109,7 @@ describe('BatchService', () => {
                 files: ['data1.txt', 'data2.txt']
             };
 
-            mockBatchCollection.aggregate.mockResolvedValue([{total: 1}]);
+            mockBatchDAO.getNextDisplayID.mockResolvedValue(2);
             mockBatchDAO.create.mockResolvedValue({
                 _id: 'batch2',
                 displayID: 2,
@@ -127,6 +122,7 @@ describe('BatchService', () => {
 
             const result = await batchService.createBatch(params, mockSubmission, mockUser);
 
+            expect(mockBatchDAO.getNextDisplayID).toHaveBeenCalledWith('sub1');
             expect(mockFetchDataModelInfo).toHaveBeenCalled();
             expect(mockBatchDAO.create).toHaveBeenCalled();
             expect(result.type).toBe('data file');
@@ -140,7 +136,7 @@ describe('BatchService', () => {
                 files: ['file1.tsv']
             };
 
-            mockBatchCollection.aggregate.mockResolvedValue([{total: 0}]);
+            mockBatchDAO.getNextDisplayID.mockResolvedValue(1);
             mockS3Service.createPreSignedURL.mockResolvedValue('https://signed-url.com/file');
             mockBatchDAO.create.mockResolvedValue(null);
 
@@ -189,7 +185,7 @@ describe('BatchService', () => {
                 {Key: 'test/root/metadata/file1.tsv'},
                 {Key: 'test/root/metadata/file2.tsv'}
             ]);
-            mockBatchCollection.update.mockResolvedValue({acknowledged: true});
+            mockBatchDAO.update.mockResolvedValue({_id: 'batch1', status: 'Uploading'});
             mockBatchDAO.findById.mockResolvedValue({
                 ...mockBatch,
                 status: 'Uploading',
@@ -202,7 +198,7 @@ describe('BatchService', () => {
             const result = await batchService.updateBatch(mockBatch, 'test-bucket', mockFiles);
 
             expect(mockS3Service.listFileInDir).toHaveBeenCalledWith('test-bucket', 'test/root/metadata');
-            expect(mockBatchCollection.update).toHaveBeenCalled();
+            expect(mockBatchDAO.update).toHaveBeenCalled();
             expect(mockAwsService.sendSQSMessage).toHaveBeenCalledWith(
                 {type: 'Load Metadata', batchID: 'batch1'},
                 'sub1',
@@ -216,7 +212,7 @@ describe('BatchService', () => {
             mockS3Service.listFileInDir.mockResolvedValue([
                 {Key: 'test/root/metadata/file1.tsv'}
             ]);
-            mockBatchCollection.update.mockResolvedValue({acknowledged: true});
+            mockBatchDAO.update.mockResolvedValue({_id: 'batch1', status: 'Failed'});
             mockBatchDAO.findById.mockResolvedValue({
                 ...mockBatch,
                 status: 'Failed',
@@ -238,7 +234,7 @@ describe('BatchService', () => {
                 {fileName: 'file2.tsv', succeeded: true, skipped: true}
             ];
 
-            mockBatchCollection.update.mockResolvedValue({acknowledged: true});
+            mockBatchDAO.update.mockResolvedValue({_id: 'batch1', status: 'Uploaded'});
             mockBatchDAO.findById.mockResolvedValue({
                 ...mockBatch,
                 status: 'Uploaded',
@@ -256,7 +252,7 @@ describe('BatchService', () => {
             mockS3Service.listFileInDir.mockResolvedValue([
                 {Key: 'test/root/metadata/file1.tsv'}
             ]);
-            mockBatchCollection.update.mockResolvedValue({acknowledged: false});
+            mockBatchDAO.update.mockResolvedValue(null);
 
             await expect(batchService.updateBatch(mockBatch, 'test-bucket', mockFiles))
                 .rejects

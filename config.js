@@ -1,7 +1,6 @@
 require('dotenv').config();
 const {readFile2Text} = require("./utility/io-util")
 const {ConfigurationService} = require("./services/configurationService");
-const {MongoDBCollection} = require("./crdc-datahub-database-drivers/mongodb-collection");
 const {DATABASE_NAME, CONFIGURATION_COLLECTION} = require("./crdc-datahub-database-drivers/database-constants");
 const EMAIL_SMTP_HOST = "EMAIL_SMTP_HOST";
 const EMAIL_SMTP_PORT = "EMAIL_SMTP_PORT";

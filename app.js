@@ -11,7 +11,7 @@ const statusRouter = require("./routers/status-endpoints-router");
 const graphqlRouter = require("./routers/graphql-router");
 const {MongoDBCollection} = require("./crdc-datahub-database-drivers/mongodb-collection");
 const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, LOG_COLLECTION, APPROVED_STUDIES_COLLECTION,
-    ORGANIZATION_COLLECTION, SUBMISSIONS_COLLECTION, BATCH_COLLECTION, DATA_RECORDS_COLLECTION, VALIDATION_COLLECTION,
+    ORGANIZATION_COLLECTION, SUBMISSIONS_COLLECTION, DATA_RECORDS_COLLECTION, VALIDATION_COLLECTION,
     DATA_RECORDS_ARCHIVE_COLLECTION, QC_RESULTS_COLLECTION, RELEASE_DATA_RECORDS_COLLECTION,  CONFIGURATION_COLLECTION
 } = require("./crdc-datahub-database-drivers/database-constants");
 const {Application} = require("./services/application");
@@ -100,9 +100,15 @@ app.use("/api/graphql", graphqlRouter);
 
         const userService = new UserService(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, approvedStudiesService, config.inactive_user_days);
         const s3Service = new S3Service();
-        const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
+
         const awsService = new AWSService(submissionCollection, userService, config.role_arn, config.presign_expiration);
-        const batchService = new BatchService(s3Service, batchCollection, config.sqs_loader_queue, awsService);
+        
+        const utilityService = new UtilityService();
+        const fetchDataModelInfo = async () => {
+            return utilityService.fetchJsonFromUrl(config.model_url)
+        };
+        
+        const batchService = new BatchService(s3Service, config.sqs_loader_queue, awsService, config.prod_url, fetchDataModelInfo);
 
         const qcResultCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, QC_RESULTS_COLLECTION);
         const qcResultsService = new QcResultService(qcResultCollection, submissionCollection);
@@ -112,10 +118,6 @@ app.use("/api/graphql", graphqlRouter);
         const dataRecordArchiveCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_ARCHIVE_COLLECTION);
         const dataRecordService = new DataRecordService(dataRecordCollection, dataRecordArchiveCollection, releaseCollection, config.file_queue, config.metadata_queue, awsService, s3Service, qcResultsService, config.export_queue);
 
-        const utilityService = new UtilityService();
-        const fetchDataModelInfo = async () => {
-            return utilityService.fetchJsonFromUrl(config.model_url)
-        };
         const validationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, VALIDATION_COLLECTION);
         const submissionService = new Submission(logCollection, submissionCollection, batchService, userService,
             organizationService, notificationsService, dataRecordService, fetchDataModelInfo, awsService, config.export_queue,
