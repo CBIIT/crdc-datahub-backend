@@ -248,8 +248,7 @@ describe('DataRecordService', () => {
 
       expect(result).toBe(5);
       expect(dataRecordService.dataRecordDAO.count).toHaveBeenCalledWith(
-        { submissionID: 'submission-123' },
-        ['nodeType']
+        { submissionID: 'submission-123' }
       );
     });
 
@@ -262,8 +261,7 @@ describe('DataRecordService', () => {
 
       expect(result).toBe(0);
       expect(dataRecordService.dataRecordDAO.count).toHaveBeenCalledWith(
-        { submissionID: 'submission-123' },
-        ['nodeType']
+        { submissionID: 'submission-123' }
       );
     });
   });

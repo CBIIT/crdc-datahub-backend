@@ -459,7 +459,7 @@ class DataRecordService {
     async countNodesBySubmissionID(submissionID) {
         const countNodes = await this.dataRecordDAO.count({
             submissionID: submissionID,
-        }, ['nodeType']);
+        });
          return countNodes || 0;
     }
     /**

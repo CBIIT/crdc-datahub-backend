@@ -16,7 +16,6 @@ class SubmissionDAO extends GenericDAO {
         this.organizationCollection = organizationCollection;
     }
 
-    // prisma is unable to join study._id
     async programLevelSubmissions(studyIDs) {
         try {
             // Use Prisma to find submissions with study info
@@ -110,8 +109,8 @@ class SubmissionDAO extends GenericDAO {
             const transformedSubmissions = submissions.map(submission => ({
                 ...submission,
                 _id: submission.id,
-                studyName: submission.study?.studyName,
-                studyAbbreviation: submission.study?.studyAbbreviation,
+                studyName: submission?.study?.studyName,
+                studyAbbreviation: submission?.study?.studyAbbreviation,
                 dataFileSize: this._transformDataFileSize(submission.status, submission.dataFileSize)
             }));
 

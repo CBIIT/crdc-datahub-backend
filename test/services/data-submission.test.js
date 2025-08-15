@@ -1958,7 +1958,7 @@ describe('Submission.updateSubmissionModelVersion', () => {
 
         // Create submission service with mocked dependencies
         submissionService = new Submission(
-            jest.fn(), // logCollection
+            { insert: jest.fn() }, // logCollection with insert method
             jest.fn(), // submissionCollection
             jest.fn(), // batchService
             jest.fn(), // userService
