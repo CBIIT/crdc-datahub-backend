@@ -157,6 +157,27 @@ describe('UserService.getUsersByIDs', () => {
             expect(mockUserDAO.findManyByIds).toHaveBeenCalledWith(userIDs);
         });
 
+        it('should handle users with null/undefined studies gracefully', async () => {
+            const userIDs = ['user1'];
+            const mockUsers = [
+                { _id: 'user1', firstName: 'John', lastName: 'Doe', studies: ['study1', null, undefined, { _id: 'study2' }] }
+            ];
+
+            mockUserDAO.findManyByIds.mockResolvedValue(mockUsers);
+            mockApprovedStudyDAO.findMany.mockResolvedValue([
+                { _id: 'study1', studyName: 'Study 1' },
+                { _id: 'study2', studyName: 'Study 2' }
+            ]);
+
+            const result = await userService.getUsersByIDs(userIDs);
+
+            expect(result).toHaveLength(1);
+            // Should only call findMany with valid study IDs (null/undefined filtered out)
+            expect(mockApprovedStudyDAO.findMany).toHaveBeenCalledWith({
+                id: { in: ['study1', 'study2'] }
+            });
+        });
+
         it('should handle studies fetch errors gracefully', async () => {
             const userIDs = ['user1'];
             const mockUsers = [

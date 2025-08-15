@@ -216,11 +216,12 @@ class UserService {
     async _findApprovedStudies(studies) {
         if (!studies || studies.length === 0) return [];
         const studiesIDs = studies.map((study) => {
-            if (study instanceof Object && study._id) {
+            if (study && study instanceof Object && study._id) {
                 return study._id;
             }
             return study;
-        });
+        }).filter(studyID => studyID != null); // Filter out null/undefined values
+        
         if(studiesIDs.includes("All"))
             return [{_id: "All", studyName: "All" }];
 
