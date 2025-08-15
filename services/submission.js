@@ -12,7 +12,7 @@ const {verifySubmissionAction} = require("../verifier/submission-verifier");
 const {formatName} = require("../utility/format-name");
 const ERROR = require("../constants/error-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
-const {SubmissionActionEvent, DeleteRecordEvent, UpdateSubmissionNameEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
+const {SubmissionActionEvent, DeleteRecordEvent, UpdateSubmissionNameEvent, UpdateSubmissionConfEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const {verifyBatch} = require("../verifier/batch-verifier");
 const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
@@ -1462,40 +1462,12 @@ class Submission {
             throw new Error(ERROR.FAILED_UPDATE_SUBMISSION_NAME);
         }
 
-        await this._notifyConfigurationChange(userInfo, aSubmission, updated?.name);
-
         // Log for the modifying submission name
         if (updated) {
             await this.logCollection.insert(UpdateSubmissionNameEvent.create(
                 userInfo._id, userInfo.email, userInfo.IDP, updated._id, aSubmission?.name, newName));
         }
         return updated;
-    }
-
-    async _notifyConfigurationChange(userInfo, aSubmission, newSubmissionName) {
-        const users = await this.userDAO.getUsersByNotifications([EN.DATA_SUBMISSION.CHANGE_CONFIGURATION]);
-        const { submitterEmails, otherEmails } = (users || []).reduce(
-            (acc, u) => {
-                if (u?.email) {
-                    (u?._id === aSubmission?.submitterID ? acc.submitterEmails : acc.otherEmails).push(u.email);
-                }
-                return acc;
-            },
-            { submitterEmails: [], otherEmails: [] }
-        );
-
-        if (submitterEmails?.length > 0) {
-            const sent = await this.notificationService.updateSubmissionNotification(submitterEmails, [], otherEmails, {
-                firstName: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
-                portalURL: this.emailParams.url || NA,
-                submissionName: newSubmissionName,
-                studyName: aSubmission?.study?.studyName || NA
-            });
-
-            if (sent?.accepted?.length === 0) {
-                console.error(ERROR.FAILED_NOTIFY_SUBMISSION_UPDATE + ";submissionID" + `${aSubmission?._id}`);
-            }
-        }
     }
 
     _validateEditSubmission(aSubmission, newName, userID) {
@@ -1527,19 +1499,31 @@ class Submission {
         verifySession(context)
             .verifyInitialized();
 
-        const {_id, version} = params;
+        const {_id, version, submitterID} = params;
         const aSubmission = await this._findByID(_id);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        const userScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW, aSubmission);
+        const [userScope, validVersions, { prevSubmitter, newSubmitter }] = await Promise.all([
+            this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW, aSubmission),
+            (async () => {
+                const dataModels = await this.fetchDataModelInfo();
+                return this._getAllModelVersions(dataModels, aSubmission?.dataCommons);
+            })(),
+            (async () => {
+                if (submitterID) {
+                    const newSubmitter = await this.userDAO.findFirst({id: submitterID});
+                    const preSubmitter = await this.userDAO.findFirst({id: aSubmission?.submitterID});
+                    return {prevSubmitter: preSubmitter, newSubmitter: newSubmitter};
+                }
+                return {};
+            })()
+        ]);
+
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
-
-        const dataModels = await this.fetchDataModelInfo();
-        const validVersions = this._getAllModelVersions(dataModels, aSubmission?.dataCommons);
 
         if (!validVersions.includes(version)) {
             throw new Error(replaceErrorString(ERROR.INVALID_MODEL_VERSION, `${version || " "}`));
@@ -1549,29 +1533,90 @@ class Submission {
             throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_STATUS_MODEL_VERSION, `${aSubmission?.status}`));
         }
 
+        if (submitterID) {
+            if (!newSubmitter) {
+                throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_NO_SUBMITTER, submitterID));
+            }
+            if (newSubmitter?.userStatus === USER.STATUSES.INACTIVE || newSubmitter?.role !== ROLES.SUBMITTER) {
+                throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_INVALID_SUBMITTER, submitterID));
+            }
+        }
+
         const userInfo = context.userInfo;
         const isPermitted = userInfo.role === ROLES.DATA_COMMONS_PERSONNEL && userInfo.dataCommons?.includes(aSubmission?.dataCommons);
         if (!isPermitted) {
             throw new Error(ERROR.INVALID_MODEL_VERSION_PERMISSION);
         }
 
-        if (aSubmission?.modelVersion === version) {
+        if (aSubmission?.modelVersion === version && (submitterID === undefined || aSubmission?.submitterID === submitterID)) {
             return aSubmission;
         }
 
         const updatedSubmission = await this.submissionDAO.update(
             aSubmission?._id, {
                 modelVersion: version,
+                ...(submitterID ? { submitterID: submitterID } : {}),
                 updatedAt: getCurrentTime()
             }
         );
+
         if (!updatedSubmission) {
             const msg = ERROR.FAILED_UPDATE_MODEL_VERSION + `; submissionID: ${aSubmission?._id}`;
             console.error(msg)
             throw new Error(msg);
         }
+
+        await this._notifyConfigurationChange(userInfo, aSubmission, version, prevSubmitter, newSubmitter);
+
+        // Log for the modifying submission
+        if (updatedSubmission) {
+            await this.logCollection.insert(UpdateSubmissionConfEvent.create(
+                userInfo._id, userInfo.email, userInfo.IDP, updatedSubmission._id,
+                // model change
+                aSubmission?.modelVersion, updatedSubmission?.modelVersion,
+                // submitter change
+                prevSubmitter?._id, newSubmitter?._id));
+        }
+
         await this._resetValidation(aSubmission?._id);
         return updatedSubmission;
+    }
+
+    async _notifyConfigurationChange(userInfo, aSubmission, newModelVersion, prevSubmitter, newSubmitter) {
+        const users = await this.userDAO.getUsersByNotifications([EN.DATA_SUBMISSION.CHANGE_CONFIGURATION]);
+        // when changing new submitter, the email should go to the new submitter
+        const submitterID = (newSubmitter && prevSubmitter?.id !== newSubmitter?.id) ? newSubmitter?._id : aSubmission?.submitterID;
+        const { submitterEmails, otherEmails } = (users || []).reduce(
+            (acc, u) => {
+                if (u?.email) {
+                    (u?._id === submitterID ? acc.submitterEmails : acc.otherEmails).push(u?.email);
+                }
+                return acc;
+            },
+            { submitterEmails: [], otherEmails: [] }
+        );
+
+        if (submitterEmails?.length > 0) {
+            const isChangingSubmitter = prevSubmitter?.email && prevSubmitter?.id !== newSubmitter?.id && prevSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.CHANGE_CONFIGURATION);
+            const originalSubmitterEmail = isChangingSubmitter ? [prevSubmitter?.email] : [];
+            const isSubmitterChanged = prevSubmitter && newSubmitter && prevSubmitter?._id !== newSubmitter?._id;
+            const isVersionChanged = newModelVersion && newModelVersion !== aSubmission?.modelVersion;
+            const sent = await this.notificationService.updateSubmissionNotification(submitterEmails, originalSubmitterEmail, otherEmails, {
+                firstName: getEmailUserName(userInfo),
+                portalURL: this.emailParams.url || NA,
+                studyName: aSubmission?.study?.studyName || NA,
+                // Changing the model version
+                ...(isVersionChanged ? {prevModelVersion: aSubmission?.modelVersion || NA} : {}),
+                ...(isVersionChanged ? {newModelVersion: newModelVersion || NA} : {}),
+                // Changing the submitter
+                ...(isSubmitterChanged ? { prevSubmitterName: getEmailUserName(prevSubmitter) || NA } : {}),
+                ...(isSubmitterChanged ? { newSubmitterName: getEmailUserName(newSubmitter) } || NA : {})
+            });
+
+            if (sent?.accepted?.length === 0) {
+                console.error(`${ERROR.FAILED_NOTIFY_SUBMISSION_UPDATE};submissionID ${aSubmission?._id}`);
+            }
+        }
     }
 
     async _resetValidation(aSubmissionID){
@@ -2600,6 +2645,11 @@ class SubmissionAttributes {
             !(this.isReadyMetadataOnly || this.isReadyMetadataDataFile) || !this.isValidDataFileSize || this.isSubmissionStatusNew || !this.isValidationNotNew || this.hasOrphanError;
     }
 }
+
+const getEmailUserName = (userInfo) => {
+    return `${userInfo.firstName} ${userInfo?.lastName || ''}`;
+}
+
 
 function logDaysDifference(inactiveDays, accessedAt, submissionID) {
     const startedDate = accessedAt; // Ensure it's a Date object
