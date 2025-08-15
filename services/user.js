@@ -220,7 +220,7 @@ class UserService {
                 return study._id;
             }
             return study;
-        }).filter(studyID => studyID != null); // Filter out null/undefined values
+        }).filter(studyID => studyID !== null && studyID !== undefined); // Filter out null/undefined values
         
         if(studiesIDs.includes("All"))
             return [{_id: "All", studyName: "All" }];
