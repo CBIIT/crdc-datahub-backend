@@ -95,12 +95,12 @@ class BatchDAO extends GenericDAO {
                     submissionID: submissionID,
                     type: "data file",
                     status: "Uploaded",
-                    // Prisma array contains operator for MongoDB
+                    // Prisma MongoDB array operator to check if files array contains matching object
                     files: {
-                        array_contains: [{
+                        has: {
                             fileName: fileName,
                             status: 'Uploaded'
-                        }]
+                        }
                     }
                 },
                 select: {
