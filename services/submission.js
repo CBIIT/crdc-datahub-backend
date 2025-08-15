@@ -386,7 +386,7 @@ class Submission {
                   if (userIDs.length > 0) {
                       const uniqueUserIDs = [...new Set(userIDs)];
                       
-                      // Fetch all users in a single database query instead of multiple sequential calls
+                      // Fetch all users by their IDs in a batch call
                       const users = await this.userService.getUsersByIDs(uniqueUserIDs);
                       
                       const userMap = {};
