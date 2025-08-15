@@ -59,7 +59,9 @@ describe('GenericDAO Error Handling', () => {
             
             expect(consoleSpy).toHaveBeenCalledWith('GenericDAO.create failed for TestModel:', {
                 error: 'Database connection failed',
-                data: JSON.stringify(testData),
+                dataType: 'object',
+                dataKeys: ['name', 'value'],
+                dataLength: null,
                 stack: prismaError.stack
             });
         });
@@ -93,7 +95,7 @@ describe('GenericDAO Error Handling', () => {
             expect(consoleSpy).toHaveBeenCalledWith('GenericDAO.update failed for TestModel:', {
                 error: 'Record not found',
                 id: testId,
-                updateData: JSON.stringify(updateData),
+                updateDataKeys: ['name'],
                 stack: prismaError.stack
             });
         });
@@ -189,7 +191,9 @@ describe('GenericDAO Error Handling', () => {
                 'GenericDAO.create failed for TestModel:',
                 expect.objectContaining({
                     error: 'Test error',
-                    data: JSON.stringify(testData),
+                    dataType: 'object',
+                    dataKeys: ['name'],
+                    dataLength: null,
                     stack: 'Error stack trace'
                 })
             );
@@ -215,7 +219,7 @@ describe('GenericDAO Error Handling', () => {
                 expect.objectContaining({
                     error: 'Update failed',
                     id: testId,
-                    updateData: JSON.stringify(updateData)
+                    updateDataKeys: ['name']
                 })
             );
         });

@@ -13,7 +13,9 @@ class GenericDAO {
         } catch (error) {
             console.error(`GenericDAO.create failed for ${this.model.name}:`, {
                 error: error.message,
-                data: JSON.stringify(data),
+                dataType: typeof data,
+                dataKeys: data && typeof data === 'object' ? Object.keys(data) : null,
+                dataLength: Array.isArray(data) ? data.length : null,
                 stack: error.stack
             });
             throw new Error(`Failed to create ${this.model.name}`);
@@ -27,6 +29,7 @@ class GenericDAO {
             console.error(`GenericDAO.createMany failed for ${this.model.name}:`, {
                 error: error.message,
                 dataCount: Array.isArray(data) ? data.length : 0,
+                dataType: typeof data,
                 stack: error.stack
             });
             throw new Error(`Failed to create many ${this.model.name}`);
@@ -118,7 +121,7 @@ class GenericDAO {
             console.error(`GenericDAO.update failed for ${this.model.name}:`, {
                 error: error.message,
                 id,
-                updateData: JSON.stringify(data),
+                updateDataKeys: data && typeof data === 'object' ? Object.keys(data) : null,
                 stack: error.stack
             });
             throw new Error(`Failed to update ${this.model.name}`);
@@ -131,8 +134,8 @@ class GenericDAO {
         } catch (error) {
             console.error(`GenericDAO.updateMany failed for ${this.model.name}:`, {
                 error: error.message,
-                condition: JSON.stringify(condition),
-                data: JSON.stringify(data),
+                conditionKeys: condition && typeof condition === 'object' ? Object.keys(condition) : null,
+                dataKeys: data && typeof data === 'object' ? Object.keys(data) : null,
                 stack: error.stack
             });
             throw new Error(`Failed to update many ${this.model.name}`);
