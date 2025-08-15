@@ -165,7 +165,7 @@ class BatchService {
     }
     // private function
     async _getBatchDisplayID(submissionID) {
-        return await this.batchDAO.getNextDisplayID(submissionID);
+        return (await this.batchDAO.getNextDisplayID(submissionID)) || 1;
     }
     /**
      * getLastFileBatchID
