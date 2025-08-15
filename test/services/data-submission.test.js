@@ -98,7 +98,8 @@ describe('Submission.getPendingPVs', () => {
         };
 
         service.userService = {
-            getUsersByNotifications: jest.fn()
+            getUsersByNotifications: jest.fn(),
+            getUsersByIDs: jest.fn().mockResolvedValue([])
         };
 
         service.notificationService = {
@@ -331,7 +332,8 @@ describe('Submission.getSubmission', () => {
         };
 
         mockUserService = {
-            getUserByID: jest.fn()
+            getUserByID: jest.fn(),
+            getUsersByIDs: jest.fn().mockResolvedValue([])
         };
 
         mockS3Service = {
@@ -420,9 +422,7 @@ describe('Submission.getSubmission', () => {
         mockSubmissionDAO.update.mockResolvedValue(mockSubmission);
         mockSubmissionDAO.findMany.mockResolvedValue(mockOtherSubmissions);
         mockDataRecordService.countNodesBySubmissionID.mockResolvedValue(mockNodeCount);
-        mockUserService.getUserByID
-            .mockResolvedValueOnce(mockUser1)
-            .mockResolvedValueOnce(mockUser2);
+        mockUserService.getUsersByIDs.mockResolvedValue([mockUser1, mockUser2]);
         mockProgramDAO.findById.mockResolvedValue(mockProgram);
 
         const {getDataCommonsDisplayNamesForSubmission} = require('../../utility/data-commons-remapper');
@@ -451,7 +451,7 @@ describe('Submission.getSubmission', () => {
             },
         });
         expect(mockDataRecordService.countNodesBySubmissionID).toHaveBeenCalledWith('sub1');
-        expect(mockUserService.getUserByID).toHaveBeenCalledTimes(2);
+        expect(mockUserService.getUsersByIDs).toHaveBeenCalledWith(['user1', 'user2']);
         expect(mockProgramDAO.findById).toHaveBeenCalledWith('program1');
         expect(result).toBeDefined();
     });
@@ -609,14 +609,14 @@ describe('Submission.getSubmission', () => {
         mockSubmissionDAO.update.mockResolvedValue(submissionWithHistory);
         mockSubmissionDAO.findMany.mockResolvedValue([]);
         mockDataRecordService.countNodesBySubmissionID.mockResolvedValue(5);
-        mockUserService.getUserByID.mockResolvedValue({ firstName: 'John', lastName: 'Doe' });
+        mockUserService.getUsersByIDs.mockResolvedValue([{ _id: 'user1', firstName: 'John', lastName: 'Doe' }]);
 
         const {getDataCommonsDisplayNamesForSubmission} = require('../../utility/data-commons-remapper');
         getDataCommonsDisplayNamesForSubmission.mockReturnValue(submissionWithHistory);
 
         const result = await submission.getSubmission(params, mockContext);
 
-        expect(mockUserService.getUserByID).toHaveBeenCalledWith('user1');
+        expect(mockUserService.getUsersByIDs).toHaveBeenCalledWith(['user1']);
         expect(result).toBeDefined();
     });
 
@@ -1161,7 +1161,8 @@ describe('Submission._sendEmailsDeletedSubmissions', () => {
     beforeEach(() => {
         mockUserService = {
             getUserByID: jest.fn(),
-            getUsersByNotifications: jest.fn()
+            getUsersByNotifications: jest.fn(),
+            getUsersByIDs: jest.fn().mockResolvedValue([])
         };
 
         mockNotificationService = {

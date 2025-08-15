@@ -74,7 +74,7 @@ describe('Submission Service - getSubmission', () => {
         archived: false,
         history: [
             { userID: 'user-123', userName: 'John Doe' },
-            { userID: 'user-456', userName: null }
+            { userID: 'user-456', userName: 'Jane Smith' }
         ],
         study: {
             id: 'study-123',
@@ -119,7 +119,8 @@ describe('Submission Service - getSubmission', () => {
 
         // Setup mock services
         mockUserService = {
-            getUserByID: jest.fn()
+            getUserByID: jest.fn(),
+            getUsersByIDs: jest.fn().mockResolvedValue([])
         };
 
         mockDataRecordService = {
@@ -501,17 +502,18 @@ describe('Submission Service - getSubmission', () => {
             mockSubmissionDAO.update.mockResolvedValue(submissionWithHistory);
             mockSubmissionDAO.findMany.mockResolvedValue([]);
             mockDataRecordService.countNodesBySubmissionID.mockResolvedValue(5);
-            mockUserService.getUserByID
-                .mockResolvedValueOnce({
+            mockUserService.getUsersByIDs.mockResolvedValue([
+                {
                     _id: 'user-456',
                     firstName: 'Jane',
                     lastName: 'Smith'
-                })
-                .mockResolvedValueOnce({
+                },
+                {
                     _id: 'user-789',
                     firstName: 'Bob',
                     lastName: 'Johnson'
-                });
+                }
+            ]);
             submissionService._getEveryReminderQuery.mockReturnValue({ reminderFlag: true });
 
             // Mock the data commons remapper to return the submission with populated history
@@ -532,9 +534,8 @@ describe('Submission Service - getSubmission', () => {
             const result = await submissionService.getSubmission(mockParams, mockContext);
 
             // Verify
-            expect(mockUserService.getUserByID).toHaveBeenCalledTimes(2);
-            expect(mockUserService.getUserByID).toHaveBeenCalledWith('user-456');
-            expect(mockUserService.getUserByID).toHaveBeenCalledWith('user-789');
+            expect(mockUserService.getUsersByIDs).toHaveBeenCalledTimes(1);
+            expect(mockUserService.getUsersByIDs).toHaveBeenCalledWith(['user-456', 'user-789']);
             
             // Verify that the history was properly populated
             expect(result.history).toBeDefined();

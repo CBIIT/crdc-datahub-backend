@@ -161,16 +161,42 @@ class UserService {
 
     async getUserByID(userID) {
         const result = await this.userDAO.findFirst({id: userID});
-        if (result?.length === 1) {
-            const user = result[0];
-            const studies = await this._findApprovedStudies(user.studies);
+        if (result) {
+            const studies = await this._findApprovedStudies(result.studies);
             return {
-                ...user,
+                ...result,
                 studies
             };
         } else {
             return null;
         }
+    }
+
+    /**
+     * Fetch multiple users by their IDs in a single database query
+     * @param {string[]} userIDs - Array of user IDs to fetch
+     * @returns {Promise<Array>} - Array of user objects with studies populated
+     */
+    async getUsersByIDs(userIDs) {
+        if (!userIDs || userIDs.length === 0) {
+            return [];
+        }
+
+        // Fetch all users in a single query
+        const users = await this.userDAO.findManyByIds(userIDs);
+        
+        // Fetch studies for all users in parallel
+        const usersWithStudies = await Promise.all(
+            users.map(async (user) => {
+                const studies = await this._findApprovedStudies(user.studies);
+                return {
+                    ...user,
+                    studies
+                };
+            })
+        );
+
+        return usersWithStudies;
     }
 
     async _findStudiesNames(studies) {
@@ -189,7 +215,12 @@ class UserService {
 
     async _findApprovedStudies(studies) {
         if (!studies || studies.length === 0) return [];
-        const studiesIDs = (studies[0] instanceof Object) ? studies.map((study) => study?._id) : studies;
+        const studiesIDs = studies.map((study) => {
+            if (study instanceof Object && study._id) {
+                return study._id;
+            }
+            return study;
+        });
         if(studiesIDs.includes("All"))
             return [{_id: "All", studyName: "All" }];
 

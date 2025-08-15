@@ -384,9 +384,9 @@ class Submission {
                   
                   if (userIDs.length > 0) {
                       const uniqueUserIDs = [...new Set(userIDs)];
-                      const users = await Promise.all(
-                          uniqueUserIDs.map(userID => this.userService.getUserByID(userID))
-                      );
+                      
+                      // Fetch all users in a single database query instead of multiple sequential calls
+                      const users = await this.userService.getUsersByIDs(uniqueUserIDs);
                       
                       const userMap = {};
                       users.forEach(user => {
