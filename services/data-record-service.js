@@ -457,10 +457,16 @@ class DataRecordService {
     }
 
     async countNodesBySubmissionID(submissionID) {
-        const countNodes = await this.dataRecordDAO.count({
+        // Get distinct nodeTypes for the submission to avoid counting duplicates
+        const distinctNodes = await this.dataRecordDAO.findMany({
             submissionID: submissionID,
+        }, {
+            select: { nodeType: true }
         });
-         return countNodes || 0;
+        
+        // Count unique nodeTypes
+        const uniqueNodeTypes = [...new Set(distinctNodes.map(node => node.nodeType))];
+        return uniqueNodeTypes.length || 0;
     }
     /**
      * public function to retrieve release record from release collection
