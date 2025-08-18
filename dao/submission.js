@@ -120,7 +120,13 @@ class SubmissionDAO extends GenericDAO {
                 _id: submission.id,
                 studyName: submission?.study?.studyName,
                 studyAbbreviation: submission?.study?.studyAbbreviation,
-                dataFileSize: this._transformDataFileSize(submission.status, submission.dataFileSize)
+                dataFileSize: this._transformDataFileSize(submission.status, submission.dataFileSize),
+                // Transform organization to match GraphQL schema (map id to _id)
+                organization: submission.organization ? {
+                    _id: submission.organization.id,
+                    name: submission.organization.name,
+                    abbreviation: submission.organization.abbreviation
+                } : null
             }));
 
             return {
@@ -282,7 +288,12 @@ class SubmissionDAO extends GenericDAO {
                 }
             });
 
-            return organizations;
+            // Transform organizations to match GraphQL schema (map id to _id)
+            return organizations.map(org => ({
+                _id: org.id,
+                name: org.name,
+                abbreviation: org.abbreviation
+            }));
         } catch (error) {
             console.error('Error getting distinct organizations:', error);
             return [];
