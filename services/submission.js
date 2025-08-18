@@ -1638,7 +1638,7 @@ class Submission {
         const updatedSubmission = await this.submissionDAO.update(
             aSubmission?._id, {
                 modelVersion: version,
-                ...(submitterID ? { submitterID: submitterID } : {}),
+                ...(submitterID ? { submitterID: submitterID, submitterName: formatName(newSubmitter)} : {}),
                 updatedAt: getCurrentTime()
             }
         );
@@ -1699,6 +1699,11 @@ class Submission {
             if (sent?.accepted?.length === 0) {
                 console.error(`${ERROR.FAILED_NOTIFY_SUBMISSION_UPDATE};submissionID ${aSubmission?._id}`);
             }
+        }
+
+        if (submitterEmails?.length === 0) {
+            // This should be an error because the Submitter must have the notification.
+            console.error(`Submission updated; email notification to submitter not sent. submissionID: ${aSubmission?._id}`);
         }
     }
 
