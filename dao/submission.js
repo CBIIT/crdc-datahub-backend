@@ -1,6 +1,7 @@
 const GenericDAO = require("./generic");
 const { MODEL_NAME } = require('../constants/db-constants');
 const {PrismaPagination} = require("../crdc-datahub-database-drivers/domain/prisma-pagination");
+const {SUBMISSION_ORDER_BY_MAP} = require("../constants/submission-constants");
 const {DELETED, CANCELED, NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, COMPLETED, ARCHIVED,
     COLLABORATOR_PERMISSIONS
 } = require("../constants/submission-constants");
@@ -53,8 +54,11 @@ class SubmissionDAO extends GenericDAO {
 
         const filterConditions = this._listConditions(userInfo, params.status, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope);
         
-        // Create Prisma pagination
-        const pagination = new PrismaPagination(params?.first, params.offset, params.orderBy, params.sortDirection);
+        // Map orderBy to proper Prisma field names
+        const mappedOrderBy = params?.orderBy ? SUBMISSION_ORDER_BY_MAP[params.orderBy] || params.orderBy : undefined;
+        
+        // Create Prisma pagination with mapped orderBy
+        const pagination = new PrismaPagination(params?.first, params.offset, mappedOrderBy, params.sortDirection);
         
         // Build the main query with includes
         const includeQuery = {
@@ -78,9 +82,14 @@ class SubmissionDAO extends GenericDAO {
         const whereConditions = { ...filterConditions };
         
         // Add organization filter if specified
+        // Note: organization parameter always expects organization names, not IDs
         if (params?.organization && params?.organization !== ALL_FILTER) {
+            // Always filter by organization name (case-insensitive contains)
             whereConditions.organization = {
-                id: params.organization
+                name: {
+                    contains: (params.organization || '').trim(),
+                    mode: 'insensitive'
+                }
             };
         }
 
