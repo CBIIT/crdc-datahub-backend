@@ -5,7 +5,7 @@ describe('PrismaPagination', () => {
     describe('constructor', () => {
         it('should create instance with default sort direction', () => {
             const pagination = new PrismaPagination(10, 0, 'name');
-            expect(pagination._sortDirection).toBe(SORT.DESC);
+            expect(pagination._sortDirection).toBe(SORT.ASC);
         });
 
         it('should create instance with custom sort direction', () => {
@@ -136,11 +136,11 @@ describe('PrismaPagination', () => {
             expect(result).toBe(SORT.ASC);
         });
 
-        it('should return DESC for invalid sort direction', () => {
+        it('should return ASC for invalid sort direction', () => {
             const pagination = new PrismaPagination(10, 0, 'name', 'invalid');
             const result = pagination._getSortDirection();
             
-            expect(result).toBe(SORT.DESC);
+            expect(result).toBe(SORT.ASC);
         });
     });
 });
