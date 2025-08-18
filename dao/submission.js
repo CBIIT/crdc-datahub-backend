@@ -87,7 +87,7 @@ class SubmissionDAO extends GenericDAO {
             // Always filter by organization name (case-insensitive contains)
             whereConditions.organization = {
                 name: {
-                    contains: params.organization.trim(),
+                    contains: (params.organization || '').trim(),
                     mode: 'insensitive'
                 }
             };
