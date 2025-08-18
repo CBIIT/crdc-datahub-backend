@@ -464,20 +464,19 @@ class UserService {
     // using prima, it will be inefficient to update each submission.
     async _updateSubmitterSubmission(prevUser, updatedUser) {
         const changedSubmitterRole = prevUser?.role === ROLES.SUBMITTER && prevUser?.role !== updatedUser?.role;
-        const [prevStudies, updatedStudies] =[prevUser?.studies || [], updatedUser?.studies || []];
+        const [prevStudyIDs, updatedStudyIDs] =[prevUser?.studies?.map(study => study?._id) || [], updatedUser?.studies?.map(study => study?._id) || []];
         // checking the removed studies
-        const updatedSet = new Set(updatedStudies);
-        const removedStudies = prevStudies
-            .filter(study => !updatedSet.has(study) && study !== ALL_STUDY_FILTER)
-            .map(study => study?._id);
-        const isStudiesRemoved = prevUser?.role === ROLES.SUBMITTER && prevUser?.role === updatedUser?.role && removedStudies?.length > 0
+        const updatedStudyIDSet = new Set(updatedStudyIDs);
+        const removedStudyIDs = prevStudyIDs
+            .filter(id => !updatedStudyIDSet.has(id) && id !== ALL_STUDY_FILTER);
+        const isStudiesRemoved = prevUser?.role === ROLES.SUBMITTER && prevUser?.role === updatedUser?.role && removedStudyIDs?.length > 0
 
         if (changedSubmitterRole || isStudiesRemoved) {
             const res = await this.submissionsCollection.updateMany(
                 {
                     submitterID: updatedUser?._id,
                     // Only removing some approved studies
-                    ...(!changedSubmitterRole && isStudiesRemoved && { "studyID": { $in: removedStudies } }),
+                    ...(!changedSubmitterRole && isStudiesRemoved && { "studyID": { $in: removedStudyIDs } }),
                     isNoSubmitter: {$ne: true}
                 },
                 [
