@@ -2158,8 +2158,8 @@ class Submission {
                 throw new Error(ERROR.FAILED_CREATE_LOAD_SHEET);
             }
             zipFile = zipDir + ".zip";
-            await zipFilesInDir(zipDir, zipFile);
-            if (!fs.existsSync(zipFile)) {
+            const result = await zipFilesInDir(zipDir, zipFile);
+            if (!result || !fs.existsSync(zipFile)) {
                 throw new Error(ERROR.FAILED_CREATE_LOAD_SHEET);
             }
             const zipFileName = path.basename(zipFile);
