@@ -180,6 +180,11 @@ class SubmissionDAO extends GenericDAO {
             if (!isAllStudy(studyScope?.scopeValues)) {
                 baseConditions.studyID = { in: studyScope?.scopeValues || [] };
             }
+            // This is the view condition control blocking the submissions without any submitter.
+            baseConditions.OR = [
+                { isNoSubmitter: false },
+                { isNoSubmitter: null }
+            ]
             return baseConditions;
         } else if (userScope.isDCScope()) {
             const DCScope = userScope.getDataCommonsScope();

@@ -56,7 +56,8 @@ module.exports = Object.freeze({
         NAME_MAX_LENGTH: 25
     },
     COLLABORATOR_PERMISSIONS: {
-        CAN_EDIT: "Can Edit"
+        CAN_EDIT: "Can Edit",
+        NO_ACCESS: "No Access"
     },
     UPLOADING_HEARTBEAT_CONFIG_TYPE: "UPLOADING_HEARTBEAT"
 
