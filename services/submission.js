@@ -35,6 +35,7 @@ const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utilit
 const {getDataCommonsDisplayNamesForSubmission, getDataCommonsDisplayNamesForListSubmissions,
     getDataCommonsDisplayNamesForUser, getDataCommonsDisplayNamesForReleasedNode
 } = require("../utility/data-commons-remapper");
+const {formatNestedOrganization} = require("../utility/organization-transformer");
 const {UserScope} = require("../domain/user-scope");
 const {ORGANIZATION_COLLECTION, APPROVED_STUDIES_COLLECTION, USER_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {zipFilesInDir} = require("../utility/io-util");
@@ -2224,11 +2225,7 @@ class Submission {
                 
                 // Transform organization to match GraphQL schema (map id to _id)
                 if (org) {
-                    aSubmission.organization = {
-                        _id: org.id,
-                        name: org.name,
-                        abbreviation: org.abbreviation
-                    };
+                    aSubmission.organization = formatNestedOrganization(org);
                 }
             }
 

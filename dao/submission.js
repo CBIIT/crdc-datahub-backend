@@ -7,6 +7,7 @@ const {DELETED, CANCELED, NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJE
 } = require("../constants/submission-constants");
 const ERROR = require("../constants/error-constants");
 const {replaceErrorString} = require("../utility/string-util");
+const {formatNestedOrganization, formatNestedOrganizations} = require("../utility/organization-transformer");
 const prisma = require("../prisma");
 const ALL_FILTER = "All";
 const NA = "NA"
@@ -122,11 +123,7 @@ class SubmissionDAO extends GenericDAO {
                 studyAbbreviation: submission?.study?.studyAbbreviation,
                 dataFileSize: this._transformDataFileSize(submission.status, submission.dataFileSize),
                 // Transform organization to match GraphQL schema (map id to _id)
-                organization: submission.organization ? {
-                    _id: submission.organization.id,
-                    name: submission.organization.name,
-                    abbreviation: submission.organization.abbreviation
-                } : null
+                organization: formatNestedOrganization(submission.organization)
             }));
 
             return {
@@ -289,11 +286,7 @@ class SubmissionDAO extends GenericDAO {
             });
 
             // Transform organizations to match GraphQL schema (map id to _id)
-            return organizations.map(org => ({
-                _id: org.id,
-                name: org.name,
-                abbreviation: org.abbreviation
-            }));
+            return formatNestedOrganizations(organizations);
         } catch (error) {
             console.error('Error getting distinct organizations:', error);
             return [];
