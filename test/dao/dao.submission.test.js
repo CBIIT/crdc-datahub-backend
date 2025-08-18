@@ -288,14 +288,38 @@ describe('SubmissionDAO', () => {
             });
 
             it('should apply organization filter', async () => {
-                const paramsWithOrganization = { ...mockParams, organization: 'org-1' };
+                const paramsWithOrganization = { ...mockParams, organization: 'National Cancer Institute' };
 
                 await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithOrganization);
 
                 expect(prisma.submission.findMany).toHaveBeenCalledWith(
                     expect.objectContaining({
                         where: expect.objectContaining({
-                            organization: { id: 'org-1' }
+                            organization: { 
+                                name: {
+                                    contains: 'National Cancer Institute',
+                                    mode: 'insensitive'
+                                }
+                            }
+                        })
+                    })
+                );
+            });
+
+            it('should apply organization name filter', async () => {
+                const paramsWithOrgName = { ...mockParams, organization: 'Broad Institute' };
+
+                await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithOrgName);
+
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            organization: { 
+                                name: {
+                                    contains: 'Broad Institute',
+                                    mode: 'insensitive'
+                                }
+                            }
                         })
                     })
                 );
@@ -332,6 +356,22 @@ describe('SubmissionDAO', () => {
                 expect(prisma.submission.findMany).toHaveBeenCalledWith(
                     expect.objectContaining({
                         orderBy: { name: 'asc' }
+                    })
+                );
+            });
+
+            it('should apply organization sorting correctly', async () => {
+                const paramsWithOrgSorting = {
+                    ...mockParams,
+                    orderBy: 'organization',
+                    sortDirection: 'asc'
+                };
+
+                await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithOrgSorting);
+
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        orderBy: { organization: { name: 'asc' } }
                     })
                 );
             });

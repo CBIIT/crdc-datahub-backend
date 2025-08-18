@@ -745,7 +745,7 @@ type Query {
         first: Int = -1,
         offset: Int = 0,
         # ["updatedAt", "createdAt", "name", "dataCommons", "organization", "studyAbbreviation",
-        #              "dbGapID", "status", "concierge", "dataFileSize.size"]
+        #              "dbGaPID", "status", "concierge", "dataFileSize.size"]
         orderBy: String = "updatedAt",
         sortDirection: String = "DESC"): ListSubmissions
 
