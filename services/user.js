@@ -218,18 +218,14 @@ class UserService {
 
     async _findApprovedStudies(studies) {
         if (!studies || studies.length === 0) return [];
-        const studiesIDs = studies.map((study) => {
-            if (study && study instanceof Object && study._id) {
-                return study._id;
-            }
-            return study;
-        }).filter(studyID => studyID !== null && studyID !== undefined); // Filter out null/undefined values
-        
-        if(studiesIDs.includes("All"))
+        const studiesIDs = (studies[0] instanceof Object) ? studies.map((study) => study?._id || study?.id) : studies;
+        const filteredIDs = studiesIDs.filter(studyID => studyID !== null && studyID !== undefined);
+
+        if(filteredIDs.includes("All"))
             return [{_id: "All", studyName: "All" }];
 
         return await this.approvedStudyDAO.findMany({
-            id: { in: studiesIDs }
+            id: { in: filteredIDs }
         });
     }
 
@@ -464,7 +460,7 @@ class UserService {
     // using prima, it will be inefficient to update each submission.
     async _updateSubmitterSubmission(prevUser, updatedUser) {
         const changedSubmitterRole = prevUser?.role === ROLES.SUBMITTER && prevUser?.role !== updatedUser?.role;
-        const [prevStudyIDs, updatedStudyIDs] =[prevUser?.studies?.map(study => study?._id) || [], updatedUser?.studies?.map(study => study?._id) || []];
+        const [prevStudyIDs, updatedStudyIDs] =[prevUser?.studies?.map(study => study?._id || study?.id) || [], updatedUser?.studies?.map(study => study?._id || study?.id) || []];
         // checking the removed studies
         const updatedStudyIDSet = new Set(updatedStudyIDs);
         const removedStudyIDs = prevStudyIDs
