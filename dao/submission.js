@@ -8,6 +8,7 @@ const {DELETED, CANCELED, NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJE
 const ERROR = require("../constants/error-constants");
 const {replaceErrorString} = require("../utility/string-util");
 const prisma = require("../prisma");
+const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
 const ALL_FILTER = "All";
 const NA = "NA"
 class SubmissionDAO extends GenericDAO {
@@ -120,6 +121,7 @@ class SubmissionDAO extends GenericDAO {
                 _id: submission.id,
                 studyName: submission?.study?.studyName,
                 studyAbbreviation: submission?.study?.studyAbbreviation,
+                submitterName: isTrue(submission?.isNoSubmitter) ? "" : submission?.submitterName,
                 dataFileSize: this._transformDataFileSize(submission.status, submission.dataFileSize)
             }));
 
