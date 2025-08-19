@@ -508,20 +508,22 @@ class ReleaseService {
         verifySession(context)
             .verifyInitialized();
         const {
-            studyID: studyID
+            studyID: studyID,
+            dataCommonsDisplayName: dataCommonsDisplayName
         } = params;
         const aStudy = await this.approvedStudyDAO.getApprovedStudyByID(studyID);
         if (!aStudy) {
             throw new Error(ERROR.STUDY_NOT_EXIST);
         }
-         const userScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
+        const userScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW);
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         let zipDir = null;
         let zipFile = null;
+        const originDataCommons = getDataCommonsOrigin(dataCommonsDisplayName) || dataCommonsDisplayName;
         try {
-            zipDir = await this._retrieveAllReleasedNodes(aStudy);
+            zipDir = await this._retrieveAllReleasedNodes(aStudy, originDataCommons);
             if (!zipDir || !fs.existsSync(zipDir)) {
                 throw new Error(ERROR.FAILED_DOWNLOAD_ALL_RELEASED_NODES);
             }
@@ -560,11 +562,11 @@ class ReleaseService {
      * @param {*} aStudy 
      * @returns String
      */
-    async _retrieveAllReleasedNodes(aStudy) {
+    async _retrieveAllReleasedNodes(aStudy, originDataCommons) {
         const tempFolder = `logs/${aStudy.id}_AllNodes`;
         const AllNodesDir = `${aStudy?.studyAbbreviation}_AllNodes_${getFormatDateStr(getCurrentTime(), path.format = "YYYYMMDDHHmmss")}`;
         const download_dir = path.join(tempFolder, AllNodesDir);
-        const nodeTypes = await this.releaseDAO.distinct("nodeType", {studyID: aStudy.id});
+        const nodeTypes = await this.releaseDAO.distinct("nodeType", {studyID: aStudy.id, dataCommons: originDataCommons});
         if (!nodeTypes || nodeTypes.length === 0) {
             throw new Error(ERROR.FAILED_DOWNLOAD_ALL_RELEASED_NODES);
         }
@@ -574,7 +576,7 @@ class ReleaseService {
         for (const nodeType of nodeTypes){
             const nodeTypeTsv = `${download_dir}/${nodeType}.tsv`;
             // Convert nodeType data to TSV format and save to file
-            await this._saveNodesToTsv(nodeType, aStudy.id, nodeTypeTsv);
+            await this._saveNodesToTsv(nodeType, aStudy.id, nodeTypeTsv, originDataCommons);
         }
         return download_dir;
     }
@@ -584,7 +586,7 @@ class ReleaseService {
      * @param {*} studyID 
      * @param {*} filePath 
      */
-    async _saveNodesToTsv(nodeType, studyID, filePath) {
+    async _saveNodesToTsv(nodeType, studyID, filePath, originDataCommons) {
         // retrieve nodes by studyID and nodeType 1000 by 1000
         const limit = 1000;
         let skip = 0;
@@ -595,7 +597,8 @@ class ReleaseService {
             results = await this.releaseDAO.aggregate([{
                 $match: {
                     studyID: studyID,
-                    nodeType: nodeType
+                    nodeType: nodeType,
+                    dataCommons: originDataCommons
                 }
             }, {
                 $skip: skip
