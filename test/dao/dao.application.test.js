@@ -13,7 +13,12 @@ jest.mock('../../prisma', () => ({
 jest.mock('../../dao/utils/orm-converter', () => ({
     convertIdFields: jest.fn((x) => x),
     convertMongoFilterToPrismaFilter: jest.fn((x) => x),
-    handleDotNotation: jest.fn((x) => x)
+    handleDotNotation: jest.fn((x) => x),
+    mongoSortToPrismaOrderBy: jest.fn((sortObj) => {
+        // Mock implementation that returns a simple orderBy object
+        const [key, direction] = Object.entries(sortObj)[0];
+        return { [key]: direction === 1 ? 'asc' : 'desc' };
+    })
 }));
 
 describe('ApplicationDAO', () => {
