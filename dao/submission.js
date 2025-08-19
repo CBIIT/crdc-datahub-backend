@@ -193,8 +193,8 @@ class SubmissionDAO extends GenericDAO {
             }
             // This is the view condition control blocking the submissions without any submitter.
             baseConditions.OR = [
-                { isNoSubmitter: false },
-                { isNoSubmitter: null }
+                { isNoSubmitter: { not: true } },
+                { submitterID: _id }
             ]
             return baseConditions;
         } else if (userScope.isDCScope()) {
