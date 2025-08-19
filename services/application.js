@@ -23,15 +23,6 @@ const {SORT: SORT_ORDER} = require("../constants/db-constants");
 const {PendingGPA} = require("../domain/pending-gpa");
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_INSTITUTION_NAME_LENGTH = 100;
-const OrderByMap = {
-    "Submitter Name": "applicant.applicantName",
-    "Organization": "organization.name",
-    "Study": "studyName",
-    "Program": "programName",
-    "Status": "status",
-    "Submitted Date": "submittedDate",
-    "Last Updated Date": "updatedAt"
-};
 class Application {
     _DELETE_REVIEW_COMMENT="This Submission Request has been deleted by the system due to inactivity.";
     _ALL_FILTER="All";
@@ -326,7 +317,7 @@ class Application {
         const [listConditions, programCondition, studyNameCondition, statuesCondition, submitterNameCondition] = filterConditions;
         let pipeline = [{"$match": listConditions}];
         // convert params.orderBy from orderBy in ["Submitter Name", "Organization", "Study", "Program", "Status", "Submitted Date"] to Application in prisma schema
-        const orderBy = params?.orderBy ? OrderByMap[params.orderBy]: "";
+        const orderBy = params?.orderBy ? params.orderBy : "";
         const paginationPipe = new MongoPagination(params?.first, params.offset, orderBy, params.sortDirection);
         const noPaginationPipe = pipeline.concat(paginationPipe.getNoLimitPipeline());
 
