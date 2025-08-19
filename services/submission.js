@@ -1632,14 +1632,16 @@ class Submission {
             }
             // Should include the same study
             const userStudies = (newSubmitter?.studies || [])
-                .filter((study) => aSubmission?.studyID && study?.id === aSubmission?.studyID || study.id === ALL_STUDY_FILTER);
+                .filter((study) => aSubmission?.studyID && (study?.id === aSubmission?.studyID || study.id === ALL_STUDY_FILTER));
             if (userStudies?.length === 0) {
                 throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_INVALID_SUBMITTER, submitterID));
             }
         }
 
         const userInfo = context.userInfo;
-        const isPermitted = userScope.isAllScope() || (userScope.isDCScope() && userScope.hasDCValue(aSubmission?.dataCommons)) || (userScope.isStudyScope() && userScope.hasStudyValue(aSubmission?.studyID))
+        const isPermitted = userScope.isAllScope() ||
+            (userScope.isDCScope() && userScope.hasDCValue(aSubmission?.dataCommons)) ||
+            (userScope.isStudyScope() && userScope.hasStudyValue(aSubmission?.studyID));
         if (!isPermitted) {
             throw new Error(ERROR.INVALID_MODEL_VERSION_PERMISSION);
         }
