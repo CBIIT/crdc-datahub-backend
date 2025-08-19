@@ -2194,10 +2194,18 @@ class Submission {
             }
         }
     }
-
+    /**
+     * Get submission summary
+     * @param {*} params 
+     * @param {*} context 
+     * @returns 
+     */
     async getSubmissionSummary(params, context) {
         verifySession(context)
             .verifyInitialized();
+        const {
+            submissionID
+        } = params;
         const aSubmission = await this._findByID(submissionID);
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
@@ -2207,8 +2215,7 @@ class Submission {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         // Generate summary
-        const summary = this.dataRecordService.retrieveDSSummary(aSubmission);
-        return summary;
+        return await this.dataRecordService.retrieveDSSummary(aSubmission);
     }
 
     async _findByID(id) {

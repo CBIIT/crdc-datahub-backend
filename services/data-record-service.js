@@ -704,7 +704,6 @@ class DataRecordService {
      * @returns []
      */
     async retrieveDSSummary(aSubmission) {
-        const intention = aSubmission.intention;
         const nodeTypeSummary = [];
         // get distinct node type from dataCommons
         const distinctNodeTypes = await this.dataRecordDAO.distinct("nodeType", { submissionID: aSubmission._id });
