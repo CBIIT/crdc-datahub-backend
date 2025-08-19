@@ -67,6 +67,8 @@ Set.prototype.toArray = function() {
     return Array.from(this);
 };
 
+const ALL_STUDY_FILTER = "All";
+
 class Submission {
     _NOT_ASSIGNED = "Not yet assigned";
     constructor(logCollection, submissionCollection, batchService, userService, organizationService, notificationService,
@@ -1628,10 +1630,16 @@ class Submission {
             if (newSubmitter?.userStatus === USER.STATUSES.INACTIVE || newSubmitter?.role !== ROLES.SUBMITTER) {
                 throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_INVALID_SUBMITTER, submitterID));
             }
+            // Should include the same study
+            const userStudies = (newSubmitter?.studies || [])
+                .filter((study) => aSubmission?.studyID && study?.id === aSubmission?.studyID || study.id === ALL_STUDY_FILTER);
+            if (userStudies?.length === 0) {
+                throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_INVALID_SUBMITTER, submitterID));
+            }
         }
 
         const userInfo = context.userInfo;
-        const isPermitted = userInfo.role === ROLES.DATA_COMMONS_PERSONNEL && userInfo.dataCommons?.includes(aSubmission?.dataCommons);
+        const isPermitted = userScope.isAllScope() || (userScope.isDCScope() && userScope.hasDCValue(aSubmission?.dataCommons)) || (userScope.isStudyScope() && userScope.hasStudyValue(aSubmission?.studyID))
         if (!isPermitted) {
             throw new Error(ERROR.INVALID_MODEL_VERSION_PERMISSION);
         }
@@ -1643,7 +1651,8 @@ class Submission {
         const updatedSubmission = await this.submissionDAO.update(
             aSubmission?._id, {
                 modelVersion: version,
-                ...(submitterID ? { submitterID: submitterID, submitterName: formatName(newSubmitter)} : {}),
+                // isNoSubmitter indicates whether the submission currently has an active Submitter
+                ...(submitterID ? { submitterID: submitterID, submitterName: formatName(newSubmitter), isNoSubmitter: false} : {}),
                 updatedAt: getCurrentTime()
             }
         );

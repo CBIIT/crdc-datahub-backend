@@ -105,7 +105,7 @@ const ERROR = {
     INVALID_MODEL_VERSION: "The provided model version was not found in the data-commons: $item$",
     INVALID_SUBMISSION_STATUS_MODEL_VERSION: "Invalid submission status to update the model-version: $item$",
     INVALID_SUBMISSION_NO_SUBMITTER: "The $item$ submitter ID does not exist in the system.",
-    INVALID_SUBMISSION_INVALID_SUBMITTER: "The $item$ submitter ID is not submitter role or inactive status, please re-assign another submitter",
+    INVALID_SUBMISSION_INVALID_SUBMITTER: "The $item$ submitter ID is not submitter role or inactive status or no associated studies, please re-assign another submitter",
     FAILED_TO_REQUEST_PV: "Failed to send notification for PV request; $item$",
     FAILED_TO_INSERT_REQUEST_PV: "Failed to insert PV request; $item$",
     DUPLICATE_REQUEST_PV: "Duplicate PV found: $item$",
