@@ -112,7 +112,7 @@ dbConnector.connect().then(async () => {
     const submissionService = new Submission(logCollection, submissionCollection, batchService, userService,
         organizationService, notificationsService, dataRecordService, fetchDataModelInfo, awsService, config.export_queue,
         s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService, config.uploaderCLIConfigs,
-        config.submission_bucket, configurationService, uploadingMonitor, config.dataCommonsBucketMap, authorizationService, dataModelService, dataRecordArchiveCollection);
+        config.submission_bucket, configurationService, uploadingMonitor, config.dataCommonsBucketMap, authorizationService, dataModelService, dataRecordCollection);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService, configurationService, authorizationService);
 
     const dashboardService = new DashboardService(userService, awsService, configurationService, {sessionTimeout: config.dashboardSessionTimeout}, authorizationService);
