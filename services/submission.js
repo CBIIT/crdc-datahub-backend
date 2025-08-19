@@ -182,7 +182,12 @@ class Submission {
     }
     async _findApprovedStudies(studies) {
         if (!studies || studies.length === 0) return [];
-        const studiesIDs = (studies[0] instanceof Object) ? studies.map((study) => study?._id || study?.id) : studies;
+        const studiesIDs = studies.map((study) => {
+            if (study && study instanceof Object && (study?._id || study?.id)) {
+                return study._id || study.id;
+            }
+            return study;
+        }).filter(studyID => studyID !== null && studyID !== undefined); // Filter out null/undefined values
         return this.approvedStudyDAO.findMany({
             id: {in: studiesIDs}
         });

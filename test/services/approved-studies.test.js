@@ -87,7 +87,7 @@ describe('ApprovedStudiesService', () => {
 
 
     describe('addApprovedStudyAPI', () => {
-        const mockGPA = {"GPAEmail": "GPAEmail@email.com", "GPAName": "GPA name", "isPendingGPA": true};
+        const mockGPA = {"GPAName": "GPA name", "isPendingGPA": true};
         const mockParams = {
             name: 'New Study',
             acronym: 'NS',
@@ -167,7 +167,7 @@ describe('ApprovedStudiesService', () => {
     });
 
     describe('editApprovedStudyAPI', () => {
-        const mockGPA = {"GPAEmail": "GPAEmail@email.com", "GPAName": "GPA name", "isPendingGPA": true};
+        const mockGPA = {"GPAName": "GPA name", "isPendingGPA": true};
         const mockParams = {
             studyID: 'study-id',
             name: 'Updated Study',

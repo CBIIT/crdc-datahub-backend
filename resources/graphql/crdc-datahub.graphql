@@ -30,7 +30,6 @@ type Application {
     version: String
     reviewComment: String
     GPAName: String
-    GPAEmail: String
 }
 
 type NewInstitution {
@@ -65,7 +64,6 @@ input AppInput {
     programDescription: String,
     version: String,
     GPAName: String
-    GPAEmail: String
     newInstitutions: [InstitutionInput]
 }
 
@@ -303,7 +301,6 @@ type ApprovedStudy {
     pendingModelChange: Boolean
     isPendingGPA: Boolean
     GPAName: String
-    GPAEmail: String
 }
 
 type ProgramList {
@@ -1006,7 +1003,6 @@ type Mutation {
         pendingModelChange: Boolean
         isPendingGPA: Boolean
         GPAName: String
-        GPAEmail: String
     ): ApprovedStudy
 
     updateApprovedStudy(
@@ -1023,7 +1019,6 @@ type Mutation {
         pendingModelChange: Boolean
         isPendingGPA: Boolean
         GPAName: String
-        GPAEmail: String
     ): ApprovedStudy
 
     requestAccess(

@@ -554,7 +554,7 @@ class Application {
             history: [...(application.history || []), history]
         });
         const isDbGapMissing = (questionnaire?.accessTypes?.includes("Controlled Access") && !questionnaire?.study?.dbGaPPPHSNumber);
-        const isPendingGPA = (questionnaire?.accessTypes?.includes("Controlled Access") && Boolean((!updated?.GPAName?.trim() || !updated?.GPAEmail?.trim())));
+        const isPendingGPA = (questionnaire?.accessTypes?.includes("Controlled Access") && Boolean(!updated?.GPAName?.trim()));
         let promises = [];
 
         promises.push(this.institutionService.addNewInstitutions(application?.newInstitutions));
@@ -1038,7 +1038,7 @@ class Application {
             console.error(ERROR.APPLICATION_CONTROLLED_ACCESS_NOT_FOUND, ` id=${aApplication?._id}`);
         }
         const programName = aApplication?.programName ?? "NA";
-        const pendingGPA = PendingGPA.create(aApplication?.GPAName, aApplication?.GPAEmail, isPendingGPA);
+        const pendingGPA = PendingGPA.create(aApplication?.GPAName, isPendingGPA);
         // Upon approval of the submission request, the data concierge is retrieved from the associated program.
         return await this.approvedStudiesService.storeApprovedStudies(
             aApplication?._id, aApplication?.studyName, studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name, controlledAccess, aApplication?.ORCID,
