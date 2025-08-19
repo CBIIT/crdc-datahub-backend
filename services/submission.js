@@ -182,7 +182,12 @@ class Submission {
     }
     async _findApprovedStudies(studies) {
         if (!studies || studies.length === 0) return [];
-        const studiesIDs = (studies[0] instanceof Object) ? studies.map((study) => study?._id || study?.id) : studies;
+        const studiesIDs = studies.map((study) => {
+            if (study && study instanceof Object && (study?._id || study?.id)) {
+                return study._id || study.id;
+            }
+            return study;
+        }).filter(studyID => studyID !== null && studyID !== undefined); // Filter out null/undefined values
         return this.approvedStudyDAO.findMany({
             id: {in: studiesIDs}
         });
@@ -485,7 +490,7 @@ class Submission {
         const newStatus = verifier.getNewStatus();
         const [userScope, dataFileSize, orphanedErrorFiles, uploadingBatches] = await Promise.all([
             this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.ADMIN_SUBMIT, submission),
-            this._getS3DirectorySize(submission?.bucketName, `${submission?.rootPath}/${FILE}/`),
+            null,
             this.qcResultsService.findBySubmissionErrorCodes(params.submissionID, ERRORS.CODES.F008_MISSING_DATA_NODE_FILE),
             this.batchService.findOneBatchByStatus(params.submissionID, BATCH.STATUSES.UPLOADING)
         ]);

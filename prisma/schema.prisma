@@ -187,7 +187,6 @@ model Application {
   updatedAt           DateTime  @updatedAt @db.Date
   newInstitutions     newInstitution[]
   GPAName             String?
-  GPAEmail            String?
   @@map("applications")
 }
 
@@ -211,7 +210,6 @@ model ApprovedStudy {
   submission Submission[]
   isPendingGPA      Boolean?
   GPAName           String?
-  GPAEmail          String?
   Concierge User? @relation(fields: [primaryContactID], references: [id])
 
   @@map("approvedStudies")

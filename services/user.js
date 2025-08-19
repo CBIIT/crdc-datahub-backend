@@ -218,14 +218,17 @@ class UserService {
 
     async _findApprovedStudies(studies) {
         if (!studies || studies.length === 0) return [];
-        const studiesIDs = (studies[0] instanceof Object) ? studies.map((study) => study?._id || study?.id) : studies;
-        const filteredIDs = studiesIDs.filter(studyID => studyID !== null && studyID !== undefined);
-
-        if(filteredIDs.includes("All"))
+        const studiesIDs = studies.map((study) => {
+            if (study && study instanceof Object && (study?._id || study?.id)) {
+                return study._id || study.id;
+            }
+            return study;
+        }).filter(studyID => studyID !== null && studyID !== undefined); // Filter out null/undefined values
+        if(studiesIDs.includes("All"))
             return [{_id: "All", studyName: "All" }];
 
         return await this.approvedStudyDAO.findMany({
-            id: { in: filteredIDs }
+            id: { in: studiesIDs }
         });
     }
 

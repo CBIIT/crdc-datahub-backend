@@ -193,8 +193,7 @@ class ApprovedStudiesService {
             useProgramPC,
             pendingModelChange,
             isPendingGPA,
-            GPAName,
-            GPAEmail
+            GPAName
         } = this._verifyAndFormatStudyParams(params);
         // check if name is unique
         await this._validateStudyName(name)
@@ -214,8 +213,8 @@ class ApprovedStudiesService {
             acronym = name;
         }
 
-        this._validatePendingGPA(GPAName, GPAEmail, controlledAccess, isPendingGPA);
-        const pendingGPA = PendingGPA.create(GPAName, GPAEmail, isPendingGPA);
+        this._validatePendingGPA(GPAName, controlledAccess, isPendingGPA);
+        const pendingGPA = PendingGPA.create(GPAName, isPendingGPA);
         let newStudy = await this.storeApprovedStudies(null, name, acronym, dbGaPID, null, controlledAccess, ORCID, PI, openAccess, null, useProgramPC, pendingModelChange, primaryContactID, pendingGPA);
         // add new study to organization with name of "NA"
         const org = await this.organizationService.getOrganizationByName(NA_PROGRAM);
@@ -253,8 +252,7 @@ class ApprovedStudiesService {
             useProgramPC,
             pendingModelChange,
             isPendingGPA,
-            GPAName,
-            GPAEmail
+            GPAName
         } = this._verifyAndFormatStudyParams(params);
         let updateStudy = await this.approvedStudyDAO.findFirst({id: studyID});
         if (!updateStudy) {
@@ -303,7 +301,7 @@ class ApprovedStudiesService {
             }
         }
 
-        this._setPendingGPA(updateStudy, controlledAccess, isPendingGPA, GPAName, GPAEmail);
+        this._setPendingGPA(updateStudy, controlledAccess, isPendingGPA, GPAName);
 
         updateStudy.primaryContactID = useProgramPC ? null : primaryContactID;
         updateStudy.updatedAt = getCurrentTime();
@@ -345,18 +343,12 @@ class ApprovedStudiesService {
         return getDataCommonsDisplayNamesForApprovedStudy(approvedStudy);
     }
 
-    _setPendingGPA (updateStudy, controlledAccess, isPendingGPA, GPAName, GPAEmail) {
+    _setPendingGPA (updateStudy, controlledAccess, isPendingGPA, GPAName) {
         if (isTrue(updateStudy.controlledAccess)) {
             // only editing GPAName
             if (GPAName !== undefined) {
                 if (!isTrue(isPendingGPA) && !GPAName?.trim()) {
                     throw new Error(ERROR.INVALID_PENDING_GPA + ";GPA name is missing.");
-                }
-            }
-            // only editing GPAEmail
-            if (GPAEmail !== undefined) {
-                if (!isTrue(isPendingGPA) && !GPAEmail?.trim()) {
-                    throw new Error(ERROR.INVALID_PENDING_GPA + ";GPA email is missing.");
                 }
             }
             updateStudy.isPendingGPA = isPendingGPA;
@@ -369,18 +361,14 @@ class ApprovedStudiesService {
         if (GPAName !== undefined) {
             updateStudy.GPAName = GPAName?.trim() || "";
         }
-
-        if (GPAEmail !== undefined) {
-            updateStudy.GPAEmail = GPAEmail?.trim() || "";
-        }
     }
 
-    _validatePendingGPA(GPAName, GPAEmail, controlledAccess, isPendingGPA) {
+    _validatePendingGPA(GPAName, controlledAccess, isPendingGPA) {
         if (!isTrue(controlledAccess) && isTrue(isPendingGPA)) {
             throw new Error(ERROR.INVALID_PENDING_GPA);
         }
 
-        if (isPendingGPA !== undefined && !isTrue(isPendingGPA) && (!GPAEmail?.trim() || !GPAName?.trim())) {
+        if (isPendingGPA !== undefined && !isTrue(isPendingGPA) && !GPAName?.trim()) {
             throw new Error(ERROR.INVALID_PENDING_GPA + ";GPA name or email is missing.");
         }
     }
