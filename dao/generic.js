@@ -175,11 +175,17 @@ class GenericDAO {
      * Counts the number of documents in the collection based on the given filter.
      *
      * @param {Object} where - The filter conditions to apply (e.g., { status: 'SUBMITTED' }).
+     * @param {string|string[]} distinct - A single field or an array of fields to count distinct values for.
      * @returns {Promise<number>} - The count of matching documents.
      */
-    async count(where) {
+    async count(where, distinct) {
         try {
-            return await this.model.count({ where });
+            const arr = !Array.isArray(distinct) ? [distinct] : distinct;
+            const res = await this.model.findMany({
+                where,
+                distinct: arr
+            });
+            return res?.length || 0;
         } catch (error) {
             console.error(`GenericDAO.count failed for ${this.model.name}:`, {
                 error: error.message,
