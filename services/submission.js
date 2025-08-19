@@ -490,7 +490,7 @@ class Submission {
         const newStatus = verifier.getNewStatus();
         const [userScope, dataFileSize, orphanedErrorFiles, uploadingBatches] = await Promise.all([
             this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.ADMIN_SUBMIT, submission),
-            null,
+            this._getS3DirectorySize(submission?.bucketName, `${submission?.rootPath}/${FILE}/`),
             this.qcResultsService.findBySubmissionErrorCodes(params.submissionID, ERRORS.CODES.F008_MISSING_DATA_NODE_FILE),
             this.batchService.findOneBatchByStatus(params.submissionID, BATCH.STATUSES.UPLOADING)
         ]);
