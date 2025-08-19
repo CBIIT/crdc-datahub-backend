@@ -193,8 +193,7 @@ class SubmissionDAO extends GenericDAO {
             }
             // This is the view condition control blocking the submissions without any submitter.
             baseConditions.OR = [
-                { isNoSubmitter: { not: true } },
-                { submitterID: _id }
+                { isNoSubmitter: { not: true } }
             ]
             return baseConditions;
         } else if (userScope.isDCScope()) {
@@ -284,7 +283,13 @@ class SubmissionDAO extends GenericDAO {
                 }
             });
 
-            return organizations;
+            return organizations.map((x) => {
+                return {
+                    _id: x.id,
+                    name: x.name,
+                    abbreviation: x.abbreviation
+                }
+            });
         } catch (error) {
             console.error('Error getting distinct organizations:', error);
             return [];
