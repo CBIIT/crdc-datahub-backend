@@ -2179,6 +2179,22 @@ class Submission {
         }
     }
 
+    async getSubmissionSummary(params, context) {
+        verifySession(context)
+            .verifyInitialized();
+        const aSubmission = await this._findByID(submissionID);
+        if (!aSubmission) {
+            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+        }
+        const userScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+        // Generate summary
+        const summary = this.dataRecordService.retrieveDSSummary(aSubmission);
+        return summary;
+    }
+
     async _findByID(id) {
         try {
             // Use a single Prisma query with includes to fetch submission and related data
