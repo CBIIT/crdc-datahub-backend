@@ -182,7 +182,12 @@ class Submission {
     }
     async _findApprovedStudies(studies) {
         if (!studies || studies.length === 0) return [];
-        const studiesIDs = (studies[0] instanceof Object) ? studies.map((study) => study?._id) : studies;
+        const studiesIDs = studies.map((study) => {
+            if (study && study instanceof Object && (study?._id || study?.id)) {
+                return study._id || study.id;
+            }
+            return study;
+        }).filter(studyID => studyID !== null && studyID !== undefined); // Filter out null/undefined values
         return this.approvedStudyDAO.findMany({
             id: {in: studiesIDs}
         });
@@ -334,7 +339,7 @@ class Submission {
 
         const viewScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
         const isNotPermitted = viewScope.isNoneScope();
-        if (isNotPermitted) {
+        if (isNotPermitted || (context?.userInfo?._id === aSubmission?.submitterID && isTrue(aSubmission?.isNoSubmitter))) {
           throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
@@ -439,6 +444,9 @@ class Submission {
             aSubmission.organization = await this.programDAO.findById(aSubmission.programID);
         }
 
+        if (isTrue(aSubmission?.isNoSubmitter)) {
+            aSubmission.submitterName = "";
+        }
         return getDataCommonsDisplayNamesForSubmission(aSubmission);
     }
 
@@ -1124,12 +1132,18 @@ class Submission {
         if (!aSubmission.collaborators) 
             aSubmission.collaborators = [];
 
-        if (aSubmission.submitterID !== context?.userInfo?._id) {
+        if (aSubmission.submitterID !== context?.userInfo?._id || (aSubmission.submitterID === context?.userInfo?._id && isTrue(aSubmission?.isNoSubmitter))) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
         // validate collaborators one by one.
+        const accessKeys = Object.values(COLLABORATOR_PERMISSIONS);
         for (const collaborator of collaborators) {
+
+            if (!accessKeys?.includes(collaborator?.permission)) {
+                throw new Error(replaceErrorString(ERROR.INVALID_ACCESS_EDIT_COLLABORATOR, `'${collaborator?.permission}'`));
+            }
+
             //find a submitter with the collaborator ID
             const user = await this.userDAO.findFirst({id: collaborator.collaboratorID});
             //find if the submission including existing collaborator
@@ -1498,7 +1512,7 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
 
-        if (aSubmission.submitterID !== context?.userInfo?._id) {
+        if (aSubmission.submitterID !== context?.userInfo?._id || (aSubmission.submitterID === context?.userInfo?._id && isTrue(aSubmission.isNoSubmitter))) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
@@ -1558,7 +1572,7 @@ class Submission {
         }
 
         // Only primary submitter can modify the submission name
-        if (userID !== aSubmission?.submitterID) {
+        if (userID !== aSubmission?.submitterID || (isTrue(aSubmission?.isNoSubmitter) && userID === aSubmission?.submitterID)) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
     }
@@ -1629,7 +1643,7 @@ class Submission {
         const updatedSubmission = await this.submissionDAO.update(
             aSubmission?._id, {
                 modelVersion: version,
-                ...(submitterID ? { submitterID: submitterID } : {}),
+                ...(submitterID ? { submitterID: submitterID, submitterName: formatName(newSubmitter)} : {}),
                 updatedAt: getCurrentTime()
             }
         );
@@ -1690,6 +1704,11 @@ class Submission {
             if (sent?.accepted?.length === 0) {
                 console.error(`${ERROR.FAILED_NOTIFY_SUBMISSION_UPDATE};submissionID ${aSubmission?._id}`);
             }
+        }
+
+        if (submitterEmails?.length === 0) {
+            // This should be an error because the Submitter must have the notification.
+            console.error(`Submission updated; email notification to submitter not sent. submissionID: ${aSubmission?._id}`);
         }
     }
 
@@ -1774,9 +1793,7 @@ class Submission {
         if(!aSubmission.rootPath)
             throw new Error(`${ERROR.VERIFY.EMPTY_ROOT_PATH}, ${submissionID}!`);
 
-        const submitterCollaborator = (aSubmission?.collaborators || []).map(u => u.collaboratorID);
-        const isCollaborator = submitterCollaborator.includes(userInfo?._id);
-
+        const isCollaborator = this._isCollaborator(userInfo, aSubmission)
         const userScope = await this._getUserScope(userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, aSubmission);
         if (userScope.isNoneScope() && !isCollaborator) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
@@ -1979,8 +1996,7 @@ class Submission {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
         // Only for Data Submission Owner / Collaborators
-        const submitterCollaborator = (aSubmission?.collaborators || []).map(u => u.collaboratorID);
-        const isCollaborator = submitterCollaborator.includes(userID);
+        const isCollaborator = this._isCollaborator({_id: userID}, aSubmission)
         if (!isCollaborator && userID !== aSubmission?.submitterID) {
             throw new Error(ERROR.INVALID_BATCH_PERMISSION);
         }
@@ -2152,8 +2168,8 @@ class Submission {
                 throw new Error(ERROR.FAILED_CREATE_LOAD_SHEET);
             }
             zipFile = zipDir + ".zip";
-            await zipFilesInDir(zipDir, zipFile);
-            if (!fs.existsSync(zipFile)) {
+            const result = await zipFilesInDir(zipDir, zipFile);
+            if (!result || !fs.existsSync(zipFile)) {
                 throw new Error(ERROR.FAILED_CREATE_LOAD_SHEET);
             }
             const zipFileName = path.basename(zipFile);

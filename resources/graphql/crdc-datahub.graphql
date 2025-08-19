@@ -30,7 +30,6 @@ type Application {
     version: String
     reviewComment: String
     GPAName: String
-    GPAEmail: String
 }
 
 type NewInstitution {
@@ -65,7 +64,6 @@ input AppInput {
     programDescription: String,
     version: String,
     GPAName: String
-    GPAEmail: String
     newInstitutions: [InstitutionInput]
 }
 
@@ -160,6 +158,7 @@ type Submission {
     dataType: String # [Metadata Only, Metadata and Data Files]
     accessedAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
     inactiveReminder: Boolean
+    isNoSubmitter: Boolean
     finalInactiveReminder: Boolean
     validationStarted: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
     validationEnded: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
@@ -302,7 +301,6 @@ type ApprovedStudy {
     pendingModelChange: Boolean
     isPendingGPA: Boolean
     GPAName: String
-    GPAEmail: String
 }
 
 type ProgramList {
@@ -600,7 +598,7 @@ type Collaborator {
 
 input CollaboratorInput {
    collaboratorID: ID! 
-   permission: String! # ["Can Edit"] 
+   permission: String! # ["Can Edit", "No Access"]
 }
 
 type aggregatedQCResults {
@@ -752,7 +750,7 @@ type Query {
         first: Int = -1,
         offset: Int = 0,
         # ["updatedAt", "createdAt", "name", "dataCommons", "organization", "studyAbbreviation",
-        #              "dbGapID", "status", "concierge", "dataFileSize.size"]
+        #              "dbGaPID", "status", "concierge", "dataFileSize.size"]
         orderBy: String = "updatedAt",
         sortDirection: String = "DESC"): ListSubmissions
 
@@ -920,6 +918,7 @@ type Query {
     downloadDBGaPLoadSheet(submissionID:String!):String #presigned url of s3
     getPendingPVs(submissionID: String!): [PendingPV]
     retrievePropsForNodeType(studyID: String!, dataCommonsDisplayName: String!, nodeType: String!): [nodeProp]
+    downloadAllReleasedNodes(studyID: String!, dataCommonsDisplayName: String!): String #presigned url of s3
     getSubmissionSummary(submissionID: ID!): [nodeTypeSummary]
 }
 type Mutation {
@@ -1012,7 +1011,6 @@ type Mutation {
         pendingModelChange: Boolean
         isPendingGPA: Boolean
         GPAName: String
-        GPAEmail: String
     ): ApprovedStudy
 
     updateApprovedStudy(
@@ -1029,7 +1027,6 @@ type Mutation {
         pendingModelChange: Boolean
         isPendingGPA: Boolean
         GPAName: String
-        GPAEmail: String
     ): ApprovedStudy
 
     requestAccess(

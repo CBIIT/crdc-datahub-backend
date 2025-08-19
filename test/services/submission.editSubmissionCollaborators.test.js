@@ -3,7 +3,7 @@ const { USER } = require('../../crdc-datahub-database-drivers/constants/user-con
 const USER_PERMISSION_CONSTANTS = require('../../crdc-datahub-database-drivers/constants/user-permission-constants');
 const ERROR = require('../../constants/error-constants');
 const SUBMISSION_CONSTANTS = require('../../constants/submission-constants');
-
+const { replaceErrorString } = require('../../utility/string-util');
 // Mock the user-info-verifier
 jest.mock('../../verifier/user-info-verifier', () => ({
     verifySession: jest.fn(() => ({
@@ -265,8 +265,11 @@ describe('Submission.editSubmissionCollaborators', () => {
             mockUserDAO.findFirst = jest.fn().mockResolvedValue(mockCollaborator);
             submissionService._verifyStudyInUserStudies = jest.fn().mockReturnValue(true);
 
-            await expect(submissionService.editSubmissionCollaborators({ ...params, collaborators: invalidPermissionCollaborators }, context))
-                .rejects.toThrow(ERROR.INVALID_COLLABORATOR_PERMISSION);
+            await expect(
+                submissionService.editSubmissionCollaborators({ ...params, collaborators: invalidPermissionCollaborators }, context)
+            ).rejects.toThrow(
+                replaceErrorString(ERROR.INVALID_ACCESS_EDIT_COLLABORATOR, "'Invalid Permission'")
+            );
         });
 
         it('should accept existing collaborator without re-validation', async () => {

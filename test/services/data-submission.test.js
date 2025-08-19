@@ -1540,7 +1540,7 @@ describe('Submission.editSubmissionCollaborators', () => {
 
         await expect(submissionService.editSubmissionCollaborators(invalidParams, mockContext))
             .rejects
-            .toThrow(ERROR.INVALID_COLLABORATOR_PERMISSION);
+            .toThrow(replaceErrorString(ERROR.INVALID_ACCESS_EDIT_COLLABORATOR, "INVALID_PERMISSION"));
     });
 
     it('should handle existing collaborator without re-validation', async () => {

@@ -1,3 +1,4 @@
+const {SORT} = require('../../constants/db-constants');
 // Only convert ISO format strings
 // Covers:
 // - ISO date only: 2023-12-25
@@ -105,9 +106,24 @@ function handleDotNotation(query) {
   }
 }
 
+function mongoSortToPrismaOrderBy(sortObj) {
+      return Object.entries(sortObj).map(([key, direction]) => {
+          const parts = key.split(".");
+          const prismaDirection = direction === 1 ? SORT.ASC : SORT.DESC;
+
+          // Build nested orderBy object
+          return parts.reverse().reduce(
+              (acc, part) => ({ [part]: acc }),
+              prismaDirection
+          );
+      });
+  }
+
 module.exports = {
     convertIdFields,
     convertMongoFilterToPrismaFilter,
     tryConvertDate,
-    handleDotNotation
+    handleDotNotation,
+    mongoSortToPrismaOrderBy
+
 };

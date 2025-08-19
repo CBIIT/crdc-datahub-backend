@@ -46,6 +46,7 @@ const ERROR = {
     INVALID_BATCH_PERMISSION: "You do not have permission to run a batch operation",
     SUBMISSION_NOT_EXIST: "The submission you are trying to access does not exist",
     INVALID_STATUS_EDIT_COLLABORATOR: "Submission status is invalid to edit collaborator; $item$",
+    INVALID_ACCESS_EDIT_COLLABORATOR: "Collaborator access is invalid to edit collaborator; $item$",
     BATCH_NOT_EXIST: "The batch you are trying to access does not exist",
     INVALID_UPDATE_BATCH_STATUS: "The batch update is aborted because the current batch status is not suitable for modification",
     FAILED_BATCH_UPDATE: "An error occurred while updating a batch",
@@ -250,7 +251,9 @@ const ERROR = {
     PARTICIPANT_SAMPLE_NOT_FOUND: "This Data Submission currently has no sample records with a link to a participant record. Unable to generate the dbGaP loading sheets at this time.",
     FAILED_CREATE_LOAD_SHEET: "An unknown error occurred while generating the dbGaP Loading Sheets. Please try again later.",
     USER_NOT_EXIST: "The user does not exist.",
-    NOT_SUPPORTED_DATA_COMMONS_FOR_LOAD_SHEET: "The current data commons is not supported for generating dbGaP Loading Sheets."
+    NOT_SUPPORTED_DATA_COMMONS_FOR_LOAD_SHEET: "The current data commons is not supported for generating dbGaP Loading Sheets.",
+    FAILED_DOWNLOAD_ALL_RELEASED_NODES: "Failed to download all released nodes",
+    STUDY_NOT_EXIST: "The requested study does not exist."
 }
 
 module.exports = ERROR;
