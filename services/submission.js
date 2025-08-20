@@ -1189,7 +1189,7 @@ class Submission {
     _verifyStudyInUserStudies(user, studyId){
         if(!user?.studies || user.studies.length === 0 )
             return false;
-        const userStudy = (user.studies[0] instanceof Object)? user.studies.find(s=> (s.id === studyId || s._id === studyId) || s.id === "All"):
+        const userStudy = (user.studies[0] instanceof Object)? user.studies.find(s=> s.id === studyId || s._id === studyId || s.id === "All"):
             user.studies.find(s=> s === studyId || s === "All"); //backward compatible
         return Boolean(userStudy);
     }
