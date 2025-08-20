@@ -121,7 +121,6 @@ class SubmissionDAO extends GenericDAO {
                 _id: submission.id,
                 studyName: submission?.study?.studyName,
                 studyAbbreviation: submission?.study?.studyAbbreviation,
-                submitterName: isTrue(submission?.isNoSubmitter) ? "" : submission?.submitterName,
                 dataFileSize: this._transformDataFileSize(submission.status, submission.dataFileSize)
             }));
 
@@ -191,7 +190,6 @@ class SubmissionDAO extends GenericDAO {
             if (!isAllStudy(studyScope?.scopeValues)) {
                 baseConditions.studyID = { in: studyScope?.scopeValues || [] };
             }
-            //TODO add filter for where isNoSubmitter is not true
             return baseConditions;
         } else if (userScope.isDCScope()) {
             const DCScope = userScope.getDataCommonsScope();

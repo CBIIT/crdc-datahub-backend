@@ -214,7 +214,7 @@ class Submission {
             .type([BATCH.TYPE.METADATA, BATCH.TYPE.DATA_FILE]);
         const aSubmission = await this._findByID(params.submissionID);
 
-        this._verifyBatchPermission(aSubmission, userInfo?._id);
+        this._verifyBatchPermission(aSubmission, userInfo);
 
         // The submission status must be valid states
         if (![NEW, IN_PROGRESS ,WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
@@ -264,7 +264,7 @@ class Submission {
         }
 
         const aSubmission = await this._findByID(aBatch.submissionID);
-        this._verifyBatchPermission(aSubmission, userInfo?._id);
+        this._verifyBatchPermission(aSubmission, userInfo);
 
         // check if it's a heartbeat call sent by CLI of uploading data file.
         // CLI uploader sends uploading heartbeat every 5 min by calling the API with a parameter, uploading: true
@@ -428,7 +428,24 @@ class Submission {
                       }
                   }
               }
-            })()
+            })(),
+            (async () => {
+                if (aSubmission?.collaborators?.length > 0) {
+                    const collabIDs = Array.from(
+                        new Set((aSubmission?.collaborators ?? [])
+                            .map(c => c?.collaboratorID)
+                            .filter(Boolean))
+                    );
+
+                    const users = await this.userDAO.findMany({id: {in: collabIDs || []}});
+                    const userById = new Map(users.map(u => [String(u?._id), u]));
+                    aSubmission?.collaborators.forEach(collaborator => {
+                        const user = userById.get(String(collaborator?.collaboratorID));
+                        const isValidStudy = this._verifyStudyInUserStudies(user, aSubmission?.studyID);
+                        collaborator.permission = (user?.role === ROLES.SUBMITTER && isValidStudy) ? COLLABORATOR_PERMISSIONS.CAN_EDIT : COLLABORATOR_PERMISSIONS.NO_ACCESS;
+                    });
+                }
+            })(),
         ]);
 
         // Store the timestamp for the inactive submission purpose
@@ -444,9 +461,6 @@ class Submission {
             aSubmission.organization = await this.programDAO.findById(aSubmission.programID);
         }
 
-        if (isTrue(aSubmission?.isNoSubmitter)) {
-            aSubmission.submitterName = "";
-        }
         return getDataCommonsDisplayNamesForSubmission(aSubmission);
     }
 
@@ -1055,7 +1069,7 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        this._verifyBatchPermission(aSubmission, context?.userInfo?._id);
+        this._verifyBatchPermission(aSubmission, context?.userInfo);
         //set parameters
         const parameters = {submissionID: params.submissionID, apiURL: params.apiURL, 
             dataFolder: (params.dataFolder)?  params.dataFolder : "/Users/my_name/my_files",
@@ -1089,7 +1103,7 @@ class Submission {
         if (!aSubmission) {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        this._verifyBatchPermission(aSubmission, context?.userInfo?._id);
+        this._verifyBatchPermission(aSubmission, context?.userInfo);
 
         // data model file node properties into the string
         const latestDataModel = await this.fetchDataModelInfo();
@@ -1132,7 +1146,7 @@ class Submission {
         if (!aSubmission.collaborators) 
             aSubmission.collaborators = [];
 
-        if (aSubmission.submitterID !== context?.userInfo?._id || (aSubmission.submitterID === context?.userInfo?._id && isTrue(aSubmission?.isNoSubmitter))) {
+        if (aSubmission.submitterID !== context?.userInfo?._id) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
@@ -1175,7 +1189,10 @@ class Submission {
     _verifyStudyInUserStudies(user, studyId){
         if(!user?.studies || user.studies.length === 0 )
             return false;
-        const userStudy = (user.studies[0] instanceof Object)? user.studies.find(s=>s.id === studyId || s.id === "All"):
+        const userStudy = (user.studies[0] instanceof Object)? user.studies.find(s => {
+                const id = s.id || s._id;
+                return id === studyId || id === "All";
+            }) :
             user.studies.find(s=> s === studyId || s === "All"); //backward compatible
         return Boolean(userStudy);
     }
@@ -1512,7 +1529,7 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
 
-        if (aSubmission.submitterID !== context?.userInfo?._id || (aSubmission.submitterID === context?.userInfo?._id && isTrue(aSubmission.isNoSubmitter))) {
+        if (aSubmission.submitterID !== context?.userInfo?._id) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
@@ -1572,7 +1589,7 @@ class Submission {
         }
 
         // Only primary submitter can modify the submission name
-        if (userID !== aSubmission?.submitterID || (isTrue(aSubmission?.isNoSubmitter) && userID === aSubmission?.submitterID)) {
+        if (userID !== aSubmission?.submitterID) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
     }
@@ -1991,13 +2008,16 @@ class Submission {
         }
     }
 
-    _verifyBatchPermission(aSubmission, userID) {
+    _verifyBatchPermission(aSubmission, userInfo) {
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
         // Only for Data Submission Owner / Collaborators
-        const isCollaborator = this._isCollaborator({_id: userID}, aSubmission)
-        if (!isCollaborator && userID !== aSubmission?.submitterID) {
+        const hasStudies = this._verifyStudyInUserStudies(userInfo, aSubmission?.studyID);
+        const isCollaborator = this._isCollaborator({_id: userInfo?._id}, aSubmission);
+        // Only owned or collaborator
+        const hasValidBatchPermission = (isCollaborator && hasStudies) || (userInfo?._id === aSubmission?.submitterID && hasStudies)
+        if (!hasValidBatchPermission) {
             throw new Error(ERROR.INVALID_BATCH_PERMISSION);
         }
     }
@@ -2040,7 +2060,8 @@ class Submission {
         }
 
         const viewScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
-        const isNotPermitted = !this._isCollaborator(context?.userInfo, aSubmission) && viewScope.isNoneScope();
+        const isCollaborator = this._isCollaborator(context?.userInfo, aSubmission) && viewScope.isStudyScope() && viewScope.hasStudyValue(aSubmission?.studyID);
+        const isNotPermitted = !isCollaborator && viewScope.isNoneScope();
         if (isNotPermitted) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }

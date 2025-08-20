@@ -456,55 +456,7 @@ class UserService {
         await this._setUserPermissions(user[0], params?.role, params?.permissions, params?.notifications, updatedUser, user);
         updatedUser  = await this.updateUserInfo(user[0], updatedUser, params.userID, params.status, params.role, params?.studies);
 
-        await this._updateSubmitterSubmission(user[0], updatedUser);
         return getDataCommonsDisplayNamesForUser(updatedUser);
-    }
-
-    // using prima, it will be inefficient to update each submission.
-    async _updateSubmitterSubmission(prevUser, updatedUser) {
-        const changedSubmitterRole = prevUser?.role === ROLES.SUBMITTER && prevUser?.role !== updatedUser?.role;
-        const [prevStudyIDs, updatedStudyIDs] =[prevUser?.studies?.map(study => study?._id || study?.id) || [], updatedUser?.studies?.map(study => study?._id || study?.id) || []];
-        // checking the removed studies
-        const updatedStudyIDSet = new Set(updatedStudyIDs);
-        const removedStudyIDs = prevStudyIDs
-            .filter(id => !updatedStudyIDSet.has(id) && id !== ALL_STUDY_FILTER);
-        const isStudiesRemoved = prevUser?.role === ROLES.SUBMITTER && prevUser?.role === updatedUser?.role && removedStudyIDs?.length > 0
-
-        if (changedSubmitterRole || isStudiesRemoved) {
-            const res = await this.submissionsCollection.updateMany(
-                {
-                    submitterID: updatedUser?._id,
-                    // Only removing some approved studies
-                    ...(!changedSubmitterRole && isStudiesRemoved && { "studyID": { $in: removedStudyIDs } }),
-                    isNoSubmitter: {$ne: true}
-                },
-                [
-                    {
-                        $set: {
-                            isNoSubmitter: true,
-                            updatedAt: getCurrentTime(),
-                            collaborators: {
-                                $cond: [
-                                    { $isArray: "$collaborators" },
-                                    {
-                                        $map: {
-                                            input: "$collaborators",
-                                            as: "c",
-                                            in: { $mergeObjects: ["$$c", { permission: COLLABORATOR_PERMISSIONS.NO_ACCESS }] }
-                                        }
-                                    },
-                                    "$collaborators"
-                                ]
-                            }
-                        }
-                    }
-                ]
-            );
-
-            if (!res?.acknowledged) {
-                console.error(`failed to update the submission for the submitter ID ${updatedUser?._id}`);
-            }
-        }
     }
 
     _setInstitution(newInstitution, prevInstitution, isSubmitter, updatedUser, institutionID) {
