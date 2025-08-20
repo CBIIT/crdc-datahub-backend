@@ -740,7 +740,25 @@ class DataRecordService {
         let updatedCount = 0;
         for (const node of nodes) {
            const releasedCount = await this.releaseDAO.count({ dataCommons: datacommon, nodeType: nodeType, nodeID: node.nodeID});
-           (releasedCount === 0)? newCount++ : updatedCount++;
+        // batch fetch all release records for these nodes
+        const nodeIDs = nodes.map(node => node.nodeID);
+        let releasedNodeIDs = new Set();
+        if (nodeIDs.length > 0) {
+            const releaseRecords = await this.releaseDAO.findMany({
+                dataCommons: datacommon,
+                nodeType: nodeType,
+                nodeID: { $in: nodeIDs }
+            });
+            releasedNodeIDs = new Set(releaseRecords.map(r => r.nodeID));
+        }
+        let newCount = 0;
+        let updatedCount = 0;
+        for (const node of nodes) {
+            if (releasedNodeIDs.has(node.nodeID)) {
+                updatedCount++;
+            } else {
+                newCount++;
+            }
         }
         return {
             newCount,
