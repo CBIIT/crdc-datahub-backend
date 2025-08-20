@@ -731,33 +731,33 @@ class DataRecordService {
      */
     async _getNodeCounts(aSubmission, nodeType){
         const intention = aSubmission.intention;
-        const datacommon = aSubmission.dataCommon;
-        const deletedCount = (intention!==INTENTION.DELETE)? 0 : await this.dataRecordDAO.count({ submissionID: aSubmission._id, nodeType: nodeType });
-        // get all nodes by submissionID and nodeType
-        const nodes = await this.dataRecordDAO.findMany({ submissionID: aSubmission._id, nodeType: nodeType });
-        // loop through nodes and count
+        const dataCommons = aSubmission.dataCommons;
         let newCount = 0;
         let updatedCount = 0;
-        for (const node of nodes) {
-           const releasedCount = await this.releaseDAO.count({ dataCommons: datacommon, nodeType: nodeType, nodeID: node.nodeID});
-        // batch fetch all release records for these nodes
-        const nodeIDs = nodes.map(node => node.nodeID);
-        let releasedNodeIDs = new Set();
-        if (nodeIDs.length > 0) {
-            const releaseRecords = await this.releaseDAO.findMany({
-                dataCommons: datacommon,
-                nodeType: nodeType,
-                nodeID: { $in: nodeIDs }
-            });
-            releasedNodeIDs = new Set(releaseRecords.map(r => r.nodeID));
+        let deletedCount = 0;
+        if (intention===INTENTION.DELETE) {
+            deletedCount = await this.dataRecordDAO.count({ submissionID: aSubmission._id, nodeType: nodeType });
         }
-        let newCount = 0;
-        let updatedCount = 0;
-        for (const node of nodes) {
-            if (releasedNodeIDs.has(node.nodeID)) {
-                updatedCount++;
-            } else {
-                newCount++;
+        else {
+            // get all nodes by submissionID and nodeType
+            const nodes = await this.dataRecordDAO.findMany({ submissionID: aSubmission._id, nodeType: nodeType });
+            // batch fetch all release records for these nodes
+            const nodeIDs = nodes.map(node => node.nodeID);
+            let releasedNodeIDs = new Set();
+            if (nodeIDs.length > 0) {
+                const releaseRecords = await this.releaseDAO.findMany({
+                    dataCommons: dataCommons,
+                    nodeType: nodeType,
+                    nodeID: { $in: nodeIDs }
+                });
+                releasedNodeIDs = new Set(releaseRecords.map(r => r.nodeID));
+            }
+            for (const nodeID of nodeIDs) {
+                if (releasedNodeIDs.has(nodeID)) {
+                    updatedCount++;
+                } else {
+                    newCount++;
+                }
             }
         }
         return {
