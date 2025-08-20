@@ -752,13 +752,8 @@ class DataRecordService {
                 });
                 releasedNodeIDs = new Set(releaseRecords.map(r => r.nodeID));
             }
-            for (const nodeID of nodeIDs) {
-                if (releasedNodeIDs.has(nodeID)) {
-                    updatedCount++;
-                } else {
-                    newCount++;
-                }
-            }
+            updatedCount = releasedNodeIDs.size;
+            newCount = nodeIDs.length - updatedCount;
         }
         return {
             newCount,
