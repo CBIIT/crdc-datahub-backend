@@ -2259,7 +2259,6 @@ class Submission {
                 aSubmission.studyAbbreviation = aSubmission.study.studyAbbreviation;
             }
 
-            // Set no access studies for the collaboratos if it has no access, dont store it.
             return aSubmission;
         } catch (error) {
             console.error('Error in _findByID:', error);
