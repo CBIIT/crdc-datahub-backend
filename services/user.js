@@ -372,18 +372,18 @@ class UserService {
         // Update all dependent objects only if the User's Name has changed
         // NOTE: We're not waiting for these async updates to complete before returning the updated User
         if (updateUser.firstName !== user[0].firstName || updateUser.lastName !== user[0].lastName) {
-            this.submissionsCollection.updateMany(
-                { "submitterID": updateUser._id },
-                { "submitterName": `${updateUser.firstName} ${updateUser.lastName}` }
-            );
+            // this.submissionsCollection.updateMany(
+            //     { "submitterID": updateUser._id },
+            //     { "submitterName": `${updateUser.firstName} ${updateUser.lastName}` }
+            // );
             this.organizationCollection.updateMany(
                 { "conciergeID": updateUser._id },
                 { "conciergeName": `${updateUser.firstName} ${updateUser.lastName}` }
             );
-            this.applicationCollection.updateMany(
-                { "applicant.applicantID": updateUser._id },
-                { "applicant.applicantName": `${updateUser.firstName} ${updateUser.lastName}` }
-            );
+            // this.applicationCollection.updateMany(
+            //     { "applicant.applicantID": updateUser._id },
+            //     { "applicant.applicantName": `${updateUser.firstName} ${updateUser.lastName}` }
+            // );
         }
         context.userInfo = {
             ...context.userInfo,
@@ -921,9 +921,11 @@ class UserService {
             const primaryContactName = `${prevUser.firstName} ${prevUser.lastName}`.trim();
             const [updatedSubmission, updateProgram, updatedStudies] = await Promise.all([
                 this.submissionsCollection.updateMany(
-                    { conciergeName: primaryContactName, conciergeEmail: prevUser?.email, status: {$nin: [COMPLETED, CANCELED, DELETED]} },
-                    { conciergeName: "", conciergeEmail: "", updatedAt: getCurrentTime() }
+                    { conciergeID: (prevUser?._id || prevUser?.id), status: {$nin: [COMPLETED, CANCELED, DELETED]} },
+                    // this might crash TODO because conciergeID does not exists
+                    { conciergeID: "", updatedAt: getCurrentTime() }
                 ),
+                // This needs to be upated
                 this.organizationCollection.updateMany(
                     { conciergeID: prevUser?._id },
                     { conciergeID: "", conciergeName: "", conciergeEmail: "", updateAt: getCurrentTime() }

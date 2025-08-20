@@ -513,6 +513,7 @@ model Submission {
   studyName                String?
   studyID                  String
   submitterID              String
+  conciergeID              String?
   submitterName            String
   validationEnded          DateTime?      @db.Date
   validationScope          String?
@@ -524,6 +525,8 @@ model Submission {
   isNoSubmitter            Boolean?
   organization             Program? @relation(fields: [programID], references: [id])
   study                    ApprovedStudy? @relation(fields: [studyID], references: [id])
+  submitter                User? @relation("submitter", fields: [submitterID], references: [id])
+  concierge                User? @relation("concierge", fields: [conciergeID], references: [id])
   batches     Batch[]
   dataRecords DataRecord[]
   qcResults   QcResult[]
@@ -578,6 +581,8 @@ model User {
   updateAt      DateTime         @updatedAt @db.Date
 
   programs        Program[]
+  submitters Submission[] @relation("submitter")
+  concierges Submission[] @relation("concierge")
   approvedStudies ApprovedStudy[]
 
   @@map("users")

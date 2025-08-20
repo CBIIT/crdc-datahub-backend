@@ -177,7 +177,9 @@ class Submission {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
         }
 
-        await this._remindPrimaryContactEmail(res, approvedStudy, program);
+        // TODO
+        const updateSubmission = await this._findByID(res?._id)
+        await this._remindPrimaryContactEmail(updateSubmission, approvedStudy, program);
         return this._findByID(res?._id);
     }
     async _findApprovedStudies(studies) {
@@ -346,15 +348,15 @@ class Submission {
         await Promise.all([
             // Store data file size into submission document
             (async () => {
-                const dataFileSize = await this._getS3DirectorySize(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/`);
-                const isDataFileChanged = aSubmission?.dataFileSize?.size !== dataFileSize.size || aSubmission?.dataFileSize?.formatted !== dataFileSize.formatted;
-                if (isDataFileChanged) {
-                    const updatedSubmission = await this.submissionDAO.update(aSubmission?._id, this._prepareUpdateData({dataFileSize}));
-                    if (!updatedSubmission) {
-                        throw new Error(ERROR.FAILED_RECORD_FILESIZE_PROPERTY, `SubmissionID: ${aSubmission?._id}`);
-                    }
-                }
-                aSubmission.dataFileSize = dataFileSize;
+                // const dataFileSize = await this._getS3DirectorySize(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/`);
+                // const isDataFileChanged = aSubmission?.dataFileSize?.size !== dataFileSize.size || aSubmission?.dataFileSize?.formatted !== dataFileSize.formatted;
+                // if (isDataFileChanged) {
+                //     const updatedSubmission = await this.submissionDAO.update(aSubmission?._id, this._prepareUpdateData({dataFileSize}));
+                //     if (!updatedSubmission) {
+                //         throw new Error(ERROR.FAILED_RECORD_FILESIZE_PROPERTY, `SubmissionID: ${aSubmission?._id}`);
+                //     }
+                // }
+                aSubmission.dataFileSize = null;
             })(),
             // Get other submissions for the same study
             (async () => {
@@ -522,11 +524,11 @@ class Submission {
         }
         
         // Update submission using Prisma DAO
-        const updatedSubmission = await this.submissionDAO.update(submission._id, updateData);
-        if (!updatedSubmission) {
+        const updated = await this.submissionDAO.update(submission._id, updateData);
+        if (!updated) {
             throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
         }
-        
+        const updatedSubmission = await this._findByID(updated?._id);
         // Transform the updated submission to match expected format
         submission = getDataCommonsDisplayNamesForSubmission(updatedSubmission);
         
@@ -1327,6 +1329,32 @@ class Submission {
                 exists: true,
                 not: null,
                 lt: subtractDaysFromNow(this.emailParams.inactiveSubmissionDays)
+            },
+            // TODO check
+            include: {
+                study: {
+                    select: {
+                        id: true,
+                        studyName: true,
+                        studyAbbreviation: true
+                    }
+                },
+                submitter: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+
+                    }
+                },
+                concierge: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        email: true
+                    }
+                },
             }
         };
         try {
@@ -1345,6 +1373,8 @@ class Submission {
                         await this.dataRecordService.deleteMetadataByFilter({"submissionID": sub._id});
                         await this.batchService.deleteBatchByFilter({"submissionID": sub._id});
                         await this.submissionDAO.update(sub._id, this._prepareUpdateData({"status" : DELETED}, new Date()));
+
+                        // TODO if findMany not working use sing _findBY
                         deletedSubmissions.push(sub);
                         console.debug(`Successfully deleted inactive submissions: ${sub._id}.`);
                     }
@@ -2208,7 +2238,23 @@ class Submission {
                                 studyName: true,
                                 studyAbbreviation: true
                             }
-                        }
+                        },
+                        submitter: {
+                            select: {
+                                id: true,
+                                firstName: true,
+                                lastName: true,
+
+                            }
+                        },
+                        concierge: {
+                            select: {
+                                id: true,
+                                firstName: true,
+                                lastName: true,
+                                email: true
+                            }
+                        },
                     }
                 }
             );
@@ -2241,6 +2287,17 @@ class Submission {
                 aSubmission.studyAbbreviation = aSubmission.study.studyAbbreviation;
             }
 
+            // Transform submitter data to match expected format
+            if (aSubmission?.submitter?.id && aSubmission?.submitter?.firstName) {
+                // note: FE use the root level properties; submitterName
+                aSubmission.submitterName = formatName(aSubmission?.submitter);
+            }
+
+            if (aSubmission?.concierge?.id) {
+                // note: FE use the root level properties; conciergeName, conciergeEmail
+                aSubmission.conciergeName = formatName(aSubmission?.concierge);
+                aSubmission.conciergeEmail = aSubmission?.concierge?.email || aSubmission.conciergeEmail;
+            }
             return aSubmission;
         } catch (error) {
             console.error('Error in _findByID:', error);
@@ -2418,8 +2475,8 @@ const sendEmails = {
                 submissionName: `${aSubmission?.name},`,
                 // only one study
                 studyName: approvedStudy?.length > 0 ? (approvedStudy[0]?.studyName || NA) : NA,
-                conciergeName: aOrganization?.conciergeName || NA,
-                conciergeEmail: `${aOrganization?.conciergeEmail || NA}.`
+                conciergeName: aSubmission?.conciergeName || NA,
+                conciergeEmail: `${aSubmission?.conciergeEmail || NA}.`
             });
         }
     },
@@ -2449,8 +2506,8 @@ const sendEmails = {
                 submissionName: aSubmission?.name,
                 studyName: approvedStudy?.length > 0 ? approvedStudy[0]?.studyName : NA,
                 canceledBy: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
-                conciergeEmail: `${aOrganization?.conciergeEmail || NA}.`,
-                conciergeName: aOrganization?.conciergeName || NA
+                conciergeEmail: `${aSubmission?.conciergeEmail || NA}.`,
+                conciergeName: aSubmission?.conciergeName || NA
             });
         }
     },
@@ -2543,8 +2600,8 @@ const sendEmails = {
             }, {
                 submissionID: aSubmission?._id,
                 submissionName: aSubmission?.name,
-                conciergeEmail: `${aOrganization?.conciergeEmail || NA}.`,
-                conciergeName: aOrganization?.conciergeName || NA
+                conciergeEmail: `${aSubmission?.conciergeEmail || NA}.`,
+                conciergeName: aSubmission?.conciergeName || NA
             });
         }
     },
@@ -2714,8 +2771,7 @@ class DataSubmission {
         }
         this.bucketName = submissionBucketName;
         this.rootPath = "";
-        this.conciergeName = this._getConciergeName(approvedStudy, aProgram);
-        this.conciergeEmail = this._getConciergeEmail(approvedStudy, aProgram);
+        this.conciergeID = this._getConciergeID(approvedStudy, aProgram);
         this.createdAt = this.updatedAt = getCurrentTime();
         // no metadata to be validated
         this.metadataValidationStatus = this.fileValidationStatus = this.crossSubmissionStatus = null;
@@ -2729,31 +2785,32 @@ class DataSubmission {
         this.ORCID = approvedStudy?.ORCID || null;
         this.accessedAt = getCurrentTime();
         this.dataFileSize = FileSize.createFileSize(0);
+        this.isNoSubmitter = false;
     }
 
     static createSubmission(name, userInfo, dataCommons, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization, submissionBucketName) {
         return new DataSubmission(name, userInfo, dataCommons, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization, submissionBucketName);
     }
 
-    _getConciergeName(approvedStudy, aProgram){
+    _getConciergeID(approvedStudy, aProgram){
+        // TODO check
         if (approvedStudy?.primaryContact) {
-            const conciergeName = `${approvedStudy.primaryContact?.firstName} ${approvedStudy.primaryContact?.lastName || ''}`;
-            return conciergeName?.trim();
+            return approvedStudy.primaryContact?._id || approvedStudy.primaryContact?.id;
         } else if (aProgram) {
-            return aProgram?.conciergeName;
+            return aProgram?.conciergeID;
         } else {
             return null;
         }
     }
-    _getConciergeEmail(approvedStudy, aProgram){
-        if (approvedStudy?.primaryContact) {
-            return approvedStudy.primaryContact.email;
-        } else if (aProgram) {
-            return aProgram?.conciergeEmail;
-        } else {
-            return null;
-        }
-    }
+    // _getConciergeEmail(approvedStudy, aProgram){
+    //     if (approvedStudy?.primaryContact) {
+    //         return approvedStudy.primaryContact.email;
+    //     } else if (aProgram) {
+    //         return aProgram?.conciergeEmail;
+    //     } else {
+    //         return null;
+    //     }
+    // }
 }
 
 class FileSize {

@@ -137,3 +137,15 @@ Commands:
           $addToSet: { notifications: "data_submission:cfg_changed" }
         }
       );
+
+  - remove all submitter name and concierge name & email from the submission collection for CRDCDH-3059: |
+      db.submissions.updateMany(
+        {},
+        {
+          $unset: {
+            submitterName: "",
+            conciergeName: "",
+            conciergeEmail: ""
+          }
+        }
+      );
