@@ -52,9 +52,19 @@ class SubmissionDAO extends GenericDAO {
 
     async listSubmissions(userInfo, userScope, params) {
         validateListSubmissionsParams(params);
+        const [listConditions, dataCommonsCondition, submitterNameCondition, organizationCondition, statusCondition] = [
+            // default filter for listing submissions
+            this._listConditions(userInfo, params.status, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
+            // no filter for dataCommons aggregation
+            this._listConditions(userInfo, ALL_FILTER, null, null, ALL_FILTER, ALL_FILTER, userScope),
+            // note: Aggregation of Submitter name should not be filtered by a submitterName
+            this._listConditions(userInfo, params?.status, params.name, params.dbGaPID, params.dataCommons, ALL_FILTER, userScope),
+            // Organization filter condition before joining an approved-studies collection
+            this._listConditions(userInfo, params?.status, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
+            // note: Aggregation of status name should not be filtered by statuses
+            this._listConditions(userInfo, ALL_FILTER, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope),
+        ]
 
-        const filterConditions = this._listConditions(userInfo, params.status, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope);
-        
         // Map orderBy to proper Prisma field names
         const mappedOrderBy = params?.orderBy ? SUBMISSION_ORDER_BY_MAP[params.orderBy] || params.orderBy : undefined;
         
@@ -80,8 +90,8 @@ class SubmissionDAO extends GenericDAO {
         };
 
         // Build where conditions for Prisma (directly use filterConditions)
-        const whereConditions = { ...filterConditions };
-        
+        const whereConditions = { ...listConditions };
+
         // Add organization filter if specified
         // Note: organization parameter always expects organization names, not IDs
         if (params?.organization && params?.organization !== ALL_FILTER) {
@@ -109,10 +119,10 @@ class SubmissionDAO extends GenericDAO {
 
             // Get distinct values for aggregations
             const [dataCommons, submitterNames, organizations, statuses] = await Promise.all([
-                this._getDistinctDataCommons(filterConditions),
-                this._getDistinctSubmitterNames(filterConditions),
-                this._getDistinctOrganizations(filterConditions),
-                this._getDistinctStatuses(filterConditions)
+                this._getDistinctDataCommons(dataCommonsCondition),
+                this._getDistinctSubmitterNames(submitterNameCondition),
+                this._getDistinctOrganizations(organizationCondition),
+                this._getDistinctStatuses(statusCondition)
             ]);
 
             // Transform submissions to match expected format
@@ -191,7 +201,8 @@ class SubmissionDAO extends GenericDAO {
             if (!isAllStudy(studyScope?.scopeValues)) {
                 baseConditions.studyID = { in: studyScope?.scopeValues || [] };
             }
-            //TODO add filter for where isNoSubmitter is not true
+            // This is the view condition control blocking the submissions without any submitter.
+            baseConditions.isNoSubmitter = false;
             return baseConditions;
         } else if (userScope.isDCScope()) {
             const DCScope = userScope.getDataCommonsScope();

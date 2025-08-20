@@ -137,3 +137,13 @@ Commands:
           $addToSet: { notifications: "data_submission:cfg_changed" }
         }
       );
+
+  - properly handle no submitter setting the flag: |
+      db.submissions.updateMany(
+        {
+          isNoSubmitter: { $exists: false }
+        },
+        {
+          $set: { isNoSubmitter: false },
+        }
+      );
