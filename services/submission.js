@@ -2013,8 +2013,8 @@ class Submission {
         const hasStudies = this._verifyStudyInUserStudies(userInfo, aSubmission?.studyID);
         const isCollaborator = this._isCollaborator({_id: userInfo?._id}, aSubmission);
         // Only owned or collaborator
-        const isValid = (isCollaborator && hasStudies) || (userInfo?._id === aSubmission?.submitterID && hasStudies)
-        if (!isValid) {
+        const hasValidBatchPermission = (isCollaborator && hasStudies) || (userInfo?._id === aSubmission?.submitterID && hasStudies)
+        if (!hasValidBatchPermission) {
             throw new Error(ERROR.INVALID_BATCH_PERMISSION);
         }
     }
