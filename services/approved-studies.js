@@ -368,7 +368,7 @@ class ApprovedStudiesService {
             throw new Error(ERROR.INVALID_PENDING_GPA);
         }
 
-        if (isPendingGPA !== undefined && !isTrue(isPendingGPA) && !GPAName?.trim()) {
+        if (isTrue(controlledAccess) && isPendingGPA !== undefined && !isTrue(isPendingGPA) && !GPAName?.trim()) {
             throw new Error(ERROR.INVALID_PENDING_GPA + ";GPA name is missing.");
         }
     }
