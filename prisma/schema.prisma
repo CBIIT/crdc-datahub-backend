@@ -521,7 +521,6 @@ model Submission {
   createdAt                DateTime       @default(now()) @db.Date
   updatedAt                DateTime       @updatedAt @db.Date
   programID                String?
-  isNoSubmitter            Boolean?
   organization             Program? @relation(fields: [programID], references: [id])
   study                    ApprovedStudy? @relation(fields: [studyID], references: [id])
   batches     Batch[]
