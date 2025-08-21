@@ -9,6 +9,7 @@ const ERROR = require("../constants/error-constants");
 const {replaceErrorString} = require("../utility/string-util");
 const prisma = require("../prisma");
 const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
+const { isAllStudy } = require("../utility/study-utility");
 const ALL_FILTER = "All";
 const NA = "NA"
 class SubmissionDAO extends GenericDAO {
@@ -407,21 +408,7 @@ class SubmissionDAO extends GenericDAO {
     }
 }
 
-/**
- * Checks if a user has access to all studies.
- * Determines whether the user studies array contains an "All" value, indicating
- * unrestricted access to all studies in the system.
- * 
- * @param {Array|string} userStudies - User's assigned studies (can be array of objects/strings or single value)
- * @returns {boolean} True if user has access to all studies, false otherwise
- */
-const isAllStudy = (userStudies) => {
-    const studies = Array.isArray(userStudies) && userStudies.length > 0 ? userStudies : [];
-    return studies.find(study =>
-        (typeof study === 'object' && study._id === "All") ||
-        (typeof study === 'string' && study === "All")
-    );
-}
+
 
 /**
  * Validates parameters for the listSubmissions method.

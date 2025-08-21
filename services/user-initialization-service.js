@@ -4,6 +4,7 @@ const orgToUserOrg = require("../crdc-datahub-database-drivers/utility/org-to-us
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {v4} = require("uuid");
 const {getDataCommonsDisplayNamesForUser} = require("../utility/data-commons-remapper");
+const { isAllStudy } = require("../utility/study-utility");
 
 class UserInitializationService {
 
@@ -78,7 +79,7 @@ class UserInitializationService {
         }
         if ( result[0]?.studies && result[0]?.studies.length > 0) {
             let approvedStudies = null;
-            const allStudy = (result[0]?.studies[0] instanceof Object) ? result[0]?.studies.find(study=>study._id === "All"): result[0]?.studies.find(study=>study=== "All");
+            const allStudy = isAllStudy(result[0]?.studies);
             if(allStudy){
                 approvedStudies = [{_id: "All", studyName: "All"}];
                 result[0].studies = approvedStudies;
