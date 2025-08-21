@@ -1345,7 +1345,6 @@ class Submission {
                 not: null,
                 lt: subtractDaysFromNow(this.emailParams.inactiveSubmissionDays)
             },
-            // TODO check
             include: {
                 study: {
                     select: {
@@ -2809,7 +2808,6 @@ class DataSubmission {
     }
 
     _getConciergeID(approvedStudy, aProgram){
-        // TODO check
         if (approvedStudy?.primaryContact) {
             return approvedStudy.primaryContact?._id || approvedStudy.primaryContact?.id;
         } else if (aProgram) {
@@ -2818,15 +2816,6 @@ class DataSubmission {
             return null;
         }
     }
-    // _getConciergeEmail(approvedStudy, aProgram){
-    //     if (approvedStudy?.primaryContact) {
-    //         return approvedStudy.primaryContact.email;
-    //     } else if (aProgram) {
-    //         return aProgram?.conciergeEmail;
-    //     } else {
-    //         return null;
-    //     }
-    // }
 }
 
 class FileSize {

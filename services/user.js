@@ -861,15 +861,11 @@ class UserService {
     async _removePrimaryContact(prevUser, newUser) {
         const isRoleChange = prevUser.role === ROLES.DATA_COMMONS_PERSONNEL && prevUser.role !== newUser.role;
         if (isRoleChange) {
-            // note: Search primaryContactName in this order, since that's how it's stored.
-            const primaryContactName = `${prevUser.firstName} ${prevUser.lastName}`.trim();
             const [updatedSubmission, updateProgram, updatedStudies] = await Promise.all([
                 this.submissionsCollection.updateMany(
                     { conciergeID: (prevUser?._id || prevUser?.id), status: {$nin: [COMPLETED, CANCELED, DELETED]} },
-                    // this might crash TODO because conciergeID does not exists
                     { conciergeID: "", updatedAt: getCurrentTime() }
                 ),
-                // This needs to be upated
                 this.organizationCollection.updateMany(
                     { conciergeID: prevUser?._id },
                     { conciergeID: "", conciergeName: "", conciergeEmail: "", updateAt: getCurrentTime() }
