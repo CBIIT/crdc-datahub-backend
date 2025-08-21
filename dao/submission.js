@@ -353,7 +353,7 @@ class SubmissionDAO extends GenericDAO {
         }
         if (firstName?.trim().length > 0 && lastName?.trim().length > 0) {
             orConditions.push({ submitter: { is: { firstName: firstNameQuery } }});
-            orConditions.push({ submitter: { is: { firstName: lastNameQuery } }});
+            orConditions.push({ submitter: { is: { lastName: lastNameQuery } }});
         }
         return orConditions
     }
