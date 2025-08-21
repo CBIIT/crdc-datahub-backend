@@ -2775,7 +2775,6 @@ class DataSubmission {
         this.name = name;
         this.submitterID = userInfo._id;
         this.collaborators = [];
-        this.submitterName = formatName(userInfo);
         this.dataCommons = dataCommons;
         this.modelVersion = modelVersion;
         this.studyID = approvedStudy?._id;
