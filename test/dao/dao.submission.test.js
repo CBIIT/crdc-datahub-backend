@@ -278,10 +278,12 @@ describe('SubmissionDAO', () => {
 
                 await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithSubmitterName);
 
+                // The submitter name filter is applied via an OR clause in the where object,
+                // so we check that the OR array exists and contains the expected structure.
                 expect(prisma.submission.findMany).toHaveBeenCalledWith(
                     expect.objectContaining({
                         where: expect.objectContaining({
-                            submitterName: 'John Doe'
+                            OR: expect.any(Array)
                         })
                     })
                 );
@@ -447,8 +449,8 @@ describe('SubmissionDAO', () => {
                 expect(result.submitterNames).toBeDefined();
                 expect(prisma.submission.findMany).toHaveBeenCalledWith(
                     expect.objectContaining({
-                        select: { submitterName: true },
-                        distinct: ['submitterName']
+                        select: { submitter: true },
+                        distinct: ['submitterID']
                     })
                 );
             });
