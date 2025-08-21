@@ -168,6 +168,9 @@ describe('SubmissionDAO', () => {
 
             it('should handle own scope users with studies', async () => {
                 mockUserScope.isOwnScope.mockReturnValue(true);
+                mockUserScope.getStudyScope.mockReturnValue({
+                    scopeValues: ['study-1', 'study-2']
+                });
 
                 const result = await dao.listSubmissions(mockUserInfo, mockUserScope, mockParams);
 
@@ -175,9 +178,9 @@ describe('SubmissionDAO', () => {
                 expect(prisma.submission.findMany).toHaveBeenCalledWith(
                     expect.objectContaining({
                         where: expect.objectContaining({
+                            studyID: { in: ['study-1', 'study-2'] },
                             OR: expect.arrayContaining([
                                 { submitterID: 'test_user_id' },
-                                { studyID: { in: ['study-1', 'study-2'] } },
                                 {
                                     collaborators: {
                                         some: {
@@ -194,7 +197,9 @@ describe('SubmissionDAO', () => {
 
             it('should handle own scope users with "All" studies', async () => {
                 mockUserScope.isOwnScope.mockReturnValue(true);
-                mockUserInfo.studies = [{ _id: 'All' }];
+                mockUserScope.getStudyScope.mockReturnValue({
+                    scopeValues: ['All']
+                });
 
                 const result = await dao.listSubmissions(mockUserInfo, mockUserScope, mockParams);
 
@@ -295,12 +300,7 @@ describe('SubmissionDAO', () => {
                 expect(prisma.submission.findMany).toHaveBeenCalledWith(
                     expect.objectContaining({
                         where: expect.objectContaining({
-                            organization: { 
-                                name: {
-                                    contains: 'National Cancer Institute',
-                                    mode: 'insensitive'
-                                }
-                            }
+                            programID: 'National Cancer Institute'
                         })
                     })
                 );
@@ -314,12 +314,45 @@ describe('SubmissionDAO', () => {
                 expect(prisma.submission.findMany).toHaveBeenCalledWith(
                     expect.objectContaining({
                         where: expect.objectContaining({
-                            organization: { 
-                                name: {
-                                    contains: 'Broad Institute',
-                                    mode: 'insensitive'
-                                }
-                            }
+                            programID: 'Broad Institute'
+                        })
+                    })
+                );
+            });
+        });
+
+        describe('Filter Application', () => {
+            it('should apply search filters only to submissions query, not to aggregations', async () => {
+                const paramsWithFilters = {
+                    ...mockParams,
+                    name: 'Test Submission',
+                    status: ['New'],
+                    dataCommons: 'GDC'
+                };
+
+                await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithFilters);
+
+                // Main submissions query should include search filters
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            name: {
+                                contains: 'Test Submission',
+                                mode: 'insensitive'
+                            },
+                            status: { in: ['New'] },
+                            dataCommons: 'GDC'
+                        })
+                    })
+                );
+
+                // Aggregation queries should NOT include search filters (only user scope)
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.not.objectContaining({
+                            name: expect.anything(),
+                            status: expect.anything(),
+                            dataCommons: expect.anything()
                         })
                     })
                 );
