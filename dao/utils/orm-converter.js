@@ -72,6 +72,14 @@ function convertMongoFilterToPrismaFilter(mongoFilter) {
           prismaFilter.OR.push(dict[key]);
       }
   }
+
+  if (prismaFilter.hasSome) {
+      const dict = prismaFilter.hasSome;
+      prismaFilter.hasSome = [];
+      for (const key in dict) {
+          prismaFilter.hasSome.push(dict[key]);
+      }
+  }
   // Convert _id fields to id fields in the final result
   return convertIdFields(prismaFilter);
 }
