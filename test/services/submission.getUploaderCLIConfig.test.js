@@ -99,7 +99,8 @@ describe('Submission.getUploaderCLIConfigs', () => {
         const result = await submission.getUploaderCLIConfigs(params, mockContext);
 
         expect(mockSubmissionDAO.findById).toHaveBeenCalledWith('sub1');
-        expect(submission._verifyBatchPermission).toHaveBeenCalledWith(mockSubmission, 'user1');
+        // Fix: _verifyBatchPermission expects (submission, userInfo) not (submission, userID)
+        expect(submission._verifyBatchPermission).toHaveBeenCalledWith(mockSubmission, mockContext.userInfo);
         expect(submission.fetchDataModelInfo).toHaveBeenCalled();
         expect(submission._replaceToken).toHaveBeenCalled();
         expect(result).toContain('submissionID: sub1');
@@ -169,6 +170,7 @@ describe('Submission.getUploaderCLIConfigs', () => {
 
         await submission.getUploaderCLIConfigs(params, mockContext);
 
-        expect(submission._verifyBatchPermission).toHaveBeenCalledWith(mockSubmission, 'user1');
+        // The correct argument for user is the userInfo object, not just the user ID string
+        expect(submission._verifyBatchPermission).toHaveBeenCalledWith(mockSubmission, mockContext.userInfo);
     });
 });

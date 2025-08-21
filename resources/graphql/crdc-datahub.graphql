@@ -158,7 +158,6 @@ type Submission {
     dataType: String # [Metadata Only, Metadata and Data Files]
     accessedAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
     inactiveReminder: Boolean
-    isNoSubmitter: Boolean
     finalInactiveReminder: Boolean
     validationStarted: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
     validationEnded: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
@@ -598,7 +597,7 @@ type Collaborator {
 
 input CollaboratorInput {
    collaboratorID: ID! 
-   permission: String! # ["Can Edit", "No Access"]
+   permission: String! # ["Can Edit"]
 }
 
 type aggregatedQCResults {
