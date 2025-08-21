@@ -291,7 +291,7 @@ class Application {
             }
             if (firstName?.trim().length > 0 && lastName?.trim().length > 0) {
                 orConditions.push({ applicant: { is: { firstName: firstNameQuery } }});
-                orConditions.push({ applicant: { is: { firstName: lastNameQuery } }});
+                orConditions.push({ applicant: { is: { lastName: lastNameQuery } }});
             }
             return orConditions.length > 0 ? { OR: orConditions } : {};
         }
