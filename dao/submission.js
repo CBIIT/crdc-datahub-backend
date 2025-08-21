@@ -125,7 +125,7 @@ class SubmissionDAO extends GenericDAO {
                 where: filterConditions
             });
 
-            // Get distinct values for aggregations using base conditions only
+            // Get distinct values for aggregations
             const [dataCommons, submitterNames, organizations, statuses] = await Promise.all([
                 this._getDistinctDataCommons(filterConditions),
                 this._getDistinctSubmitterNames(filterConditions),
@@ -261,11 +261,13 @@ class SubmissionDAO extends GenericDAO {
         }
         // Add filter for dataCommons if specified
         if (dataCommonsFilter && dataCommonsFilter !== ALL_FILTER) {
-            // Check for an existing dataCommons filter and if the user has access to the requested data commons
-            if (baseConditions.dataCommons && (userInfo?.dataCommons||[]).includes(dataCommonsFilter)) {
-                baseConditions.dataCommons = dataCommonsFilter.trim();
-            } 
-            else {
+            if (baseConditions.dataCommons) {
+                // If an existing filter exists, create intersection of the two filter sets
+                const existingValues = baseConditions.dataCommons.in || [];
+                const newValue = dataCommonsFilter.trim();
+                const intersection = existingValues.filter(value => value === newValue);
+                baseConditions.dataCommons = { in: intersection };
+            } else {
                 // If no existing filter exists, add the new value
                 baseConditions.dataCommons = dataCommonsFilter.trim();
             }

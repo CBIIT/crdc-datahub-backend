@@ -928,5 +928,206 @@ describe('SubmissionDAO', () => {
                     .rejects.toThrow(ERROR.VERIFY.INVALID_PERMISSION);
             });
         });
+
+        describe('Data Commons Filter Intersection Logic', () => {
+            beforeEach(() => {
+                // Reset mocks for this test suite
+                jest.clearAllMocks();
+                
+                // Setup mock user scope for DC scope testing
+                mockUserScope.isAllScope.mockReturnValue(false);
+                mockUserScope.isStudyScope.mockReturnValue(false);
+                mockUserScope.isDCScope.mockReturnValue(true);
+                mockUserScope.isOwnScope.mockReturnValue(false);
+            });
+
+            it('should create intersection when existing filter exists and new filter matches', async () => {
+                // User has access to GDC and PDC
+                const userWithDCScope = {
+                    ...mockUserInfo,
+                    dataCommons: ['GDC', 'PDC']
+                };
+
+                // Test with dataCommons filter that matches one of user's data commons
+                const paramsWithFilter = {
+                    ...mockParams,
+                    dataCommons: 'GDC'
+                };
+
+                const result = await dao.listSubmissions(userWithDCScope, mockUserScope, paramsWithFilter);
+
+                // Verify that the intersection was created
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            dataCommons: { in: ['GDC'] }
+                        })
+                    })
+                );
+            });
+
+            it('should create empty intersection when existing filter exists but new filter does not match', async () => {
+                // User has access to GDC and PDC
+                const userWithDCScope = {
+                    ...mockUserInfo,
+                    dataCommons: ['GDC', 'PDC']
+                };
+
+                // Test with dataCommons filter that does not match user's data commons
+                const paramsWithFilter = {
+                    ...mockParams,
+                    dataCommons: 'ABC'
+                };
+
+                const result = await dao.listSubmissions(userWithDCScope, mockUserScope, paramsWithFilter);
+
+                // Verify that the intersection results in empty array
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            dataCommons: { in: [] }
+                        })
+                    })
+                );
+            });
+
+            it('should add new filter when no existing filter exists', async () => {
+                // User has no DC scope, so no existing dataCommons filter
+                mockUserScope.isDCScope.mockReturnValue(false);
+                mockUserScope.isOwnScope.mockReturnValue(true);
+
+                const paramsWithFilter = {
+                    ...mockParams,
+                    dataCommons: 'GDC'
+                };
+
+                const result = await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithFilter);
+
+                // Verify that the new filter was added
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            dataCommons: 'GDC'
+                        })
+                    })
+                );
+            });
+
+            it('should handle multiple data commons in user scope correctly', async () => {
+                // User has access to multiple data commons
+                const userWithMultipleDC = {
+                    ...mockUserInfo,
+                    dataCommons: ['GDC', 'PDC', 'TARGET', 'CCLE']
+                };
+
+                const paramsWithFilter = {
+                    ...mockParams,
+                    dataCommons: 'TARGET'
+                };
+
+                const result = await dao.listSubmissions(userWithMultipleDC, mockUserScope, paramsWithFilter);
+
+                // Verify that the intersection was created correctly
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            dataCommons: { in: ['TARGET'] }
+                        })
+                    })
+                );
+            });
+
+            it('should handle ALL_FILTER correctly (no filtering)', async () => {
+                const userWithDCScope = {
+                    ...mockUserInfo,
+                    dataCommons: ['GDC', 'PDC']
+                };
+
+                const paramsWithAllFilter = {
+                    ...mockParams,
+                    dataCommons: 'All'
+                };
+
+                const result = await dao.listSubmissions(userWithDCScope, mockUserScope, paramsWithAllFilter);
+
+                // Verify that no dataCommons filter was added when ALL_FILTER is used
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            dataCommons: { in: ['GDC', 'PDC'] }
+                        })
+                    })
+                );
+            });
+
+            it('should handle empty dataCommons filter correctly', async () => {
+                const userWithDCScope = {
+                    ...mockUserInfo,
+                    dataCommons: ['GDC', 'PDC']
+                };
+
+                const paramsWithoutFilter = {
+                    ...mockParams
+                    // No dataCommons filter
+                };
+
+                const result = await dao.listSubmissions(userWithDCScope, mockUserScope, paramsWithoutFilter);
+
+                // Verify that the original user scope filter is preserved
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            dataCommons: { in: ['GDC', 'PDC'] }
+                        })
+                    })
+                );
+            });
+
+            it('should handle null/undefined dataCommons filter correctly', async () => {
+                const userWithDCScope = {
+                    ...mockUserInfo,
+                    dataCommons: ['GDC', 'PDC']
+                };
+
+                const paramsWithNullFilter = {
+                    ...mockParams,
+                    dataCommons: null
+                };
+
+                const result = await dao.listSubmissions(userWithDCScope, mockUserScope, paramsWithNullFilter);
+
+                // Verify that the original user scope filter is preserved
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            dataCommons: { in: ['GDC', 'PDC'] }
+                        })
+                    })
+                );
+            });
+
+            it('should trim whitespace from dataCommons filter', async () => {
+                const userWithDCScope = {
+                    ...mockUserInfo,
+                    dataCommons: ['GDC', 'PDC']
+                };
+
+                const paramsWithWhitespace = {
+                    ...mockParams,
+                    dataCommons: '  GDC  '
+                };
+
+                const result = await dao.listSubmissions(userWithDCScope, mockUserScope, paramsWithWhitespace);
+
+                // Verify that whitespace was trimmed and intersection was created
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            dataCommons: { in: ['GDC'] }
+                        })
+                    })
+                );
+            });
+        });
     });
 });
