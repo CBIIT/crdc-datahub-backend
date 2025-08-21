@@ -166,7 +166,6 @@ model Application {
   version             String
   ORCID               String?
   PI                  String?
-  applicant           Applicant
   controlledAccess    Boolean?
   history             History[]
   inactiveReminder    Boolean?
@@ -186,7 +185,13 @@ model Application {
   createdAt           DateTime  @default(now()) @db.Date
   updatedAt           DateTime  @updatedAt @db.Date
   newInstitutions     newInstitution[]
+  finalInactiveReminder    Boolean?
+  inactiveReminder_7       Boolean?
+  inactiveReminder_15      Boolean?
+  inactiveReminder_30      Boolean?
   GPAName             String?
+  applicantID         String?
+  applicant           User? @relation(fields: [applicantID], references: [id])
   @@map("applications")
 }
 
@@ -477,8 +482,6 @@ model Submission {
   archived                 Boolean?
   bucketName               String
   collaborators            Collaborator[]
-  conciergeEmail           String?
-  conciergeName            String?
   controlledAccess         Boolean?
   /// Multiple data types found: String: 92.9%, Boolean: 7.1% out of 375 sampled entries
   crossSubmissionStatus    String?
@@ -514,7 +517,6 @@ model Submission {
   studyID                  String
   submitterID              String
   conciergeID              String?
-  submitterName            String
   validationEnded          DateTime?      @db.Date
   validationScope          String?
   validationStarted        DateTime?      @db.Date
@@ -583,7 +585,7 @@ model User {
   submitters Submission[] @relation("submitter")
   concierges Submission[] @relation("concierge")
   approvedStudies ApprovedStudy[]
-
+  applicants Application[]
   @@map("users")
 }
 

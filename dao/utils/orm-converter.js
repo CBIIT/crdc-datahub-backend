@@ -61,10 +61,17 @@ function convertMongoFilterToPrismaFilter(mongoFilter) {
       prismaFilter[key] = value.map(v => tryConvertDate(v));
     } else {
       // Assume field name (e.g. createdAt: { $gt: ... })
-      prismaFilter[key] = convertMongoFilterToPrismaFilter(value);
+      prismaFilter[key] = convertMongoFilterToPrismaFilter(value);;
     }
   }
 
+  if (prismaFilter.OR) {
+      const dict = prismaFilter.OR;
+      prismaFilter.OR = [];
+      for (const key in dict) {
+          prismaFilter.OR.push(dict[key]);
+      }
+  }
   // Convert _id fields to id fields in the final result
   return convertIdFields(prismaFilter);
 }

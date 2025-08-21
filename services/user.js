@@ -372,18 +372,10 @@ class UserService {
         // Update all dependent objects only if the User's Name has changed
         // NOTE: We're not waiting for these async updates to complete before returning the updated User
         if (updateUser.firstName !== user[0].firstName || updateUser.lastName !== user[0].lastName) {
-            // this.submissionsCollection.updateMany(
-            //     { "submitterID": updateUser._id },
-            //     { "submitterName": `${updateUser.firstName} ${updateUser.lastName}` }
-            // );
             this.organizationCollection.updateMany(
                 { "conciergeID": updateUser._id },
                 { "conciergeName": `${updateUser.firstName} ${updateUser.lastName}` }
             );
-            // this.applicationCollection.updateMany(
-            //     { "applicant.applicantID": updateUser._id },
-            //     { "applicant.applicantName": `${updateUser.firstName} ${updateUser.lastName}` }
-            // );
         }
         context.userInfo = {
             ...context.userInfo,

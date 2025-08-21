@@ -2,6 +2,7 @@ const {isCaseInsensitiveEqual, isElementInArray, isElementInArrayCaseInsensitive
     replaceMessageVariables, extractAndJoinFields, replaceErrorString, isValidFileExtension, fileSizeFormatter
 } = require("../../utility/string-util");
 const {parseJsonString} = require("../../crdc-datahub-database-drivers/utility/string-utility");
+const {splitName} = require("../../utility/format-name");
 describe('Util Test', () => {
     let consoleErrorSpy;
 
@@ -243,5 +244,11 @@ describe('Util Test', () => {
         expect(fileSizeFormatter(50000)).toBe("48.83 KB");
         expect(fileSizeFormatter(500000000000)).toBe("465.66 GB");
         expect(fileSizeFormatter(50000000000000)).toBe("45.47 TB");
+    });
+
+    test('test split full user name formatter', () => {
+        expect(splitName("test last")).toStrictEqual(["test", "last"]);
+        expect(splitName("test")).toStrictEqual(["test", ""]);
+        expect(splitName("test middle tet")).toStrictEqual(["test middle", "tet"]);
     });
 });

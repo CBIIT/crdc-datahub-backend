@@ -176,8 +176,6 @@ class Submission {
         if (!res) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
         }
-
-        // TODO
         const updateSubmission = await this._findByID(res?._id)
         await this._remindPrimaryContactEmail(updateSubmission, approvedStudy, program);
         return this._findByID(res?._id);
@@ -348,15 +346,15 @@ class Submission {
         await Promise.all([
             // Store data file size into submission document
             (async () => {
-                // const dataFileSize = await this._getS3DirectorySize(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/`);
-                // const isDataFileChanged = aSubmission?.dataFileSize?.size !== dataFileSize.size || aSubmission?.dataFileSize?.formatted !== dataFileSize.formatted;
-                // if (isDataFileChanged) {
-                //     const updatedSubmission = await this.submissionDAO.update(aSubmission?._id, this._prepareUpdateData({dataFileSize}));
-                //     if (!updatedSubmission) {
-                //         throw new Error(ERROR.FAILED_RECORD_FILESIZE_PROPERTY, `SubmissionID: ${aSubmission?._id}`);
-                //     }
-                // }
-                aSubmission.dataFileSize = null;
+                const dataFileSize = await this._getS3DirectorySize(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/`);
+                const isDataFileChanged = aSubmission?.dataFileSize?.size !== dataFileSize.size || aSubmission?.dataFileSize?.formatted !== dataFileSize.formatted;
+                if (isDataFileChanged) {
+                    const updatedSubmission = await this.submissionDAO.update(aSubmission?._id, this._prepareUpdateData({dataFileSize}));
+                    if (!updatedSubmission) {
+                        throw new Error(ERROR.FAILED_RECORD_FILESIZE_PROPERTY, `SubmissionID: ${aSubmission?._id}`);
+                    }
+                }
+                aSubmission.dataFileSize = dataFileSize;
             })(),
             // Get other submissions for the same study
             (async () => {
@@ -1390,8 +1388,6 @@ class Submission {
                         await this.dataRecordService.deleteMetadataByFilter({"submissionID": sub._id});
                         await this.batchService.deleteBatchByFilter({"submissionID": sub._id});
                         await this.submissionDAO.update(sub._id, this._prepareUpdateData({"status" : DELETED}, new Date()));
-
-                        // TODO if findMany not working use sing _findBY
                         deletedSubmissions.push(sub);
                         console.debug(`Successfully deleted inactive submissions: ${sub._id}.`);
                     }
@@ -2806,7 +2802,6 @@ class DataSubmission {
         this.ORCID = approvedStudy?.ORCID || null;
         this.accessedAt = getCurrentTime();
         this.dataFileSize = FileSize.createFileSize(0);
-        this.isNoSubmitter = false;
     }
 
     static createSubmission(name, userInfo, dataCommons, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization, submissionBucketName) {

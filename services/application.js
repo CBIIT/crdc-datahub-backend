@@ -10,9 +10,8 @@ const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-
 const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const {parseJsonString, isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
-const {formatName} = require("../utility/format-name");
+const {formatName, splitName} = require("../utility/format-name");
 const {isUndefined, replaceErrorString} = require("../utility/string-util");
-const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const {EMAIL_NOTIFICATIONS} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {UserScope} = require("../domain/user-scope");
@@ -21,6 +20,8 @@ const InstitutionDAO = require("../dao/institution");
 const ApplicationDAO = require("../dao/application");
 const {SORT: SORT_ORDER} = require("../constants/db-constants");
 const {PendingGPA} = require("../domain/pending-gpa");
+const {PrismaPagination} = require("../crdc-datahub-database-drivers/domain/prisma-pagination");
+const UserDAO = require("../dao/user");
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_INSTITUTION_NAME_LENGTH = 100;
 class Application {
@@ -41,6 +42,7 @@ class Application {
         this.authorizationService = authorizationService;
         this.institionDAO = new InstitutionDAO()
         this.applicationDAO = new ApplicationDAO();
+        this.userDAO = new UserDAO();
     }
 
     async getApplication(params, context) {
@@ -91,9 +93,28 @@ class Application {
     }
 
     async getApplicationById(id) {
-        let result = await this.applicationDAO.findFirst({id: id});
+        let result = await this.applicationDAO.findFirst({id: id,
+        }, {
+            include: {
+                applicant: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        email: true
+                    }
+                }
+            }
+        });
         if (!result) {
             throw new Error(ERROR.APPLICATION_NOT_FOUND+id);
+        }
+
+        result.applicant = {
+            applicantID: result.applicant?.id || "",
+            applicantName: formatName(result.applicant),
+            applicantEmail: result.applicant.email || "",
+
         }
         return result;
     }
@@ -136,11 +157,7 @@ class Application {
             _id: v4(undefined, undefined, undefined),
             status: NEW,
             controlledAccess: application?.controlledAccess,
-            applicant: {
-                applicantID: userInfo._id,
-                applicantName: formatName(userInfo),
-                applicantEmail: userInfo.email
-            },
+            applicantID: userInfo._id,
             history: [HistoryEventBuilder.createEvent(userInfo._id, NEW, null)],
             createdAt: timestamp,
             updatedAt: timestamp,
@@ -245,7 +262,7 @@ class Application {
 
         const userID = context.userInfo._id;
         // To remove this MongoDB query, we need to refactor the schema to move applicantID to the root level.
-        const matchApplicantIDToUser = {"$match": {"applicant.applicantID": userID, status: APPROVED}};
+        const matchApplicantIDToUser = {"$match": {"applicantID": userID, status: APPROVED}};
         const sortCreatedAtDescending = {"$sort": {createdAt: -1}};
         const limitReturnToOneApplication = {"$limit": 1};
         const pipeline = [
@@ -261,14 +278,32 @@ class Application {
         return res;
     }
 
+    _getApplicantNameQuery(submitterName) {
+        if (submitterName != null && submitterName !== this._ALL_FILTER) {
+            const [firstName, lastName] = splitName(submitterName)
+            const firstNameQuery = firstName?.trim().length > 0 ? {contains: firstName.trim().replace(/\\/g, "\\\\"), mode: "insensitive"} : firstName;
+            const lastNameQuery = lastName?.trim().length > 0 ? {contains: lastName.trim().replace(/\\/g, "\\\\"), mode: "insensitive"} : lastName;
+            // Build three OR conditions: firstName only, lastName only, and both firstName & lastName
+            const orConditions = [];
+            if (firstName?.trim().length > 0 && lastName?.trim().length === 0) {
+                orConditions.push({ applicant: { is: { firstName: firstNameQuery } }});
+                orConditions.push({ applicant: { is: { lastName: firstNameQuery } }});
+            }
+            if (firstName?.trim().length > 0 && lastName?.trim().length > 0) {
+                orConditions.push({ applicant: { is: { firstName: firstNameQuery } }});
+                orConditions.push({ applicant: { is: { firstName: lastNameQuery } }});
+            }
+            return orConditions.length > 0 ? { OR: orConditions } : {};
+        }
+        return {};
+    }
+
     _listApplicationConditions(userID, userScope, programName, studyName, statues, submitterName) {
         const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, CANCELED, REJECTED, DELETED];
         const statusCondition = statues && !statues?.includes(this._ALL_FILTER) ?
-            { status: { $in: statues || [] } } : { status: { $in: validApplicationStatus } };
+            { status: { in: statues || [] } } : { status: { in: validApplicationStatus } };
         // Allowing empty string SubmitterName, ProgramName, StudyName
-        // Submitter Name should be partial match
-        const submitterQuery = submitterName?.trim().length > 0 ? {contains: submitterName.trim().replace(/\\/g, "\\\\"), mode: "insensitive"} : submitterName;
-        const submitterNameCondition = (submitterName != null && submitterName !== this._ALL_FILTER) ? {"applicant.applicantName": submitterQuery} : {};
+        const submitterNameCondition = this._getApplicantNameQuery(submitterName);
         const programNameCondition = (programName != null && programName !== this._ALL_FILTER) ? {programName: programName} : {};
         // Study Name should be partial match
         const studyQuery = studyName?.trim().length > 0 ? {contains: studyName?.trim().replace(/\\/g, "\\\\"), mode: "insensitive"} : studyName;
@@ -278,7 +313,7 @@ class Application {
         if (userScope.isAllScope()) {
             return baseConditions;
         } else if (userScope.isOwnScope()) {
-            return {...baseConditions, "applicant.applicantID": userID};
+            return {...baseConditions, "applicantID": userID};
         }
         throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
     }
@@ -315,23 +350,39 @@ class Application {
             this._listApplicationConditions(userInfo?._id, userScope, params.programName, params.studyName, params.statuses, this._ALL_FILTER),
         ];
         const [listConditions, programCondition, studyNameCondition, statuesCondition, submitterNameCondition] = filterConditions;
-        let pipeline = [{"$match": listConditions}];
         // convert params.orderBy from orderBy in ["Submitter Name", "Organization", "Study", "Program", "Status", "Submitted Date"] to Application in prisma schema
-        const orderBy = params?.orderBy ? params.orderBy : "";
-        const paginationPipe = new MongoPagination(params?.first, params.offset, orderBy, params.sortDirection);
-        const noPaginationPipe = pipeline.concat(paginationPipe.getNoLimitPipeline());
+        let orderBy = params?.orderBy ? params.orderBy : "";
+
+        if (orderBy === "applicant.applicantName") {
+            orderBy = "applicant.firstName"
+        }
+
+        const pagination = new PrismaPagination(params?.first, params.offset, orderBy, params.sortDirection);
+        const includeQuery = {include: {
+                applicant: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        email: true
+                    }
+                },
+            }
+        }
 
         const promises = [
-            this.applicationDAO.aggregate(pipeline.concat(paginationPipe.getPaginationPipeline())),
-            this.applicationDAO.aggregate(noPaginationPipe.concat([{ $group: { _id: "$_id" } }, { $count: "count" }])),
+            this.applicationDAO.findMany(listConditions, {
+                ...pagination.getPagination(),
+                ...includeQuery}),
+            this.applicationDAO.findMany(listConditions, {...includeQuery}),
             // note: Program name filter is omitted
-            this.applicationDAO.distinct("programName", programCondition),
+            this._getDistinctPrograms(programCondition),
             // note: Study name filter is omitted
-            this.applicationDAO.distinct("studyName", studyNameCondition),
+            this._getDistinctStudies(studyNameCondition),
             // note: Statues filter is omitted
-            this.applicationDAO.distinct("status", statuesCondition),
+            this._getDistinctStatus(statuesCondition),
             // note: Submitter name filter is omitted
-            this.applicationDAO.distinct("applicant.applicantName", submitterNameCondition)
+            this._getDistinctSubmitterNames(submitterNameCondition)
         ];
 
         const results = await Promise.all(promises);
@@ -339,6 +390,14 @@ class Application {
         for (let app of applications?.filter(a=>a.status === APPROVED)) {
             await this._checkConditionalApproval(app);
         }
+
+        applications.forEach((app) => {
+            app.applicant = {
+                applicantID: app.applicant ? app?.applicant?.id : "",
+                applicantName: app.applicant ? formatName(app?.applicant) : "",
+                applicantEmail: app.applicant? app?.applicant?.email : "",
+            }
+        })
 
         return {
             applications: applications,
@@ -349,7 +408,86 @@ class Application {
                 const statusOrder = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, INQUIRED, APPROVED, REJECTED, CANCELED, DELETED];
                 return (results[4] || []).sort((a, b) => statusOrder.indexOf(a) - statusOrder.indexOf(b));
             },
-            submitterNames: results[5] || []
+            submitterNames: results[5]
+        }
+    }
+
+    async _getDistinctStatus(filterConditions) {
+        try {
+            const applications = await this.applicationDAO.findMany(filterConditions, {
+                    ...{include: {
+                            applicant: true,
+                        }},
+                    ...{
+                        distinct: ['status']
+                    }
+                }
+            );
+            return applications.map(item => item.status).filter(Boolean);
+        } catch (error) {
+            console.error('Error getting distinct submission request _getDistinctStatus:', error);
+            return [];
+        }
+    }
+
+
+    async _getDistinctStudies(filterConditions) {
+        try {
+            const applications = await this.applicationDAO.findMany(filterConditions, {
+                    ...{include: {
+                            applicant: true,
+                        }},
+                    ...{
+                        distinct: ['studyName']
+                    }
+                }
+            );
+            return applications.map(item => item.studyName).filter(Boolean);
+        } catch (error) {
+            console.error('Error getting distinct submission request _getDistinctStudies:', error);
+            return [];
+        }
+    }
+
+    async _getDistinctPrograms(filterConditions) {
+        try {
+            const applications = await this.applicationDAO.findMany(filterConditions, {
+                    ...{include: {
+                            applicant: true,
+                        }},
+                    ...{
+                        distinct: ['programName']
+                    }
+                }
+            );
+            return applications.map(item => item.programName).filter(Boolean);
+        } catch (error) {
+            console.error('Error getting distinct submission request _getDistinctPrograms:', error);
+            return [];
+        }
+    }
+
+    async _getDistinctSubmitterNames(filterConditions) {
+        try {
+            const applications = await this.applicationDAO.findMany(filterConditions, {
+                    ...{include: {
+                        applicant: true,
+                    }},
+                    ...{
+                        distinct: ['applicantID']
+                    }
+                }
+            );
+            const submitterNames = applications
+                .map(sub => formatName(sub?.applicant))
+                .filter(Boolean)
+                .sort((a, b) => a.localeCompare(b)); // sort ascending
+
+            return Array.from(new Set(submitterNames));
+
+        } catch (error) {
+            console.error('Error getting distinct submission request submitterNames:', error);
+            return [];
         }
     }
 
@@ -703,7 +841,7 @@ class Application {
             if (updated) {
                 console.log("Executed to delete application(s) because of no activities at " + getCurrentTime());
                 await Promise.all(applications.map(async (app) => {
-                    if (permittedUserIDs.has(app?.applicant?.applicantID)) {
+                    if (permittedUserIDs.has(app?.applicantID)) {
                         await sendEmails.inactiveApplications(this.notificationService,this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app, getUserEmails(BCCUsers));
                     }
                 }));
@@ -807,7 +945,7 @@ class Application {
 
     async _findUsersByApplicantIDs(applications) {
         const applicantIDs = applications
-            ?.map((a) => a?.applicant?.applicantID) // Extract applicant IDs
+            ?.map((a) => a?.applicantID) // Extract applicant IDs
             ?.filter(Boolean);
 
         return await this.userService.userCollection.aggregate([{
@@ -819,7 +957,7 @@ class Application {
         const res = await Promise.all([
             this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW],
                 [ROLES.DATA_COMMONS_PERSONNEL, ROLES.FEDERAL_LEAD, ROLES.ADMIN]),
-            this.userService.userCollection.find(application?.applicant?.applicantID)
+            this.userService.userCollection.find(application?.applicantID)
         ]);
 
         const [toBCCUsers, applicant] = res;
@@ -910,7 +1048,7 @@ class Application {
 
     async _cancelApplicationEmailInfo(application) {
         const [applicant, BCCUsers] = await Promise.all([
-            this.userService.userCollection.find(application?.applicant?.applicantID),
+            this.userService.userCollection.find(application?.applicantID),
             this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_CANCEL],
                 [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN])
         ]);
@@ -961,7 +1099,7 @@ class Application {
 
     async _sendEmailFinalInactiveApplication(application) {
         const [aSubmitter, BCCUsers] = await Promise.all([
-            this.userService.getUserByID(application?.applicant?.applicantID),
+            this.userService.getUserByID(application?.applicantID),
             this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_EXPIRING],
                 [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN])
         ]);
@@ -974,7 +1112,8 @@ class Application {
 
         if (aSubmitter?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_EXPIRING)) {
             const studyName = application?.studyAbbreviation?.trim();
-            const CCEmails = getCCEmails(application?.applicant?.applicantEmail, application);
+            const applicant = await this.userDAO.findFirst({id: application?.applicantID});
+            const CCEmails = getCCEmails(applicant?.applicantEmail, application);
             const toBCCEmails = getUserEmails(filteredBCCUsers)
                 ?.filter((email) => !CCEmails.includes(email));
             await this.notificationService.finalRemindApplicationsNotification(aSubmitter?.email,
@@ -992,7 +1131,7 @@ class Application {
 
     async _sendEmailInactiveApplication(application, interval) {
         const [aSubmitter, BCCUsers] = await Promise.all([
-            this.userService.getUserByID(application?.applicant?.applicantID),
+            this.userService.getUserByID(application?.applicantID),
             this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_EXPIRING],
                 [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN])
         ]);
@@ -1004,7 +1143,8 @@ class Application {
 
         if (aSubmitter?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_EXPIRING)) {
             const studyName = application?.studyAbbreviation?.trim();
-            const CCEmails = getCCEmails(application?.applicant?.applicantEmail, application);
+            const applicant = await this.userDAO.findFirst({id: application?.applicantID});
+            const CCEmails = getCCEmails(applicant?.email, application);
             const filteredBCCUsers = BCCUsers.filter((u) => u?._id !== aSubmitter?._id);
             const toBCCEmails = getUserEmails(filteredBCCUsers)
                 ?.filter((email) => !CCEmails.includes(email));
