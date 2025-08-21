@@ -322,7 +322,7 @@ describe('SubmissionDAO', () => {
         });
 
         describe('Filter Application', () => {
-            it('should apply search filters only to submissions query, not to aggregations', async () => {
+            it('should apply search filters to both submissions query and aggregations', async () => {
                 const paramsWithFilters = {
                     ...mockParams,
                     name: 'Test Submission',
@@ -346,14 +346,398 @@ describe('SubmissionDAO', () => {
                     })
                 );
 
-                // Aggregation queries should NOT include search filters (only user scope)
+                // Aggregation queries should also include search filters (same as main query)
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            name: {
+                                contains: 'Test Submission',
+                                mode: 'insensitive'
+                            },
+                            status: { in: ['New'] },
+                            dataCommons: 'GDC'
+                        }),
+                        select: { dataCommons: true },
+                        distinct: ['dataCommons']
+                    })
+                );
+            });
+        });
+
+        describe('Filter Priority and Behavior', () => {
+            beforeEach(() => {
+                // Setup mock responses for aggregation methods
+                prisma.submission.findMany
+                    .mockResolvedValueOnce(mockSubmissions) // Main query
+                    .mockResolvedValueOnce([{ dataCommons: 'test-commons' }]) // Data commons aggregation
+                    .mockResolvedValueOnce([{ submitterName: 'Test User' }]) // Submitter names aggregation
+                    .mockResolvedValueOnce([{ studyID: 'study-1' }]) // Organizations aggregation
+                    .mockResolvedValueOnce([{ status: NEW }]); // Statuses aggregation
+                
+                prisma.submission.count.mockResolvedValue(1);
+            });
+
+            it('should apply user scope filters first, then search filters', async () => {
+                mockUserScope.isOwnScope.mockReturnValue(true);
+                mockUserScope.getStudyScope.mockReturnValue({
+                    scopeValues: ['study-1', 'study-2']
+                });
+
+                const paramsWithFilters = {
+                    ...mockParams,
+                    name: 'Test',
+                    status: [NEW, SUBMITTED],
+                    dataCommons: 'specific-commons'
+                };
+
+                await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithFilters);
+
+                // Verify the main query includes both user scope AND search filters
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            studyID: { in: ['study-1', 'study-2'] },
+                            OR: expect.arrayContaining([
+                                { submitterID: 'test_user_id' },
+                                {
+                                    collaborators: {
+                                        some: {
+                                            collaboratorID: 'test_user_id',
+                                            permission: { in: [COLLABORATOR_PERMISSIONS.CAN_EDIT] }
+                                        }
+                                    }
+                                }
+                            ]),
+                            name: {
+                                contains: 'Test',
+                                mode: 'insensitive'
+                            },
+                            status: { in: [NEW, SUBMITTED] },
+                            dataCommons: 'specific-commons'
+                        })
+                    })
+                );
+            });
+
+            it('should apply all scope filters without user restrictions', async () => {
+                mockUserScope.isAllScope.mockReturnValue(true);
+                mockUserScope.isOwnScope.mockReturnValue(false);
+
+                const paramsWithFilters = {
+                    ...mockParams,
+                    name: 'Test',
+                    status: [NEW],
+                    organization: 'org-123'
+                };
+
+                await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithFilters);
+
+                // Verify the main query includes only search filters (no user scope restrictions)
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            name: {
+                                contains: 'Test',
+                                mode: 'insensitive'
+                            },
+                            status: { in: [NEW] },
+                            programID: 'org-123'
+                        })
+                    })
+                );
+
+                // Should NOT include user scope restrictions
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.not.objectContaining({
+                            studyID: expect.anything(),
+                            OR: expect.anything()
+                        })
+                    })
+                );
+            });
+
+            it('should apply data commons scope filters correctly', async () => {
+                mockUserScope.isDCScope.mockReturnValue(true);
+                mockUserScope.isOwnScope.mockReturnValue(false);
+                // Note: DC scope uses userInfo.dataCommons, not scope values from userScope
+                mockUserInfo.dataCommons = ['GDC', 'PDC'];
+
+                const paramsWithFilters = {
+                    ...mockParams,
+                    name: 'Test',
+                    status: [NEW]
+                };
+
+                await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithFilters);
+
+                // Verify the main query includes both DC scope AND search filters
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            dataCommons: { in: ['GDC', 'PDC'] },
+                            name: {
+                                contains: 'Test',
+                                mode: 'insensitive'
+                            },
+                            status: { in: [NEW] }
+                        })
+                    })
+                );
+            });
+
+            it('should apply study scope filters correctly', async () => {
+                mockUserScope.isStudyScope.mockReturnValue(true);
+                mockUserScope.isOwnScope.mockReturnValue(false);
+                mockUserScope.getStudyScope.mockReturnValue({
+                    scopeValues: ['study-1', 'study-2']
+                });
+
+                const paramsWithFilters = {
+                    ...mockParams,
+                    name: 'Test',
+                    organization: 'org-123'
+                };
+
+                await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithFilters);
+
+                // Verify the main query includes both study scope AND search filters
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            studyID: { in: ['study-1', 'study-2'] },
+                            name: {
+                                contains: 'Test',
+                                mode: 'insensitive'
+                            },
+                            programID: 'org-123'
+                        })
+                    })
+                );
+            });
+
+            it('should handle multiple search filters simultaneously', async () => {
+                mockUserScope.isOwnScope.mockReturnValue(true);
+                mockUserScope.getStudyScope.mockReturnValue({
+                    scopeValues: ['study-1']
+                });
+
+                const paramsWithMultipleFilters = {
+                    ...mockParams,
+                    name: 'Cancer Study',
+                    status: [NEW, IN_PROGRESS],
+                    dbGaPID: 'phs001234',
+                    dataCommons: 'GDC',
+                    submitterName: 'John Doe',
+                    organization: 'NCI'
+                };
+
+                await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithMultipleFilters);
+
+                // Verify all search filters are applied along with user scope
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            studyID: { in: ['study-1'] },
+                            OR: expect.arrayContaining([
+                                { submitterID: 'test_user_id' },
+                                {
+                                    collaborators: {
+                                        some: {
+                                            collaboratorID: 'test_user_id',
+                                            permission: { in: [COLLABORATOR_PERMISSIONS.CAN_EDIT] }
+                                        }
+                                    }
+                                }
+                            ]),
+                            name: {
+                                contains: 'Cancer Study',
+                                mode: 'insensitive'
+                            },
+                            status: { in: [NEW, IN_PROGRESS] },
+                            dbGaPID: {
+                                contains: 'phs001234',
+                                mode: 'insensitive'
+                            },
+                            dataCommons: 'GDC',
+                            submitterName: 'John Doe',
+                            programID: 'NCI'
+                        })
+                    })
+                );
+            });
+
+            it('should handle empty or null filter parameters gracefully', async () => {
+                mockUserScope.isOwnScope.mockReturnValue(true);
+                mockUserScope.getStudyScope.mockReturnValue({
+                    scopeValues: ['study-1']
+                });
+
+                const paramsWithEmptyFilters = {
+                    ...mockParams,
+                    name: '',
+                    status: null,
+                    dbGaPID: undefined,
+                    dataCommons: '',
+                    submitterName: null,
+                    organization: ''
+                };
+
+                await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithEmptyFilters);
+
+                // Verify only user scope filters are applied, no search filters
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            studyID: { in: ['study-1'] },
+                            OR: expect.arrayContaining([
+                                { submitterID: 'test_user_id' },
+                                {
+                                    collaborators: {
+                                        some: {
+                                            collaboratorID: 'test_user_id',
+                                            permission: { in: [COLLABORATOR_PERMISSIONS.CAN_EDIT] }
+                                        }
+                                    }
+                                }
+                            ])
+                        })
+                    })
+                );
+
+                // Should NOT include empty/null search filters
                 expect(prisma.submission.findMany).toHaveBeenCalledWith(
                     expect.objectContaining({
                         where: expect.not.objectContaining({
                             name: expect.anything(),
                             status: expect.anything(),
-                            dataCommons: expect.anything()
+                            dbGaPID: expect.anything(),
+                            dataCommons: expect.anything(),
+                            submitterName: expect.anything(),
+                            programID: expect.anything()
                         })
+                    })
+                );
+            });
+
+            it('should apply empty status array filter when status is explicitly provided as empty array', async () => {
+                mockUserScope.isOwnScope.mockReturnValue(true);
+                mockUserScope.getStudyScope.mockReturnValue({
+                    scopeValues: ['study-1']
+                });
+
+                const paramsWithEmptyStatus = {
+                    ...mockParams,
+                    status: []
+                };
+
+                await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithEmptyStatus);
+
+                // Verify empty status array filter is applied (current implementation behavior)
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            studyID: { in: ['study-1'] },
+                            OR: expect.arrayContaining([
+                                { submitterID: 'test_user_id' },
+                                {
+                                    collaborators: {
+                                        some: {
+                                            collaboratorID: 'test_user_id',
+                                            permission: { in: [COLLABORATOR_PERMISSIONS.CAN_EDIT] }
+                                        }
+                                    }
+                                }
+                            ]),
+                            status: { in: [] }
+                        })
+                    })
+                );
+            });
+
+            it('should not apply default status filter when status is null', async () => {
+                mockUserScope.isOwnScope.mockReturnValue(true);
+                mockUserScope.getStudyScope.mockReturnValue({
+                    scopeValues: ['study-1']
+                });
+
+                const paramsWithNullStatus = {
+                    ...mockParams,
+                    status: null
+                };
+
+                await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithNullStatus);
+
+                // Verify no status filter is applied
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            studyID: { in: ['study-1'] },
+                            OR: expect.arrayContaining([
+                                { submitterID: 'test_user_id' },
+                                {
+                                    collaborators: {
+                                        some: {
+                                            collaboratorID: 'test_user_id',
+                                            permission: { in: [COLLABORATOR_PERMISSIONS.CAN_EDIT] }
+                                        }
+                                    }
+                                }
+                            ])
+                        })
+                    })
+                );
+
+                // Should NOT include status filter
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.not.objectContaining({
+                            status: expect.anything()
+                        })
+                    })
+                );
+            });
+
+            it('should apply aggregations with full filter conditions (including search filters)', async () => {
+                mockUserScope.isOwnScope.mockReturnValue(true);
+                mockUserScope.getStudyScope.mockReturnValue({
+                    scopeValues: ['study-1']
+                });
+
+                const paramsWithFilters = {
+                    ...mockParams,
+                    name: 'Test',
+                    status: [NEW],
+                    dataCommons: 'GDC'
+                };
+
+                await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithFilters);
+
+                // Verify aggregation queries use the same filter conditions as main query
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            studyID: { in: ['study-1'] },
+                            OR: expect.arrayContaining([
+                                { submitterID: 'test_user_id' },
+                                {
+                                    collaborators: {
+                                        some: {
+                                            collaboratorID: 'test_user_id',
+                                            permission: { in: [COLLABORATOR_PERMISSIONS.CAN_EDIT] }
+                                        }
+                                    }
+                                }
+                            ]),
+                            name: {
+                                contains: 'Test',
+                                mode: 'insensitive'
+                            },
+                            status: { in: [NEW] },
+                            dataCommons: 'GDC'
+                        }),
+                        select: { dataCommons: true },
+                        distinct: ['dataCommons']
                     })
                 );
             });
