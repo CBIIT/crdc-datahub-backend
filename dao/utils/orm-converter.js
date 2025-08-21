@@ -61,7 +61,7 @@ function convertMongoFilterToPrismaFilter(mongoFilter) {
       prismaFilter[key] = value.map(v => tryConvertDate(v));
     } else {
       // Assume field name (e.g. createdAt: { $gt: ... })
-      prismaFilter[key] = convertMongoFilterToPrismaFilter(value);;
+      prismaFilter[key] = convertMongoFilterToPrismaFilter(value);
     }
   }
 
