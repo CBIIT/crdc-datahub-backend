@@ -337,7 +337,7 @@ class Submission {
 
         const viewScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
         const isNotPermitted = viewScope.isNoneScope();
-        if (isNotPermitted || (context?.userInfo?._id === aSubmission?.submitterID && isTrue(aSubmission?.isNoSubmitter))) {
+        if (isNotPermitted) {
           throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
