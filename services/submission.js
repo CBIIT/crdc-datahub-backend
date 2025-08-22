@@ -1623,11 +1623,11 @@ class Submission {
      * @param {*} context
      * @returns {Promise<Submission>}
      */
-    async updateSubmissionModelVersion(params, context) {
+    async updateSubmissionInfo(params, context) {
         verifySession(context)
             .verifyInitialized();
 
-        const {_id, version, submitterID} = params;
+        const {_id, version, submitterID, submitterName, submissionName} = params;
         const aSubmission = await this._findByID(_id);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
@@ -1653,10 +1653,6 @@ class Submission {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
-        if (!validVersions.includes(version)) {
-            throw new Error(replaceErrorString(ERROR.INVALID_MODEL_VERSION, `${version || " "}`));
-        }
-
         if (![IN_PROGRESS, NEW].includes(aSubmission?.status)) {
             throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_STATUS_MODEL_VERSION, `${aSubmission?.status}`));
         }
@@ -1671,25 +1667,51 @@ class Submission {
         }
 
         const userInfo = context.userInfo;
-        const isPermitted = userInfo.role === ROLES.DATA_COMMONS_PERSONNEL && userInfo.dataCommons?.includes(aSubmission?.dataCommons);
-        if (!isPermitted) {
-            throw new Error(ERROR.INVALID_MODEL_VERSION_PERMISSION);
+        let updatedSubmission = null;
+        // update model version
+        const isPermittedUpdateModelVersion = userInfo.permissions?.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW) && userInfo.dataCommons?.includes(aSubmission?.dataCommons) && typeof version !== "undefined";
+        if (isPermittedUpdateModelVersion) {
+            const dataModels = await this.fetchDataModelInfo();
+            const validVersions = this._getAllModelVersions(dataModels, aSubmission?.dataCommons);
+            if (validVersions.includes(version)){
+                updatedSubmission = await this.submissionDAO.update(
+                aSubmission?._id, {
+                    modelVersion: version,
+                    updatedAt: getCurrentTime()
+                }
+                );
+            }else{
+                throw new Error(replaceErrorString(ERROR.INVALID_MODEL_VERSION, `${version || " "}`));
+            }
         }
 
-        if (aSubmission?.modelVersion === version && (submitterID === undefined || aSubmission?.submitterID === submitterID)) {
-            return aSubmission;
-        }
-
-        const updatedSubmission = await this.submissionDAO.update(
+        // update submissiter ID and name
+        const isPermittedUpdateSubmitter = userInfo.permissions?.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW) && userInfo.dataCommons?.includes(aSubmission?.dataCommons) && typeof submitterID !== "undefined" && typeof submitterName !== "undefined";
+        if (isPermittedUpdateSubmitter) {
+            updatedSubmission = await this.submissionDAO.update(
             aSubmission?._id, {
                 modelVersion: version,
-                ...(submitterID ? { submitterID: submitterID} : {}),
+                submitterID: submitterID,
+                submitterName: submitterName,
                 updatedAt: getCurrentTime()
             }
         );
+        }
+
+        // update submission name
+        const isPermittedUpdateSubmissionName = userInfo.permissions?.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE) && userInfo.dataCommons?.includes(aSubmission?.dataCommons) && typeof submissionName !== "undefined";
+        if (isPermittedUpdateSubmissionName){
+            if (userInfo._id === aSubmission?.submitterID)
+                updatedSubmission = await this.submissionDAO.update(
+                    aSubmission?._id, {
+                    name: submissionName,
+                    updatedAt: getCurrentTime()
+                }
+            )
+        }
 
         if (!updatedSubmission) {
-            const msg = ERROR.FAILED_UPDATE_MODEL_VERSION + `; submissionID: ${aSubmission?._id}`;
+            const msg = ERROR.FAILED_UPDATE_SUBMISSION + `; submissionID: ${aSubmission?._id}`;
             console.error(msg)
             throw new Error(msg);
         }
