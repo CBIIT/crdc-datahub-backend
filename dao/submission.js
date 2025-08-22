@@ -100,9 +100,14 @@ class SubmissionDAO extends GenericDAO {
         const whereConditions = { ...filterConditions };
         
         // Add organization filter if specified
-        // Note: organization parameter expects organization ID to filter by programID field
+        // Note: organization parameter expects organization name to filter by Program name field
         if (params?.organization && params?.organization !== ALL_FILTER) {
-            whereConditions.programID = params.organization.trim();
+            whereConditions.organization = {
+                name: {
+                    contains: params.organization.trim(),
+                    mode: 'insensitive'
+                }
+            };
         }
 
         try {

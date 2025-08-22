@@ -212,7 +212,7 @@ class Submission {
             .type([BATCH.TYPE.METADATA, BATCH.TYPE.DATA_FILE]);
         const aSubmission = await this._findByID(params.submissionID);
 
-        this._verifyBatchPermission(aSubmission, userInfo);
+        await this._verifyBatchPermission(aSubmission, userInfo);
 
         // The submission status must be valid states
         if (![NEW, IN_PROGRESS ,WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
@@ -262,7 +262,7 @@ class Submission {
         }
 
         const aSubmission = await this._findByID(aBatch.submissionID);
-        this._verifyBatchPermission(aSubmission, userInfo);
+        await this._verifyBatchPermission(aSubmission, userInfo);
 
         // check if it's a heartbeat call sent by CLI of uploading data file.
         // CLI uploader sends uploading heartbeat every 5 min by calling the API with a parameter, uploading: true
@@ -1067,7 +1067,7 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        this._verifyBatchPermission(aSubmission, context?.userInfo);
+        await this._verifyBatchPermission(aSubmission, context?.userInfo);
         //set parameters
         const parameters = {submissionID: params.submissionID, apiURL: params.apiURL, 
             dataFolder: (params.dataFolder)?  params.dataFolder : "/Users/my_name/my_files",
@@ -1101,7 +1101,7 @@ class Submission {
         if (!aSubmission) {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        this._verifyBatchPermission(aSubmission, context?.userInfo);
+        await this._verifyBatchPermission(aSubmission, context?.userInfo);
 
         // data model file node properties into the string
         const latestDataModel = await this.fetchDataModelInfo();
@@ -2031,18 +2031,51 @@ class Submission {
         }
     }
 
-    _verifyBatchPermission(aSubmission, userInfo) {
+    async _verifyBatchPermission(aSubmission, userInfo) {
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
-        // Only for Data Submission Owner / Collaborators
-        const hasStudies = this._verifyStudyInUserStudies(userInfo, aSubmission?.studyID);
-        const isCollaborator = this._isCollaborator({_id: userInfo?._id}, aSubmission);
-        // Only owned or collaborator
-        const hasValidBatchPermission = (isCollaborator && hasStudies) || (userInfo?._id === aSubmission?.submitterID && hasStudies)
-        if (!hasValidBatchPermission) {
+        
+        // Get the user's permission scope for data_submission:create
+        const createScope = await this._getUserScope(userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, aSubmission);
+        
+        // Check permission based on scope
+        if (createScope.isNoneScope()) {
             throw new Error(ERROR.INVALID_BATCH_PERMISSION);
         }
+        
+        if (createScope.isAllScope()) {
+            return; // User has permission for all submissions
+        }
+        
+        if (createScope.isOwnScope()) {
+            // User must be the submitter or a collaborator
+            const isCollaborator = this._isCollaborator({_id: userInfo?._id}, aSubmission);
+            const isOwner = userInfo?._id === aSubmission?.submitterID;
+            if (!isCollaborator && !isOwner) {
+                throw new Error(ERROR.INVALID_BATCH_PERMISSION);
+            }
+            return;
+        }
+        
+        if (createScope.isStudyScope()) {
+            // User must be assigned to the relevant study
+            if (!createScope.hasStudyValue(aSubmission?.studyID)) {
+                throw new Error(ERROR.INVALID_BATCH_PERMISSION);
+            }
+            return;
+        }
+        
+        if (createScope.isDCScope()) {
+            // User must be assigned to the relevant data commons
+            if (!createScope.hasDCValue(aSubmission?.dataCommons)) {
+                throw new Error(ERROR.INVALID_BATCH_PERMISSION);
+            }
+            return;
+        }
+        
+        // If we reach here, the scope is not recognized
+        throw new Error(ERROR.INVALID_BATCH_PERMISSION);
     }
 
     async _getUserScope(userInfo, aPermission, aSubmission = null) {
