@@ -1105,7 +1105,7 @@ class Application {
         if (aSubmitter?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_EXPIRING)) {
             const studyName = application?.studyAbbreviation?.trim();
             const applicant = await this.userDAO.findFirst({id: application?.applicantID});
-            const CCEmails = getCCEmails(applicant?.applicantEmail, application);
+            const CCEmails = getCCEmails(applicant?.email, application);
             const toBCCEmails = getUserEmails(filteredBCCUsers)
                 ?.filter((email) => !CCEmails.includes(email));
             await this.notificationService.finalRemindApplicationsNotification(aSubmitter?.email,
