@@ -1618,7 +1618,7 @@ class Submission {
     }
 
     /**
-     * API: update the data-model version for the submission.
+     * API: update the submission info.
      * @param {*} params
      * @param {*} context
      * @returns {Promise<Submission>}
@@ -1627,28 +1627,13 @@ class Submission {
         verifySession(context)
             .verifyInitialized();
 
-        const {_id, version, submitterID, submitterName, submissionName} = params;
+        const {_id, version, submitterID, submissionName} = params;
         const aSubmission = await this._findByID(_id);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        const [userScope, validVersions, { prevSubmitter, newSubmitter }] = await Promise.all([
-            this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW, aSubmission),
-            (async () => {
-                const dataModels = await this.fetchDataModelInfo();
-                return this._getAllModelVersions(dataModels, aSubmission?.dataCommons);
-            })(),
-            (async () => {
-                if (submitterID) {
-                    const newSubmitter = await this.userDAO.findFirst({id: submitterID});
-                    const preSubmitter = await this.userDAO.findFirst({id: aSubmission?.submitterID});
-                    return {prevSubmitter: preSubmitter, newSubmitter: newSubmitter};
-                }
-                return {};
-            })()
-        ]);
-
+        const userScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW, aSubmission);
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -1657,28 +1642,26 @@ class Submission {
             throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_STATUS_MODEL_VERSION, `${aSubmission?.status}`));
         }
 
-        if (submitterID) {
-            if (!newSubmitter) {
-                throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_NO_SUBMITTER, submitterID));
-            }
-            if (newSubmitter?.userStatus === USER.STATUSES.INACTIVE || newSubmitter?.role !== ROLES.SUBMITTER) {
-                throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_INVALID_SUBMITTER, submitterID));
-            }
-        }
-
         const userInfo = context.userInfo;
         let updatedSubmission = null;
+        let prevSubmitter = null;
+        let newSubmitter = null;
         // update model version
         const isPermittedUpdateModelVersion = userInfo.permissions?.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW) && userInfo.dataCommons?.includes(aSubmission?.dataCommons) && typeof version !== "undefined";
+        if (version) {
+            if (!userInfo.permissions?.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW)) {
+                throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+            }
+        }
         if (isPermittedUpdateModelVersion) {
             const dataModels = await this.fetchDataModelInfo();
             const validVersions = this._getAllModelVersions(dataModels, aSubmission?.dataCommons);
             if (validVersions.includes(version)){
                 updatedSubmission = await this.submissionDAO.update(
-                aSubmission?._id, {
-                    modelVersion: version,
-                    updatedAt: getCurrentTime()
-                }
+                    aSubmission?._id, {
+                        modelVersion: version,
+                        updatedAt: getCurrentTime()
+                    }
                 );
             }else{
                 throw new Error(replaceErrorString(ERROR.INVALID_MODEL_VERSION, `${version || " "}`));
@@ -1686,26 +1669,46 @@ class Submission {
         }
 
         // update submissiter ID and name
-        const isPermittedUpdateSubmitter = userInfo.permissions?.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW) && userInfo.dataCommons?.includes(aSubmission?.dataCommons) && typeof submitterID !== "undefined" && typeof submitterName !== "undefined";
+        const isPermittedUpdateSubmitter = userInfo.permissions?.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW) && userInfo.dataCommons?.includes(aSubmission?.dataCommons) && typeof submitterID !== "undefined";
+        if (submitterID) {
+            newSubmitter = await this.userDAO.findFirst({id: submitterID});
+            prevSubmitter = await this.userDAO.findFirst({id: aSubmission?.submitterID});
+            if (!newSubmitter) {
+                throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_NO_SUBMITTER, submitterID));
+            }
+            if (newSubmitter?.userStatus === USER.STATUSES.INACTIVE) {
+                throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_INVALID_SUBMITTER, submitterID));
+            }
+            if (!userInfo.permissions?.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW)) {
+                throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+            }
+        }
         if (isPermittedUpdateSubmitter) {
             updatedSubmission = await this.submissionDAO.update(
-            aSubmission?._id, {
-                modelVersion: version,
-                submitterID: submitterID,
-                submitterName: submitterName,
-                updatedAt: getCurrentTime()
-            }
+                aSubmission?._id, {
+                    submitterID: submitterID,
+                    updatedAt: getCurrentTime()
+                }
         );
         }
 
         // update submission name
         const isPermittedUpdateSubmissionName = userInfo.permissions?.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE) && userInfo.dataCommons?.includes(aSubmission?.dataCommons) && typeof submissionName !== "undefined";
+        if (submissionName) {
+            this._validateEditSubmission(aSubmission, submissionName, context?.userInfo?._id);
+            if (!userInfo.permissions?.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE)) {
+                throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+            }
+            const duplicateStudySubmission = await this._checkDuplicateSubmissionName(submissionName?.trim(), aSubmission?.studyID, aSubmission?.id);
+            if (duplicateStudySubmission) {
+                throw new Error(ERROR.DUPLICATE_STUDY_SUBMISSION_NAME);
+            }
+        }
         if (isPermittedUpdateSubmissionName){
-            if (userInfo._id === aSubmission?.submitterID)
-                updatedSubmission = await this.submissionDAO.update(
-                    aSubmission?._id, {
-                    name: submissionName,
-                    updatedAt: getCurrentTime()
+            updatedSubmission = await this.submissionDAO.update(
+                aSubmission?._id, {
+                name: submissionName,
+                updatedAt: getCurrentTime()
                 }
             )
         }
@@ -1716,7 +1719,7 @@ class Submission {
             throw new Error(msg);
         }
 
-        await this._notifyConfigurationChange(userInfo, aSubmission, version, prevSubmitter, newSubmitter);
+        await this._notifyConfigurationChange(userInfo, aSubmission, version, prevSubmitter, newSubmitter, submissionName);
 
         // Log for the modifying submission
         if (updatedSubmission) {
@@ -1725,7 +1728,10 @@ class Submission {
                 // model change
                 aSubmission?.modelVersion, updatedSubmission?.modelVersion,
                 // submitter change
-                prevSubmitter?._id, newSubmitter?._id));
+                prevSubmitter?._id, newSubmitter?._id,
+                // name change
+                aSubmission?.name, updatedSubmission?.name
+            ));
         }
 
         await this._resetValidation(aSubmission?._id);
