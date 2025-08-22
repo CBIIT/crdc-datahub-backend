@@ -276,6 +276,7 @@ describe('Application', () => {
                                 id: true,
                                 firstName: true,
                                 lastName: true,
+                                fullName: true,
                                 email: true
                             }
                         }
