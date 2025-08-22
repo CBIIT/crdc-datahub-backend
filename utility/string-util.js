@@ -20,6 +20,15 @@ const replaceErrorString = (original, replacement, pattern = /\$item\$/g) => {
 }
 
 
+const sanitizeMongoDBInput = (raw) => {
+    if (!raw) return "";
+    if (/^\.+$/.test(raw)) {
+        return "''";
+    }
+    return raw.trim();
+}
+
+
 const getUniqueArr = (arr) => {return (arr) ? arr.filter((v, i, a) => a.indexOf(v) === i) : []};
 
 
@@ -152,5 +161,6 @@ module.exports = {
     replaceErrorString,
     isValidFileExtension,
     fileSizeFormatter,
-    getFormatDateStr
+    getFormatDateStr,
+    sanitizeMongoDBInput
 }
