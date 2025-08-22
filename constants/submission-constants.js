@@ -11,7 +11,8 @@ const SUBMISSION_ORDER_BY_MAP = {
     "status": "status",
     "concierge": "concierge",
     "dataFileSize.size": "dataFileSize.size",
-    "submitterName": "submitterName"
+    "submitterName": "submitter.fullName",
+    "conciergeName": "concierge.fullName",
 };
 
 module.exports = Object.freeze({

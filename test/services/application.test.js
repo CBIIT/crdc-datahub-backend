@@ -249,10 +249,40 @@ describe('Application', () => {
         it('returns result from applicationDAO', async () => {
             // Mock the applicationDAO.findFirst method to resolve to an application object
             app.applicationDAO = {
-                findFirst: jest.fn().mockResolvedValue({ _id: 'app1'})
+                findFirst: jest.fn().mockResolvedValue({
+                    id: 'app1',
+                    applicant: {
+                        id: '',
+                        firstName: '',
+                        lastName: '',
+                        email: ''
+                    }
+                })
             };
-            await expect(app.getApplicationById('app1')).resolves.toEqual({ _id: 'app1'});
-            expect(app.applicationDAO.findFirst).toHaveBeenCalledWith({id: 'app1'});
+            await expect(app.getApplicationById('app1')).resolves.toEqual({
+                id: 'app1',
+                applicant: {
+                    applicantEmail: '',
+                    applicantID: '',
+                    applicantName: '',
+                }
+            });
+            expect(app.applicationDAO.findFirst).toHaveBeenCalledWith(
+                { id: 'app1' },
+                {
+                    include: {
+                        applicant: {
+                            select: {
+                                id: true,
+                                firstName: true,
+                                lastName: true,
+                                fullName: true,
+                                email: true
+                            }
+                        }
+                    }
+                }
+            );
         });
 
         it('throws if not found', async () => {
@@ -273,7 +303,7 @@ describe('Application', () => {
             mockConfigurationService.findByType.mockResolvedValue({ current: '2.0', new: '3.0' });
             const application = { controlledAccess: true };
             const userInfo = context.userInfo;
-            await expect(app.createApplication(application, userInfo)).resolves.toMatchObject({ controlledAccess: true, applicant: expect.any(Object) });
+            await expect(app.createApplication(application, userInfo)).resolves.toMatchObject({ controlledAccess: true});
             expect(app.applicationDAO.insert).toHaveBeenCalled();
             expect(mockLogCollection.insert).toHaveBeenCalled();
         });
@@ -335,16 +365,28 @@ describe('Application', () => {
             expect(cond).toHaveProperty('status');
             expect(cond).toHaveProperty('programName');
             expect(cond).toHaveProperty('studyName');
-            // Accept either direct property or nested property
-            expect(cond['applicant.applicantName'] || cond.applicant?.applicantName).toBeDefined();
+            // With Prisma, applicant name filter is in an OR array for first/last name
+            expect(cond).toHaveProperty('OR');
+            expect(Array.isArray(cond.OR)).toBe(true);
+            expect(cond.OR.length).toBeGreaterThan(0);
+            // Each OR condition should be for applicant first or last name
+            cond.OR.forEach(orCond => {
+                expect(orCond).toHaveProperty('applicant');
+                expect(orCond.applicant).toHaveProperty('is');
+                const isObj = orCond.applicant.is;
+                expect(
+                    isObj.hasOwnProperty('firstName') ||
+                    isObj.hasOwnProperty('lastName')
+                ).toBe(true);
+            });
         });
 
         it('returns correct filter for own scope', () => {
             userScopeMock.isAllScope.mockReturnValue(false);
             userScopeMock.isOwnScope.mockReturnValue(true);
             const cond = app._listApplicationConditions('user1', userScopeMock, 'prog', 'study', [NEW], 'John');
-            // Accept either direct property or nested property
-            expect(cond['applicant.applicantID'] || cond.applicant?.applicantID).toBe('user1');
+            // For own scope, the filter should include applicantID at the root
+            expect(cond).toHaveProperty('applicantID', 'user1');
         });
 
         it('throws for invalid scope', () => {

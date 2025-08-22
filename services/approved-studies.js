@@ -381,7 +381,7 @@ class ApprovedStudiesService {
             throw new Error(errorMsg);
         }
 
-        const aSubmitter = await this.userDAO.findFirst({id: application?.applicant?.applicantID});
+        const aSubmitter = await this.userDAO.findFirst({id: application?.applicantID});
         if (!aSubmitter?._id) {
             console.error(errorMsg);
             throw new Error(errorMsg);
