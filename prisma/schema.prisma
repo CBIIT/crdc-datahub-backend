@@ -185,10 +185,6 @@ model Application {
   createdAt           DateTime  @default(now()) @db.Date
   updatedAt           DateTime  @updatedAt @db.Date
   newInstitutions     newInstitution[]
-  finalInactiveReminder    Boolean?
-  inactiveReminder_7       Boolean?
-  inactiveReminder_15      Boolean?
-  inactiveReminder_30      Boolean?
   GPAName             String?
   applicantID         String?
   applicant           User? @relation(fields: [applicantID], references: [id])
