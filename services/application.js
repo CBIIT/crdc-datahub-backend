@@ -1196,7 +1196,7 @@ class Application {
         // Save an email reminder when an inactive application is reactivated.
         application.inactiveReminder = false;
         application.updatedAt = getCurrentTime();
-        const {...data} = application;
+        const {applicant, ...data} = application;
         const updateResult = await this.applicationDAO.update({_id: application?._id, ...data});
         if (!updateResult) {
             throw new Error(ERROR.APPLICATION_NOT_FOUND + updateResult?._id);
