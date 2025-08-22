@@ -10,7 +10,6 @@ const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-
 const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const {parseJsonString, isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
-const {formatName, splitName} = require("../utility/format-name");
 const {isUndefined, replaceErrorString} = require("../utility/string-util");
 const {EMAIL_NOTIFICATIONS} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
@@ -101,6 +100,7 @@ class Application {
                         id: true,
                         firstName: true,
                         lastName: true,
+                        fullName: true,
                         email: true
                     }
                 }
@@ -111,9 +111,9 @@ class Application {
         }
 
         result.applicant = {
-            applicantID: result.applicant?.id || "",
-            applicantName: formatName(result.applicant),
-            applicantEmail: result.applicant.email || "",
+            applicantID: result?.applicant?.id || "",
+            applicantName: result?.applicant?.fullName || "",
+            applicantEmail: result?.applicant.email || "",
 
         }
         return result;
@@ -280,20 +280,11 @@ class Application {
 
     _getApplicantNameQuery(submitterName) {
         if (submitterName != null && submitterName !== this._ALL_FILTER) {
-            const [firstName, lastName] = splitName(submitterName)
-            const firstNameQuery = firstName?.trim().length > 0 ? {contains: firstName.trim().replace(/\\/g, "\\\\"), mode: "insensitive"} : firstName;
-            const lastNameQuery = lastName?.trim().length > 0 ? {contains: lastName.trim().replace(/\\/g, "\\\\"), mode: "insensitive"} : lastName;
-            // Build three OR conditions: firstName only, lastName only, and both firstName & lastName
-            const orConditions = [];
-            if (firstName?.trim().length > 0 && lastName?.trim().length === 0) {
-                orConditions.push({ applicant: { is: { firstName: firstNameQuery } }});
-                orConditions.push({ applicant: { is: { lastName: firstNameQuery } }});
-            }
-            if (firstName?.trim().length > 0 && lastName?.trim().length > 0) {
-                orConditions.push({ applicant: { is: { firstName: firstNameQuery } }});
-                orConditions.push({ applicant: { is: { lastName: lastNameQuery } }});
-            }
-            return orConditions.length > 0 ? { OR: orConditions } : {};
+            return {applicant: {
+                is: {
+                    fullName: {contains: submitterName.trim().replace(/\\/g, "\\\\"), mode: "insensitive"}
+                }
+            }}
         }
         return {};
     }
@@ -354,7 +345,7 @@ class Application {
         let orderBy = params?.orderBy ? params.orderBy : "";
 
         if (orderBy === "applicant.applicantName") {
-            orderBy = "applicant.firstName"
+            orderBy = "applicant.fullName"
         }
 
         const pagination = new PrismaPagination(params?.first, params.offset, orderBy, params.sortDirection);
@@ -364,6 +355,7 @@ class Application {
                         id: true,
                         firstName: true,
                         lastName: true,
+                        fullName: true,
                         email: true
                     }
                 },
@@ -393,9 +385,9 @@ class Application {
 
         applications.forEach((app) => {
             app.applicant = {
-                applicantID: app.applicant ? app?.applicant?.id : "",
-                applicantName: app.applicant ? formatName(app?.applicant) : "",
-                applicantEmail: app.applicant? app?.applicant?.email : "",
+                applicantID: app?.applicant ? app?.applicant?.id : "",
+                applicantName: app?.applicant ? app?.applicant?.fullName : "",
+                applicantEmail: app?.applicant? app?.applicant?.email : "",
             }
         })
 
@@ -479,7 +471,7 @@ class Application {
                 }
             );
             const submitterNames = applications
-                .map(sub => formatName(sub?.applicant))
+                .map(sub => sub?.applicant?.fullName)
                 .filter(Boolean)
                 .sort((a, b) => a.localeCompare(b)); // sort ascending
 

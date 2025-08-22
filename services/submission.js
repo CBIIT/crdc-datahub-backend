@@ -2,14 +2,12 @@ const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
     REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, INTENTION, DATA_TYPE, DELETED, DATA_FILE,
     CONSTRAINTS, COLLABORATOR_PERMISSIONS, UPLOADING_HEARTBEAT_CONFIG_TYPE
 } = require("../constants/submission-constants");
-const {v4} = require('uuid')
 const fs = require('fs');
 const path = require('path');
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifySession} = require("../verifier/user-info-verifier");
 const {verifySubmissionAction} = require("../verifier/submission-verifier");
-const {formatName} = require("../utility/format-name");
 const ERROR = require("../constants/error-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {SubmissionActionEvent, DeleteRecordEvent, UpdateSubmissionNameEvent, UpdateSubmissionConfEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
@@ -1685,7 +1683,7 @@ class Submission {
         const updatedSubmission = await this.submissionDAO.update(
             aSubmission?._id, {
                 modelVersion: version,
-                ...(submitterID ? { submitterID: submitterID, submitterName: formatName(newSubmitter)} : {}),
+                ...(submitterID ? { submitterID: submitterID} : {}),
                 updatedAt: getCurrentTime()
             }
         );
@@ -2260,7 +2258,8 @@ class Submission {
                                 id: true,
                                 firstName: true,
                                 lastName: true,
-
+                                fullName: true,
+                                email: true
                             }
                         },
                         concierge: {
@@ -2268,6 +2267,7 @@ class Submission {
                                 id: true,
                                 firstName: true,
                                 lastName: true,
+                                fullName: true,
                                 email: true
                             }
                         },
@@ -2306,12 +2306,12 @@ class Submission {
             // Transform submitter data to match expected format
             if (aSubmission?.submitter?.id && aSubmission?.submitter?.firstName) {
                 // note: FE use the root level properties; submitterName
-                aSubmission.submitterName = formatName(aSubmission?.submitter);
+                aSubmission.submitterName = aSubmission?.submitter?.fullName || "";
             }
 
             if (aSubmission?.concierge?.id) {
                 // note: FE use the root level properties; conciergeName, conciergeEmail
-                aSubmission.conciergeName = formatName(aSubmission?.concierge);
+                aSubmission.conciergeName = aSubmission?.concierge?.fullName || "";
                 aSubmission.conciergeEmail = aSubmission?.concierge?.email || aSubmission.conciergeEmail;
             }
             return aSubmission;

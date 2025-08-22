@@ -4,7 +4,7 @@ const orgToUserOrg = require("../crdc-datahub-database-drivers/utility/org-to-us
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {v4} = require("uuid");
 const {getDataCommonsDisplayNamesForUser} = require("../utility/data-commons-remapper");
-
+const {formatName} = require("../utility/format-name");
 class UserInitializationService {
 
     constructor(userCollection, organizationCollection, approvedStudiesCollection, configurationService) {
@@ -115,6 +115,7 @@ class UserInitializationService {
             dataCommons: [],
             firstName: userInfo?.firstName || email.split("@")[0],
             lastName: userInfo?.lastName,
+            fullName: formatName(userInfo),
             createdAt: sessionCurrentTime,
             updateAt: sessionCurrentTime,
             permissions: accessControl?.permissions?.permitted,

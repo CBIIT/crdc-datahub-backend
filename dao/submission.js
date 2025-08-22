@@ -7,9 +7,7 @@ const {DELETED, CANCELED, NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJE
 } = require("../constants/submission-constants");
 const ERROR = require("../constants/error-constants");
 const {replaceErrorString} = require("../utility/string-util");
-const {formatName, splitName} = require("../utility/format-name");
 const prisma = require("../prisma");
-const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
 const ALL_FILTER = "All";
 const NA = "NA"
 class SubmissionDAO extends GenericDAO {
@@ -83,6 +81,7 @@ class SubmissionDAO extends GenericDAO {
                     id: true,
                     firstName: true,
                     lastName: true,
+                    fullName: true,
                     email: true
                 }
             },
@@ -91,6 +90,7 @@ class SubmissionDAO extends GenericDAO {
                     id: true,
                     firstName: true,
                     lastName: true,
+                    fullName: true,
                     email: true
                 }
             }
@@ -133,8 +133,8 @@ class SubmissionDAO extends GenericDAO {
                 studyName: submission?.study?.studyName,
                 studyAbbreviation: submission?.study?.studyAbbreviation,
                 dataFileSize: this._transformDataFileSize(submission.status, submission.dataFileSize),
-                submitterName: formatName(submission?.submitter),
-                conciergeName: submission?.concierge ? formatName(submission?.concierge) : "",
+                submitterName: submission?.submitter? submission?.submitter?.fullName : "",
+                conciergeName: submission?.concierge ? submission?.concierge?.fullName : "",
                 conciergeEmail: submission?.concierge ? submission?.concierge?.email : "",
             }));
 
@@ -194,10 +194,11 @@ class SubmissionDAO extends GenericDAO {
 
         // Submitter name condition
         if (submitterName && submitterName !== ALL_FILTER) {
-            const conditions = this._getSubmitterNameQuery(submitterName);
-            if (conditions.length > 0) {
-                baseConditions.OR = conditions;
-            }
+            baseConditions.submitter = {
+                is: {
+                    fullName: submitterName.trim()
+                }
+            };
         }
 
         if (userScope.isAllScope()) {
@@ -262,7 +263,7 @@ class SubmissionDAO extends GenericDAO {
                 distinct: ['submitterID']
             });
             const submitterNames = submissions
-                .map(sub => formatName(sub?.submitter))
+                .map(sub => sub?.submitter?.fullName)
                 .filter(Boolean)
                 .sort((a, b) => a.localeCompare(b)); // sort ascending
 
@@ -333,23 +334,6 @@ class SubmissionDAO extends GenericDAO {
             return { size: 0, formatted: NA };
         }
         return dataFileSize;
-    }
-
-    _getSubmitterNameQuery(submitterName) {
-        const [firstName, lastName] = splitName(submitterName)
-        const firstNameQuery = firstName?.trim().length > 0 ? {contains: firstName.trim().replace(/\\/g, "\\\\"), mode: "insensitive"} : firstName;
-        const lastNameQuery = lastName?.trim().length > 0 ? {contains: lastName.trim().replace(/\\/g, "\\\\"), mode: "insensitive"} : lastName;
-        // Build three OR conditions: firstName only, lastName only, and both firstName & lastName
-        const orConditions = [];
-        if (firstName?.trim().length > 0 && lastName?.trim().length === 0) {
-            orConditions.push({ submitter: { is: { firstName: firstNameQuery } }});
-            orConditions.push({ submitter: { is: { lastName: firstNameQuery } }});
-        }
-        if (firstName?.trim().length > 0 && lastName?.trim().length > 0) {
-            orConditions.push({ submitter: { is: { firstName: firstNameQuery } }});
-            orConditions.push({ submitter: { is: { lastName: lastNameQuery } }});
-        }
-        return orConditions
     }
 }
 

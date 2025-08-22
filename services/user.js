@@ -22,6 +22,7 @@ const SCOPES = require("../constants/permission-scope-constants");
 const UserDAO = require("../dao/user");
 const ApprovedStudyDAO = require("../dao/approvedStudy");
 const SubmissionDAO = require("../dao/submission");
+const {formatName} = require("../utility/format-name");
 
 const isLoggedInOrThrow = (context) => {
     if (!context?.userInfo?.email || !context?.userInfo?.IDP) throw new Error(SUBMODULE_ERROR.NOT_LOGGED_IN);
@@ -353,6 +354,7 @@ class UserService {
             _id: context.userInfo._id,
             firstName: params.userInfo.firstName,
             lastName: params.userInfo.lastName,
+            fullName: formatName(params.userInfo),
             updateAt: sessionCurrentTime
         }
         const updateResult = await this.userCollection.update(updateUser);

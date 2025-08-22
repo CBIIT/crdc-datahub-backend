@@ -316,6 +316,7 @@ type User {
   _id: ID # MongoDB native ID or UUID
   firstName: String
   lastName: String
+  fullName: String
   userStatus: String # [Active, Inactive]
   role: String # [User, Submitter, Federal Lead, Admin, Data Commons Personnel]
   IDP: String # [NIH, Login.gov]

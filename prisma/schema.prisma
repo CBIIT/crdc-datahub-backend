@@ -570,6 +570,7 @@ model User {
   firstName     String
   institution   InstitutionInfo?
   lastName      String
+  fullName      String?
   notifications String[]
   permissions   String[]
   role          String
