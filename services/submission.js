@@ -2341,12 +2341,10 @@ class Submission {
 
     async _checkDuplicateSubmissionName(newName, studyID, submissionID) {
         return await this.submissionDAO.findFirst({
-            where: {
-                name: newName,
-                studyID: studyID,
-                NOT: {
-                    id: submissionID
-                }
+            name: newName,
+            studyID: studyID,
+            NOT: {
+                id: submissionID
             }
         });
     }
