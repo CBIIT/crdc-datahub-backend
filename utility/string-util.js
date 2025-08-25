@@ -19,6 +19,15 @@ const replaceErrorString = (original, replacement, pattern = /\$item\$/g) => {
    return (!original || !replacement) ? original : original.replace(pattern, replacement);
 }
 
+// For a MongoDB regex search, the dot '.' means any character in the keyword. It should be removed from the user-input.
+const sanitizeMongoDBInput = (raw) => {
+    if (!raw) return "";
+    if (/^\.+$/.test(raw)) {
+        return "''";
+    }
+    return raw.trim();
+}
+
 
 const getUniqueArr = (arr) => {return (arr) ? arr.filter((v, i, a) => a.indexOf(v) === i) : []};
 
@@ -152,5 +161,6 @@ module.exports = {
     replaceErrorString,
     isValidFileExtension,
     fileSizeFormatter,
-    getFormatDateStr
+    getFormatDateStr,
+    sanitizeMongoDBInput
 }

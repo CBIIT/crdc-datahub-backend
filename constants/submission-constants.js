@@ -10,7 +10,9 @@ const SUBMISSION_ORDER_BY_MAP = {
     "dbGaPID": "dbGaPID",
     "status": "status",
     "concierge": "concierge",
-    "dataFileSize.size": "dataFileSize.size"
+    "dataFileSize.size": "dataFileSize.size",
+    "submitterName": "submitter.fullName",
+    "conciergeName": "concierge.fullName",
 };
 
 module.exports = Object.freeze({

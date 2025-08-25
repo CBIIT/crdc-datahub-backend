@@ -124,10 +124,14 @@ describe('Submission.getPendingPVs', () => {
 
         mockScope = {
             isNoneScope: jest.fn().mockReturnValue(false),
+            isStudyScope: jest.fn().mockReturnValue(true),
         };
     });
 
     it('returns pending PVs when user has permission', async () => {
+        // Add a mock for hasStudyValue to avoid TypeError
+        mockScope.hasStudyValue = jest.fn().mockReturnValue(true);
+
         service._getUserScope.mockResolvedValue(mockScope);
         service._isCollaborator.mockReturnValue(true);
         service.pendingPVDAO.findBySubmissionID.mockResolvedValue([

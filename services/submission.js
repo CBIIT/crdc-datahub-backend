@@ -2,14 +2,12 @@ const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
     REJECTED, WITHDRAWN, ACTIONS, VALIDATION, VALIDATION_STATUS, INTENTION, DATA_TYPE, DELETED, DATA_FILE,
     CONSTRAINTS, COLLABORATOR_PERMISSIONS, UPLOADING_HEARTBEAT_CONFIG_TYPE
 } = require("../constants/submission-constants");
-const {v4} = require('uuid')
 const fs = require('fs');
 const path = require('path');
 const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const {HistoryEventBuilder} = require("../domain/history-event");
 const {verifySession} = require("../verifier/user-info-verifier");
 const {verifySubmissionAction} = require("../verifier/submission-verifier");
-const {formatName} = require("../utility/format-name");
 const ERROR = require("../constants/error-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {SubmissionActionEvent, DeleteRecordEvent, UpdateSubmissionNameEvent, UpdateSubmissionConfEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
@@ -177,13 +175,18 @@ class Submission {
         if (!res) {
             throw new Error(ERROR.CREATE_SUBMISSION_INSERTION_ERROR);
         }
-
-        await this._remindPrimaryContactEmail(res, approvedStudy, program);
+        const updateSubmission = await this._findByID(res?._id)
+        await this._remindPrimaryContactEmail(updateSubmission, approvedStudy, program);
         return this._findByID(res?._id);
     }
     async _findApprovedStudies(studies) {
         if (!studies || studies.length === 0) return [];
-        const studiesIDs = (studies[0] instanceof Object) ? studies.map((study) => study?._id) : studies;
+        const studiesIDs = studies.map((study) => {
+            if (study && study instanceof Object && (study?._id || study?.id)) {
+                return study._id || study.id;
+            }
+            return study;
+        }).filter(studyID => studyID !== null && studyID !== undefined); // Filter out null/undefined values
         return this.approvedStudyDAO.findMany({
             id: {in: studiesIDs}
         });
@@ -209,8 +212,11 @@ class Submission {
             .notEmpty()
             .type([BATCH.TYPE.METADATA, BATCH.TYPE.DATA_FILE]);
         const aSubmission = await this._findByID(params.submissionID);
-
-        this._verifyBatchPermission(aSubmission, userInfo?._id);
+        const viewScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        if (viewScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+        this._verifyBatchPermission(aSubmission, userInfo, viewScope);
 
         // The submission status must be valid states
         if (![NEW, IN_PROGRESS ,WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
@@ -260,7 +266,12 @@ class Submission {
         }
 
         const aSubmission = await this._findByID(aBatch.submissionID);
-        this._verifyBatchPermission(aSubmission, userInfo?._id);
+
+        const viewScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        if (viewScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+        this._verifyBatchPermission(aSubmission, userInfo, viewScope);
 
         // check if it's a heartbeat call sent by CLI of uploading data file.
         // CLI uploader sends uploading heartbeat every 5 min by calling the API with a parameter, uploading: true
@@ -335,7 +346,7 @@ class Submission {
 
         const viewScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
         const isNotPermitted = viewScope.isNoneScope();
-        if (isNotPermitted || (context?.userInfo?._id === aSubmission?.submitterID && isTrue(aSubmission?.isNoSubmitter))) {
+        if (isNotPermitted) {
           throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
@@ -424,7 +435,24 @@ class Submission {
                       }
                   }
               }
-            })()
+            })(),
+            (async () => {
+                if (aSubmission?.collaborators?.length > 0) {
+                    const collabIDs = Array.from(
+                        new Set((aSubmission?.collaborators ?? [])
+                            .map(c => c?.collaboratorID)
+                            .filter(Boolean))
+                    );
+
+                    const users = await this.userDAO.findMany({id: {in: collabIDs || []}});
+                    const userById = new Map(users.map(u => [String(u?._id), u]));
+                    aSubmission?.collaborators.forEach(collaborator => {
+                        const user = userById.get(String(collaborator?.collaboratorID));
+                        const isValidStudy = this._verifyStudyInUserStudies(user, aSubmission?.studyID);
+                        collaborator.permission = (user?.role === ROLES.SUBMITTER && isValidStudy) ? COLLABORATOR_PERMISSIONS.CAN_EDIT : COLLABORATOR_PERMISSIONS.NO_ACCESS;
+                    });
+                }
+            })(),
         ]);
 
         // Store the timestamp for the inactive submission purpose
@@ -440,9 +468,6 @@ class Submission {
             aSubmission.organization = await this.programDAO.findById(aSubmission.programID);
         }
 
-        if (isTrue(aSubmission?.isNoSubmitter)) {
-            aSubmission.submitterName = "";
-        }
         return getDataCommonsDisplayNamesForSubmission(aSubmission);
     }
 
@@ -518,11 +543,11 @@ class Submission {
         }
         
         // Update submission using Prisma DAO
-        const updatedSubmission = await this.submissionDAO.update(submission._id, updateData);
-        if (!updatedSubmission) {
+        const updated = await this.submissionDAO.update(submission._id, updateData);
+        if (!updated) {
             throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
         }
-        
+        const updatedSubmission = await this._findByID(updated?._id);
         // Transform the updated submission to match expected format
         submission = getDataCommonsDisplayNamesForSubmission(updatedSubmission);
         
@@ -1051,7 +1076,11 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        this._verifyBatchPermission(aSubmission, context?.userInfo?._id);
+        const viewScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        if (viewScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+        this._verifyBatchPermission(aSubmission, context?.userInfo, viewScope);
         //set parameters
         const parameters = {submissionID: params.submissionID, apiURL: params.apiURL, 
             dataFolder: (params.dataFolder)?  params.dataFolder : "/Users/my_name/my_files",
@@ -1085,7 +1114,12 @@ class Submission {
         if (!aSubmission) {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        this._verifyBatchPermission(aSubmission, context?.userInfo?._id);
+
+        const viewScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        if (viewScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+        this._verifyBatchPermission(aSubmission, context?.userInfo, viewScope);
 
         // data model file node properties into the string
         const latestDataModel = await this.fetchDataModelInfo();
@@ -1128,7 +1162,7 @@ class Submission {
         if (!aSubmission.collaborators) 
             aSubmission.collaborators = [];
 
-        if (aSubmission.submitterID !== context?.userInfo?._id || (aSubmission.submitterID === context?.userInfo?._id && isTrue(aSubmission?.isNoSubmitter))) {
+        if (aSubmission.submitterID !== context?.userInfo?._id) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
@@ -1171,7 +1205,10 @@ class Submission {
     _verifyStudyInUserStudies(user, studyId){
         if(!user?.studies || user.studies.length === 0 )
             return false;
-        const userStudy = (user.studies[0] instanceof Object)? user.studies.find(s=>s.id === studyId || s.id === "All"):
+        const userStudy = (user.studies[0] instanceof Object)? user.studies.find(s => {
+                const id = s.id || s._id;
+                return id === studyId || id === "All";
+            }) :
             user.studies.find(s=> s === studyId || s === "All"); //backward compatible
         return Boolean(userStudy);
     }
@@ -1323,6 +1360,31 @@ class Submission {
                 exists: true,
                 not: null,
                 lt: subtractDaysFromNow(this.emailParams.inactiveSubmissionDays)
+            },
+            include: {
+                study: {
+                    select: {
+                        id: true,
+                        studyName: true,
+                        studyAbbreviation: true
+                    }
+                },
+                submitter: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+
+                    }
+                },
+                concierge: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        email: true
+                    }
+                },
             }
         };
         try {
@@ -1508,7 +1570,7 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
 
-        if (aSubmission.submitterID !== context?.userInfo?._id || (aSubmission.submitterID === context?.userInfo?._id && isTrue(aSubmission.isNoSubmitter))) {
+        if (aSubmission.submitterID !== context?.userInfo?._id) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
@@ -1568,7 +1630,7 @@ class Submission {
         }
 
         // Only primary submitter can modify the submission name
-        if (userID !== aSubmission?.submitterID || (isTrue(aSubmission?.isNoSubmitter) && userID === aSubmission?.submitterID)) {
+        if (userID !== aSubmission?.submitterID) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
     }
@@ -1639,7 +1701,7 @@ class Submission {
         const updatedSubmission = await this.submissionDAO.update(
             aSubmission?._id, {
                 modelVersion: version,
-                ...(submitterID ? { submitterID: submitterID } : {}),
+                ...(submitterID ? { submitterID: submitterID} : {}),
                 updatedAt: getCurrentTime()
             }
         );
@@ -1700,6 +1762,11 @@ class Submission {
             if (sent?.accepted?.length === 0) {
                 console.error(`${ERROR.FAILED_NOTIFY_SUBMISSION_UPDATE};submissionID ${aSubmission?._id}`);
             }
+        }
+
+        if (submitterEmails?.length === 0) {
+            // This should be an error because the Submitter must have the notification.
+            console.error(`Submission updated; email notification to submitter not sent. submissionID: ${aSubmission?._id}`);
         }
     }
 
@@ -1982,13 +2049,16 @@ class Submission {
         }
     }
 
-    _verifyBatchPermission(aSubmission, userID) {
+    _verifyBatchPermission(aSubmission, userInfo, userScope) {
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
         // Only for Data Submission Owner / Collaborators
-        const isCollaborator = this._isCollaborator({_id: userID}, aSubmission)
-        if (!isCollaborator && userID !== aSubmission?.submitterID) {
+        const hasStudies = this._verifyStudyInUserStudies(userInfo, aSubmission?.studyID);
+        const isCollaborator = this._isCollaborator({_id: userInfo?._id}, aSubmission);
+        // Only owned or collaborator
+        const hasValidBatchPermission = (isCollaborator && hasStudies) || (userInfo?._id === aSubmission?.submitterID && hasStudies);
+        if ((userScope.isStudyScope() && !hasValidBatchPermission)) {
             throw new Error(ERROR.INVALID_BATCH_PERMISSION);
         }
     }
@@ -2031,7 +2101,8 @@ class Submission {
         }
 
         const viewScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
-        const isNotPermitted = !this._isCollaborator(context?.userInfo, aSubmission) && viewScope.isNoneScope();
+        const isCollaborator = this._isCollaborator(context?.userInfo, aSubmission) && viewScope.isStudyScope() && viewScope.hasStudyValue(aSubmission?.studyID);
+        const isNotPermitted = !isCollaborator && viewScope.isNoneScope();
         if (isNotPermitted) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
@@ -2199,7 +2270,25 @@ class Submission {
                                 studyName: true,
                                 studyAbbreviation: true
                             }
-                        }
+                        },
+                        submitter: {
+                            select: {
+                                id: true,
+                                firstName: true,
+                                lastName: true,
+                                fullName: true,
+                                email: true
+                            }
+                        },
+                        concierge: {
+                            select: {
+                                id: true,
+                                firstName: true,
+                                lastName: true,
+                                fullName: true,
+                                email: true
+                            }
+                        },
                     }
                 }
             );
@@ -2237,6 +2326,17 @@ class Submission {
                 aSubmission.studyAbbreviation = aSubmission.study.studyAbbreviation;
             }
 
+            // Transform submitter data to match expected format
+            if (aSubmission?.submitter?.id && aSubmission?.submitter?.firstName) {
+                // note: FE use the root level properties; submitterName
+                aSubmission.submitterName = aSubmission?.submitter?.fullName || "";
+            }
+
+            if (aSubmission?.concierge?.id) {
+                // note: FE use the root level properties; conciergeName, conciergeEmail
+                aSubmission.conciergeName = aSubmission?.concierge?.fullName || "";
+                aSubmission.conciergeEmail = aSubmission?.concierge?.email || aSubmission.conciergeEmail;
+            }
             return aSubmission;
         } catch (error) {
             console.error('Error in _findByID:', error);
@@ -2264,12 +2364,10 @@ class Submission {
 
     async _checkDuplicateSubmissionName(newName, studyID, submissionID) {
         return await this.submissionDAO.findFirst({
-            where: {
-                name: newName,
-                studyID: studyID,
-                NOT: {
-                    id: submissionID
-                }
+            name: newName,
+            studyID: studyID,
+            NOT: {
+                id: submissionID
             }
         });
     }
@@ -2414,8 +2512,8 @@ const sendEmails = {
                 submissionName: `${aSubmission?.name},`,
                 // only one study
                 studyName: approvedStudy?.length > 0 ? (approvedStudy[0]?.studyName || NA) : NA,
-                conciergeName: aOrganization?.conciergeName || NA,
-                conciergeEmail: `${aOrganization?.conciergeEmail || NA}.`
+                conciergeName: aSubmission?.conciergeName || NA,
+                conciergeEmail: `${aSubmission?.conciergeEmail || NA}.`
             });
         }
     },
@@ -2445,8 +2543,8 @@ const sendEmails = {
                 submissionName: aSubmission?.name,
                 studyName: approvedStudy?.length > 0 ? approvedStudy[0]?.studyName : NA,
                 canceledBy: `${userInfo.firstName} ${userInfo?.lastName || ''}`,
-                conciergeEmail: `${aOrganization?.conciergeEmail || NA}.`,
-                conciergeName: aOrganization?.conciergeName || NA
+                conciergeEmail: `${aSubmission?.conciergeEmail || NA}.`,
+                conciergeName: aSubmission?.conciergeName || NA
             });
         }
     },
@@ -2539,8 +2637,8 @@ const sendEmails = {
             }, {
                 submissionID: aSubmission?._id,
                 submissionName: aSubmission?.name,
-                conciergeEmail: `${aOrganization?.conciergeEmail || NA}.`,
-                conciergeName: aOrganization?.conciergeName || NA
+                conciergeEmail: `${aSubmission?.conciergeEmail || NA}.`,
+                conciergeName: aSubmission?.conciergeName || NA
             });
         }
     },
@@ -2698,7 +2796,6 @@ class DataSubmission {
         this.name = name;
         this.submitterID = userInfo._id;
         this.collaborators = [];
-        this.submitterName = formatName(userInfo);
         this.dataCommons = dataCommons;
         this.modelVersion = modelVersion;
         this.studyID = approvedStudy?._id;
@@ -2710,8 +2807,7 @@ class DataSubmission {
         }
         this.bucketName = submissionBucketName;
         this.rootPath = "";
-        this.conciergeName = this._getConciergeName(approvedStudy, aProgram);
-        this.conciergeEmail = this._getConciergeEmail(approvedStudy, aProgram);
+        this.conciergeID = this._getConciergeID(approvedStudy, aProgram);
         this.createdAt = this.updatedAt = getCurrentTime();
         // no metadata to be validated
         this.metadataValidationStatus = this.fileValidationStatus = this.crossSubmissionStatus = null;
@@ -2731,21 +2827,11 @@ class DataSubmission {
         return new DataSubmission(name, userInfo, dataCommons, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization, submissionBucketName);
     }
 
-    _getConciergeName(approvedStudy, aProgram){
+    _getConciergeID(approvedStudy, aProgram){
         if (approvedStudy?.primaryContact) {
-            const conciergeName = `${approvedStudy.primaryContact?.firstName} ${approvedStudy.primaryContact?.lastName || ''}`;
-            return conciergeName?.trim();
+            return approvedStudy.primaryContact?._id || approvedStudy.primaryContact?.id;
         } else if (aProgram) {
-            return aProgram?.conciergeName;
-        } else {
-            return null;
-        }
-    }
-    _getConciergeEmail(approvedStudy, aProgram){
-        if (approvedStudy?.primaryContact) {
-            return approvedStudy.primaryContact.email;
-        } else if (aProgram) {
-            return aProgram?.conciergeEmail;
+            return aProgram?.conciergeID;
         } else {
             return null;
         }

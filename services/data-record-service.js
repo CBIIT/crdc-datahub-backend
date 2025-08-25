@@ -463,10 +463,8 @@ class DataRecordService {
         }, {
             select: { nodeType: true }
         });
-        
-        // Count unique nodeTypes
-        const uniqueNodeTypes = [...new Set(distinctNodes.map(node => node.nodeType))];
-        return uniqueNodeTypes.length || 0;
+
+        return distinctNodes?.length || 0;
     }
     /**
      * public function to retrieve release record from release collection

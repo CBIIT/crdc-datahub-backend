@@ -22,6 +22,7 @@ const SCOPES = require("../constants/permission-scope-constants");
 const UserDAO = require("../dao/user");
 const ApprovedStudyDAO = require("../dao/approvedStudy");
 const SubmissionDAO = require("../dao/submission");
+const {formatName} = require("../utility/format-name");
 
 const isLoggedInOrThrow = (context) => {
     if (!context?.userInfo?.email || !context?.userInfo?.IDP) throw new Error(SUBMODULE_ERROR.NOT_LOGGED_IN);
@@ -219,12 +220,11 @@ class UserService {
     async _findApprovedStudies(studies) {
         if (!studies || studies.length === 0) return [];
         const studiesIDs = studies.map((study) => {
-            if (study && study instanceof Object && study._id) {
-                return study._id;
+            if (study && study instanceof Object && (study?._id || study?.id)) {
+                return study._id || study.id;
             }
             return study;
         }).filter(studyID => studyID !== null && studyID !== undefined); // Filter out null/undefined values
-        
         if(studiesIDs.includes("All"))
             return [{_id: "All", studyName: "All" }];
 
@@ -354,6 +354,7 @@ class UserService {
             _id: context.userInfo._id,
             firstName: params.userInfo.firstName,
             lastName: params.userInfo.lastName,
+            fullName: formatName(params.userInfo),
             updateAt: sessionCurrentTime
         }
         const updateResult = await this.userCollection.update(updateUser);
@@ -373,17 +374,9 @@ class UserService {
         // Update all dependent objects only if the User's Name has changed
         // NOTE: We're not waiting for these async updates to complete before returning the updated User
         if (updateUser.firstName !== user[0].firstName || updateUser.lastName !== user[0].lastName) {
-            this.submissionsCollection.updateMany(
-                { "submitterID": updateUser._id },
-                { "submitterName": `${updateUser.firstName} ${updateUser.lastName}` }
-            );
             this.organizationCollection.updateMany(
                 { "conciergeID": updateUser._id },
                 { "conciergeName": `${updateUser.firstName} ${updateUser.lastName}` }
-            );
-            this.applicationCollection.updateMany(
-                { "applicant.applicantID": updateUser._id },
-                { "applicant.applicantName": `${updateUser.firstName} ${updateUser.lastName}` }
             );
         }
         context.userInfo = {
@@ -457,55 +450,7 @@ class UserService {
         await this._setUserPermissions(user[0], params?.role, params?.permissions, params?.notifications, updatedUser, user);
         updatedUser  = await this.updateUserInfo(user[0], updatedUser, params.userID, params.status, params.role, params?.studies);
 
-        await this._updateSubmitterSubmission(user[0], updatedUser);
         return getDataCommonsDisplayNamesForUser(updatedUser);
-    }
-
-    // using prima, it will be inefficient to update each submission.
-    async _updateSubmitterSubmission(prevUser, updatedUser) {
-        const changedSubmitterRole = prevUser?.role === ROLES.SUBMITTER && prevUser?.role !== updatedUser?.role;
-        const [prevStudyIDs, updatedStudyIDs] =[prevUser?.studies?.map(study => study?._id) || [], updatedUser?.studies?.map(study => study?._id) || []];
-        // checking the removed studies
-        const updatedStudyIDSet = new Set(updatedStudyIDs);
-        const removedStudyIDs = prevStudyIDs
-            .filter(id => !updatedStudyIDSet.has(id) && id !== ALL_STUDY_FILTER);
-        const isStudiesRemoved = prevUser?.role === ROLES.SUBMITTER && prevUser?.role === updatedUser?.role && removedStudyIDs?.length > 0
-
-        if (changedSubmitterRole || isStudiesRemoved) {
-            const res = await this.submissionsCollection.updateMany(
-                {
-                    submitterID: updatedUser?._id,
-                    // Only removing some approved studies
-                    ...(!changedSubmitterRole && isStudiesRemoved && { "studyID": { $in: removedStudyIDs } }),
-                    isNoSubmitter: {$ne: true}
-                },
-                [
-                    {
-                        $set: {
-                            isNoSubmitter: true,
-                            updatedAt: getCurrentTime(),
-                            collaborators: {
-                                $cond: [
-                                    { $isArray: "$collaborators" },
-                                    {
-                                        $map: {
-                                            input: "$collaborators",
-                                            as: "c",
-                                            in: { $mergeObjects: ["$$c", { permission: COLLABORATOR_PERMISSIONS.NO_ACCESS }] }
-                                        }
-                                    },
-                                    "$collaborators"
-                                ]
-                            }
-                        }
-                    }
-                ]
-            );
-
-            if (!res?.acknowledged) {
-                console.error(`failed to update the submission for the submitter ID ${updatedUser?._id}`);
-            }
-        }
     }
 
     _setInstitution(newInstitution, prevInstitution, isSubmitter, updatedUser, institutionID) {
@@ -918,12 +863,10 @@ class UserService {
     async _removePrimaryContact(prevUser, newUser) {
         const isRoleChange = prevUser.role === ROLES.DATA_COMMONS_PERSONNEL && prevUser.role !== newUser.role;
         if (isRoleChange) {
-            // note: Search primaryContactName in this order, since that's how it's stored.
-            const primaryContactName = `${prevUser.firstName} ${prevUser.lastName}`.trim();
             const [updatedSubmission, updateProgram, updatedStudies] = await Promise.all([
                 this.submissionsCollection.updateMany(
-                    { conciergeName: primaryContactName, conciergeEmail: prevUser?.email, status: {$nin: [COMPLETED, CANCELED, DELETED]} },
-                    { conciergeName: "", conciergeEmail: "", updatedAt: getCurrentTime() }
+                    { conciergeID: (prevUser?._id || prevUser?.id), status: {$nin: [COMPLETED, CANCELED, DELETED]} },
+                    { conciergeID: "", updatedAt: getCurrentTime() }
                 ),
                 this.organizationCollection.updateMany(
                     { conciergeID: prevUser?._id },

@@ -166,7 +166,6 @@ model Application {
   version             String
   ORCID               String?
   PI                  String?
-  applicant           Applicant
   controlledAccess    Boolean?
   history             History[]
   inactiveReminder    Boolean?
@@ -187,7 +186,8 @@ model Application {
   updatedAt           DateTime  @updatedAt @db.Date
   newInstitutions     newInstitution[]
   GPAName             String?
-  GPAEmail            String?
+  applicantID         String?
+  applicant           User? @relation(fields: [applicantID], references: [id])
   @@map("applications")
 }
 
@@ -211,7 +211,6 @@ model ApprovedStudy {
   submission Submission[]
   isPendingGPA      Boolean?
   GPAName           String?
-  GPAEmail          String?
   Concierge User? @relation(fields: [primaryContactID], references: [id])
 
   @@map("approvedStudies")
@@ -479,8 +478,6 @@ model Submission {
   archived                 Boolean?
   bucketName               String
   collaborators            Collaborator[]
-  conciergeEmail           String?
-  conciergeName            String?
   controlledAccess         Boolean?
   /// Multiple data types found: String: 92.9%, Boolean: 7.1% out of 375 sampled entries
   crossSubmissionStatus    String?
@@ -515,7 +512,7 @@ model Submission {
   studyName                String?
   studyID                  String
   submitterID              String
-  submitterName            String
+  conciergeID              String?
   validationEnded          DateTime?      @db.Date
   validationScope          String?
   validationStarted        DateTime?      @db.Date
@@ -523,9 +520,10 @@ model Submission {
   createdAt                DateTime       @default(now()) @db.Date
   updatedAt                DateTime       @updatedAt @db.Date
   programID                String?
-  isNoSubmitter            Boolean?
   organization             Program? @relation(fields: [programID], references: [id])
   study                    ApprovedStudy? @relation(fields: [studyID], references: [id])
+  submitter                User? @relation("submitter", fields: [submitterID], references: [id])
+  concierge                User? @relation("concierge", fields: [conciergeID], references: [id])
   batches     Batch[]
   dataRecords DataRecord[]
   qcResults   QcResult[]
@@ -568,6 +566,7 @@ model User {
   firstName     String
   institution   InstitutionInfo?
   lastName      String
+  fullName      String?
   notifications String[]
   permissions   String[]
   role          String
@@ -580,8 +579,10 @@ model User {
   updateAt      DateTime         @updatedAt @db.Date
 
   programs        Program[]
+  submitters Submission[] @relation("submitter")
+  concierges Submission[] @relation("concierge")
   approvedStudies ApprovedStudy[]
-
+  applicants Application[]
   @@map("users")
 }
 

@@ -252,7 +252,7 @@ describe('DataRecordService', () => {
 
       const result = await dataRecordService.countNodesBySubmissionID('submission-123');
 
-      expect(result).toBe(3); // Should count unique nodeTypes, not total nodes
+      expect(result).toBe(5); // Should count total nodes, not unique nodeTypes
       expect(dataRecordService.dataRecordDAO.findMany).toHaveBeenCalledWith(
         { submissionID: 'submission-123' },
         { select: { nodeType: true } }

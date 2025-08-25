@@ -12,6 +12,7 @@ jest.mock('../../prisma', () => ({
         updateMany: jest.fn(),
         delete: jest.fn(),
         deleteMany: jest.fn(),
+        count: jest.fn(),
     }
 }));
 
@@ -103,9 +104,10 @@ describe('GenericDAO', () => {
     });
 
     it('should count records', async () => {
-        prisma.testModel.findMany.mockResolvedValue([{ id: '1' }, { id: '2' }]);
-        const res = await dao.count({}, 'foo');
+        prisma.testModel.count.mockResolvedValue(2);
+        const res = await dao.count({ foo: 'bar' });
         expect(res).toBe(2);
+        expect(prisma.testModel.count).toHaveBeenCalledWith({ where: { foo: 'bar' } });
     });
 
     it('should get distinct values', async () => {

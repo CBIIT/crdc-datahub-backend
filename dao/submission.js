@@ -76,6 +76,24 @@ class SubmissionDAO extends GenericDAO {
                     name: true,
                     abbreviation: true
                 }
+            },
+            submitter: {
+                select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    fullName: true,
+                    email: true
+                }
+            },
+            concierge: {
+                select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    fullName: true,
+                    email: true
+                }
             }
         };
 
@@ -83,15 +101,9 @@ class SubmissionDAO extends GenericDAO {
         const whereConditions = { ...filterConditions };
         
         // Add organization filter if specified
-        // Note: organization parameter always expects organization names, not IDs
+        // Note: organization parameter expects organization ID to filter by programID field
         if (params?.organization && params?.organization !== ALL_FILTER) {
-            // Always filter by organization name (case-insensitive contains)
-            whereConditions.organization = {
-                name: {
-                    contains: (params.organization || '').trim(),
-                    mode: 'insensitive'
-                }
-            };
+            whereConditions.programID = params.organization.trim();
         }
 
         try {
@@ -124,6 +136,9 @@ class SubmissionDAO extends GenericDAO {
                 dataFileSize: this._transformDataFileSize(submission.status, submission.dataFileSize),
                 // Transform organization to match GraphQL schema (map id to _id)
                 organization: formatNestedOrganization(submission.organization)
+                submitterName: submission?.submitter? submission?.submitter?.fullName : "",
+                conciergeName: submission?.concierge ? submission?.concierge?.fullName : "",
+                conciergeEmail: submission?.concierge ? submission?.concierge?.email : "",
             }));
 
             return {
@@ -182,7 +197,11 @@ class SubmissionDAO extends GenericDAO {
 
         // Submitter name condition
         if (submitterName && submitterName !== ALL_FILTER) {
-            baseConditions.submitterName = submitterName.trim();
+            baseConditions.submitter = {
+                is: {
+                    fullName: submitterName.trim()
+                }
+            };
         }
 
         if (userScope.isAllScope()) {
@@ -192,11 +211,6 @@ class SubmissionDAO extends GenericDAO {
             if (!isAllStudy(studyScope?.scopeValues)) {
                 baseConditions.studyID = { in: studyScope?.scopeValues || [] };
             }
-            // This is the view condition control blocking the submissions without any submitter.
-            baseConditions.OR = [
-                { isNoSubmitter: false },
-                { isNoSubmitter: null }
-            ]
             return baseConditions;
         } else if (userScope.isDCScope()) {
             const DCScope = userScope.getDataCommonsScope();
@@ -246,12 +260,18 @@ class SubmissionDAO extends GenericDAO {
 
     async _getDistinctSubmitterNames(filterConditions) {
         try {
-            const submitterNames = await prisma.submission.findMany({
+            const submissions = await prisma.submission.findMany({
                 where: filterConditions,
-                select: { submitterName: true },
-                distinct: ['submitterName']
+                select: { submitter: true },
+                distinct: ['submitterID']
             });
-            return submitterNames.map(item => item.submitterName).filter(Boolean);
+            const submitterNames = submissions
+                .map(sub => sub?.submitter?.fullName)
+                .filter(Boolean)
+                .sort((a, b) => a.localeCompare(b)); // sort ascending
+
+            return Array.from(new Set(submitterNames));
+
         } catch (error) {
             console.error('Error getting distinct submitterNames:', error);
             return [];
