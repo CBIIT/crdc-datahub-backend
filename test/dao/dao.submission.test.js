@@ -562,7 +562,11 @@ describe('SubmissionDAO', () => {
                                 mode: 'insensitive'
                             },
                             dataCommons: 'GDC',
-                            submitterName: 'John Doe',
+                            submitter: {
+                                is: {
+                                    fullName: 'John Doe'
+                                }
+                            },
                             programID: 'NCI'
                         })
                     })

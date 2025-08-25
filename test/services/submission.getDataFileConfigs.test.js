@@ -11,6 +11,7 @@ describe('Submission.getDataFileConfigs', () => {
     let mockUploadingHeartbeatConfig;
     let params;
     let mockFetchDataModelInfo;
+    let mockAuthorizationService;
 
     beforeEach(() => {
         params = { submissionID: 'sub123' };
@@ -61,6 +62,16 @@ describe('Submission.getDataFileConfigs', () => {
 
         mockFetchDataModelInfo = jest.fn().mockResolvedValue(mockDataModelInfo);
 
+        // Create a proper mock authorization service
+        mockAuthorizationService = {
+            getPermissionScope: jest.fn().mockResolvedValue([
+                {
+                    scope: 'all',
+                    scopeValues: ['*']
+                }
+            ])
+        };
+
         // Initialize Submission with required dependencies
         // Provide a mock organizationService with an organizationCollection as required by Submission
         const mockOrganizationService = { organizationCollection: {} };
@@ -88,7 +99,7 @@ describe('Submission.getDataFileConfigs', () => {
             mockConfigurationService, // configurationService
             null, // uploadingMonitor
             null, // dataCommonsBucketMap
-            null  // authorizationService
+            mockAuthorizationService  // authorizationService - now properly mocked
         );
 
         submission.submissionDAO = mockSubmissionDAO;
