@@ -1028,7 +1028,7 @@ type Mutation {
         institutionName: String
     ): AsyncProcessResult
 
-    updateSubmissionInfo(_id: String!, version: String, submitterID: String, submissionName: String): Submission
+    updateSubmissionInfo(_id: String!, version: String, submitterID: String): Submission
     editSubmission(_id: String!, newName: String!): Submission
     updateInstitution(_id: ID!, name: String, status: String): Institution
     createInstitution(name: String!, status: String!): Institution
