@@ -16,6 +16,7 @@ const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-
 const {getFormatDateStr} = require("../utility/string-util.js")
 const {arrayOfObjectsToTSV} = require("../utility/io-util.js")
 const {zipFilesInDir} = require("../utility/io-util");
+const { isAllStudy } = require("../utility/study-utility");
 const PROP_GROUPS = {
     MODEL_DEFINED: "model_defined",
     NOT_DEFINED: "not_defined",
@@ -747,7 +748,7 @@ class ReleaseService {
             return {...baseConditions, dataCommons: dataCommonsParam};
         } else if (userScope.isStudyScope()) {
             const studyScope = userScope.getStudyScope();
-            const isAllStudy = studyScope?.scopeValues?.includes(this._ALL_FILTER);
+            const isAllStudy = isAllStudy(studyScope?.scopeValues);
             const studyQuery = isAllStudy ? {} : {studyID: {$in: studyScope?.scopeValues}};
             return {...baseConditions, dataCommons: dataCommonsParam, ...studyQuery};
         } else if (userScope.isDCScope()) {
@@ -783,7 +784,7 @@ class ReleaseService {
             return baseConditions;
         } else if (userScope.isStudyScope()) {
             const studyScope = userScope.getStudyScope();
-            const isAllStudy = studyScope?.scopeValues?.includes(this._ALL_FILTER);
+            const isAllStudy = isAllStudy(studyScope?.scopeValues);
             const studyQuery = isAllStudy ? {} : {studyID: {$in: studyScope?.scopeValues}};
             return {...baseConditions, ...studyQuery};
          } else if (userScope.isDCScope()) {

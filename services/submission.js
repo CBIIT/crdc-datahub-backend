@@ -30,6 +30,7 @@ const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo
 const {EMAIL_NOTIFICATIONS: EN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
+const { isAllStudy } = require("../utility/study-utility");
 const {getDataCommonsDisplayNamesForSubmission, getDataCommonsDisplayNamesForListSubmissions,
     getDataCommonsDisplayNamesForUser, getDataCommonsDisplayNamesForReleasedNode
 } = require("../utility/data-commons-remapper");
@@ -2716,13 +2717,7 @@ const isUserScope = (userID, userRole, userStudies, userDataCommons, aSubmission
     }
 }
 
-const isAllStudy = (userStudies) => {
-    const studies = Array.isArray(userStudies) && userStudies.length > 0 ? userStudies : [];
-    return studies.find(study =>
-        (typeof study === 'object' && study._id === "All") ||
-        (typeof study === 'string' && study === "All")
-    );
-}
+
 
 const getUserEmails = (users) => {
     return users
