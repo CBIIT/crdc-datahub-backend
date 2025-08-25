@@ -744,7 +744,7 @@ class ReleaseService {
 
     _listNodesConditions(nodesParam, dataCommonsParam, userScope, studyID = null){
         const baseConditions = {
-            ...(nodesParam ? { nodeType: { $in: [nodesParam] } } : {}),
+            ...(nodesParam ? { nodeType: { $in: Array.isArray(nodesParam) ? nodesParam : [nodesParam] } } : {}),
             ...(studyID ? { studyID } : {}),
         };
         if (userScope.isAllScope()) {
