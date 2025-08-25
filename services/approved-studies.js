@@ -315,11 +315,14 @@ class ApprovedStudiesService {
         }
 
         const programs = await this._findOrganizationByStudyID(studyID);
+        const conciergeID = this._getConcierge(programs, primaryContact, useProgramPC);
         const updatedSubmissions = await this.submissionDAO.updateMany({
             studyID: updateStudy._id,
             status: {
                 in: [NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, CANCELED, DELETED, ARCHIVED],
-            }},{
+            },
+            conciergeID: { not: conciergeID }},{
+            conciergeID: conciergeID,
             updatedAt: getCurrentTime()
         });
 
@@ -392,6 +395,18 @@ class ApprovedStudiesService {
                 throw new Error(errorMsg);
             }
         }
+    }
+
+    _getConcierge(programs, primaryContact, isProgramPrimaryContact) {
+        // isProgramPrimaryContact determines if the program's data concierge should be used.
+        if (isProgramPrimaryContact && programs?.length > 0) {
+            return programs[0]?.conciergeID || "";
+        // no data concierge assigned for the program.
+        } else if (isProgramPrimaryContact) {
+            return "";
+        }
+        // data concierge from the study
+        return (primaryContact)? primaryContact._id : "";
     }
 
     /**
