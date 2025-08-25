@@ -246,8 +246,8 @@ const ERROR = {
     INVALID_SCOPE_VALUES: "You have the required permission $item$, but no values are assigned to it.",
     // Maintenance Mode
     MAINTENANCE_MODE: "The CRDC Submission Portal site is currently undergoing scheduled maintenance. Please check back soon. We appreciate your patience.",
-    PARTICIPANT_NOT_FOUND: "This Data Submission has no [sample OR participant] records uploaded. Unable to generate the dbGaP loading sheets at this time.",
-    SAMPLE_NOT_FOUND: "This Data Submission has no [sample OR participant] records uploaded. Unable to generate the dbGaP loading sheets at this time.",
+    PARTICIPANT_NOT_FOUND: "Both participant and sample data are required for dbGaP loading sheets. This Data Submission has no [sample OR participant] records uploaded. Unable to generate the dbGaP loading sheets at this time.",
+    SAMPLE_NOT_FOUND: "Both participant and sample data are required for dbGaP loading sheets. This Data Submission has no [sample OR participant] records uploaded. Unable to generate the dbGaP loading sheets at this time.",
     PARTICIPANT_SAMPLE_NOT_FOUND: "This Data Submission currently has no sample records with a link to a participant record. Unable to generate the dbGaP loading sheets at this time.",
     FAILED_CREATE_LOAD_SHEET: "An unknown error occurred while generating the dbGaP Loading Sheets. Please try again later.",
     USER_NOT_EXIST: "The user does not exist.",
