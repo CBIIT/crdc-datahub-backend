@@ -516,5 +516,46 @@ describe('DataRecordService', () => {
 
       expect(result).toEqual([]);
     });
+
+    describe('retrieveDSSummary', () => {
+      beforeEach(() => {
+        dataRecordService.dataRecordDAO = {
+          distinct: jest.fn()
+        };
+        dataRecordService._getNodeCounts = jest.fn();
+      });
+
+      test('should return summary for each node type', async () => {
+        const aSubmission = { _id: 'sub1' };
+        const nodeTypes = ['participant', 'sample', 'file'];
+        dataRecordService.dataRecordDAO.distinct.mockResolvedValue(nodeTypes);
+
+        dataRecordService._getNodeCounts
+          .mockResolvedValueOnce({ newCount: 2, updatedCount: 1, deletedCount: 0 })
+          .mockResolvedValueOnce({ newCount: 0, updatedCount: 3, deletedCount: 1 })
+          .mockResolvedValueOnce({ newCount: 5, updatedCount: 0, deletedCount: 2 });
+
+        const result = await dataRecordService.retrieveDSSummary(aSubmission);
+
+        expect(dataRecordService.dataRecordDAO.distinct).toHaveBeenCalledWith('nodeType', { submissionID: 'sub1' });
+        expect(dataRecordService._getNodeCounts).toHaveBeenCalledTimes(3);
+        expect(result).toEqual([
+          { nodeType: 'participant', new: 2, updated: 1, deleted: 0 },
+          { nodeType: 'sample', new: 0, updated: 3, deleted: 1 },
+          { nodeType: 'file', new: 5, updated: 0, deleted: 2 }
+        ]);
+      });
+
+      test('should return empty array if no node types found', async () => {
+        const aSubmission = { _id: 'sub2' };
+        dataRecordService.dataRecordDAO.distinct.mockResolvedValue([]);
+
+        const result = await dataRecordService.retrieveDSSummary(aSubmission);
+
+        expect(result).toEqual([]);
+        expect(dataRecordService.dataRecordDAO.distinct).toHaveBeenCalledWith('nodeType', { submissionID: 'sub2' });
+        expect(dataRecordService._getNodeCounts).not.toHaveBeenCalled();
+      });
+    });
   });
 });

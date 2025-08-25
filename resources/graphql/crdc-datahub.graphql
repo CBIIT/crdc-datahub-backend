@@ -697,6 +697,13 @@ type nodeProp {
     group: String! #value in ["model_defined", "not_defined", "internal"]
 }
 
+type nodeTypeSummary {
+    nodeType: String!
+    new: Int
+    updated: Int
+    deleted: Int
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -912,6 +919,7 @@ type Query {
     getPendingPVs(submissionID: String!): [PendingPV]
     retrievePropsForNodeType(studyID: String!, dataCommonsDisplayName: String!, nodeType: String!): [nodeProp]
     downloadAllReleasedNodes(studyID: String!, dataCommonsDisplayName: String!): String #presigned url of s3
+    getSubmissionSummary(submissionID: ID!): [nodeTypeSummary]
 }
 type Mutation {
     "User initiated operations"
