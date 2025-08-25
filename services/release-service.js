@@ -3,7 +3,7 @@ const path = require('path');
 const {verifySession} = require("../verifier/user-info-verifier");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {UserScope} = require("../domain/user-scope");
-const {replaceErrorString} = require("../utility/string-util");
+const {replaceErrorString, sanitizeMongoDBInput} = require("../utility/string-util");
 const ERROR = require("../constants/error-constants");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const {getDataCommonsDisplayName, getDataCommonsOrigin} = require("../utility/data-commons-remapper");
@@ -761,10 +761,11 @@ class ReleaseService {
     }
 
 
-    _listStudyConditions(studyName, dbGaPID, dataCommonsParams, userScope){
+    _listStudyConditions(studyInput, dbGaPIDInput, dataCommonsParams, userScope){
         const dataCommonsCondition = dataCommonsParams && !dataCommonsParams?.includes(this._ALL_FILTER) ?
             { dataCommons: { $in: dataCommonsParams || [] } } : {};
 
+        const studyName = sanitizeMongoDBInput(studyInput);
         const nameCondition = studyName
             ? {
                 $or: [
@@ -773,7 +774,7 @@ class ReleaseService {
                 ],
             }
             : {};
-
+        const dbGaPID = sanitizeMongoDBInput(dbGaPIDInput);
         const dbGaPIDCondition = dbGaPID ? {dbGaPID: { $regex: dbGaPID?.trim().replace(/\\/g, "\\\\"), $options: "i" }} : {};
 
         const baseConditions = {...nameCondition,

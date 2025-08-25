@@ -110,6 +110,24 @@ class SubmissionDAO extends GenericDAO {
                     name: true,
                     abbreviation: true
                 }
+            },
+            submitter: {
+                select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    fullName: true,
+                    email: true
+                }
+            },
+            concierge: {
+                select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    fullName: true,
+                    email: true
+                }
             }
         };
         try {
@@ -139,7 +157,10 @@ class SubmissionDAO extends GenericDAO {
                 _id: submission.id,
                 studyName: submission?.study?.studyName,
                 studyAbbreviation: submission?.study?.studyAbbreviation,
-                dataFileSize: this._transformDataFileSize(submission.status, submission.dataFileSize)
+                dataFileSize: this._transformDataFileSize(submission.status, submission.dataFileSize),
+                submitterName: submission?.submitter? submission?.submitter?.fullName : "",
+                conciergeName: submission?.concierge ? submission?.concierge?.fullName : "",
+                conciergeEmail: submission?.concierge ? submission?.concierge?.email : "",
             }));
 
             return {
@@ -274,7 +295,11 @@ class SubmissionDAO extends GenericDAO {
         }
         // Add filter for submitterName if specified
         if (submitterName && submitterName !== ALL_FILTER) {
-            baseConditions.submitterName = submitterName.trim();
+            baseConditions.submitter = {
+                is: {
+                    fullName: submitterName.trim()
+                }
+            };
         }
         return baseConditions;
     }
@@ -311,12 +336,18 @@ class SubmissionDAO extends GenericDAO {
      */
     async _getDistinctSubmitterNames(filterConditions) {
         try {
-            const submitterNames = await prisma.submission.findMany({
+            const submissions = await prisma.submission.findMany({
                 where: filterConditions,
-                select: { submitterName: true },
-                distinct: ['submitterName']
+                select: { submitter: true },
+                distinct: ['submitterID']
             });
-            return submitterNames.map(item => item.submitterName).filter(Boolean);
+            const submitterNames = submissions
+                .map(sub => sub?.submitter?.fullName)
+                .filter(Boolean)
+                .sort((a, b) => a.localeCompare(b)); // sort ascending
+
+            return Array.from(new Set(submitterNames));
+
         } catch (error) {
             console.error('Error getting distinct submitterNames:', error);
             return [];

@@ -23,6 +23,7 @@ const SCOPES = require("../constants/permission-scope-constants");
 const UserDAO = require("../dao/user");
 const ApprovedStudyDAO = require("../dao/approvedStudy");
 const SubmissionDAO = require("../dao/submission");
+const {formatName} = require("../utility/format-name");
 
 const isLoggedInOrThrow = (context) => {
     if (!context?.userInfo?.email || !context?.userInfo?.IDP) throw new Error(SUBMODULE_ERROR.NOT_LOGGED_IN);
@@ -354,6 +355,7 @@ class UserService {
             _id: context.userInfo._id,
             firstName: params.userInfo.firstName,
             lastName: params.userInfo.lastName,
+            fullName: formatName(params.userInfo),
             updateAt: sessionCurrentTime
         }
         const updateResult = await this.userCollection.update(updateUser);
@@ -373,17 +375,9 @@ class UserService {
         // Update all dependent objects only if the User's Name has changed
         // NOTE: We're not waiting for these async updates to complete before returning the updated User
         if (updateUser.firstName !== user[0].firstName || updateUser.lastName !== user[0].lastName) {
-            this.submissionsCollection.updateMany(
-                { "submitterID": updateUser._id },
-                { "submitterName": `${updateUser.firstName} ${updateUser.lastName}` }
-            );
             this.organizationCollection.updateMany(
                 { "conciergeID": updateUser._id },
                 { "conciergeName": `${updateUser.firstName} ${updateUser.lastName}` }
-            );
-            this.applicationCollection.updateMany(
-                { "applicant.applicantID": updateUser._id },
-                { "applicant.applicantName": `${updateUser.firstName} ${updateUser.lastName}` }
             );
         }
         context.userInfo = {
@@ -870,12 +864,10 @@ class UserService {
     async _removePrimaryContact(prevUser, newUser) {
         const isRoleChange = prevUser.role === ROLES.DATA_COMMONS_PERSONNEL && prevUser.role !== newUser.role;
         if (isRoleChange) {
-            // note: Search primaryContactName in this order, since that's how it's stored.
-            const primaryContactName = `${prevUser.firstName} ${prevUser.lastName}`.trim();
             const [updatedSubmission, updateProgram, updatedStudies] = await Promise.all([
                 this.submissionsCollection.updateMany(
-                    { conciergeName: primaryContactName, conciergeEmail: prevUser?.email, status: {$nin: [COMPLETED, CANCELED, DELETED]} },
-                    { conciergeName: "", conciergeEmail: "", updatedAt: getCurrentTime() }
+                    { conciergeID: (prevUser?._id || prevUser?.id), status: {$nin: [COMPLETED, CANCELED, DELETED]} },
+                    { conciergeID: "", updatedAt: getCurrentTime() }
                 ),
                 this.organizationCollection.updateMany(
                     { conciergeID: prevUser?._id },
