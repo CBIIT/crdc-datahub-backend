@@ -160,10 +160,10 @@ class SubmissionDAO extends GenericDAO {
                 studyAbbreviation: submission?.study?.studyAbbreviation,
                 dataFileSize: this._transformDataFileSize(submission.status, submission.dataFileSize),
                 // Transform organization to match GraphQL schema (map id to _id)
-                organization: formatNestedOrganization(submission.organization)
-                submitterName: submission?.submitter? submission?.submitter?.fullName : "",
-                conciergeName: submission?.concierge ? submission?.concierge?.fullName : "",
-                conciergeEmail: submission?.concierge ? submission?.concierge?.email : "",
+                organization: formatNestedOrganization(submission.organization),
+                submitterName: submission?.submitter?.fullName || "",
+                conciergeName: submission?.concierge?.fullName || "",
+                conciergeEmail: submission?.concierge?.email || "",
             }));
 
             return {
