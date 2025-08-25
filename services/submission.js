@@ -2314,9 +2314,7 @@ class Submission {
                 );
                 
                 // Transform organization to match GraphQL schema (map id to _id)
-                if (org) {
-                    aSubmission.organization = formatNestedOrganization(org);
-                }
+                aSubmission.organization = formatNestedOrganization(org);
             }
 
             // Transform study data to match expected format
