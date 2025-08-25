@@ -365,20 +365,12 @@ describe('Application', () => {
             expect(cond).toHaveProperty('status');
             expect(cond).toHaveProperty('programName');
             expect(cond).toHaveProperty('studyName');
-            // With Prisma, applicant name filter is in an OR array for first/last name
-            expect(cond).toHaveProperty('OR');
-            expect(Array.isArray(cond.OR)).toBe(true);
-            expect(cond.OR.length).toBeGreaterThan(0);
-            // Each OR condition should be for applicant first or last name
-            cond.OR.forEach(orCond => {
-                expect(orCond).toHaveProperty('applicant');
-                expect(orCond.applicant).toHaveProperty('is');
-                const isObj = orCond.applicant.is;
-                expect(
-                    isObj.hasOwnProperty('firstName') ||
-                    isObj.hasOwnProperty('lastName')
-                ).toBe(true);
-            });
+            // With the new implementation, applicant name filter uses fullName instead of OR array
+            expect(cond).toHaveProperty('applicant');
+            expect(cond.applicant).toHaveProperty('is');
+            expect(cond.applicant.is).toHaveProperty('fullName');
+            expect(cond.applicant.is.fullName).toHaveProperty('contains', 'John');
+            expect(cond.applicant.is.fullName).toHaveProperty('mode', 'insensitive');
         });
 
         it('returns correct filter for own scope', () => {

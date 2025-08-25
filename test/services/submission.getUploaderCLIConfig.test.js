@@ -8,6 +8,7 @@ describe('Submission.getUploaderCLIConfigs', () => {
     let mockUploaderCLIConfigs;
     let mockFetchDataModelInfo;
     let mockReplaceToken;
+    let mockAuthorizationService;
 
     beforeEach(() => {
         mockSubmission = {
@@ -24,6 +25,16 @@ describe('Submission.getUploaderCLIConfigs', () => {
 
         mockFetchDataModelInfo = jest.fn().mockResolvedValue({ commons1: {} });
         mockReplaceToken = jest.fn().mockImplementation(async (context, configString) => configString.replace('{token}', 'mocked-token'));
+
+        // Create a proper mock authorization service
+        mockAuthorizationService = {
+            getPermissionScope: jest.fn().mockResolvedValue([
+                {
+                    scope: 'all',
+                    scopeValues: ['*']
+                }
+            ])
+        };
 
         // Mock all required dependencies for Submission constructor
         const mockOrganizationService = {
@@ -53,7 +64,7 @@ describe('Submission.getUploaderCLIConfigs', () => {
             jest.fn(), // configurationService
             jest.fn(), // uploadingMonitor
             jest.fn(), // dataCommonsBucketMap
-            jest.fn(), // authorizationService
+            mockAuthorizationService, // authorizationService - now properly mocked
             jest.fn() // dataModelService
         );
 
@@ -99,8 +110,8 @@ describe('Submission.getUploaderCLIConfigs', () => {
         const result = await submission.getUploaderCLIConfigs(params, mockContext);
 
         expect(mockSubmissionDAO.findById).toHaveBeenCalledWith('sub1');
-        // Fix: _verifyBatchPermission expects (submission, userInfo) not (submission, userID)
-        expect(submission._verifyBatchPermission).toHaveBeenCalledWith(mockSubmission, mockContext.userInfo);
+        // Fix: _verifyBatchPermission expects (submission, userInfo, userScope) - 3 parameters
+        expect(submission._verifyBatchPermission).toHaveBeenCalledWith(mockSubmission, mockContext.userInfo, expect.any(Object));
         expect(submission.fetchDataModelInfo).toHaveBeenCalled();
         expect(submission._replaceToken).toHaveBeenCalled();
         expect(result).toContain('submissionID: sub1');
@@ -171,6 +182,6 @@ describe('Submission.getUploaderCLIConfigs', () => {
         await submission.getUploaderCLIConfigs(params, mockContext);
 
         // The correct argument for user is the userInfo object, not just the user ID string
-        expect(submission._verifyBatchPermission).toHaveBeenCalledWith(mockSubmission, mockContext.userInfo);
+        expect(submission._verifyBatchPermission).toHaveBeenCalledWith(mockSubmission, mockContext.userInfo, expect.any(Object));
     });
 });

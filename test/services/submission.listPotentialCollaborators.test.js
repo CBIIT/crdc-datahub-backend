@@ -133,7 +133,14 @@ describe('Submission.listPotentialCollaborators', () => {
         mockConfigurationService = {};
         mockUploadingMonitor = {};
         mockDataCommonsBucketMap = {};
-        mockAuthorizationService = {};
+        mockAuthorizationService = {
+            getPermissionScope: jest.fn().mockResolvedValue([
+                {
+                    scope: 'all',
+                    scopeValues: ['*']
+                }
+            ])
+        };
         mockDataModelService = {};
 
         // Create service instance
@@ -166,7 +173,12 @@ describe('Submission.listPotentialCollaborators', () => {
 
         // Override DAOs with mocks to prevent Prisma calls
         submissionService.pendingPVDAO = { findBySubmissionID: jest.fn(), insertOne: jest.fn() };
-        submissionService.submissionDAO = { update: jest.fn(), create: jest.fn(), findById: jest.fn() };
+        submissionService.submissionDAO = { 
+            update: jest.fn(), 
+            create: jest.fn(), 
+            findById: jest.fn(),
+            findFirst: jest.fn().mockResolvedValue(mockSubmission) // Add findFirst method
+        };
         submissionService.programDAO = { findById: jest.fn() };
         submissionService.userDAO = { findById: jest.fn() };
         submissionService.approvedStudyDAO = { findMany: jest.fn() };
