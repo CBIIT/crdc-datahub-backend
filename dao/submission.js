@@ -7,6 +7,7 @@ const {DELETED, CANCELED, NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJE
 } = require("../constants/submission-constants");
 const ERROR = require("../constants/error-constants");
 const {replaceErrorString} = require("../utility/string-util");
+const {formatNestedOrganization, formatNestedOrganizations} = require("../utility/organization-transformer");
 const prisma = require("../prisma");
 const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
 const { isAllStudy } = require("../utility/study-utility");
@@ -158,9 +159,11 @@ class SubmissionDAO extends GenericDAO {
                 studyName: submission?.study?.studyName,
                 studyAbbreviation: submission?.study?.studyAbbreviation,
                 dataFileSize: this._transformDataFileSize(submission.status, submission.dataFileSize),
-                submitterName: submission?.submitter? submission?.submitter?.fullName : "",
-                conciergeName: submission?.concierge ? submission?.concierge?.fullName : "",
-                conciergeEmail: submission?.concierge ? submission?.concierge?.email : "",
+                // Transform organization to match GraphQL schema (map id to _id)
+                organization: formatNestedOrganization(submission.organization),
+                submitterName: submission?.submitter?.fullName || "",
+                conciergeName: submission?.concierge?.fullName || "",
+                conciergeEmail: submission?.concierge?.email || "",
             }));
 
             return {
@@ -390,13 +393,8 @@ class SubmissionDAO extends GenericDAO {
                 }
             });
 
-            return organizations.map((x) => {
-                return {
-                    _id: x.id,
-                    name: x.name,
-                    abbreviation: x.abbreviation
-                }
-            });
+            // Transform organizations to match GraphQL schema (map id to _id)
+            return formatNestedOrganizations(organizations);
         } catch (error) {
             console.error('Error getting distinct organizations:', error);
             return [];

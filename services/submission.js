@@ -34,6 +34,7 @@ const { isAllStudy } = require("../utility/study-utility");
 const {getDataCommonsDisplayNamesForSubmission, getDataCommonsDisplayNamesForListSubmissions,
     getDataCommonsDisplayNamesForUser, getDataCommonsDisplayNamesForReleasedNode
 } = require("../utility/data-commons-remapper");
+const {formatNestedOrganization} = require("../utility/organization-transformer");
 const {UserScope} = require("../domain/user-scope");
 const {ORGANIZATION_COLLECTION, APPROVED_STUDIES_COLLECTION, USER_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {zipFilesInDir} = require("../utility/io-util");
@@ -2299,7 +2300,7 @@ class Submission {
 
             // Fetch organization data if programID exists
             if (aSubmission?.programID) {
-                aSubmission.organization = await this.programDAO.findFirst(
+                const org = await this.programDAO.findFirst(
                     {id: aSubmission.programID},
                     {
                         orderBy: {name: PRISMA_SORT.DESC},
@@ -2311,6 +2312,9 @@ class Submission {
                         }
                     }
                 );
+                
+                // Transform organization to match GraphQL schema (map id to _id)
+                aSubmission.organization = formatNestedOrganization(org);
             }
 
             // Transform study data to match expected format
