@@ -115,6 +115,7 @@ const ERROR = {
     NO_RECIPIENT_PV_REQUEST: "No Data Commons personnel found or no PBAC PV request notification is enabled. The PV request email cannot be sent.",
     INVALID_MODEL_VERSION_PERMISSION: "You do not have the correct permissions to update the model-version",
     FAILED_UPDATE_MODEL_VERSION: "Failed to update the model-version for the submission.",
+    FAILED_UPDATE_SUBMISSION: "Failed to update the submission",
     FAILED_RESET_SUBMISSION: "Failed to update the submission with the new status during model-version update.",
     FAILED_RESET_DATA_RECORDS: "Failed to update the data records with the new status during model-version update.",
     FAILED_RESET_QC_RESULT: "Failed to delete the qc-result data during model-version update.",

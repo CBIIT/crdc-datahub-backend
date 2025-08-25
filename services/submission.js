@@ -1595,7 +1595,10 @@ class Submission {
         if (aSubmission?.name === newName?.trim()) {
             return aSubmission
         }
-
+        // Check permission
+        if (!userInfo.permissions?.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE)) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
         // Check for duplicate submission names using Prisma instead of MongoDB aggregation
         const duplicateStudySubmission = await this._checkDuplicateSubmissionName(newName?.trim(), aSubmission?.studyID, aSubmission?.id);
 
@@ -1637,15 +1640,14 @@ class Submission {
     }
 
     /**
-     * API: update the data-model version for the submission.
+     * API: update the submission info.
      * @param {*} params
      * @param {*} context
      * @returns {Promise<Submission>}
      */
-    async updateSubmissionModelVersion(params, context) {
+    async updateSubmissionInfo(params, context) {
         verifySession(context)
             .verifyInitialized();
-
         const {_id, version, submitterID} = params;
         const aSubmission = await this._findByID(_id);
         if(!aSubmission){
@@ -1671,9 +1673,10 @@ class Submission {
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
-
-        if (!validVersions.includes(version)) {
-            throw new Error(replaceErrorString(ERROR.INVALID_MODEL_VERSION, `${version || " "}`));
+        if (version) {
+            if (!validVersions.includes(version)) {
+                throw new Error(replaceErrorString(ERROR.INVALID_MODEL_VERSION, `${version || " "}`));
+            }
         }
 
         if (![IN_PROGRESS, NEW].includes(aSubmission?.status)) {
@@ -1684,13 +1687,17 @@ class Submission {
             if (!newSubmitter) {
                 throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_NO_SUBMITTER, submitterID));
             }
-            if (newSubmitter?.userStatus === USER.STATUSES.INACTIVE || newSubmitter?.role !== ROLES.SUBMITTER) {
+            if (newSubmitter?.userStatus === USER.STATUSES.INACTIVE) {
                 throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_INVALID_SUBMITTER, submitterID));
             }
         }
 
         const userInfo = context.userInfo;
-        const isPermitted = userInfo.role === ROLES.DATA_COMMONS_PERSONNEL && userInfo.dataCommons?.includes(aSubmission?.dataCommons);
+        const isPermitted = userInfo.permissions?.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW) && userInfo.dataCommons?.includes(aSubmission?.dataCommons);
+
+        if (!userInfo.permissions?.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW)) {
+                throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+            }
         if (!isPermitted) {
             throw new Error(ERROR.INVALID_MODEL_VERSION_PERMISSION);
         }
@@ -1701,14 +1708,14 @@ class Submission {
 
         const updatedSubmission = await this.submissionDAO.update(
             aSubmission?._id, {
-                modelVersion: version,
+                ...(version ? { modelVersion: version} : {}),
                 ...(submitterID ? { submitterID: submitterID} : {}),
                 updatedAt: getCurrentTime()
             }
         );
 
         if (!updatedSubmission) {
-            const msg = ERROR.FAILED_UPDATE_MODEL_VERSION + `; submissionID: ${aSubmission?._id}`;
+            const msg = ERROR.FAILED_UPDATE_SUBMISSION + `; submissionID: ${aSubmission?._id}`;
             console.error(msg)
             throw new Error(msg);
         }
