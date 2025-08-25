@@ -791,8 +791,8 @@ class ReleaseService {
             return baseConditions;
         } else if (userScope.isStudyScope()) {
             const studyScope = userScope.getStudyScope();
-            const isAllStudy = studyScope?.scopeValues?.includes(this._ALL_FILTER);
-            const studyQuery = isAllStudy ? {} : {studyID: {$in: studyScope?.scopeValues}};
+            const isAll = isAllStudy(studyScope?.scopeValues);
+            const studyQuery = isAll ? {} : {studyID: {$in: studyScope?.scopeValues}};
             return {...baseConditions, ...studyQuery};
          } else if (userScope.isDCScope()) {
             const DCScopes = userScope.getDataCommonsScope();
