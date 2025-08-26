@@ -2048,7 +2048,7 @@ describe('Submission.updateSubmissionInfo', () => {
     });
 
     it('should successfully update submission model version', async () => {
-        const mockUserScope = { isNoneScope: () => false };
+        const mockUserScope = { isNoneScope: () => false, isDCScope: () => true, isAllScope: () => false, isStudyScope: () => false };
         const mockDataModels = [{ version: 'v1' }, { version: 'v2' }];
         const validVersions = ['v1', 'v2'];
         const updatedSubmission = { ...mockSubmission, modelVersion: 'v2' };
@@ -2085,7 +2085,7 @@ describe('Submission.updateSubmissionInfo', () => {
             _id: 'sub1',
             submitterID: 'user2_id'
         };
-        const mockUserScope = { isNoneScope: () => false };
+        const mockUserScope = { isNoneScope: () => false, isDCScope: () => true, isAllScope: () => false, isStudyScope: () => false };
         const updatedSubmission = { ...mockSubmission, submitterID: 'user2_id'};
 
         submissionService._findByID.mockResolvedValue(mockSubmission);
@@ -2154,7 +2154,7 @@ describe('Submission.updateSubmissionInfo', () => {
 
     it('should throw error when submission status is invalid', async () => {
         const invalidSubmission = { ...mockSubmission, status: SUBMITTED };
-        const mockUserScope = { isNoneScope: () => false };
+        const mockUserScope = { isNoneScope: () => false, isAllScope: () => true };
         const mockDataModels = [{ version: 'v1' }, { version: 'v2' }];
         const validVersions = ['v1', 'v2'];
 
@@ -2169,7 +2169,7 @@ describe('Submission.updateSubmissionInfo', () => {
     });
 
     it('should throw error when update fails', async () => {
-        const mockUserScope = { isNoneScope: () => false };
+        const mockUserScope = { isNoneScope: () => false, isDCScope: () => true, isAllScope: () => false, isStudyScope: () => false};
         const mockDataModels = [{ version: 'v1' }, { version: 'v2' }];
         const validVersions = ['v1', 'v2'];
 
@@ -2185,7 +2185,7 @@ describe('Submission.updateSubmissionInfo', () => {
     });
 
     it('should handle user with multiple data commons', async () => {
-        const mockUserScope = { isNoneScope: () => false };
+        const mockUserScope = { isNoneScope: () => false, isDCScope: () => true, isAllScope: () => false, isStudyScope: () => false };
         const mockDataModels = [{ version: 'v1' }, { version: 'v2' }];
         const validVersions = ['v1', 'v2'];
         const updatedSubmission = { ...mockSubmission, modelVersion: 'v2' };
@@ -2272,7 +2272,7 @@ describe('Submission.editSubmission', () => {
         mockContext = {
             userInfo: {
                 _id: 'user1',
-                role: USER.ROLES.ADMIN,
+                role: USER.ROLES.SUBMITTER,
                 dataCommons: ['commonsA'],
                 permissions: [
                     USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW,
@@ -2301,7 +2301,7 @@ describe('Submission.editSubmission', () => {
 
     it('should successfully update submission name if submitter id is equal to user info id and user info permission includes data_submission:create', async () => {
         const updatedSubmission = { ...mockSubmission, name: 'New Submission Name'};
-        const mockUserScope = { isNoneScope: () => false };
+        const mockUserScope = { isNoneScope: () => false, isAllScope: () => true };
         submissionService._findByID.mockResolvedValue(mockSubmission);
         submissionService._getUserScope.mockResolvedValue(mockUserScope);
         submissionService._validateEditSubmission = jest.fn();
@@ -2326,7 +2326,7 @@ describe('Submission.editSubmission', () => {
         const mockErrorContext = {
             userInfo: {
                 _id: 'user2',
-                role: USER.ROLES.ADMIN,
+                role: USER.ROLES.SUBMITTER,
                 dataCommons: ['commonsA'],
                 permissions: [
                     USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW,
@@ -2334,7 +2334,7 @@ describe('Submission.editSubmission', () => {
                 ],
             }
         };
-        const mockUserScope = { isNoneScope: () => false };
+        const mockUserScope = { isNoneScope: () => false, isAllScope: () => true };
         const updatedSubmission = { ...mockSubmission, name: 'New Submission Name'};
         submissionService._findByID.mockResolvedValue(mockSubmission);
         submissionService._getUserScope.mockResolvedValue(mockUserScope);
@@ -2348,7 +2348,7 @@ describe('Submission.editSubmission', () => {
         const mockErrorContext = {
             userInfo: {
                 _id: 'user1',
-                role: USER.ROLES.ADMIN,
+                role: USER.ROLES.SUBMITTER,
                 dataCommons: ['commonsA'],
                 permissions: [
                     USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW,
@@ -2356,7 +2356,7 @@ describe('Submission.editSubmission', () => {
                 ],
             }
         };
-        const mockUserScope = { isNoneScope: () => true };
+        const mockUserScope = { isNoneScope: () => true, isAllScope: () => true };
         const updatedSubmission = { ...mockSubmission, name: 'New Submission Name'};
         submissionService._findByID.mockResolvedValue(mockSubmission);
         submissionService._getUserScope.mockResolvedValue(mockUserScope);

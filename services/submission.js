@@ -1581,6 +1581,15 @@ class Submission {
         if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
+        // Check study
+        if (!userScope.isAllScope()) {
+            if (userScope.isOwnScope() || userScope.isStudyScope()) {
+                if (!userInfo.studies?.map(study => study._id).includes(aSubmission?.studyID)) {
+                    throw new Error(ERROR.INVALID_ROLE_STUDY)
+                }
+            } 
+        }
+        
         // Check for duplicate submission names using Prisma instead of MongoDB aggregation
         const duplicateStudySubmission = await this._checkDuplicateSubmissionName(newName?.trim(), aSubmission?.studyID, aSubmission?.id);
 
@@ -1674,7 +1683,16 @@ class Submission {
             }
         }
         const userInfo = context.userInfo;
-        const isPermitted = userInfo.role === ROLES.DATA_COMMONS_PERSONNEL && userInfo.dataCommons?.includes(aSubmission?.dataCommons);
+        let isPermitted = false;
+        if (userScope.isAllScope()) {
+            isPermitted = true;
+        }
+        if (userScope.isDCScope()) {
+            isPermitted = userInfo.dataCommons?.includes(aSubmission?.dataCommons);
+        }
+        if (userScope.isStudyScope()) {
+            isPermitted = userInfo.studies?.map(study => study._id).includes(aSubmission?.studyID);
+        }
         if (!isPermitted) {
             throw new Error(ERROR.INVALID_MODEL_VERSION_PERMISSION);
         }
