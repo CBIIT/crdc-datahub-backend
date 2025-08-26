@@ -1674,7 +1674,7 @@ class Submission {
             }
         }
         const userInfo = context.userInfo;
-        const isPermitted = userInfo.dataCommons?.includes(aSubmission?.dataCommons);
+        const isPermitted = userInfo.role === ROLES.DATA_COMMONS_PERSONNEL && userInfo.dataCommons?.includes(aSubmission?.dataCommons);
         if (!isPermitted) {
             throw new Error(ERROR.INVALID_MODEL_VERSION_PERMISSION);
         }
