@@ -1584,7 +1584,7 @@ class Submission {
         // Check study
         if (!userScope.isAllScope()) {
             if (userScope.isOwnScope() || userScope.isStudyScope()) {
-                if (!userInfo.studies?.map(study => study._id).includes(aSubmission?.studyID)) {
+                if (!validateStudyAccess(userInfo.studies, aSubmission?.studyID)) {
                     throw new Error(ERROR.INVALID_ROLE_STUDY)
                 }
             } 
@@ -1691,7 +1691,7 @@ class Submission {
             isPermitted = userInfo.dataCommons?.includes(aSubmission?.dataCommons);
         }
         if (userScope.isStudyScope()) {
-            isPermitted = userInfo.studies?.map(study => study._id).includes(aSubmission?.studyID);
+            isPermitted = validateStudyAccess(userInfo.studies, aSubmission?.studyID)
         }
         if (!isPermitted) {
             throw new Error(ERROR.INVALID_MODEL_VERSION_PERMISSION);
@@ -2726,6 +2726,11 @@ const isAllStudy = (userStudies) => {
         (typeof study === 'object' && study._id === "All") ||
         (typeof study === 'string' && study === "All")
     );
+}
+
+function validateStudyAccess (userStudies, submissionStudy) {
+    const studies = Array.isArray(userStudies) && userStudies.length > 0 ? userStudies : [];
+    return Boolean(isAllStudy(studies) || studies.find(study => study._id === submissionStudy));
 }
 
 const getUserEmails = (users) => {
