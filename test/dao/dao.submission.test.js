@@ -626,7 +626,7 @@ describe('SubmissionDAO', () => {
                 );
             });
 
-            it('should apply empty status array filter when status is explicitly provided as empty array', async () => {
+            it('should not apply status filter when status is explicitly provided as empty array', async () => {
                 mockUserScope.isOwnScope.mockReturnValue(true);
                 mockUserScope.getStudyScope.mockReturnValue({
                     scopeValues: ['study-1']
@@ -639,7 +639,7 @@ describe('SubmissionDAO', () => {
 
                 await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithEmptyStatus);
 
-                // Verify empty status array filter is applied (current implementation behavior)
+                // Verify that no status filter is applied when status array is empty
                 expect(prisma.submission.findMany).toHaveBeenCalledWith(
                     expect.objectContaining({
                         where: expect.objectContaining({
@@ -654,8 +654,16 @@ describe('SubmissionDAO', () => {
                                         }
                                     }
                                 }
-                            ]),
-                            status: { in: [] }
+                            ])
+                        })
+                    })
+                );
+
+                // Should NOT include status filter when array is empty
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.not.objectContaining({
+                            status: expect.anything()
                         })
                     })
                 );
@@ -972,12 +980,16 @@ describe('SubmissionDAO', () => {
                 );
             });
 
-            it('should create empty intersection when existing filter exists but new filter does not match', async () => {
+            it('should apply user dataCommons scope even when filter parameter intersection is empty', async () => {
                 // User has access to GDC and PDC
                 const userWithDCScope = {
                     ...mockUserInfo,
                     dataCommons: ['GDC', 'PDC']
                 };
+
+                // Set user scope to be a data commons scope
+                mockUserScope.isDCScope.mockReturnValue(true);
+                mockUserScope.isOwnScope.mockReturnValue(false);
 
                 // Test with dataCommons filter that does not match user's data commons
                 const paramsWithFilter = {
@@ -987,11 +999,11 @@ describe('SubmissionDAO', () => {
 
                 const result = await dao.listSubmissions(userWithDCScope, mockUserScope, paramsWithFilter);
 
-                // Verify that the intersection results in empty array
+                // Verify that user's dataCommons scope is still applied even when filter parameter doesn't match
                 expect(prisma.submission.findMany).toHaveBeenCalledWith(
                     expect.objectContaining({
                         where: expect.objectContaining({
-                            dataCommons: { in: [] }
+                            dataCommons: { in: ['GDC', 'PDC'] }
                         })
                     })
                 );
