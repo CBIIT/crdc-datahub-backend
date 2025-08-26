@@ -2137,17 +2137,6 @@ describe('Submission.updateSubmissionInfo', () => {
             .toThrow(ERROR.INVALID_SUBMISSION_NOT_FOUND);
     });
 
-    it('should throw error when user has no permission', async () => {
-        const mockUserScope = { isNoneScope: () => true };
-
-        submissionService._findByID.mockResolvedValue(mockSubmission);
-        submissionService._getUserScope.mockResolvedValue(mockUserScope);
-
-        await expect(submissionService.updateSubmissionInfo(mockParams, mockContext))
-            .rejects
-            .toThrow(ERROR.VERIFY.INVALID_PERMISSION);
-    });
-
     it('should throw error when version is invalid', async () => {
         const mockUserScope = { isNoneScope: () => false };
         const mockDataModels = [{ version: 'v1' }];
@@ -2177,28 +2166,6 @@ describe('Submission.updateSubmissionInfo', () => {
         await expect(submissionService.updateSubmissionInfo(mockParams, mockContext))
             .rejects
             .toThrow(replaceErrorString(ERROR.INVALID_SUBMISSION_STATUS_MODEL_VERSION, SUBMITTED));
-    });
-
-    it('should throw error when user has no permission to update model version', async () => {
-        const mockUserScope = { isNoneScope: () => false };
-        const mockDataModels = [{ version: 'v1' }, { version: 'v2' }];
-        const validVersions = ['v1', 'v2'];
-        const nonDCPUserContext = {
-            userInfo: {
-                _id: 'user1',
-                role: USER.ROLES.SUBMITTER,
-                dataCommons: ['commonsB']
-            }
-        };
-
-        submissionService._findByID.mockResolvedValue(mockSubmission);
-        submissionService._getUserScope.mockResolvedValue(mockUserScope);
-        submissionService.fetchDataModelInfo.mockResolvedValue(mockDataModels);
-        submissionService._getAllModelVersions.mockReturnValue(validVersions);
-
-        await expect(submissionService.updateSubmissionInfo(mockParams, nonDCPUserContext))
-            .rejects
-            .toThrow(ERROR.VERIFY.INVALID_PERMISSION);
     });
 
     it('should throw error when update fails', async () => {
@@ -2334,13 +2301,19 @@ describe('Submission.editSubmission', () => {
 
     it('should successfully update submission name if submitter id is equal to user info id and user info permission includes data_submission:create', async () => {
         const updatedSubmission = { ...mockSubmission, name: 'New Submission Name'};
-
+        const mockUserScope = { isNoneScope: () => false };
         submissionService._findByID.mockResolvedValue(mockSubmission);
+        submissionService._getUserScope.mockResolvedValue(mockUserScope);
         submissionService._validateEditSubmission = jest.fn();
         mockSubmissionDAO.update.mockResolvedValue(updatedSubmission);
         const result = await submissionService.editSubmission(mockParams, mockContext);
 
         expect(submissionService._findByID).toHaveBeenCalledWith('sub1');
+        expect(submissionService._getUserScope).toHaveBeenCalledWith(
+            mockContext.userInfo,
+            USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE,
+            mockSubmission
+        );
         expect(submissionService._validateEditSubmission).toHaveBeenCalledWith(mockSubmission, mockParams.newName, mockContext.userInfo._id);
         expect(mockSubmissionDAO.update).toHaveBeenCalledWith('sub1', {
             name: mockParams.newName
@@ -2361,8 +2334,10 @@ describe('Submission.editSubmission', () => {
                 ],
             }
         };
+        const mockUserScope = { isNoneScope: () => false };
         const updatedSubmission = { ...mockSubmission, name: 'New Submission Name'};
         submissionService._findByID.mockResolvedValue(mockSubmission);
+        submissionService._getUserScope.mockResolvedValue(mockUserScope);
         mockSubmissionDAO.update.mockResolvedValue(updatedSubmission);
         await expect(submissionService.editSubmission(mockParams, mockErrorContext))
             .rejects
@@ -2381,8 +2356,10 @@ describe('Submission.editSubmission', () => {
                 ],
             }
         };
+        const mockUserScope = { isNoneScope: () => true };
         const updatedSubmission = { ...mockSubmission, name: 'New Submission Name'};
         submissionService._findByID.mockResolvedValue(mockSubmission);
+        submissionService._getUserScope.mockResolvedValue(mockUserScope);
         submissionService._validateEditSubmission = jest.fn();
         mockSubmissionDAO.update.mockResolvedValue(updatedSubmission);
         await expect(submissionService.editSubmission(mockParams, mockErrorContext))

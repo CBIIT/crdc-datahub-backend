@@ -1577,7 +1577,8 @@ class Submission {
             return aSubmission
         }
         // Check permission
-        if (!userInfo.permissions?.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE)) {
+        const userScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, aSubmission);
+        if (userScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         // Check for duplicate submission names using Prisma instead of MongoDB aggregation
@@ -1672,13 +1673,8 @@ class Submission {
                 throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_INVALID_SUBMITTER, submitterID));
             }
         }
-
         const userInfo = context.userInfo;
-        const isPermitted = userInfo.permissions?.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW) && userInfo.dataCommons?.includes(aSubmission?.dataCommons);
-
-        if (!userInfo.permissions?.includes(USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW)) {
-                throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
-            }
+        const isPermitted = userInfo.dataCommons?.includes(aSubmission?.dataCommons);
         if (!isPermitted) {
             throw new Error(ERROR.INVALID_MODEL_VERSION_PERMISSION);
         }
