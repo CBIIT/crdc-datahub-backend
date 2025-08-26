@@ -262,7 +262,7 @@ class ReleaseService {
 
         const {studyID, nodeType, first, offset, orderBy, sortDirection, properties, dataCommonsDisplayName} = params;
         const originDataCommons = getDataCommonsOrigin(dataCommonsDisplayName) || dataCommonsDisplayName;
-        const listConditions = this._listNodesConditions(nodeType, originDataCommons, userScope);
+        const listConditions = this._listNodesConditions(nodeType, originDataCommons, userScope, studyID);
         const paginationPipe = new MongoPagination(first, offset, orderBy, sortDirection);
         //
         const [rootKeys, parentKeys] = [[], []];
@@ -742,13 +742,20 @@ class ReleaseService {
         return [uniqueProps, uniqueGeneratedProps];
     }
 
-    _listNodesConditions(nodesParam, dataCommonsParam, userScope){
-        const baseConditions = (nodesParam) ? { nodeType: { $in: [nodesParam] || [] } } : {};
+    _listNodesConditions(nodesParam, dataCommonsParam, userScope, studyID = null){
+        const baseConditions = {
+            ...(nodesParam ? { nodeType: { $in: Array.isArray(nodesParam) ? nodesParam : [nodesParam] } } : {}),
+            ...(studyID ? { studyID } : {}),
+        };
         if (userScope.isAllScope()) {
             return {...baseConditions, dataCommons: dataCommonsParam};
         } else if (userScope.isStudyScope()) {
             const studyScope = userScope.getStudyScope();
-            const isAllStudy = isAllStudy(studyScope?.scopeValues);
+            const isAllStudy = studyScope?.scopeValues?.includes(this._ALL_FILTER);
+            if (studyID) {
+                const isNotPermitted = !isAllStudy && !studyScope?.scopeValues?.includes(studyID);
+                return {...baseConditions, dataCommons: dataCommonsParam, studyID: {$in: isNotPermitted ? [] : [studyID]}};
+            }
             const studyQuery = isAllStudy ? {} : {studyID: {$in: studyScope?.scopeValues}};
             return {...baseConditions, dataCommons: dataCommonsParam, ...studyQuery};
         } else if (userScope.isDCScope()) {
@@ -784,8 +791,8 @@ class ReleaseService {
             return baseConditions;
         } else if (userScope.isStudyScope()) {
             const studyScope = userScope.getStudyScope();
-            const isAllStudy = isAllStudy(studyScope?.scopeValues);
-            const studyQuery = isAllStudy ? {} : {studyID: {$in: studyScope?.scopeValues}};
+            const isAll = isAllStudy(studyScope?.scopeValues);
+            const studyQuery = isAll ? {} : {studyID: {$in: studyScope?.scopeValues}};
             return {...baseConditions, ...studyQuery};
          } else if (userScope.isDCScope()) {
             const DCScopes = userScope.getDataCommonsScope();
