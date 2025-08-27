@@ -2779,15 +2779,6 @@ const isUserScope = (userID, userRole, userStudies, userDataCommons, aSubmission
     }
 }
 
-const isAllStudy = (userStudies) => {
-    const studies = Array.isArray(userStudies) && userStudies.length > 0 ? userStudies : [];
-    return studies.find(study =>
-        (typeof study === 'object' && study._id === "All") ||
-        (typeof study === 'object' && study.id === "All") ||
-        (typeof study === 'string' && study === "All")
-    );
-}
-
 function validateStudyAccess (userStudies, submissionStudy) {
     const studies = Array.isArray(userStudies) && userStudies.length > 0 ? userStudies : [];
     return Boolean(isAllStudy(studies) || studies.find(study => study._id === submissionStudy) || studies.find(study => study.id === submissionStudy));
