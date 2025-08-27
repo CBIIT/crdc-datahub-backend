@@ -315,22 +315,14 @@ class ApprovedStudiesService {
         }
 
         const programs = await this._findOrganizationByStudyID(studyID);
-        const [conciergeName, conciergeEmail] = this._getConcierge(programs, primaryContact, useProgramPC);
+        const conciergeID = this._getConcierge(programs, primaryContact, useProgramPC);
         const updatedSubmissions = await this.submissionDAO.updateMany({
             studyID: updateStudy._id,
             status: {
                 in: [NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, CANCELED, DELETED, ARCHIVED],
             },
-            OR: [
-                { conciergeName: { not: conciergeName?.trim() } },
-                { conciergeEmail: { not: conciergeEmail } },
-                { studyName: { not: name } },
-                { studyAbbreviation: { not: updateStudy?.studyAbbreviation } },
-            ]},{
-            conciergeName: conciergeName?.trim(),
-            conciergeEmail,
-            studyName: name,
-            studyAbbreviation: updateStudy?.studyAbbreviation || "",
+            conciergeID: { not: conciergeID }},{
+            conciergeID: conciergeID,
             updatedAt: getCurrentTime()
         });
 
@@ -406,19 +398,15 @@ class ApprovedStudiesService {
     }
 
     _getConcierge(programs, primaryContact, isProgramPrimaryContact) {
-        // data concierge from the study
-        const [conciergeName, conciergeEmail] = (primaryContact)? [`${primaryContact?.firstName || ""} ${primaryContact?.lastName || ''}`, primaryContact?.email || ""] :
-            ["",""];
         // isProgramPrimaryContact determines if the program's data concierge should be used.
         if (isProgramPrimaryContact && programs?.length > 0) {
-            const [conciergeID, programConciergeName,  programConciergeEmail] = [programs[0]?.conciergeID || "", programs[0]?.conciergeName || "", programs[0]?.conciergeEmail || ""];
-            const isValidProgramConcierge = programConciergeName !== "" && programConciergeEmail !== "" && conciergeID !== "";
-            return [isValidProgramConcierge ? programConciergeName : "", isValidProgramConcierge ? programConciergeEmail : ""];
+            return programs[0]?.conciergeID || "";
         // no data concierge assigned for the program.
         } else if (isProgramPrimaryContact) {
-            return ["", ""]
+            return "";
         }
-        return [conciergeName, conciergeEmail];
+        // data concierge from the study
+        return (primaryContact)? primaryContact._id : "";
     }
 
     /**

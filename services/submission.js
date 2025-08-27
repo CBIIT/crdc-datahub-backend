@@ -30,9 +30,11 @@ const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo
 const {EMAIL_NOTIFICATIONS: EN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
+const { isAllStudy } = require("../utility/study-utility");
 const {getDataCommonsDisplayNamesForSubmission, getDataCommonsDisplayNamesForListSubmissions,
     getDataCommonsDisplayNamesForUser, getDataCommonsDisplayNamesForReleasedNode
 } = require("../utility/data-commons-remapper");
+const {formatNestedOrganization} = require("../utility/organization-transformer");
 const {UserScope} = require("../domain/user-scope");
 const {ORGANIZATION_COLLECTION, APPROVED_STUDIES_COLLECTION, USER_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {zipFilesInDir} = require("../utility/io-util");
@@ -212,8 +214,11 @@ class Submission {
             .notEmpty()
             .type([BATCH.TYPE.METADATA, BATCH.TYPE.DATA_FILE]);
         const aSubmission = await this._findByID(params.submissionID);
-
-        this._verifyBatchPermission(aSubmission, userInfo);
+        const viewScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        if (viewScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+        this._verifyBatchPermission(aSubmission, userInfo, viewScope);
 
         // The submission status must be valid states
         if (![NEW, IN_PROGRESS ,WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
@@ -263,7 +268,12 @@ class Submission {
         }
 
         const aSubmission = await this._findByID(aBatch.submissionID);
-        this._verifyBatchPermission(aSubmission, userInfo);
+
+        const viewScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        if (viewScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+        this._verifyBatchPermission(aSubmission, userInfo, viewScope);
 
         // check if it's a heartbeat call sent by CLI of uploading data file.
         // CLI uploader sends uploading heartbeat every 5 min by calling the API with a parameter, uploading: true
@@ -1068,7 +1078,11 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        this._verifyBatchPermission(aSubmission, context?.userInfo);
+        const viewScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        if (viewScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+        this._verifyBatchPermission(aSubmission, context?.userInfo, viewScope);
         //set parameters
         const parameters = {submissionID: params.submissionID, apiURL: params.apiURL, 
             dataFolder: (params.dataFolder)?  params.dataFolder : "/Users/my_name/my_files",
@@ -1102,7 +1116,12 @@ class Submission {
         if (!aSubmission) {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-        this._verifyBatchPermission(aSubmission, context?.userInfo);
+
+        const viewScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        if (viewScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+        this._verifyBatchPermission(aSubmission, context?.userInfo, viewScope);
 
         // data model file node properties into the string
         const latestDataModel = await this.fetchDataModelInfo();
@@ -2066,7 +2085,7 @@ class Submission {
         }
     }
 
-    _verifyBatchPermission(aSubmission, userInfo) {
+    _verifyBatchPermission(aSubmission, userInfo, userScope) {
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
@@ -2074,8 +2093,8 @@ class Submission {
         const hasStudies = this._verifyStudyInUserStudies(userInfo, aSubmission?.studyID);
         const isCollaborator = this._isCollaborator({_id: userInfo?._id}, aSubmission);
         // Only owned or collaborator
-        const hasValidBatchPermission = (isCollaborator && hasStudies) || (userInfo?._id === aSubmission?.submitterID && hasStudies)
-        if (!hasValidBatchPermission) {
+        const hasValidBatchPermission = (isCollaborator && hasStudies) || (userInfo?._id === aSubmission?.submitterID && hasStudies);
+        if ((userScope.isStudyScope() && !hasValidBatchPermission)) {
             throw new Error(ERROR.INVALID_BATCH_PERMISSION);
         }
     }
@@ -2273,6 +2292,29 @@ class Submission {
             }
         }
     }
+    /**
+     * Get submission summary
+     * @param {*} params 
+     * @param {*} context 
+     * @returns 
+     */
+    async getSubmissionSummary(params, context) {
+        verifySession(context)
+            .verifyInitialized();
+        const {
+            submissionID
+        } = params;
+        const aSubmission = await this._findByID(submissionID);
+        if (!aSubmission) {
+            throw new Error(ERROR.SUBMISSION_NOT_EXIST);
+        }
+        const userScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.VIEW, aSubmission);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+        // Generate summary
+        return await this.dataRecordService.retrieveDSSummary(aSubmission);
+    }
 
     async _findByID(id) {
         try {
@@ -2316,7 +2358,7 @@ class Submission {
 
             // Fetch organization data if programID exists
             if (aSubmission?.programID) {
-                aSubmission.organization = await this.programDAO.findFirst(
+                const org = await this.programDAO.findFirst(
                     {id: aSubmission.programID},
                     {
                         orderBy: {name: PRISMA_SORT.DESC},
@@ -2328,6 +2370,9 @@ class Submission {
                         }
                     }
                 );
+                
+                // Transform organization to match GraphQL schema (map id to _id)
+                aSubmission.organization = formatNestedOrganization(org);
             }
 
             // Transform study data to match expected format

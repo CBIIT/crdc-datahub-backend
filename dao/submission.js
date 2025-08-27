@@ -7,7 +7,10 @@ const {DELETED, CANCELED, NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJE
 } = require("../constants/submission-constants");
 const ERROR = require("../constants/error-constants");
 const {replaceErrorString} = require("../utility/string-util");
+const {formatNestedOrganization, formatNestedOrganizations} = require("../utility/organization-transformer");
 const prisma = require("../prisma");
+const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
+const { isAllStudy } = require("../utility/study-utility");
 const ALL_FILTER = "All";
 const NA = "NA"
 class SubmissionDAO extends GenericDAO {
@@ -49,17 +52,50 @@ class SubmissionDAO extends GenericDAO {
         }
     }
 
+    /**
+     * Lists submissions with pagination, filtering, and aggregation support.
+     * This method implements a two-stage filtering approach:
+     * 1. Base filtering by user scope and permissions (access control)
+     * 2. Additional filtering by search parameters (name, status, organization, etc.)
+     * 
+     * The method ensures that aggregations (distinct values) are only filtered by user scope,
+     * while the main submissions query includes both scope and search filters for accurate results.
+     * 
+     * @param {Object} userInfo - User information object containing user details
+     * @param {string} userInfo._id - User's unique identifier
+     * @param {Array<string>} userInfo.dataCommons - Array of data commons the user has access to
+     * @param {Object} userScope - User scope object defining access permissions
+     * @param {Object} params - Query parameters for filtering and pagination
+     * @param {string} [params.organization] - Organization ID to filter by
+     * @param {Array<string>} [params.status] - Array of submission statuses to filter by
+     * @param {string} [params.name] - Submission name to search for (case-insensitive)
+     * @param {string} [params.dbGaPID] - dbGaP ID to search for (case-insensitive)
+     * @param {string} [params.dataCommons] - Data commons identifier to filter by
+     * @param {string} [params.submitterName] - Submitter name to filter by
+     * @param {string} [params.orderBy] - Field to order results by
+     * @param {number} [params.first] - Number of results to return (pagination)
+     * @param {number} [params.offset] - Number of results to skip (pagination)
+     * @param {string} [params.sortDirection] - Sort direction ('asc' or 'desc')
+     * @returns {Object} Object containing submissions, total count, and aggregation data
+     * @returns {Array<Object>} returns.submissions - Array of submission objects
+     * @returns {number} returns.total - Total count of submissions matching filters
+     * @returns {Array<string>} returns.dataCommons - Distinct data commons values
+     * @returns {Array<string>} returns.submitterNames - Distinct submitter names
+     * @returns {Array<string>} returns.organizations - Distinct organization names
+     * @returns {Function} returns.statuses - Function returning sorted distinct statuses
+     * @throws {Error} When database query fails or validation errors occur
+     */
     async listSubmissions(userInfo, userScope, params) {
         validateListSubmissionsParams(params);
 
-        const filterConditions = this._listConditions(userInfo, params.status, params.name, params.dbGaPID, params.dataCommons, params?.submitterName, userScope);
-        
+        // Filter by user scope only
+        const baseConditions = this._generateListSubmissionConditions(userInfo, userScope);
+        // filter by user scope and search filters
+        const filterConditions = this._addFiltersToBaseConditions(userInfo, { ...baseConditions }, params.organization, params.status, params.name, params.dbGaPID, params.dataCommons, params?.submitterName);
         // Map orderBy to proper Prisma field names
         const mappedOrderBy = params?.orderBy ? SUBMISSION_ORDER_BY_MAP[params.orderBy] || params.orderBy : undefined;
-        
         // Create Prisma pagination with mapped orderBy
         const pagination = new PrismaPagination(params?.first, params.offset, mappedOrderBy, params.sortDirection);
-        
         // Build the main query with includes
         const includeQuery = {
             study: {
@@ -95,27 +131,17 @@ class SubmissionDAO extends GenericDAO {
                 }
             }
         };
-
-        // Build where conditions for Prisma (directly use filterConditions)
-        const whereConditions = { ...filterConditions };
-        
-        // Add organization filter if specified
-        // Note: organization parameter expects organization ID to filter by programID field
-        if (params?.organization && params?.organization !== ALL_FILTER) {
-            whereConditions.programID = params.organization.trim();
-        }
-
         try {
             // Execute main query with pagination
             const submissions = await prisma.submission.findMany({
-                where: whereConditions,
+                where: filterConditions,
                 include: includeQuery,
                 ...pagination.getPagination()
             });
 
             // Get total count
             const total = await prisma.submission.count({
-                where: whereConditions
+                where: filterConditions
             });
 
             // Get distinct values for aggregations
@@ -133,9 +159,11 @@ class SubmissionDAO extends GenericDAO {
                 studyName: submission?.study?.studyName,
                 studyAbbreviation: submission?.study?.studyAbbreviation,
                 dataFileSize: this._transformDataFileSize(submission.status, submission.dataFileSize),
-                submitterName: submission?.submitter? submission?.submitter?.fullName : "",
-                conciergeName: submission?.concierge ? submission?.concierge?.fullName : "",
-                conciergeEmail: submission?.concierge ? submission?.concierge?.email : "",
+                // Transform organization to match GraphQL schema (map id to _id)
+                organization: formatNestedOrganization(submission.organization),
+                submitterName: submission?.submitter?.fullName || "",
+                conciergeName: submission?.concierge?.fullName || "",
+                conciergeEmail: submission?.concierge?.email || "",
             }));
 
             return {
@@ -156,43 +184,119 @@ class SubmissionDAO extends GenericDAO {
         }
     }
 
-    _listConditions(userInfo, status, submissionName, dbGaPID, dataCommonsParams, submitterName, userScope){
-        const {_id, dataCommons, studies} = userInfo;
+    /**
+     * Generates base database query conditions based on user scope and permissions.
+     * This method handles the core access control logic for submissions based on user scope.
+     * 
+     * @param {Object} userInfo - User information object containing user details
+     * @param {string} userInfo._id - User's unique identifier
+     * @param {Array<string>} userInfo.dataCommons - Array of data commons the user has access to
+     * @param {Object} userScope - User scope object defining access permissions
+     * @returns {Object} Base Prisma query conditions for filtering submissions by user scope
+     * @throws {Error} When user scope is invalid or permission verification fails
+     */
+    _generateListSubmissionConditions(userInfo, userScope) {
+        const baseConditions = {};
+        if (userScope.isAllScope()) {
+            // No filtering required for all scope
+        } 
+        else if (userScope.isStudyScope()) {
+            const studyScope = userScope.getStudyScope();
+            // If not assigned all studies then add assigned studies filters
+            if (!isAllStudy(studyScope?.scopeValues)) {
+                baseConditions.studyID = { in: studyScope?.scopeValues || [] };
+            }
+        } 
+        else if (userScope.isDCScope()) {
+            baseConditions.dataCommons = { in: userInfo?.dataCommons || [] };
+        } 
+        else if (userScope.isOwnScope()) {
+            // User must have access to the submission's associated study
+            const studyScope = userScope.getStudyScope();
+            // If not assigned "ALL" studies then add assigned studies filters
+            if (!isAllStudy(studyScope?.scopeValues)) {
+                baseConditions.studyID = { in: studyScope?.scopeValues || [] };
+                // User must be the submitter OR a collaborator with edit permission
+                baseConditions.OR = [
+                    { submitterID: userInfo._id },
+                    {
+                        collaborators: {
+                            some: {
+                                collaboratorID: userInfo._id,
+                                permission: { in: [COLLABORATOR_PERMISSIONS.CAN_EDIT] }
+                            }
+                        }
+                    }
+                ];
+            }
+        } 
+        else {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+        return baseConditions;
+    }
+
+    /**
+     * Adds search and filter conditions to base user scope conditions.
+     * This method applies various search filters (name, status, organization, etc.) to the base conditions
+     * that were generated based on user scope. It handles parameter validation and sanitization.
+     * 
+     * @param {Object} userInfo - User information object containing user details
+     * @param {Array<string>} userInfo.dataCommons - Array of data commons the user has access to
+     * @param {Object} baseConditions - Base Prisma query conditions from user scope filtering
+     * @param {string} organization - Organization ID to filter by (maps to programID field)
+     * @param {Array<string>|null} status - Array of submission statuses to filter by, or null for no filter
+     * @param {string} submissionName - Submission name to search for (case-insensitive regex)
+     * @param {string} dbGaPID - dbGaP ID to search for (case-insensitive regex)
+     * @param {string} dataCommonsFilter - Data commons identifier to filter by
+     * @param {string} submitterName - Submitter name to filter by
+     * @returns {Object} Combined Prisma query conditions including both user scope and search filters
+     */
+    _addFiltersToBaseConditions(userInfo, baseConditions, organization, status, submissionName, dbGaPID, dataCommonsFilter, submitterName) {
         const validSubmissionStatus = [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
             REJECTED, WITHDRAWN, DELETED];
-        
-        // Build base conditions for Prisma
-        const baseConditions = {};
-
-        // Status condition
+        // Add organization filter if specified
+        // Note: organization parameter expects organization ID to filter by programID field
+        if (organization && organization !== ALL_FILTER) {
+            baseConditions.programID = organization.trim();
+        }
+        // Add status filter if specified
         if (status && !status?.includes(ALL_FILTER)) {
             baseConditions.status = { in: status || [] };
-        } else {
+        } else if (status !== null) {
+            // Only set default status filter if status parameter was explicitly provided
             baseConditions.status = { in: validSubmissionStatus };
         }
-
-        // Name condition (regex search)
+        // Add filter for submission name if specified
+        // This filter is a regex search on the submission name (case-insensitive)
         if (submissionName) {
             baseConditions.name = {
                 contains: submissionName.trim().replace(/\\/g, ''),
                 mode: 'insensitive'
             };
         }
-
-        // dbGaPID condition (regex search)
+        // Add filter for dbGaPID if specified
+        // This filter is a regex search on the submission name (case-insensitive)
         if (dbGaPID) {
             baseConditions.dbGaPID = {
                 contains: dbGaPID.trim().replace(/\\/g, ''),
                 mode: 'insensitive'
             };
         }
-
-        // Data commons condition
-        if (dataCommonsParams && dataCommonsParams !== ALL_FILTER) {
-            baseConditions.dataCommons = dataCommonsParams.trim();
+        // Add filter for dataCommons if specified
+        if (dataCommonsFilter && dataCommonsFilter !== ALL_FILTER) {
+            if (baseConditions.dataCommons) {
+                // If an existing filter exists, create intersection of the two filter sets
+                const existingValues = baseConditions.dataCommons.in || [];
+                const newValue = dataCommonsFilter.trim();
+                const intersection = existingValues.filter(value => value === newValue);
+                baseConditions.dataCommons = { in: intersection };
+            } else {
+                // If no existing filter exists, add the new value
+                baseConditions.dataCommons = dataCommonsFilter.trim();
+            }
         }
-
-        // Submitter name condition
+        // Add filter for submitterName if specified
         if (submitterName && submitterName !== ALL_FILTER) {
             baseConditions.submitter = {
                 is: {
@@ -200,47 +304,17 @@ class SubmissionDAO extends GenericDAO {
                 }
             };
         }
-
-        if (userScope.isAllScope()) {
-            return baseConditions;
-        } else if (userScope.isStudyScope()) {
-            const studyScope = userScope.getStudyScope();
-            if (!isAllStudy(studyScope?.scopeValues)) {
-                baseConditions.studyID = { in: studyScope?.scopeValues || [] };
-            }
-            return baseConditions;
-        } else if (userScope.isDCScope()) {
-            const DCScope = userScope.getDataCommonsScope();
-            if (dataCommonsParams !== ALL_FILTER && DCScope?.scopeValues?.includes(dataCommonsParams)) {
-                baseConditions.dataCommons = dataCommonsParams;
-            } else {
-                baseConditions.dataCommons = { in: dataCommons || [] };
-            }
-            return baseConditions;
-        } else if (userScope.isOwnScope()) {
-            const userStudies = Array.isArray(studies) && studies.length > 0 ? studies : [];
-            if (!isAllStudy(userStudies)) {
-                const studyIDs = userStudies?.map(s => s?._id).filter(Boolean);
-                baseConditions.OR = [
-                    { submitterID: _id },
-                    { studyID: { in: studyIDs || [] } },
-                    {
-                        collaborators: {
-                            some: {
-                                collaboratorID: _id,
-                                permission: { in: [COLLABORATOR_PERMISSIONS.CAN_EDIT] }
-                            }
-                        }
-                    }
-                ];
-            }
-            return baseConditions;
-        }
-        throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        return baseConditions;
     }
 
-
-
+    /**
+     * Retrieves distinct data commons values from submissions based on filter conditions.
+     * This method is used for aggregation queries and should typically receive base conditions
+     * (user scope only) rather than full filter conditions to ensure accurate aggregation results.
+     * 
+     * @param {Object} filterConditions - Prisma query conditions for filtering submissions
+     * @returns {Promise<Array<string>>} Array of distinct data commons identifiers
+     */
     async _getDistinctDataCommons(filterConditions) {
         try {
             const dataCommons = await prisma.submission.findMany({
@@ -255,6 +329,14 @@ class SubmissionDAO extends GenericDAO {
         }
     }
 
+    /**
+     * Retrieves distinct submitter names from submissions based on filter conditions.
+     * This method is used for aggregation queries and should typically receive base conditions
+     * (user scope only) rather than full filter conditions to ensure accurate aggregation results.
+     * 
+     * @param {Object} filterConditions - Prisma query conditions for filtering submissions
+     * @returns {Promise<Array<string>>} Array of distinct submitter names
+     */
     async _getDistinctSubmitterNames(filterConditions) {
         try {
             const submissions = await prisma.submission.findMany({
@@ -275,6 +357,15 @@ class SubmissionDAO extends GenericDAO {
         }
     }
 
+    /**
+     * Retrieves distinct organizations from submissions based on filter conditions.
+     * This method performs a two-step query: first gets distinct study IDs from submissions,
+     * then retrieves the organizations that have those studies. It's used for aggregation
+     * queries and should typically receive base conditions (user scope only).
+     * 
+     * @param {Object} filterConditions - Prisma query conditions for filtering submissions
+     * @returns {Promise<Array<Object>>} Array of organization objects with id, name, and abbreviation
+     */
     async _getDistinctOrganizations(filterConditions) {
         try {
             // Get study IDs from submissions
@@ -302,19 +393,22 @@ class SubmissionDAO extends GenericDAO {
                 }
             });
 
-            return organizations.map((x) => {
-                return {
-                    _id: x.id,
-                    name: x.name,
-                    abbreviation: x.abbreviation
-                }
-            });
+            // Transform organizations to match GraphQL schema (map id to _id)
+            return formatNestedOrganizations(organizations);
         } catch (error) {
             console.error('Error getting distinct organizations:', error);
             return [];
         }
     }
 
+    /**
+     * Retrieves distinct submission statuses based on filter conditions.
+     * This method is used for aggregation queries and should typically receive base conditions
+     * (user scope only) rather than full filter conditions to ensure accurate aggregation results.
+     * 
+     * @param {Object} filterConditions - Prisma query conditions for filtering submissions
+     * @returns {Promise<Array<string>>} Array of distinct submission statuses
+     */
     async _getDistinctStatuses(filterConditions) {
         try {
             const statuses = await prisma.submission.findMany({
@@ -329,6 +423,14 @@ class SubmissionDAO extends GenericDAO {
         }
     }
 
+    /**
+     * Transforms data file size based on submission status.
+     * Returns zero size for deleted or canceled submissions, otherwise returns the original size.
+     * 
+     * @param {string} status - Submission status
+     * @param {Object} dataFileSize - Original data file size object
+     * @returns {Object} Transformed data file size object
+     */
     _transformDataFileSize(status, dataFileSize) {
         if ([DELETED, CANCELED].includes(status)) {
             return { size: 0, formatted: NA };
@@ -337,14 +439,16 @@ class SubmissionDAO extends GenericDAO {
     }
 }
 
-const isAllStudy = (userStudies) => {
-    const studies = Array.isArray(userStudies) && userStudies.length > 0 ? userStudies : [];
-    return studies.find(study =>
-        (typeof study === 'object' && study._id === "All") ||
-        (typeof study === 'string' && study === "All")
-    );
-}
 
+
+/**
+ * Validates parameters for the listSubmissions method.
+ * Checks that all provided status values are valid submission statuses.
+ * 
+ * @param {Object} params - Query parameters object
+ * @param {Array<string>} [params.status] - Array of status values to validate
+ * @throws {Error} When invalid status values are provided
+ */
 function validateListSubmissionsParams (params) {
     const validStatus = new Set([NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, REJECTED, WITHDRAWN, CANCELED, DELETED, ALL_FILTER]);
     const invalidStatuses = (params?.status || [])

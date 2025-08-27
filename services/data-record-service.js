@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const {VALIDATION_STATUS, DATA_FILE} = require("../constants/submission-constants");
+const {VALIDATION_STATUS, DATA_FILE, INTENTION} = require("../constants/submission-constants");
 const {VALIDATION} = require("../constants/submission-constants");
 const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
@@ -10,8 +10,8 @@ const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-
 const {getFormatDateStr} = require("../utility/string-util.js")
 const {arrayOfObjectsToTSV} = require("../utility/io-util.js")
 const DataRecordDAO = require("../dao/dataRecords");
+const ReleaseDAO =  require("../dao/release");
 const {SORT} = require("../constants/db-constants");
-const ReleaseDAO = require("../dao/release");
 const BATCH_SIZE = 300;
 const ERROR = "Error";
 const WARNING = "Warning";
@@ -694,6 +694,70 @@ class DataRecordService {
             {$sort: {"s3FileInfo.size": 1}}
         ]);
         return fileNodes || [];
+    }
+
+    /**
+     * retrieveDSSummary
+     * @param {*} aSubmission 
+     * @returns []
+     */
+    async retrieveDSSummary(aSubmission) {
+        const nodeTypeSummary = [];
+        // get distinct node type from dataCommons
+        const distinctNodeTypes = await this.dataRecordDAO.distinct("nodeType", { submissionID: aSubmission._id });
+        // loop through distinctNodeTypes and retrieve additional info if needed
+        for (const nodeType of distinctNodeTypes) {
+            const { newCount, updatedCount, deletedCount } = await this._getNodeCounts(aSubmission, nodeType);
+            nodeTypeSummary.push({
+                nodeType: nodeType,
+                new: newCount,
+                updated: updatedCount,
+                deleted: deletedCount
+            });
+        }
+        return nodeTypeSummary;
+    }
+    /**
+     * _getNodeCounts
+     * @param {*} aSubmission 
+     * @param {*} nodeType 
+     * @returns {
+            newCount,
+            updatedCount,
+            deletedCount
+        }
+     */
+    async _getNodeCounts(aSubmission, nodeType){
+        const intention = aSubmission.intention;
+        const dataCommons = aSubmission.dataCommons;
+        let newCount = 0;
+        let updatedCount = 0;
+        let deletedCount = 0;
+        if (intention===INTENTION.DELETE) {
+            deletedCount = await this.dataRecordDAO.count({ submissionID: aSubmission._id, nodeType: nodeType });
+        }
+        else {
+            // get all nodes by submissionID and nodeType
+            const nodes = await this.dataRecordDAO.findMany({ submissionID: aSubmission._id, nodeType: nodeType });
+            // batch fetch all release records for these nodes
+            const nodeIDs = nodes.map(node => node.nodeID);
+            let releasedNodeIDs = new Set();
+            if (nodeIDs.length > 0) {
+                const releaseRecords = await this.releaseDAO.findMany({
+                    dataCommons: dataCommons,
+                    nodeType: nodeType,
+                    nodeID: { $in: nodeIDs }
+                });
+                releasedNodeIDs = new Set(releaseRecords.map(r => r.nodeID));
+            }
+            updatedCount = releasedNodeIDs.size;
+            newCount = nodeIDs.length - updatedCount;
+        }
+        return {
+            newCount,
+            updatedCount,
+            deletedCount
+        };
     }
 }
 

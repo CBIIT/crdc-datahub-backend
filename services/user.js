@@ -17,6 +17,7 @@ const {
 } = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {getDataCommonsDisplayNamesForUser} = require("../utility/data-commons-remapper");
 const {UserScope} = require("../domain/user-scope");
+const { isAllStudy } = require("../utility/study-utility");
 const {COMPLETED, CANCELED, DELETED, COLLABORATOR_PERMISSIONS} = require("../constants/submission-constants");
 const SCOPES = require("../constants/permission-scope-constants");
 const UserDAO = require("../dao/user");
@@ -206,7 +207,7 @@ class UserService {
     async _findStudiesNames(studies) {
         if (!studies) return [];
         const studiesIDs = (studies[0] instanceof Object) ? studies.map((study) => study?._id) : studies;
-        if(studiesIDs.includes("All"))
+        if(isAllStudy(studies))
             return ["All studies"];
         const approvedStudies = await this.approvedStudiesCollection.aggregate([{
             "$match": {

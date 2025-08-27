@@ -5,6 +5,7 @@ const { MODEL_NAME} = require('../constants/db-constants');
 const GenericDAO = require("./generic");
 const {USER_COLLECTION} = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
+const {sanitizeMongoDBInput} = require("../utility/string-util");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 class InstitutionDAO extends GenericDAO {
     _NAME = "name";
@@ -56,7 +57,8 @@ class InstitutionDAO extends GenericDAO {
         }
     }
 
-    _listConditions(institutionName, status){
+    _listConditions(institutionNameInput, status){
+        const institutionName = sanitizeMongoDBInput(institutionNameInput);
         const validStatus = [INSTITUTION.STATUSES.INACTIVE, INSTITUTION.STATUSES.ACTIVE];
         const nameCondition = institutionName ? {name: { $regex: institutionName?.trim().replace(/\\/g, "\\\\"), $options: "i" }} : {};
         const statusCondition = status && status !== this._ALL_FILTER ?

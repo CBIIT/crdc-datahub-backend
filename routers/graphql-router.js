@@ -254,7 +254,8 @@ dbConnector.connect().then(async () => {
         },
         downloadDBGaPLoadSheet: submissionService.downloadDBGaPLoadSheet.bind(submissionService),
         getOMB: configurationService.getOMB.bind(configurationService),
-        downloadAllReleasedNodes: releaseService.downloadAllReleasedNodes.bind(releaseService)
+        downloadAllReleasedNodes: releaseService.downloadAllReleasedNodes.bind(releaseService),
+        getSubmissionSummary: submissionService.getSubmissionSummary.bind(submissionService),
     };
 });
 

@@ -5,6 +5,7 @@ const {ORGANIZATION_COLLECTION, USER_COLLECTION} = require("../crdc-datahub-data
 const ERROR = require("../constants/error-constants");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const {DIRECTION, SORT} = require("../crdc-datahub-database-drivers/constants/monogodb-constants");
+const {sanitizeMongoDBInput} = require("../utility/string-util");
 
 const CONTROLLED_ACCESS_ALL = "All";
 const CONTROLLED_ACCESS_OPEN = "Open";
@@ -34,9 +35,10 @@ class ApprovedStudyDAO extends GenericDAO  {
         return studies.map(study => ({...study, _id: study.id}))
     }
 
-    async listApprovedStudies(study, controlledAccess, dbGaPID, programID, first, offset, orderBy, sortDirection) {
+    async listApprovedStudies(studyName, controlledAccess, dbGaPIDInput, programID, first, offset, orderBy, sortDirection) {
         // set matches
         let matches = {};
+        const study = sanitizeMongoDBInput(studyName);
         if (study)
             matches.$or = [{studyName: {$regex: study, $options: 'i'}}, {studyAbbreviation: {$regex: study, $options: 'i'}}];
         if (controlledAccess) {
@@ -55,7 +57,7 @@ class ApprovedStudyDAO extends GenericDAO  {
                 }
             }
         }
-
+        const dbGaPID = sanitizeMongoDBInput(dbGaPIDInput);
         if (dbGaPID) {
             matches.dbGaPID = {$regex: dbGaPID, $options: 'i'};
         }
