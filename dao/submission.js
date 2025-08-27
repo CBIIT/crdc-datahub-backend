@@ -22,6 +22,11 @@ class SubmissionDAO extends GenericDAO {
 
     async programLevelSubmissions(studyIDs) {
         try {
+            // If no study IDs provided, return empty array
+            if (!studyIDs || studyIDs.length === 0) {
+                return [];
+            }
+            
             // Use Prisma to find submissions with study info
             const submissions = await prisma.submission.findMany({
                 where: {
@@ -204,31 +209,43 @@ class SubmissionDAO extends GenericDAO {
             const studyScope = userScope.getStudyScope();
             // If not assigned all studies then add assigned studies filters
             if (!isAllStudy(studyScope?.scopeValues)) {
-                baseConditions.studyID = { in: studyScope?.scopeValues || [] };
+                const studyIDs = studyScope?.scopeValues || [];
+                // Only add studyID filter if there are actual study IDs to filter by
+                if (studyIDs.length > 0) {
+                    baseConditions.studyID = { in: studyIDs };
+                }
             }
         } 
         else if (userScope.isDCScope()) {
             baseConditions.dataCommons = { in: userInfo?.dataCommons || [] };
         } 
         else if (userScope.isOwnScope()) {
-            // User must have access to the submission's associated study
-            const studyScope = userScope.getStudyScope();
-            // If not assigned "ALL" studies then add assigned studies filters
-            if (!isAllStudy(studyScope?.scopeValues)) {
-                baseConditions.studyID = { in: studyScope?.scopeValues || [] };
-                // User must be the submitter OR a collaborator with edit permission
-                baseConditions.OR = [
-                    { submitterID: userInfo._id },
-                    {
-                        collaborators: {
-                            some: {
-                                collaboratorID: userInfo._id,
-                                permission: { in: [COLLABORATOR_PERMISSIONS.CAN_EDIT] }
-                            }
+            // For OWN scope, user must be assigned to the study AND (be submitter OR be collaborator)
+            const userStudies = userInfo?.studies || [];
+            
+            if (!isAllStudy(userStudies)) {
+                const userStudyIDs = userStudies.map(study => study._id);
+                if (userStudyIDs && userStudyIDs.length > 0) {
+                    baseConditions.studyID = { in: userStudyIDs };
+                }
+                else {
+                    // No study scope means user cannot access any submissions with OWN scope
+                    throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+                }
+            }
+            
+            // User must be the submitter OR a collaborator with edit permission
+            baseConditions.OR = [
+                { submitterID: userInfo._id },
+                {
+                    collaborators: {
+                        some: {
+                            collaboratorID: userInfo._id,
+                            permission: { in: [COLLABORATOR_PERMISSIONS.CAN_EDIT] }
                         }
                     }
-                ];
-            }
+                }
+            ];
         } 
         else {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
@@ -262,7 +279,10 @@ class SubmissionDAO extends GenericDAO {
         }
         // Add status filter if specified
         if (status && !status?.includes(ALL_FILTER)) {
-            baseConditions.status = { in: status || [] };
+            // Only add status filter if there are actual statuses to filter by
+            if (status.length > 0) {
+                baseConditions.status = { in: status };
+            }
         } else if (status !== null) {
             // Only set default status filter if status parameter was explicitly provided
             baseConditions.status = { in: validSubmissionStatus };
@@ -290,7 +310,10 @@ class SubmissionDAO extends GenericDAO {
                 const existingValues = baseConditions.dataCommons.in || [];
                 const newValue = dataCommonsFilter.trim();
                 const intersection = existingValues.filter(value => value === newValue);
-                baseConditions.dataCommons = { in: intersection };
+                // Only add dataCommons filter if intersection contains values
+                if (intersection.length > 0) {
+                    baseConditions.dataCommons = { in: intersection };
+                }
             } else {
                 // If no existing filter exists, add the new value
                 baseConditions.dataCommons = dataCommonsFilter.trim();
