@@ -220,28 +220,32 @@ class SubmissionDAO extends GenericDAO {
             baseConditions.dataCommons = { in: userInfo?.dataCommons || [] };
         } 
         else if (userScope.isOwnScope()) {
-            // User must have access to the submission's associated study
-            const studyScope = userScope.getStudyScope();
-            // If not assigned "ALL" studies then add assigned studies filters
-            if (!isAllStudy(studyScope?.scopeValues)) {
-                const studyIDs = studyScope?.scopeValues || [];
-                // Only add studyID filter if there are actual study IDs to filter by
-                if (studyIDs.length > 0) {
-                    baseConditions.studyID = { in: studyIDs };
+            // For OWN scope, user must be assigned to the study AND (be submitter OR be collaborator)
+            const userStudies = userInfo?.studies || [];
+            
+            if (!isAllStudy(userStudies)) {
+                const userStudyIDs = userStudies.map(study => study._id);
+                if (userStudyIDs && userStudyIDs.length > 0) {
+                    baseConditions.studyID = { in: userStudyIDs };
                 }
-                // User must be the submitter OR a collaborator with edit permission
-                baseConditions.OR = [
-                    { submitterID: userInfo._id },
-                    {
-                        collaborators: {
-                            some: {
-                                collaboratorID: userInfo._id,
-                                permission: { in: [COLLABORATOR_PERMISSIONS.CAN_EDIT] }
-                            }
+                else {
+                    // No study scope means user cannot access any submissions with OWN scope
+                    throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+                }
+            }
+            
+            // User must be the submitter OR a collaborator with edit permission
+            baseConditions.OR = [
+                { submitterID: userInfo._id },
+                {
+                    collaborators: {
+                        some: {
+                            collaboratorID: userInfo._id,
+                            permission: { in: [COLLABORATOR_PERMISSIONS.CAN_EDIT] }
                         }
                     }
-                ];
-            }
+                }
+            ];
         } 
         else {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
