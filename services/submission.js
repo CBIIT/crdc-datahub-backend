@@ -45,6 +45,7 @@ const UserDAO = require("../dao/user");
 const ApprovedStudyDAO = require("../dao/approvedStudy");
 const ValidationDAO = require("../dao/validation");
 const DataRecordDAO = require("../dao/dataRecords");
+const PERMISSION_SCOPES = require("../constants/permission-scope-constants");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -1645,8 +1646,8 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        const [userScope, validVersions, { prevSubmitter, newSubmitter }] = await Promise.all([
-            this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW, aSubmission),
+        const [userReviewPermissionScope, validVersions, { prevSubmitter, newSubmitter }] = await Promise.all([
+            this.authorizationService.getPermissionScope(context.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW),
             (async () => {
                 const dataModels = await this.fetchDataModelInfo();
                 return this._getAllModelVersions(dataModels, aSubmission?.dataCommons);
@@ -1660,8 +1661,11 @@ class Submission {
                 return {};
             })()
         ]);
-
-        if (userScope.isNoneScope()) {
+        const userReviewPermissionNone = userReviewPermissionScope.some(item => item?.scope === PERMISSION_SCOPES.NONE && item?.scopeValues?.length === 0);
+        const userReviewPermissionAll = userReviewPermissionScope.some(item => item?.scope === PERMISSION_SCOPES.ALL || item === PERMISSION_SCOPES.ALL);
+        const userReviewPermissionDC = userReviewPermissionScope.some(item => item?.scope === PERMISSION_SCOPES.DC);
+        const userReviewPermissionStudy = userReviewPermissionScope.some(item => item?.scope === PERMISSION_SCOPES.STUDY);
+        if (userReviewPermissionNone) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
         if (version) {
@@ -1681,16 +1685,26 @@ class Submission {
             if (newSubmitter?.userStatus === USER.STATUSES.INACTIVE) {
                 throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_INVALID_SUBMITTER, submitterID));
             }
+            // submitter must have data_submission:create permission
+            const userCreatePermissionScope = await this.authorizationService.getPermissionScope(newSubmitter, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
+            const userCreatePermissionNone = userCreatePermissionScope.some(item => item?.scope === PERMISSION_SCOPES.NONE && item?.scopeValues?.length === 0);
+            if (userCreatePermissionNone) {
+                throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_INVALID_SUBMITTER, submitterID));
+            }
+            // submitter must have the correct study access
+            if (!validateStudyAccess(newSubmitter.studies, aSubmission?.studyID)) {
+                throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_INVALID_SUBMITTER_STUDY, submitterID));
+            }
         }
         const userInfo = context.userInfo;
         let isPermitted = false;
-        if (userScope.isAllScope()) {
+        if (userReviewPermissionAll) {
             isPermitted = true;
         }
-        if (userScope.isDCScope()) {
+        if (userReviewPermissionDC) {
             isPermitted = userInfo.dataCommons?.includes(aSubmission?.dataCommons);
         }
-        if (userScope.isStudyScope()) {
+        if (userReviewPermissionStudy) {
             isPermitted = validateStudyAccess(userInfo.studies, aSubmission?.studyID)
         }
         if (!isPermitted) {
@@ -2724,13 +2738,14 @@ const isAllStudy = (userStudies) => {
     const studies = Array.isArray(userStudies) && userStudies.length > 0 ? userStudies : [];
     return studies.find(study =>
         (typeof study === 'object' && study._id === "All") ||
+        (typeof study === 'object' && study.id === "All") ||
         (typeof study === 'string' && study === "All")
     );
 }
 
 function validateStudyAccess (userStudies, submissionStudy) {
     const studies = Array.isArray(userStudies) && userStudies.length > 0 ? userStudies : [];
-    return Boolean(isAllStudy(studies) || studies.find(study => study._id === submissionStudy));
+    return Boolean(isAllStudy(studies) || studies.find(study => study._id === submissionStudy) || studies.find(study => study.id === submissionStudy));
 }
 
 const getUserEmails = (users) => {

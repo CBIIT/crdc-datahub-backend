@@ -1994,13 +1994,15 @@ describe('Submission.updateSubmissionInfo', () => {
 
         // Mock methods
         submissionService._findByID = jest.fn();
-        submissionService._getUserScope = jest.fn();
         submissionService.fetchDataModelInfo = jest.fn();
         submissionService._getAllModelVersions = jest.fn();
         submissionService._resetValidation = jest.fn();
         submissionService._notifyConfigurationChange = jest.fn();
         submissionService.userDAO.findFirst = jest.fn();
         submissionService.submissionDAO.findFirst = jest.fn();
+        submissionService.authorizationService = {
+            getPermissionScope: jest.fn().mockResolvedValue([{scope: 'all', scopeValues: Array(0)}])
+        };
 
         // Mock getCurrentTime
         global.getCurrentTime = jest.fn(() => new Date('2023-01-01T00:00:00Z'));
@@ -2048,13 +2050,11 @@ describe('Submission.updateSubmissionInfo', () => {
     });
 
     it('should successfully update submission model version', async () => {
-        const mockUserScope = { isNoneScope: () => false, isDCScope: () => true, isAllScope: () => false, isStudyScope: () => false };
         const mockDataModels = [{ version: 'v1' }, { version: 'v2' }];
         const validVersions = ['v1', 'v2'];
         const updatedSubmission = { ...mockSubmission, modelVersion: 'v2' };
 
         submissionService._findByID.mockResolvedValue(mockSubmission);
-        submissionService._getUserScope.mockResolvedValue(mockUserScope);
         submissionService.fetchDataModelInfo.mockResolvedValue(mockDataModels);
         submissionService._getAllModelVersions.mockReturnValue(validVersions);
         mockSubmissionDAO.update.mockResolvedValue(updatedSubmission);
@@ -2063,11 +2063,6 @@ describe('Submission.updateSubmissionInfo', () => {
         const result = await submissionService.updateSubmissionInfo(mockParams, mockContext);
 
         expect(submissionService._findByID).toHaveBeenCalledWith('sub1');
-        expect(submissionService._getUserScope).toHaveBeenCalledWith(
-            mockContext.userInfo,
-            USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW,
-            mockSubmission
-        );
         expect(submissionService.fetchDataModelInfo).toHaveBeenCalled();
         expect(submissionService._getAllModelVersions).toHaveBeenCalledWith(mockDataModels, 'commonsA');
         expect(mockSubmissionDAO.update).toHaveBeenCalledWith('sub1', {
@@ -2083,25 +2078,19 @@ describe('Submission.updateSubmissionInfo', () => {
     it('should successfully update submission submitter id', async () => {
         const mockParamsUpdateSubmitter = {
             _id: 'sub1',
-            submitterID: 'user2_id'
+            submitterID: 'user2_id',
+            studies: [{_id: 'study123'}]
         };
-        const mockUserScope = { isNoneScope: () => false, isDCScope: () => true, isAllScope: () => false, isStudyScope: () => false };
         const updatedSubmission = { ...mockSubmission, submitterID: 'user2_id'};
 
         submissionService._findByID.mockResolvedValue(mockSubmission);
-        submissionService._getUserScope.mockResolvedValue(mockUserScope);
-        submissionService.userDAO.findFirst.mockResolvedValue(mockSubmitter)
+        submissionService.userDAO.findFirst.mockResolvedValue(mockParamsUpdateSubmitter)
         mockSubmissionDAO.update.mockResolvedValue(updatedSubmission);
         submissionService._resetValidation.mockResolvedValue();
 
         const result = await submissionService.updateSubmissionInfo(mockParamsUpdateSubmitter, mockContext);
 
         expect(submissionService._findByID).toHaveBeenCalledWith('sub1');
-        expect(submissionService._getUserScope).toHaveBeenCalledWith(
-            mockContext.userInfo,
-            USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW,
-            mockSubmission
-        );
         expect(mockSubmissionDAO.update).toHaveBeenCalledWith('sub1', {
             submitterID: 'user2_id',
             updatedAt: expect.any(Date)
@@ -2115,11 +2104,9 @@ describe('Submission.updateSubmissionInfo', () => {
             _id: 'sub1',
             submitterID: 'user2_id'
         };
-        const mockUserScope = { isNoneScope: () => false };
         const updatedSubmission = { ...mockSubmission, submitterID: 'user2_id'};
 
         submissionService._findByID.mockResolvedValue(mockSubmission);
-        submissionService._getUserScope.mockResolvedValue(mockUserScope);
         mockSubmissionDAO.update.mockResolvedValue(updatedSubmission);
         submissionService._resetValidation.mockResolvedValue();
 
@@ -2138,12 +2125,10 @@ describe('Submission.updateSubmissionInfo', () => {
     });
 
     it('should throw error when version is invalid', async () => {
-        const mockUserScope = { isNoneScope: () => false };
         const mockDataModels = [{ version: 'v1' }];
         const validVersions = ['v1'];
 
         submissionService._findByID.mockResolvedValue(mockSubmission);
-        submissionService._getUserScope.mockResolvedValue(mockUserScope);
         submissionService.fetchDataModelInfo.mockResolvedValue(mockDataModels);
         submissionService._getAllModelVersions.mockReturnValue(validVersions);
 
@@ -2154,12 +2139,10 @@ describe('Submission.updateSubmissionInfo', () => {
 
     it('should throw error when submission status is invalid', async () => {
         const invalidSubmission = { ...mockSubmission, status: SUBMITTED };
-        const mockUserScope = { isNoneScope: () => false, isAllScope: () => true };
         const mockDataModels = [{ version: 'v1' }, { version: 'v2' }];
         const validVersions = ['v1', 'v2'];
 
         submissionService._findByID.mockResolvedValue(invalidSubmission);
-        submissionService._getUserScope.mockResolvedValue(mockUserScope);
         submissionService.fetchDataModelInfo.mockResolvedValue(mockDataModels);
         submissionService._getAllModelVersions.mockReturnValue(validVersions);
 
@@ -2169,12 +2152,10 @@ describe('Submission.updateSubmissionInfo', () => {
     });
 
     it('should throw error when update fails', async () => {
-        const mockUserScope = { isNoneScope: () => false, isDCScope: () => true, isAllScope: () => false, isStudyScope: () => false};
         const mockDataModels = [{ version: 'v1' }, { version: 'v2' }];
         const validVersions = ['v1', 'v2'];
 
         submissionService._findByID.mockResolvedValue(mockSubmission);
-        submissionService._getUserScope.mockResolvedValue(mockUserScope);
         submissionService.fetchDataModelInfo.mockResolvedValue(mockDataModels);
         submissionService._getAllModelVersions.mockReturnValue(validVersions);
         mockSubmissionDAO.update.mockResolvedValue(null);
@@ -2185,7 +2166,6 @@ describe('Submission.updateSubmissionInfo', () => {
     });
 
     it('should handle user with multiple data commons', async () => {
-        const mockUserScope = { isNoneScope: () => false, isDCScope: () => true, isAllScope: () => false, isStudyScope: () => false };
         const mockDataModels = [{ version: 'v1' }, { version: 'v2' }];
         const validVersions = ['v1', 'v2'];
         const updatedSubmission = { ...mockSubmission, modelVersion: 'v2' };
@@ -2202,7 +2182,6 @@ describe('Submission.updateSubmissionInfo', () => {
         };
 
         submissionService._findByID.mockResolvedValue(mockSubmission);
-        submissionService._getUserScope.mockResolvedValue(mockUserScope);
         submissionService.fetchDataModelInfo.mockResolvedValue(mockDataModels);
         submissionService._getAllModelVersions.mockReturnValue(validVersions);
         mockSubmissionDAO.update.mockResolvedValue(updatedSubmission);
