@@ -47,6 +47,7 @@ const UserDAO = require("../dao/user");
 const ApprovedStudyDAO = require("../dao/approvedStudy");
 const ValidationDAO = require("../dao/validation");
 const DataRecordDAO = require("../dao/dataRecords");
+const PERMISSION_SCOPES = require("../constants/permission-scope-constants");
 const FILE = "file";
 
 const DATA_MODEL_SEMANTICS = 'semantics';
@@ -1595,7 +1596,20 @@ class Submission {
         if (aSubmission?.name === newName?.trim()) {
             return aSubmission
         }
-
+        // Check permission
+        const userScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, aSubmission);
+        if (userScope.isNoneScope()) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+        // Check study
+        if (!userScope.isAllScope()) {
+            if (userScope.isOwnScope() || userScope.isStudyScope()) {
+                if (!validateStudyAccess(userInfo.studies, aSubmission?.studyID)) {
+                    throw new Error(ERROR.INVALID_ROLE_STUDY)
+                }
+            } 
+        }
+        
         // Check for duplicate submission names using Prisma instead of MongoDB aggregation
         const duplicateStudySubmission = await this._checkDuplicateSubmissionName(newName?.trim(), aSubmission?.studyID, aSubmission?.id);
 
@@ -1637,23 +1651,22 @@ class Submission {
     }
 
     /**
-     * API: update the data-model version for the submission.
+     * API: update the submission info.
      * @param {*} params
      * @param {*} context
      * @returns {Promise<Submission>}
      */
-    async updateSubmissionModelVersion(params, context) {
+    async updateSubmissionInfo(params, context) {
         verifySession(context)
             .verifyInitialized();
-
         const {_id, version, submitterID} = params;
         const aSubmission = await this._findByID(_id);
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND);
         }
 
-        const [userScope, validVersions, { prevSubmitter, newSubmitter }] = await Promise.all([
-            this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW, aSubmission),
+        const [userReviewPermissionScope, validVersions, { prevSubmitter, newSubmitter }] = await Promise.all([
+            this.authorizationService.getPermissionScope(context.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW),
             (async () => {
                 const dataModels = await this.fetchDataModelInfo();
                 return this._getAllModelVersions(dataModels, aSubmission?.dataCommons);
@@ -1667,13 +1680,17 @@ class Submission {
                 return {};
             })()
         ]);
-
-        if (userScope.isNoneScope()) {
+        const userReviewPermissionNone = userReviewPermissionScope.some(item => item?.scope === PERMISSION_SCOPES.NONE && item?.scopeValues?.length === 0);
+        const userReviewPermissionAll = userReviewPermissionScope.some(item => item?.scope === PERMISSION_SCOPES.ALL || item === PERMISSION_SCOPES.ALL);
+        const userReviewPermissionDC = userReviewPermissionScope.some(item => item?.scope === PERMISSION_SCOPES.DC);
+        const userReviewPermissionStudy = userReviewPermissionScope.some(item => item?.scope === PERMISSION_SCOPES.STUDY);
+        if (userReviewPermissionNone) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
-
-        if (!validVersions.includes(version)) {
-            throw new Error(replaceErrorString(ERROR.INVALID_MODEL_VERSION, `${version || " "}`));
+        if (version) {
+            if (!validVersions.includes(version)) {
+                throw new Error(replaceErrorString(ERROR.INVALID_MODEL_VERSION, `${version || " "}`));
+            }
         }
 
         if (![IN_PROGRESS, NEW].includes(aSubmission?.status)) {
@@ -1684,13 +1701,31 @@ class Submission {
             if (!newSubmitter) {
                 throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_NO_SUBMITTER, submitterID));
             }
-            if (newSubmitter?.userStatus === USER.STATUSES.INACTIVE || newSubmitter?.role !== ROLES.SUBMITTER) {
+            if (newSubmitter?.userStatus === USER.STATUSES.INACTIVE) {
                 throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_INVALID_SUBMITTER, submitterID));
             }
+            // submitter must have data_submission:create permission
+            const userCreatePermissionScope = await this.authorizationService.getPermissionScope(newSubmitter, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
+            const userCreatePermissionNone = userCreatePermissionScope.some(item => item?.scope === PERMISSION_SCOPES.NONE && item?.scopeValues?.length === 0);
+            if (userCreatePermissionNone) {
+                throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_INVALID_SUBMITTER, submitterID));
+            }
+            // submitter must have the correct study access
+            if (!validateStudyAccess(newSubmitter.studies, aSubmission?.studyID)) {
+                throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_INVALID_SUBMITTER_STUDY, submitterID));
+            }
         }
-
         const userInfo = context.userInfo;
-        const isPermitted = userInfo.role === ROLES.DATA_COMMONS_PERSONNEL && userInfo.dataCommons?.includes(aSubmission?.dataCommons);
+        let isPermitted = false;
+        if (userReviewPermissionAll) {
+            isPermitted = true;
+        }
+        if (userReviewPermissionDC) {
+            isPermitted = userInfo.dataCommons?.includes(aSubmission?.dataCommons);
+        }
+        if (userReviewPermissionStudy) {
+            isPermitted = validateStudyAccess(userInfo.studies, aSubmission?.studyID)
+        }
         if (!isPermitted) {
             throw new Error(ERROR.INVALID_MODEL_VERSION_PERMISSION);
         }
@@ -1701,14 +1736,14 @@ class Submission {
 
         const updatedSubmission = await this.submissionDAO.update(
             aSubmission?._id, {
-                modelVersion: version,
+                ...(version ? { modelVersion: version} : {}),
                 ...(submitterID ? { submitterID: submitterID} : {}),
                 updatedAt: getCurrentTime()
             }
         );
 
         if (!updatedSubmission) {
-            const msg = ERROR.FAILED_UPDATE_MODEL_VERSION + `; submissionID: ${aSubmission?._id}`;
+            const msg = ERROR.FAILED_UPDATE_SUBMISSION + `; submissionID: ${aSubmission?._id}`;
             console.error(msg)
             throw new Error(msg);
         }
@@ -2744,7 +2779,10 @@ const isUserScope = (userID, userRole, userStudies, userDataCommons, aSubmission
     }
 }
 
-
+function validateStudyAccess (userStudies, submissionStudy) {
+    const studies = Array.isArray(userStudies) && userStudies.length > 0 ? userStudies : [];
+    return Boolean(isAllStudy(studies) || studies.find(study => study._id === submissionStudy) || studies.find(study => study.id === submissionStudy));
+}
 
 const getUserEmails = (users) => {
     return users
