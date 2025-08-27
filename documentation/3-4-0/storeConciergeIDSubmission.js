@@ -4,8 +4,8 @@ async function migrateConciergeIDs() {
     const users = db.users;
 
     const cursor = submissions.find({
-        conciergeName: { $exists: true, $ne: null },
-        conciergeEmail: { $exists: true, $ne: null }
+        conciergeName: { $nin: [null, ""] },
+        conciergeEmail: { $nin: [null, ""] }
     });
 
     let updatedCount = 0;
@@ -59,6 +59,20 @@ async function migrateConciergeIDs() {
     if (notFoundCount > 0) {
         console.log(`⚠️ Could not find matching user for ${notFoundCount} submissions.`);
     }
+
+    // After migration, remove old fields globally
+    const unsetRes = await submissions.updateMany(
+        {},
+        {
+            $unset: {
+                submitterName: "",
+                conciergeName: "",
+                conciergeEmail: ""
+            }
+        }
+    );
+
+    console.log(`Cleanup complete. Removed old fields from ${unsetRes.modifiedCount} submissions.`);
 }
 
 migrateConciergeIDs();
