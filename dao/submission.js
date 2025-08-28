@@ -461,7 +461,7 @@ class SubmissionDAO extends GenericDAO {
         return dataFileSize;
     }
 
-    async getInactiveSubmission(inactiveDays,inactiveFlagField) {
+    async getInactiveSubmission(inactiveDays, inactiveFlagField) {
         try {
             const submissions = await prisma.submission.findMany({
                 where: {
@@ -518,7 +518,7 @@ class SubmissionDAO extends GenericDAO {
                     }
                 }
             });
-        }   catch (error) {
+        } catch (error) {
             console.error('Error getting archiveCompletedSubmissions:', error);
             return [];
         }
