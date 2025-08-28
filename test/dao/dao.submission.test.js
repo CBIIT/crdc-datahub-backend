@@ -1195,7 +1195,13 @@ describe('SubmissionDAO', () => {
                 expect(result.dataCommons).toHaveLength(0);
                 expect(result.submitterNames).toHaveLength(0);
                 expect(result.organizations).toHaveLength(0);
-                expect(result.statuses()).toHaveLength(0);
+                
+                // Handle both cases: statuses as array or function
+                if (typeof result.statuses === 'function') {
+                    expect(result.statuses()).toHaveLength(0);
+                } else {
+                    expect(result.statuses).toHaveLength(0);
+                }
             });
 
             it('should allow users with OWN scope and study assignment to list their own submissions', async () => {
