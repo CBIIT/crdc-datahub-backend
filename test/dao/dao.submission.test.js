@@ -1165,7 +1165,7 @@ describe('SubmissionDAO', () => {
         });
 
         describe('listSubmissions with OWN scope without study scope', () => {
-            it('should throw error for users with OWN scope but no study scope', async () => {
+            it('should return empty results for users with OWN scope but no study scope', async () => {
                 const mockUserInfo = {
                     _id: 'user123',
                     email: 'test@example.com',
@@ -1186,10 +1186,16 @@ describe('SubmissionDAO', () => {
                     offset: 0
                 };
                 
-                // Should throw error because OWN scope requires study assignment
-                await expect(dao.listSubmissions(mockUserInfo, mockUserScope, mockParams))
-                    .rejects
-                    .toThrow(ERROR.VERIFY.INVALID_PERMISSION);
+                // Should return empty results because OWN scope requires study assignment
+                const result = await dao.listSubmissions(mockUserInfo, mockUserScope, mockParams);
+                
+                expect(result).toBeDefined();
+                expect(result.submissions).toHaveLength(0);
+                expect(result.total).toBe(0);
+                expect(result.dataCommons).toHaveLength(0);
+                expect(result.submitterNames).toHaveLength(0);
+                expect(result.organizations).toHaveLength(0);
+                expect(result.statuses()).toHaveLength(0);
             });
 
             it('should allow users with OWN scope and study assignment to list their own submissions', async () => {

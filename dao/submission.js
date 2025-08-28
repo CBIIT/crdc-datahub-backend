@@ -95,6 +95,19 @@ class SubmissionDAO extends GenericDAO {
 
         // Filter by user scope only
         const baseConditions = this._generateListSubmissionConditions(userInfo, userScope);
+        
+        // If baseConditions is null, user has no access - return empty results immediately
+        if (baseConditions === null) {
+            return {
+                submissions: [],
+                total: 0,
+                dataCommons: [],
+                submitterNames: [],
+                organizations: [],
+                statuses: () => []
+            };
+        }
+        
         // filter by user scope and search filters
         const filterConditions = this._addFiltersToBaseConditions(userInfo, { ...baseConditions }, params.organization, params.status, params.name, params.dbGaPID, params.dataCommons, params?.submitterName);
         // Map orderBy to proper Prisma field names
@@ -230,9 +243,8 @@ class SubmissionDAO extends GenericDAO {
                 }
                 else {
                     // No study scope means user cannot access any submissions with OWN scope
-                    // filter by a value that will never match any submissions
-                    baseConditions.studyID = "none";
-                    return baseConditions;
+                    // Return null to indicate no results without needing to execute queries
+                    return null;
                 }
             }
             
