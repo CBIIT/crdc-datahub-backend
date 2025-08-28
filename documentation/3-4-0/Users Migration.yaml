@@ -173,8 +173,8 @@ Commands:
         {
           $set: {
             inactiveReminder_7: { $ifNull: ["$inactiveReminder_7", false] },
-            inactiveReminder_30: { $ifNull: ["inactiveReminder_30", false] },
-            inactiveReminder_60: { $ifNull: ["inactiveReminder_60", false] },
+            inactiveReminder_30: { $ifNull: ["$inactiveReminder_30", false] },
+            inactiveReminder_60: { $ifNull: ["$inactiveReminder_60", false] },
             finalInactiveReminder: { $ifNull: ["$finalInactiveReminder", false] }
           }
         }
