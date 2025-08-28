@@ -104,7 +104,7 @@ class SubmissionDAO extends GenericDAO {
                 dataCommons: [],
                 submitterNames: [],
                 organizations: [],
-                statuses: () => []
+                statuses: []
             };
         }
         
