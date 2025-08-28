@@ -704,26 +704,26 @@ class Application {
         if (updated) {
             promises.unshift(this.getApplicationById(document._id));
             if(questionnaire) {
-                const approvedStudies = await this._saveApprovedStudies(updated, questionnaire, document?.pendingModelChange, isPendingGPA);
+                const newApprovedStudy = await this._saveApprovedStudies(updated, questionnaire, document?.pendingModelChange, isPendingGPA);
                 // added approved studies into user collection
                 const applicants = await this._findUsersByApplicantIDs([application]);
                 if (applicants?.length > 0) {
                     const applicant = applicants[0];
                     const { _id, ...updateUser } = applicant;
                     const currStudyIDs = applicant?.studies?.map((study)=> study?._id) || [];
-                    const newStudiesIDs = [approvedStudies?._id].concat(currStudyIDs);
+                    const newStudiesIDs = [newApprovedStudy?._id].concat(currStudyIDs);
                     promises.push(this.userService.updateUserInfo(
                         applicant, updateUser, _id, applicant?.userStatus, applicant?.role, newStudiesIDs));
                 }
 
                 const [name, abbreviation, description] = [application?.programName, application?.programAbbreviation, application?.programDescription];
                 if (name?.trim()?.length > 0 && !existingProgram?._id) {
-                    promises.push(this.organizationService.upsertByProgramName(name, abbreviation, description, [approvedStudies]));
+                    promises.push(this.organizationService.upsertByProgramName(name, abbreviation, description, [newApprovedStudy]));
                 }
                 const programStudies = existingProgram?.studies || [];
-                const filteredStudies = programStudies.filter((study)=> study?._id === approvedStudies?._id);
+                const filteredStudies = programStudies.filter((study)=> study?._id === newApprovedStudy?._id);
                 if (existingProgram && (programStudies.length === 0 || filteredStudies.length === 0)) {
-                    promises.push(this.organizationService.organizationCollection.update({_id: existingProgram?._id, studies: [...programStudies, approvedStudies], updatedAt: getCurrentTime()}));
+                    promises.push(this.organizationService.organizationCollection.update({_id: existingProgram?._id, studies: [...programStudies, newApprovedStudy], updatedAt: getCurrentTime()}));
                 }
             }
             promises.push(this.logCollection.insert(
