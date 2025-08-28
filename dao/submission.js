@@ -9,8 +9,8 @@ const ERROR = require("../constants/error-constants");
 const {replaceErrorString} = require("../utility/string-util");
 const {formatNestedOrganization, formatNestedOrganizations} = require("../utility/organization-transformer");
 const prisma = require("../prisma");
-const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
 const { isAllStudy } = require("../utility/study-utility");
+const {subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
 const ALL_FILTER = "All";
 const NA = "NA"
 class SubmissionDAO extends GenericDAO {
@@ -483,6 +483,69 @@ class SubmissionDAO extends GenericDAO {
             return { size: 0, formatted: NA };
         }
         return dataFileSize;
+    }
+
+    async getInactiveSubmission(inactiveDays, inactiveFlagField) {
+        try {
+            const submissions = await prisma.submission.findMany({
+                where: {
+                    accessedAt: {
+                        lt: subtractDaysFromNow(inactiveDays),
+                    },
+                    status: {
+                        in: [NEW, IN_PROGRESS, REJECTED, WITHDRAWN]
+                    },
+                    // Tracks whether the notification has already been sent
+                    [inactiveFlagField]: {not: true}
+                }
+            });
+
+            return submissions.map(item => ({
+                ...item,
+                ...(item.id ? { _id: item.id } : {})
+            }));
+        } catch (error) {
+            console.error('Error getting getInactiveSubmission:', error);
+            return [];
+        }
+    }
+
+    async getDeleteSubmissions(inactiveSubmissionDays) {
+        try {
+            const query = {
+                where: {
+                    status: {
+                        in: [IN_PROGRESS, NEW, REJECTED, WITHDRAWN]
+                    },
+                    accessedAt: {
+                        not: null,
+                        lt: subtractDaysFromNow(inactiveSubmissionDays)
+                    }
+                }
+            };
+            return await prisma.submission.findMany(query);
+        }  catch (error) {
+            console.error('Error getting getDeleteSubmissions:', error);
+            return [];
+        }
+    }
+
+    async archiveCompletedSubmissions(completedSubmissionDays) {
+        try {
+            const targetRetentionDate = new Date();
+            targetRetentionDate.setDate(targetRetentionDate.getDate() - completedSubmissionDays);
+            return await prisma.submission.findMany({
+                where: {
+                    status: COMPLETED,
+                    updatedAt: {
+                        lte: targetRetentionDate
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Error getting archiveCompletedSubmissions:', error);
+            return [];
+        }
     }
 }
 
