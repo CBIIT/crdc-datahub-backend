@@ -151,3 +151,32 @@ Commands:
         }
       ]
       );
+  - add all inactive data submission/submission request flags if not existing: |
+      db.applications.updateMany(
+      {},
+      [
+        {
+          $set: {
+            inactiveReminder: { $ifNull: ["$inactiveReminder", false] },
+            inactiveReminder_7: { $ifNull: ["$inactiveReminder_7", false] },
+            inactiveReminder_15: { $ifNull: ["$inactiveReminder_15", false] },
+            inactiveReminder_30: { $ifNull: ["$inactiveReminder_30", false] },
+            finalInactiveReminder: { $ifNull: ["$finalInactiveReminder", false] }
+          }
+        }
+      ]
+      );
+      
+      db.submissions.updateMany(
+      {},
+      [
+        {
+          $set: {
+            inactiveReminder_7: { $ifNull: ["$inactiveReminder_7", false] },
+            inactiveReminder_30: { $ifNull: ["$inactiveReminder_15", false] },
+            inactiveReminder_60: { $ifNull: ["$inactiveReminder_30", false] },
+            finalInactiveReminder: { $ifNull: ["$finalInactiveReminder", false] }
+          }
+        }
+      ]
+      );
