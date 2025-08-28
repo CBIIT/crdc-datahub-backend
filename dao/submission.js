@@ -150,6 +150,10 @@ class SubmissionDAO extends GenericDAO {
             }
         };
         try {
+            if (filterConditions === null) {
+                console.error('The filterConditions variable is null. This is should be handled before this point, please review and update accordingly.');
+                throw new Error(ERROR.NULL_FILTER_CONDITIONS);
+            }
             // Execute main query with pagination
             const submissions = await prisma.submission.findMany({
                 where: filterConditions,
@@ -286,6 +290,12 @@ class SubmissionDAO extends GenericDAO {
     _addFiltersToBaseConditions(userInfo, baseConditions, organization, status, submissionName, dbGaPID, dataCommonsFilter, submitterName) {
         const validSubmissionStatus = [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
             REJECTED, WITHDRAWN, DELETED];
+
+        // If no baseConditions, return null to indicate no results without needing to execute queries
+        if (baseConditions === null) {
+            return null;
+        }
+
         // Add organization filter if specified
         // Note: organization parameter expects organization ID to filter by programID field
         if (organization && organization !== ALL_FILTER) {
