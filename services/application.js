@@ -680,7 +680,7 @@ class Application {
             throw new Error(replaceErrorString(ERROR.DUPLICATE_APPROVED_STUDY_NAME, `'${application?.studyName}'`));
         }
 
-        // Checking the duplicate programs if the given program ID
+        // Checking for duplicate programs if no existing program ID is found
         if (!(existingProgram?._id) && duplicatePrograms?.length > 0) {
             throw new Error(replaceErrorString(ERROR.DUPLICATE_PROGRAM_NAME, `'${application?.programName}'`));
         }
