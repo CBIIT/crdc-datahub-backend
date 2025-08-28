@@ -83,6 +83,7 @@ const ERROR = {
     INVALID_STATS_SUBMISSION_PERMISSION: "You do not have permission to see the submission stats.",
     INVALID_ROLE: "You do not have the correct role to perform this operation",
     INVALID_PERMISSION: "You do not have permission to view this application",
+    NULL_FILTER_CONDITIONS: "The filter conditions were not properly initialized, please see logs for more information",
     // Submission Notification
     NO_SUBMISSION_RECEIVER: "Submission is unable to send an email notification",
     // Validate Submission

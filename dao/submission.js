@@ -95,6 +95,19 @@ class SubmissionDAO extends GenericDAO {
 
         // Filter by user scope only
         const baseConditions = this._generateListSubmissionConditions(userInfo, userScope);
+        
+        // If baseConditions is null, user has no access - return empty results immediately
+        if (baseConditions === null) {
+            return {
+                submissions: [],
+                total: 0,
+                dataCommons: [],
+                submitterNames: [],
+                organizations: [],
+                statuses: []
+            };
+        }
+        
         // filter by user scope and search filters
         const filterConditions = this._addFiltersToBaseConditions(userInfo, { ...baseConditions }, params.organization, params.status, params.name, params.dbGaPID, params.dataCommons, params?.submitterName);
         // Map orderBy to proper Prisma field names
@@ -137,6 +150,10 @@ class SubmissionDAO extends GenericDAO {
             }
         };
         try {
+            if (filterConditions === null) {
+                console.error('The filterConditions variable is null. This is should be handled before this point, please review and update accordingly.');
+                throw new Error(ERROR.NULL_FILTER_CONDITIONS);
+            }
             // Execute main query with pagination
             const submissions = await prisma.submission.findMany({
                 where: filterConditions,
@@ -230,7 +247,8 @@ class SubmissionDAO extends GenericDAO {
                 }
                 else {
                     // No study scope means user cannot access any submissions with OWN scope
-                    throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+                    // Return null to indicate no results without needing to execute queries
+                    return null;
                 }
             }
             
@@ -272,6 +290,12 @@ class SubmissionDAO extends GenericDAO {
     _addFiltersToBaseConditions(userInfo, baseConditions, organization, status, submissionName, dbGaPID, dataCommonsFilter, submitterName) {
         const validSubmissionStatus = [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
             REJECTED, WITHDRAWN, DELETED];
+
+        // If no baseConditions, return null to indicate no results without needing to execute queries
+        if (baseConditions === null) {
+            return null;
+        }
+
         // Add organization filter if specified
         // Note: organization parameter expects organization ID to filter by programID field
         if (organization && organization !== ALL_FILTER) {
