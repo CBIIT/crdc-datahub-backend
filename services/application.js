@@ -665,15 +665,27 @@ class Application {
         verifyApplication(application)
             .notEmpty()
             .state([IN_REVIEW, SUBMITTED]);
-        application.version = await this._getApplicationVersionByStatus(application.status, application?.version);
-        const approvedStudies = await this.approvedStudiesService.findByStudyName(application?.studyName);
+
+        const questionnaire = getApplicationQuestionnaire(application);
+        const [approvedStudies, existingProgram, duplicatePrograms] = await Promise.all([
+            this.approvedStudiesService.findByStudyName(application?.studyName),
+            this.organizationService.getOrganizationByID(questionnaire?.program?._id),
+            this.organizationService.findOneByProgramName(application?.programName),
+            (async () => {
+                application.version = await this._getApplicationVersionByStatus(application.status, application?.version);
+            })()
+        ]);
+
         if (approvedStudies.length > 0) {
             throw new Error(replaceErrorString(ERROR.DUPLICATE_APPROVED_STUDY_NAME, `'${application?.studyName}'`));
         }
 
-        const history = HistoryEventBuilder.createEvent(context.userInfo._id, APPROVED, document.comment);
-        const questionnaire = getApplicationQuestionnaire(application);
+        // Checking for duplicate programs if no existing program ID is found
+        if (!(existingProgram?._id) && duplicatePrograms?.length > 0) {
+            throw new Error(replaceErrorString(ERROR.DUPLICATE_PROGRAM_NAME, `'${application?.programName}'`));
+        }
 
+        const history = HistoryEventBuilder.createEvent(context.userInfo._id, APPROVED, document.comment);
         const updated = await this.applicationDAO.update({
             _id: application._id,
             reviewComment: document.comment,
@@ -692,31 +704,26 @@ class Application {
         if (updated) {
             promises.unshift(this.getApplicationById(document._id));
             if(questionnaire) {
-                const approvedStudies = await this._saveApprovedStudies(updated, questionnaire, document?.pendingModelChange, isPendingGPA);
+                const newApprovedStudy = await this._saveApprovedStudies(updated, questionnaire, document?.pendingModelChange, isPendingGPA);
                 // added approved studies into user collection
                 const applicants = await this._findUsersByApplicantIDs([application]);
                 if (applicants?.length > 0) {
                     const applicant = applicants[0];
                     const { _id, ...updateUser } = applicant;
                     const currStudyIDs = applicant?.studies?.map((study)=> study?._id) || [];
-                    const newStudiesIDs = [approvedStudies?._id].concat(currStudyIDs);
+                    const newStudiesIDs = [newApprovedStudy?._id].concat(currStudyIDs);
                     promises.push(this.userService.updateUserInfo(
                         applicant, updateUser, _id, applicant?.userStatus, applicant?.role, newStudiesIDs));
                 }
 
                 const [name, abbreviation, description] = [application?.programName, application?.programAbbreviation, application?.programDescription];
-                if (name?.trim()?.length > 0) {
-                    const programs = await this.organizationService.findOneByProgramName(name);
-                    if (programs?.length === 0) {
-                        promises.push(this.organizationService.upsertByProgramName(name, abbreviation, description, [approvedStudies]));
-                    }
+                if (name?.trim()?.length > 0 && !existingProgram?._id) {
+                    promises.push(this.organizationService.upsertByProgramName(name, abbreviation, description, [newApprovedStudy]));
                 }
-                // Program already exists, and append a new study into the program
-                const existingProgram = await this.organizationService.getOrganizationByID(questionnaire?.program?._id);
                 const programStudies = existingProgram?.studies || [];
-                const filteredStudies = programStudies.filter((study)=> study?._id === approvedStudies?._id);
+                const filteredStudies = programStudies.filter((study)=> study?._id === newApprovedStudy?._id);
                 if (existingProgram && (programStudies.length === 0 || filteredStudies.length === 0)) {
-                    promises.push(this.organizationService.organizationCollection.update({_id: existingProgram?._id, studies: [...programStudies, approvedStudies], updatedAt: getCurrentTime()}));
+                    promises.push(this.organizationService.organizationCollection.update({_id: existingProgram?._id, studies: [...programStudies, newApprovedStudy], updatedAt: getCurrentTime()}));
                 }
             }
             promises.push(this.logCollection.insert(
