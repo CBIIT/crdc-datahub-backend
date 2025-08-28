@@ -230,7 +230,9 @@ class SubmissionDAO extends GenericDAO {
                 }
                 else {
                     // No study scope means user cannot access any submissions with OWN scope
-                    throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+                    // filter by a value that will never match any submissions
+                    baseConditions.studyID = "none";
+                    return baseConditions;
                 }
             }
             
