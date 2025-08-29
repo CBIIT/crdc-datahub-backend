@@ -17,7 +17,7 @@ on:
         required: true
         type: boolean
         default: true
-      unit_test
+      unit_test:
         description: "Run Unit Test"
         required: true
         type: boolean
