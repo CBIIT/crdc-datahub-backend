@@ -605,7 +605,7 @@ class Submission {
 
     async remindInactiveSubmission() {
         // The system sends an email reminder a day before the data submission expires
-        const finalInactiveSubmissions = await this._getInactiveSubmissions(this.emailParams.finalRemindSubmissionDay - 1, FINAL_INACTIVE_REMINDER)
+        const finalInactiveSubmissions = await this.submissionDAO.getInactiveSubmission(this.emailParams.finalRemindSubmissionDay - 1, FINAL_INACTIVE_REMINDER);
         if (finalInactiveSubmissions?.length > 0) {
             await Promise.all(finalInactiveSubmissions.map(async (aSubmission) => {
                 await sendEmails.finalRemindInactiveSubmission(this.emailParams, aSubmission, this.userService, this.organizationService, this.notificationService);
@@ -626,7 +626,7 @@ class Submission {
         const inactiveSubmissionPromises = [];
         for (const day of this.emailParams.remindSubmissionDay) {
             const pastInactiveDays = this.emailParams.finalRemindSubmissionDay - day;
-            inactiveSubmissionPromises.push([pastInactiveDays, await this._getInactiveSubmissions(pastInactiveDays, `${INACTIVE_REMINDER}_${day}`)]);
+            inactiveSubmissionPromises.push([pastInactiveDays, await this.submissionDAO.getInactiveSubmission(pastInactiveDays, `${INACTIVE_REMINDER}_${day}`)]);
         }
         const inactiveSubmissionResult = await Promise.all(inactiveSubmissionPromises);
         const inactiveSubmissionMapByDays = inactiveSubmissionResult.reduce((acc, [key, value]) => {
@@ -681,20 +681,6 @@ class Submission {
             }
         }
 
-    }
-
-    async _getInactiveSubmissions(inactiveDays, inactiveFlagField) {
-        const remindCondition = {
-            accessedAt: {
-                lt: subtractDaysFromNow(inactiveDays),
-            },
-            status: {
-                in: [NEW, IN_PROGRESS, REJECTED, WITHDRAWN]
-            },
-            // Tracks whether the notification has already been sent
-            [inactiveFlagField]: { not: true }
-        };
-        return await this.submissionDAO.findMany(remindCondition);
     }
 
     async _isValidReleaseAction(action, submissionID, studyID, crossSubmissionStatus) {
@@ -1304,16 +1290,8 @@ class Submission {
      * description: overnight job to set completed submission after retention with "archived = true", archive related data and delete s3 files
      */
     async archiveCompletedSubmissions(){
-        const targetRetentionDate = new Date();
-        targetRetentionDate.setDate(targetRetentionDate.getDate() - this.emailParams.completedSubmissionDays);
-        const query = {
-            status: COMPLETED,
-            updatedAt: {
-                lte: targetRetentionDate
-            }
-        };
         try {
-            const archiveSubs = await this.submissionDAO.findMany(query);
+            const archiveSubs = await this.submissionDAO.archiveCompletedSubmissions(this.emailParams.completedSubmissionDays);
             if (!archiveSubs || archiveSubs.length === 0) {
                 console.debug("No completed submissions need to be archived.")
                 return "No completed submissions need to be archived";
@@ -1354,43 +1332,8 @@ class Submission {
      * description: overnight job to set inactive submission status to "Deleted", delete related data and files
      */
      async deleteInactiveSubmissions(){
-        const query = {
-            status: {
-                in: [IN_PROGRESS, NEW, REJECTED, WITHDRAWN]
-            },
-            accessedAt: {
-                exists: true,
-                not: null,
-                lt: subtractDaysFromNow(this.emailParams.inactiveSubmissionDays)
-            },
-            include: {
-                study: {
-                    select: {
-                        id: true,
-                        studyName: true,
-                        studyAbbreviation: true
-                    }
-                },
-                submitter: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-
-                    }
-                },
-                concierge: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                        email: true
-                    }
-                },
-            }
-        };
         try {
-            const inactiveSubs = await this.submissionDAO.findMany(query);
+            const inactiveSubs = await this.submissionDAO.getDeleteSubmissions(this.emailParams.inactiveSubmissionDays);
             if (!inactiveSubs || inactiveSubs.length === 0) {
                 console.debug("No inactive submission found.")
                 return "No inactive submissions";
@@ -2875,6 +2818,10 @@ class DataSubmission {
         this.ORCID = approvedStudy?.ORCID || null;
         this.accessedAt = getCurrentTime();
         this.dataFileSize = FileSize.createFileSize(0);
+        this.inactiveReminder_7 = false;
+        this.inactiveReminder_30 = false;
+        this.inactiveReminder_60 = false;
+        this.finalInactiveReminder = false;
     }
 
     static createSubmission(name, userInfo, dataCommons, dbGaPID, aUserOrganization, modelVersion, intention, dataType, approvedStudy, aOrganization, submissionBucketName) {
