@@ -510,7 +510,7 @@ class SubmissionDAO extends GenericDAO {
         }
     }
 
-    async getDeleteSubmissions(inactiveSubmissionDays) {
+    async getToBeDeletedSubmissions(inactiveSubmissionDays) {
         try {
             const query = {
                 where: {
@@ -527,7 +527,7 @@ class SubmissionDAO extends GenericDAO {
             };
             return await prisma.submission.findMany(query);
         }  catch (error) {
-            console.error('Error getting getDeleteSubmissions:', error);
+            console.error('Error getting getToBeDeletedSubmissions:', error);
             return [];
         }
     }

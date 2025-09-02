@@ -1333,7 +1333,7 @@ class Submission {
      */
      async deleteInactiveSubmissions(){
         try {
-            const inactiveSubs = await this.submissionDAO.getDeleteSubmissions(this.emailParams.inactiveSubmissionDays);
+            const inactiveSubs = await this.submissionDAO.getToBeDeletedSubmissions(this.emailParams.inactiveSubmissionDays);
             if (!inactiveSubs || inactiveSubs.length === 0) {
                 console.debug("No inactive submission found.")
                 return "No inactive submissions";
