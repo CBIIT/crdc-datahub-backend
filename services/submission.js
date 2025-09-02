@@ -2181,7 +2181,17 @@ class Submission {
                 return (DCUsers || []).reduce(
                     (acc, u) => {
                         if (u?.email) {
-                            (u.role === ROLES.DATA_COMMONS_PERSONNEL ? acc.DCEmails : acc.nonDCEmails).push(u.email);
+                            if (u.role === ROLES.DATA_COMMONS_PERSONNEL && u?.dataCommons?.includes(aSubmission?.dataCommons)) {
+                                acc.DCEmails.push(u.email);
+                            }
+
+                            if (u.role === ROLES.FEDERAL_LEAD && this._verifyStudyInUserStudies(u, aSubmission?.studyID)) {
+                                acc.nonDCEmails.push(u.email);
+                            }
+
+                            if (u.role === ROLES.ADMIN) {
+                                acc.nonDCEmails.push(u.email);
+                            }
                         }
                         return acc;
                     },

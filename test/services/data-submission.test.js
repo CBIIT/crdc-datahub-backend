@@ -167,12 +167,25 @@ describe('Submission.getPendingPVs', () => {
         service._getUserScope.mockResolvedValue({ isNoneScope: () => false });
         service._isCollaborator.mockReturnValue(true);
         service.userService.getUsersByNotifications.mockResolvedValue([
-            { email: 'dc1@example.com', role: 'Data Commons Personnel' },
-            { email: 'admin@example.com', role: 'ADMIN' }
+            { email: 'dc1@example.com', role: USER.ROLES.DATA_COMMONS_PERSONNEL, dataCommons: ['commonsA', 'commonsB'] },
+            { email: 'fedlead@example.com', role: USER.ROLES.FEDERAL_LEAD, studies: ['study123'] },
+            { email: 'admin@example.com', role: USER.ROLES.ADMIN }
         ]);
+        // Mock the submission to have a dataCommons and studyID
+        service._findByID.mockResolvedValue({
+            _id: 'sub1',
+            ownerID: 'user1',
+            studyID: 'study123',
+            dataCommons: 'commonsA'
+        });
+        // Mock _verifyStudyInUserStudies for FEDERAL_LEAD
+        service._verifyStudyInUserStudies = jest.fn().mockImplementation((user, studyID) => {
+            return user.studies && user.studies.includes(studyID);
+        });
+
         service.pendingPVDAO.findBySubmissionID.mockResolvedValue([]);
         service.pendingPVDAO.insertOne.mockResolvedValue(true);
-        service.notificationService.requestPVNotification.mockResolvedValue({ accepted: ['dc1@example.com'] });
+        service.notificationService.requestPVNotification.mockResolvedValue({ accepted: ['dc1@example.com', 'fedlead@example.com', 'admin@example.com'] });
 
         jest.spyOn(ValidationHandler, 'success').mockReturnValue(new ValidationHandler(true));
 
@@ -231,10 +244,18 @@ describe('Submission.getPendingPVs', () => {
         service._getUserScope.mockResolvedValue({ isNoneScope: () => false });
         service._isCollaborator.mockReturnValue(true);
         service.userService.getUsersByNotifications.mockResolvedValue([
-            { email: 'dc1@example.com', role: 'Data Commons Personnel' },
-            { email: 'admin@example.com', role: 'ADMIN' }
+            { email: 'dc1@example.com', role: USER.ROLES.DATA_COMMONS_PERSONNEL, dataCommons: ['commonsA', 'commonsB'] },
+            { email: 'admin@example.com', role: USER.ROLES.ADMIN }
         ]);
         service.pendingPVDAO.insertOne.mockResolvedValue(null);
+
+        // Mock the submission to have a dataCommons and studyID
+        service._findByID.mockResolvedValue({
+            _id: 'sub1',
+            ownerID: 'user1',
+            studyID: 'study123',
+            dataCommons: 'commonsA'
+        });
 
         await expect(service.requestPV({
             submissionID: 'sub1',
