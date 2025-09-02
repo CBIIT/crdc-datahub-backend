@@ -3,9 +3,7 @@ const { MODEL_NAME, SORT} = require('../constants/db-constants');
 const GenericDAO = require("./generic");
 const {convertIdFields, convertMongoFilterToPrismaFilter,handleDotNotation} = require('./utils/orm-converter');
 
-const {getCurrentTime, subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
-const {NEW, IN_PROGRESS, REJECTED, WITHDRAWN} = require("../constants/submission-constants");
-const {INQUIRED} = require("../constants/application-constants");
+const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
 
 class ApplicationDAO extends GenericDAO {
     constructor(applicationCollection) {
@@ -51,31 +49,6 @@ class ApplicationDAO extends GenericDAO {
             data: updateDoc
         });
         return { matchedCount: result.count, modifiedCount: result.count };
-    }
-
-    async getInactiveApplication(inactiveDays, inactiveFlagField) {
-        try {
-            const applications = await prisma.application.findMany({
-                where: {
-                    updatedAt: {
-                        lt: subtractDaysFromNow(inactiveDays),
-                    },
-                    status: {
-                        in: [NEW, IN_PROGRESS, INQUIRED]
-                    },
-                    // Tracks whether the notification has already been sent
-                    ...(inactiveFlagField ? {[inactiveFlagField]: {not: true}} : {})
-                }
-            });
-
-            return applications.map(item => ({
-                ...item,
-                ...(item.id ? { _id: item.id } : {})
-            }));
-        } catch (error) {
-            console.error('Error getting getInactiveApplication:', error);
-            return [];
-        }
     }
 }
 

@@ -163,12 +163,7 @@ class Application {
             updatedAt: timestamp,
             programAbbreviation: application?.programAbbreviation,
             programDescription: application?.programDescription,
-            version: (application?.version)? application.version : await this._getApplicationVersionByStatus(NEW),
-            inactiveReminder: false, // If deleted, it will set true
-            inactiveReminder_7: false,
-            inactiveReminder_15: false,
-            inactiveReminder_30: false,
-            finalInactiveReminder: false,
+            version: (application?.version)? application.version : await this._getApplicationVersionByStatus(NEW)
         };
 
         if (userInfo?.organization?.orgID) {
@@ -805,7 +800,13 @@ class Application {
     }
 
     async deleteInactiveApplications() {
-        const applications = await this.applicationDAO.getInactiveApplication(this.emailParams.inactiveDays);
+        const inactiveCondition = {
+            updatedAt: {
+                $lt: subtractDaysFromNow(this.emailParams.inactiveDays)
+            },
+            status: {$in: [NEW, IN_PROGRESS, INQUIRED]}
+        };
+        const applications = await this.applicationDAO.aggregate([{$match: inactiveCondition}]);
         verifyApplication(applications)
             .isUndefined();
 
@@ -853,7 +854,7 @@ class Application {
 
     async remindApplicationSubmission() {
         // The system sends an email reminder a day before the data submission expires
-        const finalInactiveApplications = await this.applicationDAO.getInactiveApplication(this.emailParams.inactiveDays - 1, this._FINAL_INACTIVE_REMINDER)
+        const finalInactiveApplications = await this._getInactiveSubmissions(this.emailParams.inactiveDays - 1, this._FINAL_INACTIVE_REMINDER)
         if (finalInactiveApplications?.length > 0) {
             await Promise.all(finalInactiveApplications.map(async (aApplication) => {
                 await this._sendEmailFinalInactiveApplication(aApplication);
@@ -864,7 +865,7 @@ class Application {
             // Disable all reminders to ensure no notifications are sent.
             const everyReminderDays = this._getEveryReminderQuery(this.emailParams.inactiveApplicationNotifyDays, true);
             const updatedReminder = await this.applicationDAO.updateMany(query, everyReminderDays);
-            if (!updatedReminder?.matchedCount) {
+            if (!updatedReminder?.count || updatedReminder?.count === 0) {
                 console.error("The email reminder flag intended to notify the inactive submission request (FINAL) is not being stored", `submissionIDs: ${applicationIDs.join(', ')}`);
             }
         }
@@ -872,7 +873,7 @@ class Application {
         const inactiveApplicationsPromises = [];
         for (const day of this.emailParams.inactiveApplicationNotifyDays) {
             const pastInactiveDays = this.emailParams.inactiveDays - day;
-            inactiveApplicationsPromises.push([pastInactiveDays, await this.applicationDAO.getInactiveApplication(pastInactiveDays, `${this._INACTIVE_REMINDER}_${day}`)]);
+            inactiveApplicationsPromises.push([pastInactiveDays, await this._getInactiveSubmissions(pastInactiveDays, `${this._INACTIVE_REMINDER}_${day}`)]);
         }
         const inactiveApplicationsResult = await Promise.all(inactiveApplicationsPromises);
         const inactiveApplicationMapByDays = inactiveApplicationsResult.reduce((acc, [key, value]) => {
@@ -925,6 +926,20 @@ class Application {
                 }
             }
         }
+    }
+
+    async _getInactiveSubmissions(inactiveDays, inactiveFlagField) {
+        const remindCondition = {
+            updatedAt: {
+                $lt: subtractDaysFromNow(inactiveDays),
+            },
+            status: {
+                $in: [NEW, IN_PROGRESS, INQUIRED]
+            },
+            // Tracks whether the notification has already been sent
+            [inactiveFlagField]: {$ne: true}
+        };
+        return await this.applicationDAO.aggregate([{$match: remindCondition}]);
     }
 
     async _findUsersByApplicantIDs(applications) {
