@@ -577,7 +577,7 @@ model User {
   createdAt     DateTime         @default(now()) @db.Date
   /// Multiple data types found: String: 2.1%, DateTime (Date): 97.9% out of 48 sampled entries
   updateAt      DateTime         @updatedAt @db.Date
-
+  organization  OrgInfo?
   programs        Program[]
   submitters Submission[] @relation("submitter")
   concierges Submission[] @relation("concierge")
