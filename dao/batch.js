@@ -12,10 +12,12 @@ class BatchDAO extends GenericDAO {
      * @returns {Promise<Object>} - Deletion result
      */
     async deleteByFilter(filter) {
+        console.log(`Trying to delete batches with raw filter: ${filter}`);
         console.log(`Trying to delete batches with filter: ${JSON.stringify(filter)}`);
         try {
             if (filter && Object.keys(filter)?.length > 0) {
                 const res = await this.deleteMany(filter);
+                console.log(`Batch deleted raw object: ${filter}, ${res}`);
                 console.log(`Batch deleted: ${JSON.stringify(filter)}, ${JSON.stringify(res)}`);
                 return res;
             }
