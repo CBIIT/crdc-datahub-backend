@@ -8,23 +8,23 @@ class BatchDAO extends GenericDAO {
 
     /**
      * Delete batches by filter criteria
-     * @param {Object} filter - Filter conditions for deletion
+     * @param {Object} submissionID - submissionID
      * @returns {Promise<Object>} - Deletion result
      */
-    async deleteByFilter(filter) {
-        console.log(`Trying to delete batches with raw filter: ${filter}`);
-        console.log(`Trying to delete batches with filter: ${JSON.stringify(filter)}`);
+    async deleteBySubmissionID(submissionID) {
+        console.log(`Trying to delete batches with submissionID: ${JSON.stringify(submissionID)}`);
         try {
-            if (filter && Object.keys(filter)?.length > 0) {
-                const res = await this.deleteMany(filter);
-                console.log(`Batch deleted raw object: ${filter}, ${res}`);
-                console.log(`Batch deleted: ${JSON.stringify(filter)}, ${JSON.stringify(res)}`);
+            if (submissionID) {
+                const res = await this.deleteMany({
+                    submissionID: submissionID,
+                });
+                console.log(`Batch deleted: ${JSON.stringify(submissionID)}, ${JSON.stringify(res)}`);
                 return res;
             }
         } catch (error) {
             console.error('BatchDAO.deleteByFilter failed:', {
                 error: error.message,
-                filter,
+                submissionID,
                 stack: error.stack
             });
             throw new Error(`Failed to delete batches`);

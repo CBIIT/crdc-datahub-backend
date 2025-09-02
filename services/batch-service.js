@@ -156,10 +156,6 @@ class BatchService {
         };
     }
 
-    async deleteBatchByFilter(filter) {
-        return await this.batchDAO.deleteByFilter(filter);
-    }
-
     async findByID(id) {
         return await this.batchDAO.findById(id);
     }
