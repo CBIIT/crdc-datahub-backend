@@ -1289,9 +1289,9 @@ class Submission {
      * archiveCompletedSubmissions
      * description: overnight job to set completed submission after retention with "archived = true", archive related data and delete s3 files
      */
-    async archiveCompletedSubmissions(){
+    async archiveSubmissions(){
         try {
-            const archiveSubs = await this.submissionDAO.archiveCompletedSubmissions(this.emailParams.completedSubmissionDays);
+            const archiveSubs = await this.submissionDAO.archiveToBeSubmissions(this.emailParams.completedSubmissionDays);
             if (!archiveSubs || archiveSubs.length === 0) {
                 console.debug("No completed submissions need to be archived.")
                 return "No completed submissions need to be archived";

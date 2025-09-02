@@ -532,7 +532,7 @@ class SubmissionDAO extends GenericDAO {
         }
     }
 
-    async archiveCompletedSubmissions(completedSubmissionDays) {
+    async archiveToBeSubmissions(completedSubmissionDays) {
         try {
             const targetRetentionDate = new Date();
             targetRetentionDate.setDate(targetRetentionDate.getDate() - completedSubmissionDays);
