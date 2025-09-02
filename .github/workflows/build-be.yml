@@ -17,6 +17,11 @@ on:
         required: true
         type: boolean
         default: true
+      unit_test:
+        description: "Run Unit Test"
+        required: true
+        type: boolean
+        default: true
 
 
 jobs:
@@ -65,6 +70,15 @@ jobs:
             echo "IMAGE_TAG=$BRANCH_NAME.$build_num" >> $GITHUB_ENV
           fi
       
+      - name: Run Unit Test
+        id: unit-test
+        if: github.event.inputs.unit_test == 'true'
+        run: |
+          echo "Running unit tests..."
+          npm ci
+          npm test
+        
+
       - name: Build Backend Docker Image
         id: build-image
         env:
