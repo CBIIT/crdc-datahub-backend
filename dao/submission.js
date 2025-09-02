@@ -525,7 +525,7 @@ class SubmissionDAO extends GenericDAO {
                     }
                 }
             };
-            const res= await prisma.submission.findMany(query);
+            const res = await prisma.submission.findMany(query);
             return res.map(item => ({
                 ...item,
                 ...(item.id ? { _id: item.id } : {})
@@ -540,7 +540,7 @@ class SubmissionDAO extends GenericDAO {
         try {
             const targetRetentionDate = new Date();
             targetRetentionDate.setDate(targetRetentionDate.getDate() - completedSubmissionDays);
-            const res= await prisma.submission.findMany({
+            const res = await prisma.submission.findMany({
                 where: {
                     status: COMPLETED,
                     updatedAt: {
