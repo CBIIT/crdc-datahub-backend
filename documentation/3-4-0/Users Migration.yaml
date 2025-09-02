@@ -151,3 +151,14 @@ Commands:
         }
       ]
       );
+
+  - remove empty collaborators for CRDCDH-3209: |
+      db.submissions.updateMany(
+        { "collaborators.Organization": {} },
+        { $unset: { "collaborators.$[].Organization": "" } }
+      );
+      
+      db.users.updateMany(
+        { "organization": {} },
+        { $unset: { "organization": "" } }
+      );
