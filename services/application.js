@@ -865,7 +865,7 @@ class Application {
             const everyReminderDays = this._getEveryReminderQuery(this.emailParams.inactiveApplicationNotifyDays, true);
             const updatedReminder = await this.applicationDAO.updateMany(query, everyReminderDays);
             if (!updatedReminder?.matchedCount) {
-                console.error("The email reminder flag intended to notify the inactive submission request (FINAL) is not being stored", `submissionIDs: ${applicationIDs.join(', ')}`);
+                console.error("The email reminder flag intended to notify the inactive submission request (FINAL) is not being stored", `applicationIDs: ${applicationIDs.join(', ')}`);
             }
         }
         // Map over inactiveDays to create an array of tuples [day, promise]
