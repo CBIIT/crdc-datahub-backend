@@ -13,7 +13,11 @@ class BatchDAO extends GenericDAO {
      */
     async deleteByFilter(filter) {
         try {
-            return await this.deleteMany(filter);
+            if (filter && Object.keys(filter)?.length > 0) {
+                const res = await this.deleteMany(filter);
+                console.log(`deleteByFilter filter: ${JSON.stringify(filter)}, ${JSON.stringify(res)}`);
+                return res;
+            }
         } catch (error) {
             console.error('BatchDAO.deleteByFilter failed:', {
                 error: error.message,

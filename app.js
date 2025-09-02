@@ -134,12 +134,12 @@ app.use("/api/graphql", graphqlRouter);
             console.log("Running a scheduled job to disable user(s) because of no activities at " + getCurrentTime());
             await runDeactivateInactiveUsers(userService, notificationsService, config.inactive_user_days, emailParams);
             // The delete data-submission job should run before the inactive data-submission reminder. Once the submission deleted, the reminder email should not be sent.
-            // console.log("Running a scheduled job to delete inactive data submission and related data ann files at " + getCurrentTime());
-            // await submissionService.deleteInactiveSubmissions();
+            console.log("Running a scheduled job to delete inactive data submission and related data ann files at " + getCurrentTime());
+            await submissionService.deleteInactiveSubmissions();
             console.log("Running a scheduled background task to remind inactive submission at " + getCurrentTime());
             await submissionService.remindInactiveSubmission();
-            // console.log("Running a scheduled job to archive completed submissions at " + getCurrentTime());
-            // await submissionService.archiveCompletedSubmissions();
+            console.log("Running a scheduled job to archive completed submissions at " + getCurrentTime());
+            await submissionService.archiveCompletedSubmissions();
             console.log("Running a scheduled job to purge deleted data files at " + getCurrentTime());
             await submissionService.purgeDeletedDataFiles();
         });
