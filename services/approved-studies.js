@@ -255,7 +255,7 @@ class ApprovedStudiesService {
             GPAName
         } = this._verifyAndFormatStudyParams(params);
         let updateStudy = await this.approvedStudyDAO.findFirst({id: studyID});
-        const {isPendingGPA: currPendingGPA, dbGaPID: currDbGaPID} = updateStudy
+        const {isPendingGPA: currPendingGPA, dbGaPID: currDbGaPID} = updateStudy;
         if (!updateStudy) {
             throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
         }
