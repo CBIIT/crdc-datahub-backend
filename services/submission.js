@@ -62,7 +62,7 @@ const SUBMISSION_ID = "Submission ID";
 const DATA_SUBMISSION_TYPE = "Data Submission Type";
 const DESTINATION_LOCATION = "Destination Location";
 const MAX_COMMENT_LENGTH = 500;
-const MAX_SUBMISSION_NAME_LENGTH = 100;
+const MAX_SUBMISSION_NAME_LENGTH = 25;
 // Set to array
 Set.prototype.toArray = function() {
     return Array.from(this);
@@ -1707,11 +1707,11 @@ class Submission {
             // submitter must have data_submission:create permission
             const userCreatePermissionScope = await this.authorizationService.getPermissionScope(newSubmitter, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
             const userCreatePermissionNone = userCreatePermissionScope.some(item => item?.scope === PERMISSION_SCOPES.NONE && item?.scopeValues?.length === 0);
-            if (userCreatePermissionNone) {
+            if (userCreatePermissionNone && newSubmitter._id !== prevSubmitter._id) {
                 throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_INVALID_SUBMITTER, submitterID));
             }
             // submitter must have the correct study access
-            if (!validateStudyAccess(newSubmitter.studies, aSubmission?.studyID)) {
+            if (!validateStudyAccess(newSubmitter.studies, aSubmission?.studyID) && newSubmitter._id !== prevSubmitter._id) {
                 throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_INVALID_SUBMITTER_STUDY, submitterID));
             }
         }
@@ -1729,8 +1729,11 @@ class Submission {
         if (!isPermitted) {
             throw new Error(ERROR.INVALID_MODEL_VERSION_PERMISSION);
         }
-
+        // If no change, return the submission
         if (aSubmission?.modelVersion === version && (submitterID === undefined || aSubmission?.submitterID === submitterID)) {
+            return aSubmission;
+        }
+        if (aSubmission?.submitterID === submitterID && version === undefined ) {
             return aSubmission;
         }
 
@@ -1758,9 +1761,13 @@ class Submission {
                 aSubmission?.modelVersion, updatedSubmission?.modelVersion,
                 // submitter change
                 prevSubmitter?._id, newSubmitter?._id));
+            // add submitter name to the return object
+            updatedSubmission.submitterName = aSubmission.submitterName;
         }
-
-        await this._resetValidation(aSubmission?._id);
+        // only when changing model will reset validation
+        if (version !== undefined && aSubmission?.modelVersion !== version) {
+            await this._resetValidation(aSubmission?._id);
+        }
         return updatedSubmission;
     }
 
