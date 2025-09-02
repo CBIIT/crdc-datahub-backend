@@ -525,7 +525,11 @@ class SubmissionDAO extends GenericDAO {
                     }
                 }
             };
-            return await prisma.submission.findMany(query);
+            const res= await prisma.submission.findMany(query);
+            return res.map(item => ({
+                ...item,
+                ...(item.id ? { _id: item.id } : {})
+            }));
         }  catch (error) {
             console.error('Error getting getToBeDeletedSubmissions:', error);
             return [];
@@ -536,7 +540,7 @@ class SubmissionDAO extends GenericDAO {
         try {
             const targetRetentionDate = new Date();
             targetRetentionDate.setDate(targetRetentionDate.getDate() - completedSubmissionDays);
-            return await prisma.submission.findMany({
+            const res= await prisma.submission.findMany({
                 where: {
                     status: COMPLETED,
                     updatedAt: {
@@ -544,6 +548,10 @@ class SubmissionDAO extends GenericDAO {
                     }
                 }
             });
+            return res.map(item => ({
+                ...item,
+                ...(item.id ? { _id: item.id } : {})
+            }));
         } catch (error) {
             console.error('Error getting archiveCompletedSubmissions:', error);
             return [];
