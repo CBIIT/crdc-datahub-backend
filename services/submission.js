@@ -1291,7 +1291,7 @@ class Submission {
      */
     async archiveSubmissions(){
         try {
-            const archiveSubs = await this.submissionDAO.archiveToBeSubmissions(this.emailParams.completedSubmissionDays);
+            const archiveSubs = await this.submissionDAO.getToBeArchivedSubmissions(this.emailParams.completedSubmissionDays);
             if (!archiveSubs || archiveSubs.length === 0) {
                 console.debug("No completed submissions need to be archived.")
                 return "No completed submissions need to be archived";

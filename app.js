@@ -139,7 +139,7 @@ app.use("/api/graphql", graphqlRouter);
             console.log("Running a scheduled background task to remind inactive submission at " + getCurrentTime());
             await submissionService.remindInactiveSubmission();
             console.log("Running a scheduled job to archive completed submissions at " + getCurrentTime());
-            await submissionService.archiveCompletedSubmissions();
+            await submissionService.archiveSubmissions();
             console.log("Running a scheduled job to purge deleted data files at " + getCurrentTime());
             await submissionService.purgeDeletedDataFiles();
         });
