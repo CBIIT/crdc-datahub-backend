@@ -1195,20 +1195,9 @@ class Submission {
                 }
             }
             collaborator.collaboratorName = user.lastName + ", " + user.firstName;
-            if (user?.organization && Object.keys(user?.organization)?.length > 0) {
-                collaborator.Organization = {
-                    id: user.organization.id,
-                    orgName: user.organization.name
-                };
-            }
         }
         const result = await this.submissionDAO.update(aSubmission?._id, this._prepareUpdateData({collaborators}));
         if (result) {
-            (result?.collaborators || []).forEach(c => {
-                if (c.Organization?.id) {
-                    c.Organization.orgID = c.Organization?.id;
-                }
-            })
             return getDataCommonsDisplayNamesForSubmission(result);
         }
         throw new Error(ERROR.FAILED_ADD_SUBMISSION_COLLABORATOR);
