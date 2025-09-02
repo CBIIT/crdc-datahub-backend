@@ -517,8 +517,10 @@ class SubmissionDAO extends GenericDAO {
                     status: {
                         in: [IN_PROGRESS, NEW, REJECTED, WITHDRAWN]
                     },
+                    NOT: {
+                        accessedAt: null,
+                    },
                     accessedAt: {
-                        not: null,
                         lt: subtractDaysFromNow(inactiveSubmissionDays)
                     }
                 }
