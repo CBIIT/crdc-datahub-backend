@@ -1693,7 +1693,7 @@ class Submission {
             }
         }
 
-        if (![IN_PROGRESS, NEW].includes(aSubmission?.status)) {
+        if (![IN_PROGRESS, NEW, WITHDRAWN, REJECTED].includes(aSubmission?.status)) {
             throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_STATUS_MODEL_VERSION, `${aSubmission?.status}`));
         }
 
