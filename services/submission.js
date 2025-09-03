@@ -1322,7 +1322,7 @@ class Submission {
         const result = await this.s3Service.deleteDirectory(bucketName, rootPath);
         if (result === true) {
             await this.dataRecordService.archiveMetadataByFilter({"submissionID": submissionID});
-            await this.batchDAO.deleteBySubmissionID(submissionID);
+            await this.batchDAO.deleteBatchesBySubmissionID(submissionID);
             await this.submissionDAO.update(submissionID, this._prepareUpdateData({"archived": true}, new Date()));
         } else {
             console.error(`Failed to delete files in the s3 bucket. SubmissionID: ${submissionID}.`);
@@ -1348,7 +1348,7 @@ class Submission {
                     const result = await this.s3Service.deleteDirectory(sub.bucketName, sub.rootPath);
                     if (result === true) {
                         await this.dataRecordService.deleteMetadataByFilter({"submissionID": sub._id});
-                        await this.batchDAO.deleteBySubmissionID(sub._id);
+                        await this.batchDAO.deleteBatchesBySubmissionID(sub._id);
                         await this.submissionDAO.update(sub._id, this._prepareUpdateData({"status" : DELETED}, new Date()));
                         deletedSubmissions.push(sub);
                         console.debug(`Successfully deleted inactive submissions: ${sub._id}.`);
