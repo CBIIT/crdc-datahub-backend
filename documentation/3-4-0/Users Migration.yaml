@@ -204,3 +204,19 @@ Commands:
         { "organization": { $exists: true} },
         { $unset: { "organization": "" } }
       );
+  - set NA programID in the submission if the submission does not have any associated program(NA program must be existed in the organization collection): |
+      db.submissions.updateMany(
+        { programID: { $exists: false } },
+        [
+          {
+            $set: {
+              programID: {
+                $getField: {
+                  field: "_id",
+                  input: db.organization.findOne({ name: "NA" }, { _id: 1 })
+                }
+              }
+            }
+          }
+        ]
+      );

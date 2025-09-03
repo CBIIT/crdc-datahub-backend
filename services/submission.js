@@ -140,7 +140,20 @@ class Submission {
                 const latestDataModel = await this.fetchDataModelInfo();
                 return this._getModelVersion(latestDataModel, params.dataCommons);
             })(),
-            this.organizationService.findOneByStudyID(params?.studyID)
+            (async () => {
+                const program = await this.organizationService.findOneByStudyID(params?.studyID);
+                if (program) {
+                    return program;
+                }
+
+                if (!program) {
+                    const NAProgram = await this.programDAO.findFirst({name: NA});
+                    if (NAProgram) {
+                        return NAProgram;
+                    }
+                }
+                throw new Error(ERROR.CREATE_SUBMISSION_NO_ASSOCIATED_PROGRAM + "No NA program is stored in the program");
+            })(),
         ]);
 
         if (approvedStudies.length === 0) {
