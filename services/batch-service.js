@@ -156,10 +156,6 @@ class BatchService {
         };
     }
 
-    async deleteBatchByFilter(filter) {
-        return await this.batchDAO.deleteByFilter(filter);
-    }
-
     async findByID(id) {
         return await this.batchDAO.findById(id);
     }
@@ -300,6 +296,7 @@ class UploadingMonitor {
         this.interval = (config?.interval || 300) * 1000; // 5 min
         this.max_age = (config?.age || 900) * 1000; // 15 min
         this.uploading_batch_pool = readJsonFile2Object(UPLOADING_BATCH_POOL_FILE);
+        // TODO move this scheduler to app.js
         this._startScheduler();
     }
 
