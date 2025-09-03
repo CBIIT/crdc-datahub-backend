@@ -1447,8 +1447,7 @@ describe('Submission.editSubmissionCollaborators', () => {
                 {
                     collaboratorID: 'user2',
                     permission: COLLABORATOR_PERMISSIONS.CAN_EDIT,
-                    collaboratorName: 'Smith, Jane',
-                    Organization: { name: 'Test Org' }
+                    collaboratorName: 'Smith, Jane'
                 }
             ],
             updatedAt: expect.any(Date)
@@ -1699,14 +1698,12 @@ describe('Submission.editSubmissionCollaborators', () => {
                 {
                     collaboratorID: 'user2',
                     permission: COLLABORATOR_PERMISSIONS.CAN_EDIT,
-                    collaboratorName: 'Smith, Jane',
-                    Organization: { name: 'Test Org 1' }
+                    collaboratorName: 'Smith, Jane'
                 },
                 {
                     collaboratorID: 'user3',
                     permission: COLLABORATOR_PERMISSIONS.CAN_EDIT,
-                    collaboratorName: 'Johnson, Bob',
-                    Organization: { name: 'Test Org 2' }
+                    collaboratorName: 'Johnson, Bob'
                 }
             ],
             updatedAt: expect.any(Date)
