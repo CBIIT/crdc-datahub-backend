@@ -1697,7 +1697,7 @@ class Submission {
             throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_STATUS_MODEL_VERSION, `${aSubmission?.status}`));
         }
 
-        if (submitterID) {
+        if (submitterID && newSubmitter?._id !== prevSubmitter?._id) {
             if (!newSubmitter) {
                 throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_NO_SUBMITTER, submitterID));
             }
@@ -1707,11 +1707,11 @@ class Submission {
             // submitter must have data_submission:create permission
             const userCreatePermissionScope = await this.authorizationService.getPermissionScope(newSubmitter, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
             const userCreatePermissionNone = userCreatePermissionScope.some(item => item?.scope === PERMISSION_SCOPES.NONE && item?.scopeValues?.length === 0);
-            if (userCreatePermissionNone && newSubmitter._id !== prevSubmitter._id) {
+            if (userCreatePermissionNone) {
                 throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_INVALID_SUBMITTER, submitterID));
             }
             // submitter must have the correct study access
-            if (!validateStudyAccess(newSubmitter.studies, aSubmission?.studyID) && newSubmitter._id !== prevSubmitter._id) {
+            if (!validateStudyAccess(newSubmitter.studies, aSubmission?.studyID)) {
                 throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_INVALID_SUBMITTER_STUDY, submitterID));
             }
         }
