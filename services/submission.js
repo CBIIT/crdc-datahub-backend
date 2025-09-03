@@ -1762,8 +1762,8 @@ class Submission {
                 // submitter change
                 prevSubmitter?._id, newSubmitter?._id));
             // add submitter name to the return object
-            if (newSubmitter) {
-                updatedSubmission.submitterName = newSubmitter.fullName;
+            if (submitterID && submitterID !== aSubmission.submitterID) {
+                updatedSubmission.submitterName = newSubmitter?.fullName;
             }
             else {
                 updatedSubmission.submitterName = aSubmission.submitterName;
