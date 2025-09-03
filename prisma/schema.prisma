@@ -167,7 +167,6 @@ model Application {
   PI                  String?
   controlledAccess    Boolean?
   history             History[]
-  inactiveReminder    Boolean?
   openAccess          Boolean?
   organization        OrgInfo?
   programAbbreviation String?
@@ -187,6 +186,11 @@ model Application {
   GPAName             String?
   applicantID         String?
   applicant           User? @relation(fields: [applicantID], references: [id])
+  inactiveReminder    Boolean?
+  inactiveReminder_7   Boolean?
+  inactiveReminder_15  Boolean?
+  inactiveReminder_30  Boolean?
+  finalInactiveReminder Boolean?
   @@map("applications")
 }
 
@@ -493,7 +497,6 @@ model Submission {
   fileWarnings             FileError[]
   finalInactiveReminder    Boolean?
   history                  History[]
-  inactiveReminder         Boolean?
   inactiveReminder_30      Boolean?
   inactiveReminder_60      Boolean?
   inactiveReminder_7       Boolean?

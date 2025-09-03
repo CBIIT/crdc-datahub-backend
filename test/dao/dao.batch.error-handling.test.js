@@ -43,40 +43,21 @@ describe('BatchDAO Error Handling', () => {
     afterEach(() => {
         consoleSpy.mockRestore();
     });
-
-    describe('deleteByFilter method', () => {
-        it('should handle deleteMany errors gracefully', async () => {
-            const filter = { submissionID: 'sub-123' };
-            const prismaError = new Error('Delete operation failed');
-            
-            mockPrismaModel.deleteMany.mockRejectedValue(prismaError);
-
-            await expect(batchDAO.deleteByFilter(filter)).rejects.toThrow('Failed to delete batches');
-            
-            // Check that the BatchDAO error was logged (the second console.error call)
-            expect(consoleSpy).toHaveBeenNthCalledWith(2, 'BatchDAO.deleteByFilter failed:', {
-                error: 'Failed to delete many Batch',
-                filter,
-                stack: expect.stringContaining('Failed to delete many Batch')
-            });
-        });
-
+    describe('deleteBatchesBySubmissionID method', () => {
         it('should handle constraint violation errors', async () => {
-            const filter = { submissionID: 'sub-123' };
+            const submissionID = 'sub-123';
             const constraintError = new Error('Foreign key constraint violation');
             
             mockPrismaModel.deleteMany.mockRejectedValue(constraintError);
 
-            await expect(batchDAO.deleteByFilter(filter)).rejects.toThrow('Failed to delete batches');
+            await expect(batchDAO.deleteBatchesBySubmissionID(submissionID)).rejects.toThrow('Failed to delete batches');
         });
 
-        it('should handle invalid filter errors', async () => {
-            const invalidFilter = { $invalid: 'operator' };
-            const filterError = new Error('Invalid filter syntax');
-            
-            mockPrismaModel.deleteMany.mockRejectedValue(filterError);
+        it('should handle invalid submissionID errors', async () => {
+            const invalidSubmissionID = undefined;
+            // The method may not call deleteMany if submissionID is invalid, so we don't need to mock deleteMany here
 
-            await expect(batchDAO.deleteByFilter(invalidFilter)).rejects.toThrow('Failed to delete batches');
+            await expect(batchDAO.deleteBatchesBySubmissionID(invalidSubmissionID)).resolves.toBeUndefined();
         });
     });
 

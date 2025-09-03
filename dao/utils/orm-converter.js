@@ -29,7 +29,7 @@ function convertIdFields(obj) {
         return obj;
     }
 }
-
+// note: We should remove Prisma filter conversion since it can’t handle all scenarios.
 function convertMongoFilterToPrismaFilter(mongoFilter) {
   if (!mongoFilter || typeof mongoFilter !== 'object') return mongoFilter;
 

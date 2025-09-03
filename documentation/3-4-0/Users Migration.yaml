@@ -151,6 +151,48 @@ Commands:
         }
       ]
       );
+  - add all inactive data submission/submission request flags if not existing: |
+      db.applications.updateMany(
+      {},
+      [
+        {
+          $set: {
+            inactiveReminder: { $ifNull: ["$inactiveReminder", false] },
+            inactiveReminder_7: { $ifNull: ["$inactiveReminder_7", false] },
+            inactiveReminder_15: { $ifNull: ["$inactiveReminder_15", false] },
+            inactiveReminder_30: { $ifNull: ["$inactiveReminder_30", false] },
+            finalInactiveReminder: { $ifNull: ["$finalInactiveReminder", false] }
+          }
+        }
+      ]
+      );
+      
+      db.submissions.updateMany(
+      {},
+      [
+        {
+          $set: {
+            inactiveReminder_7: { $ifNull: ["$inactiveReminder_7", false] },
+            inactiveReminder_30: { $ifNull: ["$inactiveReminder_30", false] },
+            inactiveReminder_60: { $ifNull: ["$inactiveReminder_60", false] },
+            finalInactiveReminder: { $ifNull: ["$finalInactiveReminder", false] }
+          }
+        }
+      ]
+      );
+  - Setting the string type to date time type on QA2: |
+      db.users.updateMany(
+        { createdAt: { $type: "string" } },
+        [
+          { $set: { createdAt: { $toDate: "$createdAt" } } }
+        ]
+      );
+      db.users.updateMany(
+        { updateAt: { $type: "string" } },
+        [
+          { $set: { updateAt: { $toDate: "$updateAt" } } }
+        ]
+      );
 
   - remove empty collaborators for CRDCDH-3210: |
       db.submissions.updateMany(

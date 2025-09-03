@@ -7,17 +7,22 @@ class BatchDAO extends GenericDAO {
     }
 
     /**
-     * Delete batches by filter criteria
-     * @param {Object} filter - Filter conditions for deletion
+     * Delete batches by a submission
+     * @param {Object} submissionID - submissionID
      * @returns {Promise<Object>} - Deletion result
      */
-    async deleteByFilter(filter) {
+    async deleteBatchesBySubmissionID(submissionID) {
+
         try {
-            return await this.deleteMany(filter);
+            if (submissionID) {
+                const res = await this.deleteMany({submissionID: submissionID});
+                console.log(`deleteBySubmissionID submissionID: ${JSON.stringify(submissionID)}, ${JSON.stringify(res)}`);
+                return res;
+            }
         } catch (error) {
-            console.error('BatchDAO.deleteByFilter failed:', {
+            console.error('BatchDAO.deleteBySubmissionID failed:', {
                 error: error.message,
-                filter,
+                submissionID,
                 stack: error.stack
             });
             throw new Error(`Failed to delete batches`);
