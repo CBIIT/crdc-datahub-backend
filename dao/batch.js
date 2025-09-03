@@ -15,9 +15,7 @@ class BatchDAO extends GenericDAO {
 
         try {
             if (submissionID) {
-                const res = await this.deleteMany({where: {
-                    submissionID: submissionID,
-                }});
+                const res = await this.deleteMany({submissionID: submissionID});
                 console.log(`deleteBySubmissionID submissionID: ${JSON.stringify(submissionID)}, ${JSON.stringify(res)}`);
                 return res;
             }
