@@ -152,7 +152,7 @@ class Submission {
                         return NAProgram;
                     }
                 }
-                throw new Error(ERROR.CREATE_SUBMISSION_NO_ASSOCIATED_PROGRAM + "No NA program is stored in the program");
+                throw new Error(ERROR.CREATE_SUBMISSION_NO_ASSOCIATED_PROGRAM + "no NA program exists in the database.");
             })(),
         ]);
 
