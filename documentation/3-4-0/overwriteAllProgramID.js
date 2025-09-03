@@ -33,7 +33,7 @@ async function setProgramIDs() {
             );
 
             if (res.modifiedCount === 1) {
-                console.log(`Updated submissionID: ${s._id} programID: ${programId._id} studyID: ${s.studyID}`);
+                console.log(`Updated submissionID: ${s._id} programID: ${programId} studyID: ${s.studyID}`);
                 successCount++;
             }
 
