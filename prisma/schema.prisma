@@ -99,7 +99,6 @@ type InstitutionInfo {
 }
 
 type Collaborator {
-  Organization     CollaboratorOrg?
   collaboratorID   String
   collaboratorName String?
   /// Multiple data types found: String: 97.4%, Array(String): 2.6% out of 38 sampled entries

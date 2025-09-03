@@ -193,3 +193,14 @@ Commands:
           { $set: { updateAt: { $toDate: "$updateAt" } } }
         ]
       );
+
+  - remove empty collaborators for CRDCDH-3210: |
+      db.submissions.updateMany(
+        { "collaborators.Organization": {$exists: true} },
+        { $unset: { "collaborators.$[].Organization": "" } }
+      );
+      
+      db.users.updateMany(
+        { "organization": { $exists: true} },
+        { $unset: { "organization": "" } }
+      );
