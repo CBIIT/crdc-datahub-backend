@@ -1697,7 +1697,7 @@ class Submission {
             throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_STATUS_MODEL_VERSION, `${aSubmission?.status}`));
         }
 
-        if (submitterID && newSubmitter?._id !== prevSubmitter?._id) {
+        if (submitterID && submitterID !== aSubmission.submitterID) {
             if (!newSubmitter) {
                 throw new Error(replaceErrorString(ERROR.INVALID_SUBMISSION_NO_SUBMITTER, submitterID));
             }
@@ -1762,7 +1762,12 @@ class Submission {
                 // submitter change
                 prevSubmitter?._id, newSubmitter?._id));
             // add submitter name to the return object
-            updatedSubmission.submitterName = aSubmission.submitterName;
+            if (newSubmitter) {
+                updatedSubmission.submitterName = newSubmitter.fullName;
+            }
+            else {
+                updatedSubmission.submitterName = aSubmission.submitterName;
+            }
         }
         // only when changing model will reset validation
         if (version !== undefined && aSubmission?.modelVersion !== version) {
