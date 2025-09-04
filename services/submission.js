@@ -140,7 +140,17 @@ class Submission {
                 const latestDataModel = await this.fetchDataModelInfo();
                 return this._getModelVersion(latestDataModel, params.dataCommons);
             })(),
-            this.organizationService.findOneByStudyID(params?.studyID)
+            (async () => {
+                const program = await this.organizationService.findOneByStudyID(params?.studyID);
+                if (program) {
+                    return program;
+                }
+                const NAProgram = await this.programDAO.findFirst({name: NA});
+                if (!NAProgram) {
+                    console.error(`no NA program exists in the database`)
+                }
+                return NAProgram ? NAProgram : null;
+            })(),
         ]);
 
         if (approvedStudies.length === 0) {

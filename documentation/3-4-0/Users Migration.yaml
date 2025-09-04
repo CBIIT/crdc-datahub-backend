@@ -204,3 +204,5 @@ Commands:
         { "organization": { $exists: true} },
         { $unset: { "organization": "" } }
       );
+  - program collection has a type property for updatedAt: |
+      db.organization.updateMany({updatedAt: {$exists: true}}, { $unset: { updatedAt: "" } })
