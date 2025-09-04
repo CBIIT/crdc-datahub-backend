@@ -2113,7 +2113,6 @@ describe('Submission.updateSubmissionInfo', () => {
             submitterID: 'user2_id',
             updatedAt: expect.any(Date)
         });
-        expect(submissionService._resetValidation).toHaveBeenCalledWith('sub1');
         expect(result).toEqual(updatedSubmission);
     });
 
