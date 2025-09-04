@@ -72,7 +72,7 @@ async function migrateOrphansToNA() {
             { _id: naProgram._id },
             {
                 $addToSet: { studies: { $each: chunk } },
-                $set: { updatedAt: new Date() }
+                $set: { updateAt: new Date() }
             }
         );
 
