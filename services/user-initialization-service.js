@@ -106,6 +106,8 @@ class UserInitializationService {
         }
         let sessionCurrentTime = getCurrentTime();
         const accessControl = await this.configurationService.getAccessControl(USER.ROLES.USER);
+        const firstName = userInfo?.firstName || email.split("@")[0];
+        const lastName = userInfo?.lastName;
         const newUser = {
             _id: v4(),
             email: email,
@@ -114,9 +116,9 @@ class UserInitializationService {
             role: USER.ROLES.USER,
             organization: {},
             dataCommons: [],
-            firstName: userInfo?.firstName || email.split("@")[0],
-            lastName: userInfo?.lastName,
-            fullName: formatName(userInfo),
+            firstName: firstName,
+            lastName: lastName,
+            fullName: formatName({firstName, lastName}),
             createdAt: sessionCurrentTime,
             updateAt: sessionCurrentTime,
             permissions: accessControl?.permissions?.permitted,
