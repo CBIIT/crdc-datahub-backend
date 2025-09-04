@@ -44,7 +44,7 @@ async function setProgramIDs() {
     }
 
     // 3) Summary
-    console.log(`\nMigration finished.`);
+    console.log(`\nSummary setting a ProgramID for the submissions.`);
     console.log(`Scanned:  ${total}`);
     console.log(`Updated:  ${successCount}`);
     if (failed.length > 0) {
@@ -52,5 +52,4 @@ async function setProgramIDs() {
         console.log(JSON.stringify(failed, null, 2));
     }
 }
-
-setProgramIDs();
+setProgramIDs()
