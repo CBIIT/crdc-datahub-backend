@@ -145,14 +145,11 @@ class Submission {
                 if (program) {
                     return program;
                 }
-
-                if (!program) {
-                    const NAProgram = await this.programDAO.findFirst({name: NA});
-                    if (NAProgram) {
-                        return NAProgram;
-                    }
+                const NAProgram = await this.programDAO.findFirst({name: NA});
+                if (!NAProgram) {
+                    console.error(`no NA program exists in the database`)
                 }
-                throw new Error(ERROR.CREATE_SUBMISSION_NO_ASSOCIATED_PROGRAM + "no NA program exists in the database.");
+                return NAProgram ? NAProgram : null;
             })(),
         ]);
 
