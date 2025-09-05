@@ -382,6 +382,7 @@ class Submission {
                 if (aSubmission?.studyID) {
                     const submissions = await this.submissionDAO.findMany({
                         studyID: aSubmission.studyID,
+                        dataCommons: aSubmission.dataCommons,
                         status: {
                             in: [IN_PROGRESS, SUBMITTED, RELEASED, REJECTED, WITHDRAWN],
                         },
