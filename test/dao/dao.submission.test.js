@@ -137,7 +137,6 @@ describe('SubmissionDAO', () => {
                 mockUserScope.getStudyScope.mockReturnValue({
                     scopeValues: ['study-1', 'study-2']
                 });
-                mockUserScope.hasAllStudyScope = jest.fn().mockReturnValue(false);
 
                 const result = await dao.listSubmissions(mockUserInfo, mockUserScope, mockParams);
 
@@ -508,7 +507,6 @@ describe('SubmissionDAO', () => {
                 mockUserScope.getStudyScope.mockReturnValue({
                     scopeValues: ['study-1', 'study-2']
                 });
-                mockUserScope.hasAllStudyScope = jest.fn().mockReturnValue(false);
 
                 const paramsWithFilters = {
                     ...mockParams,
