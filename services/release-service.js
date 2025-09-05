@@ -750,12 +750,8 @@ class ReleaseService {
         if (userScope.isAllScope()) {
             return {...baseConditions, dataCommons: dataCommonsParam};
         } else if (userScope.isStudyScope()) {
-            const studyScope = userScope.getStudyScope();
-            const isAllStudy = studyScope?.scopeValues?.includes(this._ALL_FILTER);
-            if (!isAllStudy) {
-                const hasStudyAccess = userScope.hasAccessToStudy(studyID);
-                baseConditions.studyID = {$in: hasStudyAccess ? [studyID] : []};
-            }
+            const hasStudyAccess = userScope.hasAccessToStudy(studyID);
+            baseConditions.studyID = {$in: hasStudyAccess ? [studyID] : []};
             return {...baseConditions, dataCommons: dataCommonsParam};
         } else if (userScope.isDCScope()) {
             const DCScopes = userScope.getDataCommonsScope();
