@@ -750,9 +750,11 @@ class ReleaseService {
         if (userScope.isAllScope()) {
             return {...baseConditions, dataCommons: dataCommonsParam};
         } else if (userScope.isStudyScope()) {
-            if (!userScope.hasAllStudyScope()) {
-                const hasStudy = userScope.hasStudyScopeByID(studyID);
-                baseConditions.studyID = {$in: hasStudy ? [studyID] : []};
+            const studyScope = userScope.getStudyScope();
+            const isAllStudy = studyScope?.scopeValues?.includes(this._ALL_FILTER);
+            if (!isAllStudy) {
+                const hasStudyAccess = userScope.hasAccessToStudy(studyID);
+                baseConditions.studyID = {$in: hasStudyAccess ? [studyID] : []};
             }
             return {...baseConditions, dataCommons: dataCommonsParam};
         } else if (userScope.isDCScope()) {
@@ -787,11 +789,10 @@ class ReleaseService {
         if (userScope.isAllScope()) {
             return baseConditions;
         } else if (userScope.isStudyScope()) {
-            if (!userScope.hasAllStudyScope()) {
-                const studyScope = userScope.getStudyScope();
-                baseConditions.studyID = {$in: studyScope?.scopeValues || []};
-            }
-            return {...baseConditions};
+            const studyScope = userScope.getStudyScope();
+            const isAll = isAllStudy(studyScope?.scopeValues);
+            const studyQuery = isAll ? {} : {studyID: {$in: studyScope?.scopeValues}};
+            return {...baseConditions, ...studyQuery};
          } else if (userScope.isDCScope()) {
             const DCScopes = userScope.getDataCommonsScope();
             const filtered = dataCommonsParams?.filter((scope) => DCScopes.scopeValues.includes(scope));
