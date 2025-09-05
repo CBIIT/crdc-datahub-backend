@@ -65,6 +65,30 @@ class UserScope {
     hasDCValue(dataCommons) {
         return this.scopes?.some(scope => scope?.scope === SCOPES.DC && scope?.scopeValues.includes(dataCommons));
     }
+    /**
+    * @param {string} studyID - studyID to check access for.
+    * @returns {boolean} True if the user has access to the specific study, false otherwise.
+     * */
+    hasStudyScopeByID(studyID) {
+        if (!this.isStudyScope()) {
+            return false;
+        }
+        const studyScope = this.getStudyScope();
+        const scopeValues = studyScope?.scopeValues || [];
+        return (Boolean(studyID) && scopeValues.includes(studyID));
+    }
+    /**
+     * @returns {boolean} True if the user has access to all studies, false otherwise.
+     * */
+    hasAllStudyScope() {
+        if (!this.isStudyScope()) {
+            return false;
+        }
+        const studyScope = this.getStudyScope();
+        const scopeValues = studyScope?.scopeValues || [];
+        return scopeValues.includes(this._ALL_STUDIES);
+    }
+
 
 }
 

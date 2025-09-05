@@ -223,14 +223,12 @@ class SubmissionDAO extends GenericDAO {
             // No filtering required for all scope
         } 
         else if (userScope.isStudyScope()) {
-            const studyScope = userScope.getStudyScope();
             // If not assigned all studies then add assigned studies filters
-            if (!isAllStudy(studyScope?.scopeValues)) {
+            if (!userScope.hasAllStudyScope()) {
+                const studyScope = userScope.getStudyScope();
                 const studyIDs = studyScope?.scopeValues || [];
-                // Only add studyID filter if there are actual study IDs to filter by
-                if (studyIDs.length > 0) {
-                    baseConditions.studyID = { in: studyIDs };
-                }
+                // Without filtering, it will show all submissions with the associated studies
+                baseConditions.studyID = { in: studyIDs };
             }
         } 
         else if (userScope.isDCScope()) {
