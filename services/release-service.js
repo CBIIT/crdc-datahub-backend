@@ -189,7 +189,7 @@ class ReleaseService {
             return {total: 0, properties: [], nodes: []};
         }
         const originDataCommons = getDataCommonsOrigin(params?.dataCommonsDisplayName) || params?.dataCommonsDisplayName;
-        const userConditions = this._listNodesConditions(null, originDataCommons, userScope);
+        const userConditions = this._listNodesConditions(null, originDataCommons, userScope, params?.studyID);
         const nodeTypesPipeline = [
             {$match: {studyID: params?.studyID, ...userConditions}},
             {$addFields: {
@@ -742,7 +742,7 @@ class ReleaseService {
         return [uniqueProps, uniqueGeneratedProps];
     }
 
-    _listNodesConditions(nodesParam, dataCommonsParam, userScope, studyID = null){
+    _listNodesConditions(nodesParam, dataCommonsParam, userScope, studyID){
         const baseConditions = {
             ...(nodesParam ? { nodeType: { $in: Array.isArray(nodesParam) ? nodesParam : [nodesParam] } } : {}),
             ...(studyID ? { studyID } : {}),
@@ -752,12 +752,8 @@ class ReleaseService {
         } else if (userScope.isStudyScope()) {
             const studyScope = userScope.getStudyScope();
             const isAllStudy = studyScope?.scopeValues?.includes(this._ALL_FILTER);
-            if (studyID) {
-                const isNotPermitted = !isAllStudy && !studyScope?.scopeValues?.includes(studyID);
-                return {...baseConditions, dataCommons: dataCommonsParam, studyID: {$in: isNotPermitted ? [] : [studyID]}};
-            }
-            const studyQuery = isAllStudy ? {} : {studyID: {$in: studyScope?.scopeValues}};
-            return {...baseConditions, dataCommons: dataCommonsParam, ...studyQuery};
+            const isNotPermitted = !isAllStudy && !studyScope?.scopeValues?.includes(studyID);
+            return {...baseConditions, dataCommons: dataCommonsParam, studyID: {$in: isNotPermitted ? [] : [studyID]}};
         } else if (userScope.isDCScope()) {
             const DCScopes = userScope.getDataCommonsScope();
             const aFilteredDataCommon = (dataCommonsParam && DCScopes?.scopeValues?.includes(dataCommonsParam)) ? [dataCommonsParam] : []
