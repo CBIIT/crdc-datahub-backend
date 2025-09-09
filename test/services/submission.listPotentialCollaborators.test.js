@@ -30,6 +30,22 @@ describe('Submission.listPotentialCollaborators', () => {
         mockDataModelService;
     let context, params;
 
+    // Helper function to create user scope mocks with customizable overrides
+    const createUserScopeMock = (overrides = {}) => {
+        const defaultScope = {
+            isNoneScope: jest.fn().mockReturnValue(false),
+            isRoleScope: jest.fn().mockReturnValue(false),
+            isOwnScope: jest.fn().mockReturnValue(false),
+            isStudyScope: jest.fn().mockReturnValue(false),
+            isDCScope: jest.fn().mockReturnValue(false)
+        };
+        
+        return {
+            ...defaultScope,
+            ...overrides
+        };
+    };
+
     const mockUserInfo = {
         _id: 'test-user-id',
         email: 'test@example.com',
@@ -185,13 +201,7 @@ describe('Submission.listPotentialCollaborators', () => {
         submissionService.validationDAO = { create: jest.fn(), update: jest.fn() };
 
         // Mock the _getUserScope method
-        submissionService._getUserScope = jest.fn().mockResolvedValue({
-            isNoneScope: jest.fn().mockReturnValue(false),
-            isRoleScope: jest.fn().mockReturnValue(false),
-            isOwnScope: jest.fn().mockReturnValue(false),
-            isStudyScope: jest.fn().mockReturnValue(false),
-            isDCScope: jest.fn().mockReturnValue(false)
-        });
+        submissionService._getUserScope = jest.fn().mockResolvedValue(createUserScopeMock());
 
         // Mock context and params
         context = {
@@ -231,13 +241,7 @@ describe('Submission.listPotentialCollaborators', () => {
         it('should handle successful case with collaborators', async () => {
             // Mock dependencies
             submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
-            submissionService._getUserScope = jest.fn().mockResolvedValue({
-                isNoneScope: jest.fn().mockReturnValue(false),
-                isRoleScope: jest.fn().mockReturnValue(false),
-                isOwnScope: jest.fn().mockReturnValue(false),
-                isStudyScope: jest.fn().mockReturnValue(false),
-                isDCScope: jest.fn().mockReturnValue(false)
-            });
+            submissionService._getUserScope = jest.fn().mockResolvedValue(createUserScopeMock());
             mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue(mockCollaborators);
 
             const result = await submissionService.listPotentialCollaborators(params, context);
@@ -249,13 +253,7 @@ describe('Submission.listPotentialCollaborators', () => {
 
         it('should handle empty collaborators list', async () => {
             submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
-            submissionService._getUserScope = jest.fn().mockResolvedValue({
-                isNoneScope: jest.fn().mockReturnValue(false),
-                isRoleScope: jest.fn().mockReturnValue(false),
-                isOwnScope: jest.fn().mockReturnValue(false),
-                isStudyScope: jest.fn().mockReturnValue(false),
-                isDCScope: jest.fn().mockReturnValue(false)
-            });
+            submissionService._getUserScope = jest.fn().mockResolvedValue(createUserScopeMock());
             mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue([]);
 
             const result = await submissionService.listPotentialCollaborators(params, context);
@@ -313,13 +311,9 @@ describe('Submission.listPotentialCollaborators', () => {
 
         it('should throw error when user has no data_submission:review permission', async () => {
             submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
-            submissionService._getUserScope = jest.fn().mockResolvedValue({
-                isNoneScope: jest.fn().mockReturnValue(true),
-                isRoleScope: jest.fn().mockReturnValue(false),
-                isOwnScope: jest.fn().mockReturnValue(false),
-                isStudyScope: jest.fn().mockReturnValue(false),
-                isDCScope: jest.fn().mockReturnValue(false)
-            });
+            submissionService._getUserScope = jest.fn().mockResolvedValue(createUserScopeMock({
+                isNoneScope: jest.fn().mockReturnValue(true)
+            }));
 
             await expect(submissionService.listPotentialCollaborators(params, context))
                 .rejects
@@ -328,13 +322,7 @@ describe('Submission.listPotentialCollaborators', () => {
 
         it('should allow access when user has data_submission:review permission', async () => {
             submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
-            submissionService._getUserScope = jest.fn().mockResolvedValue({
-                isNoneScope: jest.fn().mockReturnValue(false),
-                isRoleScope: jest.fn().mockReturnValue(false),
-                isOwnScope: jest.fn().mockReturnValue(false),
-                isStudyScope: jest.fn().mockReturnValue(false),
-                isDCScope: jest.fn().mockReturnValue(false)
-            });
+            submissionService._getUserScope = jest.fn().mockResolvedValue(createUserScopeMock());
             mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue([]);
 
             await submissionService.listPotentialCollaborators(params, context);
@@ -353,13 +341,9 @@ describe('Submission.listPotentialCollaborators', () => {
         describe('None Scope', () => {
             it('should deny access for users with none scope', async () => {
                 submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
-                submissionService._getUserScope = jest.fn().mockResolvedValue({
-                    isNoneScope: jest.fn().mockReturnValue(true),
-                    isRoleScope: jest.fn().mockReturnValue(false),
-                    isOwnScope: jest.fn().mockReturnValue(false),
-                    isStudyScope: jest.fn().mockReturnValue(false),
-                    isDCScope: jest.fn().mockReturnValue(false)
-                });
+                submissionService._getUserScope = jest.fn().mockResolvedValue(createUserScopeMock({
+                    isNoneScope: jest.fn().mockReturnValue(true)
+                }));
 
                 await expect(submissionService.listPotentialCollaborators(params, context))
                     .rejects
@@ -370,13 +354,9 @@ describe('Submission.listPotentialCollaborators', () => {
         describe('Role Scope', () => {
             it('should deny access for users with role scope', async () => {
                 submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
-                submissionService._getUserScope = jest.fn().mockResolvedValue({
-                    isNoneScope: jest.fn().mockReturnValue(false),
-                    isRoleScope: jest.fn().mockReturnValue(true),
-                    isOwnScope: jest.fn().mockReturnValue(false),
-                    isStudyScope: jest.fn().mockReturnValue(false),
-                    isDCScope: jest.fn().mockReturnValue(false)
-                });
+                submissionService._getUserScope = jest.fn().mockResolvedValue(createUserScopeMock({
+                    isRoleScope: jest.fn().mockReturnValue(true)
+                }));
 
                 await expect(submissionService.listPotentialCollaborators(params, context))
                     .rejects
@@ -387,13 +367,9 @@ describe('Submission.listPotentialCollaborators', () => {
         describe('Own Scope', () => {
             it('should allow access for submitter with own scope', async () => {
                 submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
-                submissionService._getUserScope = jest.fn().mockResolvedValue({
-                    isNoneScope: jest.fn().mockReturnValue(false),
-                    isRoleScope: jest.fn().mockReturnValue(false),
-                    isOwnScope: jest.fn().mockReturnValue(true),
-                    isStudyScope: jest.fn().mockReturnValue(false),
-                    isDCScope: jest.fn().mockReturnValue(false)
-                });
+                submissionService._getUserScope = jest.fn().mockResolvedValue(createUserScopeMock({
+                    isOwnScope: jest.fn().mockReturnValue(true)
+                }));
                 mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue([]);
 
                 await submissionService.listPotentialCollaborators(params, context);
@@ -411,13 +387,9 @@ describe('Submission.listPotentialCollaborators', () => {
                 };
 
                 submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
-                submissionService._getUserScope = jest.fn().mockResolvedValue({
-                    isNoneScope: jest.fn().mockReturnValue(false),
-                    isRoleScope: jest.fn().mockReturnValue(false),
-                    isOwnScope: jest.fn().mockReturnValue(true),
-                    isStudyScope: jest.fn().mockReturnValue(false),
-                    isDCScope: jest.fn().mockReturnValue(false)
-                });
+                submissionService._getUserScope = jest.fn().mockResolvedValue(createUserScopeMock({
+                    isOwnScope: jest.fn().mockReturnValue(true)
+                }));
 
                 await expect(submissionService.listPotentialCollaborators(params, differentUserContext))
                     .rejects
@@ -430,13 +402,9 @@ describe('Submission.listPotentialCollaborators', () => {
                 // For now, we'll skip the validateStudyAccess mocking due to complexity
                 // This test verifies the study scope logic path is reached
                 submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
-                submissionService._getUserScope = jest.fn().mockResolvedValue({
-                    isNoneScope: jest.fn().mockReturnValue(false),
-                    isRoleScope: jest.fn().mockReturnValue(false),
-                    isOwnScope: jest.fn().mockReturnValue(false),
-                    isStudyScope: jest.fn().mockReturnValue(true),
-                    isDCScope: jest.fn().mockReturnValue(false)
-                });
+                submissionService._getUserScope = jest.fn().mockResolvedValue(createUserScopeMock({
+                    isStudyScope: jest.fn().mockReturnValue(true)
+                }));
                 mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue([]);
 
                 // This will fail due to validateStudyAccess, but we can verify the scope check is reached
@@ -449,13 +417,9 @@ describe('Submission.listPotentialCollaborators', () => {
 
             it('should deny access for user with study scope but invalid study access', async () => {
                 submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
-                submissionService._getUserScope = jest.fn().mockResolvedValue({
-                    isNoneScope: jest.fn().mockReturnValue(false),
-                    isRoleScope: jest.fn().mockReturnValue(false),
-                    isOwnScope: jest.fn().mockReturnValue(false),
-                    isStudyScope: jest.fn().mockReturnValue(true),
-                    isDCScope: jest.fn().mockReturnValue(false)
-                });
+                submissionService._getUserScope = jest.fn().mockResolvedValue(createUserScopeMock({
+                    isStudyScope: jest.fn().mockReturnValue(true)
+                }));
 
                 await expect(submissionService.listPotentialCollaborators(params, context))
                     .rejects
@@ -475,13 +439,9 @@ describe('Submission.listPotentialCollaborators', () => {
                 };
 
                 submissionService._findByID = jest.fn().mockResolvedValue(submissionWithDataCommons);
-                submissionService._getUserScope = jest.fn().mockResolvedValue({
-                    isNoneScope: jest.fn().mockReturnValue(false),
-                    isRoleScope: jest.fn().mockReturnValue(false),
-                    isOwnScope: jest.fn().mockReturnValue(false),
-                    isStudyScope: jest.fn().mockReturnValue(false),
+                submissionService._getUserScope = jest.fn().mockResolvedValue(createUserScopeMock({
                     isDCScope: jest.fn().mockReturnValue(true)
-                });
+                }));
                 mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue([]);
 
                 const contextWithDataCommons = {
@@ -505,13 +465,9 @@ describe('Submission.listPotentialCollaborators', () => {
                 };
 
                 submissionService._findByID = jest.fn().mockResolvedValue(submissionWithDataCommons);
-                submissionService._getUserScope = jest.fn().mockResolvedValue({
-                    isNoneScope: jest.fn().mockReturnValue(false),
-                    isRoleScope: jest.fn().mockReturnValue(false),
-                    isOwnScope: jest.fn().mockReturnValue(false),
-                    isStudyScope: jest.fn().mockReturnValue(false),
+                submissionService._getUserScope = jest.fn().mockResolvedValue(createUserScopeMock({
                     isDCScope: jest.fn().mockReturnValue(true)
-                });
+                }));
 
                 const contextWithDataCommons = {
                     userInfo: userWithDataCommons
@@ -536,13 +492,9 @@ describe('Submission.listPotentialCollaborators', () => {
             };
 
             submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
-            submissionService._getUserScope = jest.fn().mockResolvedValue({
-                isNoneScope: jest.fn().mockReturnValue(false),
-                isRoleScope: jest.fn().mockReturnValue(false),
-                isOwnScope: jest.fn().mockReturnValue(true),
-                isStudyScope: jest.fn().mockReturnValue(false),
-                isDCScope: jest.fn().mockReturnValue(false)
-            });
+            submissionService._getUserScope = jest.fn().mockResolvedValue(createUserScopeMock({
+                isOwnScope: jest.fn().mockReturnValue(true)
+            }));
 
             await expect(submissionService.listPotentialCollaborators(params, contextWithoutId))
                 .rejects
@@ -556,13 +508,9 @@ describe('Submission.listPotentialCollaborators', () => {
             };
 
             submissionService._findByID = jest.fn().mockResolvedValue(submissionWithoutSubmitter);
-            submissionService._getUserScope = jest.fn().mockResolvedValue({
-                isNoneScope: jest.fn().mockReturnValue(false),
-                isRoleScope: jest.fn().mockReturnValue(false),
-                isOwnScope: jest.fn().mockReturnValue(true),
-                isStudyScope: jest.fn().mockReturnValue(false),
-                isDCScope: jest.fn().mockReturnValue(false)
-            });
+            submissionService._getUserScope = jest.fn().mockResolvedValue(createUserScopeMock({
+                isOwnScope: jest.fn().mockReturnValue(true)
+            }));
 
             await expect(submissionService.listPotentialCollaborators(params, context))
                 .rejects
@@ -637,13 +585,7 @@ describe('Submission.listPotentialCollaborators', () => {
     describe('Collaborator Retrieval', () => {
         it('should call getCollaboratorsByStudyID with correct parameters', async () => {
             submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
-            submissionService._getUserScope = jest.fn().mockResolvedValue({
-                isNoneScope: jest.fn().mockReturnValue(false),
-                isRoleScope: jest.fn().mockReturnValue(false),
-                isOwnScope: jest.fn().mockReturnValue(false),
-                isStudyScope: jest.fn().mockReturnValue(false),
-                isDCScope: jest.fn().mockReturnValue(false)
-            });
+            submissionService._getUserScope = jest.fn().mockResolvedValue(createUserScopeMock());
             mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue([]);
 
             await submissionService.listPotentialCollaborators(params, context);
@@ -653,13 +595,7 @@ describe('Submission.listPotentialCollaborators', () => {
 
         it('should handle getCollaboratorsByStudyID error', async () => {
             submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
-            submissionService._getUserScope = jest.fn().mockResolvedValue({
-                isNoneScope: jest.fn().mockReturnValue(false),
-                isRoleScope: jest.fn().mockReturnValue(false),
-                isOwnScope: jest.fn().mockReturnValue(false),
-                isStudyScope: jest.fn().mockReturnValue(false),
-                isDCScope: jest.fn().mockReturnValue(false)
-            });
+            submissionService._getUserScope = jest.fn().mockResolvedValue(createUserScopeMock());
             mockUserService.getCollaboratorsByStudyID = jest.fn().mockRejectedValue(new Error('Database error'));
 
             await expect(submissionService.listPotentialCollaborators(params, context))
@@ -669,13 +605,7 @@ describe('Submission.listPotentialCollaborators', () => {
 
         it('should handle empty collaborators from getCollaboratorsByStudyID', async () => {
             submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
-            submissionService._getUserScope = jest.fn().mockResolvedValue({
-                isNoneScope: jest.fn().mockReturnValue(false),
-                isRoleScope: jest.fn().mockReturnValue(false),
-                isOwnScope: jest.fn().mockReturnValue(false),
-                isStudyScope: jest.fn().mockReturnValue(false),
-                isDCScope: jest.fn().mockReturnValue(false)
-            });
+            submissionService._getUserScope = jest.fn().mockResolvedValue(createUserScopeMock());
             mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue([]);
 
             const result = await submissionService.listPotentialCollaborators(params, context);
@@ -689,13 +619,7 @@ describe('Submission.listPotentialCollaborators', () => {
             const { getDataCommonsDisplayNamesForUser } = require('../../utility/data-commons-remapper');
             
             submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
-            submissionService._getUserScope = jest.fn().mockResolvedValue({
-                isNoneScope: jest.fn().mockReturnValue(false),
-                isRoleScope: jest.fn().mockReturnValue(false),
-                isOwnScope: jest.fn().mockReturnValue(false),
-                isStudyScope: jest.fn().mockReturnValue(false),
-                isDCScope: jest.fn().mockReturnValue(false)
-            });
+            submissionService._getUserScope = jest.fn().mockResolvedValue(createUserScopeMock());
             mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue(mockCollaborators);
 
             await submissionService.listPotentialCollaborators(params, context);
@@ -707,13 +631,7 @@ describe('Submission.listPotentialCollaborators', () => {
 
         it('should return collaborators with display names', async () => {
             submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
-            submissionService._getUserScope = jest.fn().mockResolvedValue({
-                isNoneScope: jest.fn().mockReturnValue(false),
-                isRoleScope: jest.fn().mockReturnValue(false),
-                isOwnScope: jest.fn().mockReturnValue(false),
-                isStudyScope: jest.fn().mockReturnValue(false),
-                isDCScope: jest.fn().mockReturnValue(false)
-            });
+            submissionService._getUserScope = jest.fn().mockResolvedValue(createUserScopeMock());
             mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue(mockCollaborators);
 
             const result = await submissionService.listPotentialCollaborators(params, context);
@@ -727,13 +645,7 @@ describe('Submission.listPotentialCollaborators', () => {
     describe('Return Value Format', () => {
         it('should return array of collaborators with display names', async () => {
             submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
-            submissionService._getUserScope = jest.fn().mockResolvedValue({
-                isNoneScope: jest.fn().mockReturnValue(false),
-                isRoleScope: jest.fn().mockReturnValue(false),
-                isOwnScope: jest.fn().mockReturnValue(false),
-                isStudyScope: jest.fn().mockReturnValue(false),
-                isDCScope: jest.fn().mockReturnValue(false)
-            });
+            submissionService._getUserScope = jest.fn().mockResolvedValue(createUserScopeMock());
             mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue(mockCollaborators);
 
             const result = await submissionService.listPotentialCollaborators(params, context);
@@ -749,13 +661,7 @@ describe('Submission.listPotentialCollaborators', () => {
 
         it('should preserve all original collaborator properties', async () => {
             submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
-            submissionService._getUserScope = jest.fn().mockResolvedValue({
-                isNoneScope: jest.fn().mockReturnValue(false),
-                isRoleScope: jest.fn().mockReturnValue(false),
-                isOwnScope: jest.fn().mockReturnValue(false),
-                isStudyScope: jest.fn().mockReturnValue(false),
-                isDCScope: jest.fn().mockReturnValue(false)
-            });
+            submissionService._getUserScope = jest.fn().mockResolvedValue(createUserScopeMock());
             mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue(mockCollaborators);
 
             const result = await submissionService.listPotentialCollaborators(params, context);
