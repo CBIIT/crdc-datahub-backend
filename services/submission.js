@@ -1527,10 +1527,31 @@ class Submission {
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
 
-        if (aSubmission.submitterID !== context?.userInfo?._id) {
+        // Check if user has data_submission:review permission and the submission is within their scope
+        const userScope = await this._getUserScope(context.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW, aSubmission);
+        // None scope and role scope do not have permission to list potential collaborators
+        if (userScope.isNoneScope() || userScope.isRoleScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
-
+        // Own scope, the user must be the submitter
+        if (userScope.isOwnScope()) {
+            if (context.userInfo?._id !== aSubmission?.submitterID) {
+                throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+            }
+        }
+        // Study scope, the user must have study access
+        if (userScope.isStudyScope()) {
+            if (!validateStudyAccess(context.userInfo.studies, aSubmission?.studyID)) {
+                throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+            }
+        }
+        // DC scope, the user must have data commons access
+        if (userScope.isDCScope()) {
+            if (!context.userInfo.dataCommons || !context.userInfo.dataCommons.includes(aSubmission?.dataCommons)) {
+                throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+            }
+        }
+        
         // find Collaborators with aSubmission.studyID
         let collaborators = await this.userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
         return collaborators.map((user) => {
