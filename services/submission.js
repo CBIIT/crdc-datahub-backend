@@ -2095,16 +2095,6 @@ class Submission {
 
         const isStudyScope = userScope.isStudyScope();
         const isDCScope = userScope.isDCScope();
-        // DC scope, study scope, own scope including collaborator, and role scope is missing valid scope values
-        if (aSubmission && ((isOwnScope && (userInfo?._id !== aSubmission?.submitterID && !this._isCollaborator(userInfo, aSubmission))) ||
-            isStudyScope && !userScope.hasStudyValue(aSubmission?.studyID) ||
-            isDCScope && !userScope.hasDCValue(aSubmission?.dataCommons) ||
-            isRoleScope && !userScope.getRoleScope()?.scopeValues?.length === 0
-        )) {
-            const errorMsg = replaceErrorString(ERROR.INVALID_SCOPE_VALUES, aPermission) + `SubmissionID: ${aSubmission?._id}, userID: ${userInfo?._id}`
-            console.error(errorMsg);
-            throw new Error(errorMsg);
-        }
 
         const isValidUserScope = userScope.isNoneScope() || isOwnScope || userScope.isAllScope() ||
             isRoleScope || isStudyScope || isDCScope;
