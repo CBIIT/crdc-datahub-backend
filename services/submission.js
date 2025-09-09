@@ -1541,7 +1541,7 @@ class Submission {
         }
         // Study scope, the user must have study access
         if (userScope.isStudyScope()) {
-            if (!validateStudyAccess(context.userInfo.studies, aSubmission?.studyID)) {
+            if (!context.userInfo.studies || !validateStudyAccess(context.userInfo.studies, aSubmission?.studyID)) {
                 throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
             }
         }

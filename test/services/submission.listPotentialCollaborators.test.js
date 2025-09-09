@@ -206,25 +206,11 @@ describe('Submission.listPotentialCollaborators', () => {
         jest.clearAllMocks();
     });
 
-    afterEach(() => {
-        // Clean up all mocks
-        jest.clearAllMocks();
-        jest.restoreAllMocks();
-        
-        // Clear any timers
-        jest.clearAllTimers();
-    });
-
     afterAll(() => {
         // Final cleanup
         jest.clearAllMocks();
         jest.restoreAllMocks();
         jest.clearAllTimers();
-        
-        // Clean up any remaining handles
-        if (global.gc) {
-            global.gc();
-        }
     });
 
     describe('Method Interface and Behavior', () => {
