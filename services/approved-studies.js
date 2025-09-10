@@ -255,6 +255,7 @@ class ApprovedStudiesService {
             GPAName
         } = this._verifyAndFormatStudyParams(params);
         let updateStudy = await this.approvedStudyDAO.findFirst({id: studyID});
+        const {isPendingGPA: currPendingGPA, dbGaPID: currDbGaPID} = updateStudy;
         if (!updateStudy) {
             throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
         }
@@ -310,7 +311,9 @@ class ApprovedStudiesService {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_UPDATE);
         }
 
-        if (currPendingModelChange !== updateStudy.pendingModelChange && updateStudy.pendingModelChange === false && updateStudy.pendingApplicationID) {
+        const isPendingCleared = !isTrue(updateStudy?.pendingModelChange) && !isTrue(updateStudy?.isPendingGPA) && Boolean(updateStudy?.dbGaPID) && isTrue(updateStudy.controlledAccess);
+        const isPendingUpdated = currPendingModelChange !== updateStudy.pendingModelChange || currDbGaPID !== updateStudy.dbGaPID || currPendingGPA !== updateStudy.isPendingGPA;
+        if (isPendingUpdated && isPendingCleared && updateStudy.pendingApplicationID) {
             await this._notifyClearPendingState(updateStudy);
         }
 
