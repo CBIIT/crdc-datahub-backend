@@ -1526,37 +1526,80 @@ class Submission {
         if(!aSubmission){
             throw new Error(ERROR.INVALID_SUBMISSION_NOT_FOUND)
         }
-
-        // Check if user has data_submission:review permission and the submission is within their scope
-        const userScope = await this._getUserScope(context.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW, aSubmission);
-        // None scope and role scope do not have permission to list potential collaborators
-        if (userScope.isNoneScope() || userScope.isRoleScope()) {
+        // Check if the user has permission to list potential collaborators
+        if (!(await this._checkPermissionForListPotentialCollaborators(context?.userInfo, aSubmission))) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
-        // Own scope, the user must be the submitter
-        if (userScope.isOwnScope()) {
-            if (context.userInfo?._id !== aSubmission?.submitterID) {
-                throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
-            }
-        }
-        // Study scope, the user must have study access
-        if (userScope.isStudyScope()) {
-            if (!context.userInfo.studies || !validateStudyAccess(context.userInfo.studies, aSubmission?.studyID)) {
-                throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
-            }
-        }
-        // DC scope, the user must have data commons access
-        if (userScope.isDCScope()) {
-            if (!context.userInfo.dataCommons || !context.userInfo.dataCommons.includes(aSubmission?.dataCommons)) {
-                throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
-            }
-        }
-        
         // find Collaborators with aSubmission.studyID
-        let collaborators = await this.userService.getCollaboratorsByStudyID(aSubmission.studyID, aSubmission.submitterID);
+        let collaborators = await this.userService.getCollaboratorsByStudyID(aSubmission?.studyID, aSubmission?.submitterID);
         return collaborators.map((user) => {
            return getDataCommonsDisplayNamesForUser(user);
         });
+    }
+
+    async _checkPermissionForListPotentialCollaborators(userInfo, submission) {
+        // If the userInfo or submission is not provided, return false
+        if (!userInfo || !submission) {
+            return false;
+        }
+        try{
+            const reviewPermission = await this._checkDataSubmissionReviewPermission(userInfo, submission);
+            if (reviewPermission) {
+                return true;
+            }
+            else if (userInfo?._id === submission?.submitterID) {
+                const userCreateScope = await this._getUserScope(userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
+                // All scope, the user has permission to list potential collaborators       
+                if (userCreateScope.isAllScope()) {
+                    return true;
+                }
+                // Study scope, the user must still have study access
+                const userStudies = userInfo?.studies || [];
+                const hasStudyAccess = validateStudyAccess(userStudies, submission?.studyID);
+                if (userCreateScope.isStudyScope() && hasStudyAccess) {
+                    return true;
+                }
+                // DC scope, the user must still have data commons access
+                const userDataCommons = userInfo?.dataCommons || [];
+                const hasDataCommonsAccess = validateDataCommonsAccess(userDataCommons, submission?.dataCommons);
+                if (userCreateScope.isDCScope() && hasDataCommonsAccess) {
+                    return true;
+                }
+                // Own scope, the user must still have study access
+                if (userCreateScope.isOwnScope() && hasStudyAccess) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        catch(error){
+            // log the error and throw an internal error message to be displayed to the user
+            console.error(ERROR.INTERNAL_ERROR);
+            console.error('Error checking permission for list potential collaborators:', error);
+            throw ERROR.INTERNAL_ERROR;
+        }
+    }
+
+    async _checkDataSubmissionReviewPermission(userInfo, submission) {
+        if (!userInfo || !submission) {
+            return false;
+        }
+        const userStudies = userInfo?.studies || [];
+        const userDataCommons = userInfo?.dataCommons || [];
+        const userReviewScope = await this._getUserScope(userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW, submission);
+        // All scope, the user has permission to list potential collaborators
+        if (userReviewScope.isAllScope()) {
+            return true;
+        }
+        // Study scope, the user must have study access
+        if (userReviewScope.isStudyScope() && validateStudyAccess(userStudies, submission?.studyID)) {
+            return true;
+        }
+        // DC scope, the user must have data commons access
+        if (userReviewScope.isDCScope() && validateDataCommonsAccess(userDataCommons, submission?.dataCommons)) {
+            return true;
+        }
+        return false;
     }
 
     async editSubmission(params, context) {
@@ -2985,4 +3028,13 @@ function logDaysDifference(inactiveDays, accessedAt, submissionID) {
 module.exports = {
     Submission
 };
+
+// Potential future enhancement
+function validateDataCommonsAccess(userDataCommons, submissionDataCommons) {
+    const dataCommons = Array.isArray(userDataCommons) && userDataCommons.length > 0 ? userDataCommons : [];
+    return Boolean(
+        dataCommons.includes("All") || 
+        dataCommons.includes(submissionDataCommons)
+    );
+}
 
