@@ -1576,7 +1576,7 @@ class Submission {
             // log the error and throw an internal error message to be displayed to the user
             console.error(ERROR.INTERNAL_ERROR);
             console.error('Error checking permission for list potential collaborators:', error);
-            throw ERROR.INTERNAL_ERROR;
+            throw new Error(ERROR.INTERNAL_ERROR);
         }
     }
 
