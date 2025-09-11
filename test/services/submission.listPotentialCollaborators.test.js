@@ -2,6 +2,7 @@ const { Submission } = require('../../services/submission');
 const { USER } = require('../../crdc-datahub-database-drivers/constants/user-constants');
 const USER_PERMISSION_CONSTANTS = require('../../crdc-datahub-database-drivers/constants/user-permission-constants');
 const { ERROR } = require('../../constants/error-constants');
+const { isAllStudy, validateStudyAccess } = require('../../utility/study-utility');
 
 // Mock the user-info-verifier
 jest.mock('../../verifier/user-info-verifier', () => ({
@@ -18,6 +19,12 @@ jest.mock('../../utility/data-commons-remapper', () => ({
     }))
 }));
 
+// Mock the study-utility to control validateStudyAccess behavior
+jest.mock('../../utility/study-utility', () => ({
+    isAllStudy: jest.fn(),
+    validateStudyAccess: jest.fn()
+}));
+
 describe('Submission.listPotentialCollaborators', () => {
     let submissionService;
     let mockSubmissionCollection, mockLogCollection, mockBatchService, mockUserService, 
@@ -29,6 +36,22 @@ describe('Submission.listPotentialCollaborators', () => {
         mockUploadingMonitor, mockDataCommonsBucketMap, mockAuthorizationService, 
         mockDataModelService;
     let context, params;
+
+    // Helper function to create user scope mocks with customizable overrides
+    const createUserScopeMock = (overrides = {}) => {
+        const defaultScope = {
+            isNoneScope: jest.fn().mockReturnValue(false),
+            isRoleScope: jest.fn().mockReturnValue(false),
+            isOwnScope: jest.fn().mockReturnValue(false),
+            isStudyScope: jest.fn().mockReturnValue(false),
+            isDCScope: jest.fn().mockReturnValue(false)
+        };
+        
+        return {
+            ...defaultScope,
+            ...overrides
+        };
+    };
 
     const mockUserInfo = {
         _id: 'test-user-id',
@@ -184,6 +207,15 @@ describe('Submission.listPotentialCollaborators', () => {
         submissionService.approvedStudyDAO = { findMany: jest.fn() };
         submissionService.validationDAO = { create: jest.fn(), update: jest.fn() };
 
+        // Mock the _getUserScope method
+        submissionService._getUserScope = jest.fn().mockResolvedValue(createUserScopeMock());
+        
+        // Mock the _checkPermissionForListPotentialCollaborators method
+        submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(true);
+        
+        // Mock the validateDataCommonsAccess function
+        submissionService.validateDataCommonsAccess = jest.fn().mockReturnValue(true);
+
         // Mock context and params
         context = {
             userInfo: mockUserInfo
@@ -195,6 +227,8 @@ describe('Submission.listPotentialCollaborators', () => {
 
         // Reset mocks
         jest.clearAllMocks();
+        isAllStudy.mockClear();
+        validateStudyAccess.mockClear();
     });
 
     describe('Method Interface and Behavior', () => {
@@ -215,6 +249,7 @@ describe('Submission.listPotentialCollaborators', () => {
         it('should handle successful case with collaborators', async () => {
             // Mock dependencies
             submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+            submissionService._getUserScope = jest.fn().mockResolvedValue(createUserScopeMock());
             mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue(mockCollaborators);
 
             const result = await submissionService.listPotentialCollaborators(params, context);
@@ -226,6 +261,7 @@ describe('Submission.listPotentialCollaborators', () => {
 
         it('should handle empty collaborators list', async () => {
             submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+            submissionService._getUserScope = jest.fn().mockResolvedValue(createUserScopeMock());
             mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue([]);
 
             const result = await submissionService.listPotentialCollaborators(params, context);
@@ -281,33 +317,475 @@ describe('Submission.listPotentialCollaborators', () => {
                 .toThrow('Cant find the submission by submissionID');
         });
 
-        it('should throw error when user is not the submitter', async () => {
-            const submissionWithDifferentSubmitter = {
-                ...mockSubmission,
-                submitterID: 'different-user-id'
-            };
-
-            submissionService._findByID = jest.fn().mockResolvedValue(submissionWithDifferentSubmitter);
+        it('should throw error when submitter has no data_submission:create permission', async () => {
+            submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+            submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(false);
 
             await expect(submissionService.listPotentialCollaborators(params, context))
                 .rejects
                 .toThrow('You do not have permission to perform this action.');
         });
 
-        it('should allow access when user is the submitter', async () => {
+        it('should allow access when submitter has data_submission:create permission', async () => {
             submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+            submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(true);
             mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue([]);
 
             await submissionService.listPotentialCollaborators(params, context);
 
             expect(submissionService._findByID).toHaveBeenCalledWith('submission-123');
+            expect(submissionService._checkPermissionForListPotentialCollaborators).toHaveBeenCalledWith(
+                context.userInfo, 
+                mockSubmission
+            );
             expect(mockUserService.getCollaboratorsByStudyID).toHaveBeenCalledWith('study-123', 'test-user-id');
+        });
+
+        it('should allow access when non-submitter has data_submission:review permission', async () => {
+            const nonSubmitterContext = {
+                userInfo: {
+                    ...mockUserInfo,
+                    _id: 'different-user-id' // Different from submitterID
+                }
+            };
+
+            submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+            submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(true);
+            mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue([]);
+
+            await submissionService.listPotentialCollaborators(params, nonSubmitterContext);
+
+            expect(submissionService._findByID).toHaveBeenCalledWith('submission-123');
+            expect(submissionService._checkPermissionForListPotentialCollaborators).toHaveBeenCalledWith(
+                nonSubmitterContext.userInfo, 
+                mockSubmission
+            );
+            expect(mockUserService.getCollaboratorsByStudyID).toHaveBeenCalledWith('study-123', 'test-user-id');
+        });
+    });
+
+    describe('Submitter with Review Permission but Invalid Create Permission', () => {
+        it('should allow access when submitter has valid review permission but invalid create permission', async () => {
+            // This test verifies that when a submitter has valid review permissions,
+            // they can list potential collaborators even if their create permissions are invalid
+            submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+            submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(true);
+            mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue(mockCollaborators);
+
+            const result = await submissionService.listPotentialCollaborators(params, context);
+
+            expect(submissionService._findByID).toHaveBeenCalledWith('submission-123');
+            expect(submissionService._checkPermissionForListPotentialCollaborators).toHaveBeenCalledWith(
+                context.userInfo, 
+                mockSubmission
+            );
+            expect(mockUserService.getCollaboratorsByStudyID).toHaveBeenCalledWith('study-123', 'test-user-id');
+            expect(result).toEqual(mockCollaboratorsWithDisplayNames);
+        });
+
+        it('should allow access when submitter has valid review permission (study scope) but invalid create permission', async () => {
+            submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+            submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(true);
+            mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue(mockCollaborators);
+
+            const result = await submissionService.listPotentialCollaborators(params, context);
+
+            expect(submissionService._findByID).toHaveBeenCalledWith('submission-123');
+            expect(submissionService._checkPermissionForListPotentialCollaborators).toHaveBeenCalledWith(
+                context.userInfo, 
+                mockSubmission
+            );
+            expect(mockUserService.getCollaboratorsByStudyID).toHaveBeenCalledWith('study-123', 'test-user-id');
+            expect(result).toEqual(mockCollaboratorsWithDisplayNames);
+        });
+
+        it('should allow access when submitter has valid review permission (DC scope) but invalid create permission', async () => {
+            submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+            submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(true);
+            mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue(mockCollaborators);
+
+            const result = await submissionService.listPotentialCollaborators(params, context);
+
+            expect(submissionService._findByID).toHaveBeenCalledWith('submission-123');
+            expect(submissionService._checkPermissionForListPotentialCollaborators).toHaveBeenCalledWith(
+                context.userInfo, 
+                mockSubmission
+            );
+            expect(mockUserService.getCollaboratorsByStudyID).toHaveBeenCalledWith('study-123', 'test-user-id');
+            expect(result).toEqual(mockCollaboratorsWithDisplayNames);
+        });
+
+        it('should deny access when submitter has invalid review permission and invalid create permission', async () => {
+            submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+            submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(false);
+
+            await expect(submissionService.listPotentialCollaborators(params, context))
+                .rejects
+                .toThrow('You do not have permission to perform this action.');
+        });
+
+        it('should allow access when submitter has valid review permission but create permission fails due to missing study access', async () => {
+            submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+            submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(true);
+            mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue(mockCollaborators);
+
+            const result = await submissionService.listPotentialCollaborators(params, context);
+
+            expect(submissionService._findByID).toHaveBeenCalledWith('submission-123');
+            expect(submissionService._checkPermissionForListPotentialCollaborators).toHaveBeenCalledWith(
+                context.userInfo, 
+                mockSubmission
+            );
+            expect(mockUserService.getCollaboratorsByStudyID).toHaveBeenCalledWith('study-123', 'test-user-id');
+            expect(result).toEqual(mockCollaboratorsWithDisplayNames);
+        });
+
+        it('should allow access when submitter has valid review permission but create permission fails due to missing data commons access', async () => {
+            submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+            submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(true);
+            mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue(mockCollaborators);
+
+            const result = await submissionService.listPotentialCollaborators(params, context);
+
+            expect(submissionService._findByID).toHaveBeenCalledWith('submission-123');
+            expect(submissionService._checkPermissionForListPotentialCollaborators).toHaveBeenCalledWith(
+                context.userInfo, 
+                mockSubmission
+            );
+            expect(mockUserService.getCollaboratorsByStudyID).toHaveBeenCalledWith('study-123', 'test-user-id');
+            expect(result).toEqual(mockCollaboratorsWithDisplayNames);
+        });
+    });
+
+    describe('Scope-Based Permission Validation', () => {
+        describe('None Scope', () => {
+            it('should deny access for submitters with none scope', async () => {
+                submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+                submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(false);
+
+                await expect(submissionService.listPotentialCollaborators(params, context))
+                    .rejects
+                    .toThrow('You do not have permission to perform this action.');
+            });
+
+            it('should deny access for non-submitters with none scope', async () => {
+                const nonSubmitterContext = {
+                    userInfo: {
+                        ...mockUserInfo,
+                        _id: 'different-user-id'
+                    }
+                };
+
+                submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+                submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(false);
+
+                await expect(submissionService.listPotentialCollaborators(params, nonSubmitterContext))
+                    .rejects
+                    .toThrow('You do not have permission to perform this action.');
+            });
+        });
+
+        describe('Role Scope', () => {
+            it('should deny access for submitters with role scope', async () => {
+                submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+                submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(false);
+
+                await expect(submissionService.listPotentialCollaborators(params, context))
+                    .rejects
+                    .toThrow('You do not have permission to perform this action.');
+            });
+
+            it('should deny access for non-submitters with role scope', async () => {
+                const nonSubmitterContext = {
+                    userInfo: {
+                        ...mockUserInfo,
+                        _id: 'different-user-id'
+                    }
+                };
+
+                submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+                submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(false);
+
+                await expect(submissionService.listPotentialCollaborators(params, nonSubmitterContext))
+                    .rejects
+                    .toThrow('You do not have permission to perform this action.');
+            });
+        });
+
+        describe('Own Scope', () => {
+            it('should allow access for submitter with own scope', async () => {
+                submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+                submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(true);
+                mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue([]);
+
+                await submissionService.listPotentialCollaborators(params, context);
+
+                expect(submissionService._findByID).toHaveBeenCalledWith('submission-123');
+                expect(mockUserService.getCollaboratorsByStudyID).toHaveBeenCalledWith('study-123', 'test-user-id');
+            });
+
+            it('should deny access for non-submitter with own scope', async () => {
+                const differentUserContext = {
+                    userInfo: {
+                        ...mockUserInfo,
+                        _id: 'different-user-id'
+                    }
+                };
+
+                submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+                submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(false);
+
+                await expect(submissionService.listPotentialCollaborators(params, differentUserContext))
+                    .rejects
+                    .toThrow('You do not have permission to perform this action.');
+            });
+        });
+
+        describe('Study Scope', () => {
+            it('should allow access for non-submitter with study scope and valid study access', async () => {
+                const userWithValidStudy = {
+                    ...mockUserInfo,
+                    _id: 'different-user-id', // Non-submitter
+                    studies: [{ _id: 'study-123' }] // Matching study ID
+                };
+                const contextWithValidStudy = {
+                    userInfo: userWithValidStudy
+                };
+                
+                submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+                submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(true);
+                mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue(mockCollaborators);
+
+                const result = await submissionService.listPotentialCollaborators(params, contextWithValidStudy);
+
+                expect(submissionService._findByID).toHaveBeenCalledWith('submission-123');
+                expect(mockUserService.getCollaboratorsByStudyID).toHaveBeenCalledWith(mockSubmission.studyID, mockSubmission.submitterID);
+                expect(result).toEqual(mockCollaboratorsWithDisplayNames);
+            });
+
+            it('should allow access for non-submitter with study scope and "All" studies access', async () => {
+                const userWithAllStudies = {
+                    ...mockUserInfo,
+                    _id: 'different-user-id', // Non-submitter
+                    studies: [{ _id: "All" }]
+                };
+                const contextWithAllStudies = {
+                    userInfo: userWithAllStudies
+                };
+
+                submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+                submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(true);
+                mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue(mockCollaborators);
+
+                const result = await submissionService.listPotentialCollaborators(params, contextWithAllStudies);
+
+                expect(submissionService._findByID).toHaveBeenCalledWith('submission-123');
+                expect(mockUserService.getCollaboratorsByStudyID).toHaveBeenCalledWith(mockSubmission.studyID, mockSubmission.submitterID);
+                expect(result).toEqual(mockCollaboratorsWithDisplayNames);
+            });
+
+            it('should allow access for non-submitter with study scope and matching study ID using alternative ID field', async () => {
+                const userWithAlternativeId = {
+                    ...mockUserInfo,
+                    _id: 'different-user-id', // Non-submitter
+                    studies: [{ id: 'study-123' }] // Using 'id' instead of '_id'
+                };
+                const contextWithAlternativeId = {
+                    userInfo: userWithAlternativeId
+                };
+                
+                submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+                submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(true);
+                mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue(mockCollaborators);
+
+                const result = await submissionService.listPotentialCollaborators(params, contextWithAlternativeId);
+
+                expect(submissionService._findByID).toHaveBeenCalledWith('submission-123');
+                expect(mockUserService.getCollaboratorsByStudyID).toHaveBeenCalledWith(mockSubmission.studyID, mockSubmission.submitterID);
+                expect(result).toEqual(mockCollaboratorsWithDisplayNames);
+            });
+
+            it('should deny access for non-submitter with study scope but invalid study access', async () => {
+                const userWithInvalidStudy = {
+                    ...mockUserInfo,
+                    _id: 'different-user-id', // Non-submitter
+                    studies: [{ _id: 'different-study-id' }] // Non-matching study ID
+                };
+                const contextWithInvalidStudy = {
+                    userInfo: userWithInvalidStudy
+                };
+                
+                submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+                submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(false);
+
+                await expect(submissionService.listPotentialCollaborators(params, contextWithInvalidStudy))
+                    .rejects
+                    .toThrow('You do not have permission to perform this action.');
+            });
+        });
+
+        describe('DC Scope', () => {
+            it('should allow access for non-submitter with DC scope and valid data commons access', async () => {
+                const userWithDataCommons = {
+                    ...mockUserInfo,
+                    _id: 'different-user-id', // Non-submitter
+                    dataCommons: ['commons1', 'commons2']
+                };
+                const submissionWithDataCommons = {
+                    ...mockSubmission,
+                    dataCommons: 'commons1'
+                };
+
+                submissionService._findByID = jest.fn().mockResolvedValue(submissionWithDataCommons);
+                submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(true);
+                mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue(mockCollaborators);
+
+                const contextWithDataCommons = {
+                    userInfo: userWithDataCommons
+                };
+
+                const result = await submissionService.listPotentialCollaborators(params, contextWithDataCommons);
+
+                expect(submissionService._findByID).toHaveBeenCalledWith('submission-123');
+                expect(mockUserService.getCollaboratorsByStudyID).toHaveBeenCalledWith('study-123', 'test-user-id');
+                expect(result).toEqual(mockCollaboratorsWithDisplayNames);
+            });
+
+            it('should allow access for non-submitter with DC scope and data commons as array', async () => {
+                const userWithDataCommons = {
+                    ...mockUserInfo,
+                    _id: 'different-user-id', // Non-submitter
+                    dataCommons: ['commons1', 'commons2', 'commons3'] // User has multiple data commons
+                };
+                const submissionWithDataCommons = {
+                    ...mockSubmission,
+                    dataCommons: 'commons1' // Submission has single data commons value
+                };
+
+                submissionService._findByID = jest.fn().mockResolvedValue(submissionWithDataCommons);
+                submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(true);
+                mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue(mockCollaborators);
+
+                const contextWithDataCommons = {
+                    userInfo: userWithDataCommons
+                };
+
+                const result = await submissionService.listPotentialCollaborators(params, contextWithDataCommons);
+
+                expect(submissionService._findByID).toHaveBeenCalledWith('submission-123');
+                expect(mockUserService.getCollaboratorsByStudyID).toHaveBeenCalledWith('study-123', 'test-user-id');
+                expect(result).toEqual(mockCollaboratorsWithDisplayNames);
+            });
+
+            it('should deny access for non-submitter with DC scope but invalid data commons access', async () => {
+                const userWithDataCommons = {
+                    ...mockUserInfo,
+                    _id: 'different-user-id', // Non-submitter
+                    dataCommons: ['commons2', 'commons3']
+                };
+                const submissionWithDataCommons = {
+                    ...mockSubmission,
+                    dataCommons: 'commons1'
+                };
+
+                submissionService._findByID = jest.fn().mockResolvedValue(submissionWithDataCommons);
+                submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(false);
+
+                const contextWithDataCommons = {
+                    userInfo: userWithDataCommons
+                };
+
+                await expect(submissionService.listPotentialCollaborators(params, contextWithDataCommons))
+                    .rejects
+                    .toThrow('You do not have permission to perform this action.');
+            });
+        });
+    });
+
+    describe('Edge Cases', () => {
+        it('should handle missing userInfo._id in submitter check', async () => {
+            const contextWithoutId = {
+                userInfo: {
+                    email: 'test@example.com',
+                    firstName: 'John',
+                    lastName: 'Doe'
+                    // _id is missing
+                }
+            };
+
+            submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+            submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(false);
+
+            await expect(submissionService.listPotentialCollaborators(params, contextWithoutId))
+                .rejects
+                .toThrow('You do not have permission to perform this action.');
+        });
+
+        it('should handle missing submission.submitterID in submitter check', async () => {
+            const submissionWithoutSubmitter = {
+                ...mockSubmission,
+                submitterID: undefined
+            };
+
+            submissionService._findByID = jest.fn().mockResolvedValue(submissionWithoutSubmitter);
+            submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(false);
+
+            await expect(submissionService.listPotentialCollaborators(params, context))
+                .rejects
+                .toThrow('You do not have permission to perform this action.');
+        });
+
+        it('should handle missing userInfo.studies in submitter study check', async () => {
+            const contextWithoutStudies = {
+                userInfo: {
+                    ...mockUserInfo,
+                    studies: undefined
+                }
+            };
+
+            submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+            submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(false);
+
+            await expect(submissionService.listPotentialCollaborators(params, contextWithoutStudies))
+                .rejects
+                .toThrow('You do not have permission to perform this action.');
+        });
+
+        it('should handle missing userInfo.dataCommons in submitter data commons check', async () => {
+            const contextWithoutDataCommons = {
+                userInfo: {
+                    ...mockUserInfo,
+                    dataCommons: undefined
+                }
+            };
+
+            submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+            submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(false);
+
+            await expect(submissionService.listPotentialCollaborators(params, contextWithoutDataCommons))
+                .rejects
+                .toThrow('You do not have permission to perform this action.');
+        });
+
+        it('should handle missing submission.dataCommons in submitter data commons check', async () => {
+            const submissionWithoutDataCommons = {
+                ...mockSubmission,
+                dataCommons: undefined
+            };
+
+            submissionService._findByID = jest.fn().mockResolvedValue(submissionWithoutDataCommons);
+            submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(false);
+
+            await expect(submissionService.listPotentialCollaborators(params, context))
+                .rejects
+                .toThrow('You do not have permission to perform this action.');
         });
     });
 
     describe('Collaborator Retrieval', () => {
         it('should call getCollaboratorsByStudyID with correct parameters', async () => {
             submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+            submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(true);
             mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue([]);
 
             await submissionService.listPotentialCollaborators(params, context);
@@ -317,6 +795,7 @@ describe('Submission.listPotentialCollaborators', () => {
 
         it('should handle getCollaboratorsByStudyID error', async () => {
             submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+            submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(true);
             mockUserService.getCollaboratorsByStudyID = jest.fn().mockRejectedValue(new Error('Database error'));
 
             await expect(submissionService.listPotentialCollaborators(params, context))
@@ -326,6 +805,7 @@ describe('Submission.listPotentialCollaborators', () => {
 
         it('should handle empty collaborators from getCollaboratorsByStudyID', async () => {
             submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+            submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(true);
             mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue([]);
 
             const result = await submissionService.listPotentialCollaborators(params, context);
@@ -339,6 +819,7 @@ describe('Submission.listPotentialCollaborators', () => {
             const { getDataCommonsDisplayNamesForUser } = require('../../utility/data-commons-remapper');
             
             submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+            submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(true);
             mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue(mockCollaborators);
 
             await submissionService.listPotentialCollaborators(params, context);
@@ -350,6 +831,7 @@ describe('Submission.listPotentialCollaborators', () => {
 
         it('should return collaborators with display names', async () => {
             submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+            submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(true);
             mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue(mockCollaborators);
 
             const result = await submissionService.listPotentialCollaborators(params, context);
@@ -363,6 +845,7 @@ describe('Submission.listPotentialCollaborators', () => {
     describe('Return Value Format', () => {
         it('should return array of collaborators with display names', async () => {
             submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+            submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(true);
             mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue(mockCollaborators);
 
             const result = await submissionService.listPotentialCollaborators(params, context);
@@ -378,6 +861,7 @@ describe('Submission.listPotentialCollaborators', () => {
 
         it('should preserve all original collaborator properties', async () => {
             submissionService._findByID = jest.fn().mockResolvedValue(mockSubmission);
+            submissionService._checkPermissionForListPotentialCollaborators = jest.fn().mockResolvedValue(true);
             mockUserService.getCollaboratorsByStudyID = jest.fn().mockResolvedValue(mockCollaborators);
 
             const result = await submissionService.listPotentialCollaborators(params, context);

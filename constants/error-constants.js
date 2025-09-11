@@ -257,7 +257,8 @@ const ERROR = {
     USER_NOT_EXIST: "The user does not exist.",
     NOT_SUPPORTED_DATA_COMMONS_FOR_LOAD_SHEET: "The current data commons is not supported for generating dbGaP Loading Sheets.",
     FAILED_DOWNLOAD_ALL_RELEASED_NODES: "Failed to download all released nodes",
-    STUDY_NOT_EXIST: "The requested study does not exist."
+    STUDY_NOT_EXIST: "The requested study does not exist.",
+    INTERNAL_ERROR: "An internal error occurred, please ask the Admins to check the logs for more information",
 }
 
 module.exports = ERROR;
