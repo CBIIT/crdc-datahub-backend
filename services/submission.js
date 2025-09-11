@@ -1641,8 +1641,6 @@ class Submission {
             throw new Error(ERROR.FAILED_UPDATE_SUBMISSION_NAME);
         }
 
-        await this._notifyConfigurationChange(userInfo, aSubmission, updated?.name);
-
         // Log for the modifying submission name using Prisma
         if (updated) {
             await this._createUpdateSubmissionNameLog(userInfo, updated._id, aSubmission?.name, newName);
