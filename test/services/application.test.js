@@ -2,6 +2,9 @@ const {Application} = require('../../services/application'); // Adjust if needed
 const ApplicationDAO = require('../../dao/application');
 const USER_PERMISSION_CONSTANTS = require("../../crdc-datahub-database-drivers/constants/user-permission-constants");
 
+// Mock ApplicationDAO
+jest.mock('../../dao/application');
+
 // Mocks for dependencies
 const mockLogCollection = { insert: jest.fn() };
 const mockApplicationCollection = {
@@ -323,11 +326,10 @@ describe('Application', () => {
             userScopeMock.isAllScope.mockReturnValue(false);
             userScopeMock.isOwnScope.mockReturnValue(true);
             const params = { application: { _id: 'app1' } };
-            mockApplicationCollection.find.mockResolvedValue([{ _id: 'app1', applicant: { applicantID: 'user1' }, status: NEW }]);
+            // Mock ApplicationDAO.findFirst to return null (application not found)
+            ApplicationDAO.prototype.findFirst = jest.fn().mockResolvedValue(null);
             mockConfigurationService.findByType.mockResolvedValue({ current: '2.0', new: '3.0' });
-            // Patch: updateApplication must be a real function, not a global mock, for this test
-            global.updateApplication = jest.fn().mockResolvedValue({ _id: 'app1', status: IN_PROGRESS });
-            await expect(app.saveApplication(params, context)).rejects.toThrow(ERROR.VERIFY.APPLICATION_NOT_FOUND);
+            await expect(app.saveApplication(params, context)).rejects.toThrow(ERROR.APPLICATION_NOT_FOUND);
         });
 
         it('throws if not owner', async () => {
