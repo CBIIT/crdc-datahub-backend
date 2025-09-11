@@ -747,7 +747,7 @@
             "inherited": ["data_submission:view:all"],
             "name": "Review",
             "order": 4,
-            "checked": false,
+            "checked": true,
             "disabled": false
           },
           {
