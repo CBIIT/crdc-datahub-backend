@@ -1802,9 +1802,7 @@ class Submission {
         const isSubmitterChanged = prevSubmitter && newSubmitter && prevSubmitter?._id !== newSubmitter?._id;
         const submitterEmail = isSubmitterChanged ? newSubmitter?.email : prevSubmitter?.email;
         if (submitterEmail) {
-            const isChangingSubmitter = prevSubmitter?.email && prevSubmitter?.id !== newSubmitter?.id && prevSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.CHANGE_CONFIGURATION);
-            const originalSubmitterEmail = isChangingSubmitter ? [prevSubmitter?.email] : [];
-
+            const originalSubmitterEmail = isSubmitterChanged ? [prevSubmitter?.email] : [];
             const isVersionChanged = newModelVersion && newModelVersion !== aSubmission?.modelVersion;
             const sent = await this.notificationService.updateSubmissionNotification(submitterEmail, originalSubmitterEmail, BCCEmails, {
                 firstName: getEmailUserName(userInfo),
