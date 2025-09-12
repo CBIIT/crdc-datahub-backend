@@ -1800,7 +1800,13 @@ class Submission {
         const { submitterEmails, otherEmails } = (users || []).reduce(
             (acc, u) => {
                 if (u?.email) {
-                    (u?._id === submitterID ? acc.submitterEmails : acc.otherEmails).push(u?.email);
+                    if (u?._id === submitterID && u.role === USER.ROLES.SUBMITTER) {
+                        acc.submitterEmails.push(u?.email)
+                    }
+
+                    if ([USER.ROLES.FEDERAL_LEAD, USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.ADMIN].includes(u?.role)) {
+                        acc.otherEmails.push(u?.email);
+                    }
                 }
                 return acc;
             },
