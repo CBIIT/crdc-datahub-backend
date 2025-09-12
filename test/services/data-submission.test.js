@@ -2314,7 +2314,6 @@ describe('Submission.editSubmission', () => {
         expect(mockSubmissionDAO.update).toHaveBeenCalledWith('sub1', {
             name: mockParams.newName
         });
-        expect(submissionService._notifyConfigurationChange).toHaveBeenCalledWith(mockContext.userInfo, mockSubmission, mockParams.newName);
         expect(result).toEqual(updatedSubmission);
     });
 

@@ -1794,25 +1794,17 @@ class Submission {
     }
 
     async _notifyConfigurationChange(userInfo, aSubmission, newModelVersion, prevSubmitter, newSubmitter) {
-        const users = await this.userDAO.getUsersByNotifications([EN.DATA_SUBMISSION.CHANGE_CONFIGURATION]);
-        // when changing new submitter, the email should go to the new submitter
-        const submitterID = (newSubmitter && prevSubmitter?.id !== newSubmitter?.id) ? newSubmitter?._id : aSubmission?.submitterID;
-        const { submitterEmails, otherEmails } = (users || []).reduce(
-            (acc, u) => {
-                if (u?.email) {
-                    (u?._id === submitterID ? acc.submitterEmails : acc.otherEmails).push(u?.email);
-                }
-                return acc;
-            },
-            { submitterEmails: [], otherEmails: [] }
-        );
+        const users = await this.userDAO.getUsersByNotifications([EN.DATA_SUBMISSION.CHANGE_CONFIGURATION], [USER.ROLES.FEDERAL_LEAD, USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.ADMIN]);
+        const BCCEmails = users
+            .map(user => user?.email)
+            .filter(Boolean);
 
-        if (submitterEmails?.length > 0) {
-            const isChangingSubmitter = prevSubmitter?.email && prevSubmitter?.id !== newSubmitter?.id && prevSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.CHANGE_CONFIGURATION);
-            const originalSubmitterEmail = isChangingSubmitter ? [prevSubmitter?.email] : [];
-            const isSubmitterChanged = prevSubmitter && newSubmitter && prevSubmitter?._id !== newSubmitter?._id;
+        const isSubmitterChanged = prevSubmitter && newSubmitter && prevSubmitter?._id !== newSubmitter?._id;
+        const submitterEmail = isSubmitterChanged ? newSubmitter?.email : prevSubmitter?.email;
+        if (submitterEmail) {
+            const originalSubmitterEmail = isSubmitterChanged ? [prevSubmitter?.email] : [];
             const isVersionChanged = newModelVersion && newModelVersion !== aSubmission?.modelVersion;
-            const sent = await this.notificationService.updateSubmissionNotification(submitterEmails, originalSubmitterEmail, otherEmails, {
+            const sent = await this.notificationService.updateSubmissionNotification(submitterEmail, originalSubmitterEmail, BCCEmails, {
                 firstName: getEmailUserName(userInfo),
                 portalURL: this.emailParams.url || NA,
                 studyName: aSubmission?.study?.studyName || NA,
@@ -1829,7 +1821,7 @@ class Submission {
             }
         }
 
-        if (submitterEmails?.length === 0) {
+        if (!submitterEmail) {
             // This should be an error because the Submitter must have the notification.
             console.error(`Submission updated; email notification to submitter not sent. submissionID: ${aSubmission?._id}`);
         }
