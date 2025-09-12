@@ -1801,7 +1801,7 @@ class Submission {
             (acc, u) => {
                 if (u?.email) {
                     if (u?._id === submitterID && u.role === USER.ROLES.SUBMITTER) {
-                        acc.submitterEmails.push(u?.email)
+                        acc.submitterEmails.push(u?.email);
                     }
 
                     if ([USER.ROLES.FEDERAL_LEAD, USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.ADMIN].includes(u?.role)) {
