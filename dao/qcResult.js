@@ -78,8 +78,7 @@ class QCResultDAO extends GenericDAO {
                 title: "$_id.title",
                 severity: "$_id.severity",
                 code: "$_id.code",
-                count: "$count",
-                distinctRecords: 0
+                count: "$count"
             }
         });
         // Create count pipeline
