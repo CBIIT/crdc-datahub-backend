@@ -268,7 +268,25 @@ describe('Message Class', () => {
   });
 
   describe('Integration Tests with Real Usage Scenarios', () => {
-    test('should create metadata validation message for cross-submission', () => {
+    test('should create metadata validation message for cross-submission with dataCommons', () => {
+      const message = Message.createMetadataMessage(
+        'Validate Cross-submission',
+        'phs001234.v1.p1',
+        null,
+        'validation-2024-01-15-001',
+        'test-data-commons'
+      );
+      
+      expect(message).toMatchObject({
+        type: 'Validate Cross-submission',
+        submissionID: 'phs001234.v1.p1',
+        validationID: 'validation-2024-01-15-001',
+        dataCommons: 'test-data-commons'
+      });
+      expect(message.scope).toBeUndefined();
+    });
+
+    test('should create metadata validation message for cross-submission without dataCommons', () => {
       const message = Message.createMetadataMessage(
         'Validate Cross-submission',
         'phs001234.v1.p1',
@@ -282,6 +300,7 @@ describe('Message Class', () => {
         validationID: 'validation-2024-01-15-001'
       });
       expect(message.scope).toBeUndefined();
+      expect(message.dataCommons).toBeUndefined();
     });
 
     test('should create file validation message for individual file', () => {

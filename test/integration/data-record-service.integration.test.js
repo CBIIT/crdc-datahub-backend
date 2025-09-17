@@ -379,10 +379,38 @@ describe('DataRecordService Integration Tests', () => {
         'submission-123',
         [VALIDATION.TYPES.CROSS_SUBMISSION],
         null,
+        'validation-456',
+        'test-data-commons'
+      );
+
+      // Verify SQS message was sent for cross-submission validation with dataCommons
+      expect(mockAwsService.sendSQSMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'Validate Cross-submission',
+          submissionID: 'submission-123',
+          validationID: 'validation-456',
+          dataCommons: 'test-data-commons'
+        }),
+        'submission-123',
+        'submission-123',
+        'metadata-queue'
+      );
+
+      expect(result.success).toBe(true);
+    });
+
+    test('should create cross-submission validation message without dataCommons', async () => {
+      mockDataRecordsCollection.countDoc.mockResolvedValue(10);
+      mockAwsService.sendSQSMessage.mockResolvedValue({ success: true });
+
+      const result = await dataRecordService.validateMetadata(
+        'submission-123',
+        [VALIDATION.TYPES.CROSS_SUBMISSION],
+        null,
         'validation-456'
       );
 
-      // Verify SQS message was sent for cross-submission validation
+      // Verify SQS message was sent for cross-submission validation without dataCommons
       expect(mockAwsService.sendSQSMessage).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'Validate Cross-submission',

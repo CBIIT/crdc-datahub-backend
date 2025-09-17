@@ -533,7 +533,7 @@ class Submission {
 
         const submissionAttributes = SubmissionAttributes.create(!userScope.isNoneScope(), submission, dataFileSize?.size, orphanedErrorFiles?.length > 0, uploadingBatches.length > 0);
         verifier.isValidSubmitAction(!userScope.isNoneScope(), submission, params?.comment, submissionAttributes);
-        await this._isValidReleaseAction(action, submission?._id, submission?.studyID, submission?.crossSubmissionStatus);
+        await this._isValidReleaseAction(action, submission?._id, submission?.studyID, submission?.dataCommons, submission?.crossSubmissionStatus);
         //update submission
         let events = submission.history || [];
         // admin permission and submit action only can leave a comment
@@ -696,15 +696,17 @@ class Submission {
 
     }
 
-    async _isValidReleaseAction(action, submissionID, studyID, crossSubmissionStatus) {
+    // Updated to filter by both studyID and dataCommons for cross validation scope - ticket CRDCDH-3247
+    async _isValidReleaseAction(action, submissionID, studyID, dataCommons, crossSubmissionStatus) {
         if (action?.toLowerCase() === ACTIONS.RELEASE.toLowerCase()) {
             const submissions = await this.submissionDAO.findMany({
                 studyID: studyID,
+                dataCommons: dataCommons,
                 NOT: {
                     id: submissionID
                 }
             });
-            // Throw error if other submissions associated with the same study
+            // Throw error if other submissions associated with the same study AND data commons
             // are some of them are in "Submitted" status if cross submission validation is not Passed.
             if (submissions?.some(i => i?.status === SUBMITTED) && crossSubmissionStatus !== VALIDATION_STATUS.PASSED) {
                 throw new Error(ERROR.VERIFY.INVALID_RELEASE_ACTION);
@@ -759,6 +761,7 @@ class Submission {
         }
         // if the user has review permission, and the submission status is "Submitted", and aSubmission?.crossSubmissionStatus is "Error",
         // and params.types not contains CROSS_SUBMISSION, add CROSS_SUBMISSION. User story CRDCDH-2830
+        // Cross validation now only applies to submissions with same study AND data commons - ticket CRDCDH-3247
         if (reviewScope && !reviewScope.isNoneScope() && aSubmission?.status === SUBMITTED &&
             aSubmission?.crossSubmissionStatus === VALIDATION_STATUS.ERROR && params?.types &&
             !params?.types?.includes(VALIDATION.TYPES.CROSS_SUBMISSION)) {
@@ -775,7 +778,9 @@ class Submission {
         if (!validationRecord) {
             throw new Error(ERROR.FAILED_INSERT_VALIDATION_OBJECT);
         }
-        const result = await this.dataRecordService.validateMetadata(params._id, params?.types, params?.scope, validationRecord.id);
+        // Extract dataCommons for cross validation scope - ticket CRDCDH-3247
+        const dataCommons = aSubmission?.dataCommons || null;
+        const result = await this.dataRecordService.validateMetadata(params._id, params?.types, params?.scope, validationRecord.id, dataCommons);
         const updatedSubmission = await this._recordSubmissionValidation(params._id, validationRecord, params?.types, aSubmission);
         // roll back validation if service failed
         if (!result.success) {
@@ -819,7 +824,8 @@ class Submission {
         if (reviewScope.isNoneScope()) {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION)
         }
-        return this.dataRecordDAO.submissionCrossValidationResults(params.submissionID, params.nodeTypes, params.batchIDs, params.severities, params.first, params.offset, params.orderBy, params.sortDirection);
+        // Pass dataCommons for cross validation scope filtering - ticket CRDCDH-3247
+        return this.dataRecordDAO.submissionCrossValidationResults(params.submissionID, params.nodeTypes, params.batchIDs, params.severities, params.first, params.offset, params.orderBy, params.sortDirection, aSubmission?.dataCommons);
     }
 
     async listSubmissionNodeTypes(params, context) {
@@ -1957,6 +1963,8 @@ class Submission {
     // private function
     async _updateValidationStatus(types, aSubmission, metaStatus, fileStatus, crossSubmissionStatus, updatedTime, validationRecord = null) {
         const typesToUpdate = {};
+        // Cross validation status now only applies to submissions with same study AND data commons
+        // Ticket CRDCDH-3247
         if (crossSubmissionStatus && crossSubmissionStatus !== "NA" && types.includes(VALIDATION.TYPES.CROSS_SUBMISSION)) {
             typesToUpdate.crossSubmissionStatus = crossSubmissionStatus;
         }
