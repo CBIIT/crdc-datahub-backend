@@ -52,7 +52,7 @@ class QCResultDAO extends GenericDAO {
                 }
             });
         }
-        // Aggregate and count the results
+        // Aggregate and count distinct data records for each issue type
         basePipeline.push({
             $group:{
                 _id: {
@@ -60,9 +60,15 @@ class QCResultDAO extends GenericDAO {
                     severity: "$issues.severity",
                     code: "$issues.code"
                 },
-                count: {
-                    $sum: 1
+                distinctRecords: {
+                    $addToSet: "$dataRecordID"  // Collect unique data record IDs that contain this issue
                 }
+            }
+        });
+        // Count distinct data records (not individual issue occurrences)
+        basePipeline.push({
+            $addFields: {
+                count: { $size: "$distinctRecords" }  // Count of distinct data records containing this issue
             }
         });
         // Format the output
@@ -72,7 +78,8 @@ class QCResultDAO extends GenericDAO {
                 title: "$_id.title",
                 severity: "$_id.severity",
                 code: "$_id.code",
-                count: "$count"
+                count: "$count",
+                distinctRecords: 0
             }
         });
         // Create count pipeline
