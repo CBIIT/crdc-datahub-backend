@@ -68,7 +68,7 @@ class QCResultDAO extends GenericDAO {
         // Count distinct data records (not individual issue occurrences)
         basePipeline.push({
             $addFields: {
-                count: { $size: "$distinctRecords" }  // Count of distinct data records containing this issue
+                count: { $size: "$distinctRecords" }  // Calculate count as the number of distinct records with this issue
             }
         });
         // Format the output
