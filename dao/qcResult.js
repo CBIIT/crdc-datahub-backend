@@ -61,7 +61,7 @@ class QCResultDAO extends GenericDAO {
                     code: "$issues.code"
                 },
                 distinctRecords: {
-                    $addToSet: "$dataRecordID"  // Collect unique dataRecordID values to count distinct records with this issue type
+                    $addToSet: "$dataRecordID"  // Collect unique dataRecordID values for this specific issue type (title, severity, code combination)
                 }
             }
         });
