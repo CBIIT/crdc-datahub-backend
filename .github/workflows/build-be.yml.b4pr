@@ -23,16 +23,10 @@ on:
         type: boolean
         default: true
 
-  pull_request:
-    types:
-      - closed
-    branches:
-      - "*.*.*"
 
 jobs:
   build-backend:
     name: Build backend image
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     env:
@@ -42,8 +36,6 @@ jobs:
       AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-      TRIVY_TEST_SCAN_BE: ${{ github.event.inputs.trivy_test_scan_be || 'true' }}
-      UNIT_TEST: ${{ github.event.inputs.unit_test || 'true' }}
 
     steps:
 
