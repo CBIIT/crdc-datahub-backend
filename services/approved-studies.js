@@ -313,7 +313,7 @@ class ApprovedStudiesService {
 
         const isPendingModelChange = !isTrue(updateStudy?.pendingModelChange) && currPendingModelChange !== updateStudy.pendingModelChange;
         const isPendingGPAChange = !isTrue(updateStudy?.isPendingGPA) && currPendingGPA !== updateStudy.isPendingGPA;
-        const isDbGaPIDChange = (Boolean(updateStudy?.dbGaPID) && isTrue(updateStudy.controlledAccess)) && currDbGaPID !== updateStudy.dbGaPID;
+        const isDbGaPIDChange = Boolean(updateStudy?.dbGaPID) && isTrue(updateStudy.controlledAccess) && currDbGaPID !== updateStudy.dbGaPID;
         if ((isPendingModelChange || isPendingGPAChange || isDbGaPIDChange) && updateStudy.pendingApplicationID) {
             await this._notifyClearPendingState(updateStudy);
         }
