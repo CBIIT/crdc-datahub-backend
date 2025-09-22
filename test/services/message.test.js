@@ -282,7 +282,9 @@ describe('Message Class', () => {
         validationID: 'validation-2024-01-15-001'
       });
       expect(message.scope).toBeUndefined();
+      expect(message.dataCommons).toBeUndefined();
     });
+
 
     test('should create file validation message for individual file', () => {
       const message = Message.createFileNodeMessage(

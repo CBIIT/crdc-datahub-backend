@@ -121,7 +121,7 @@ class DataRecordDAO extends GenericDAO {
     }
 
     // note: use MongoDB because Prisma has to fetch all matching documents into memory before grouping and paginating
-    async submissionCrossValidationResults(submissionID, nodeTypes, batchIDs, severities, first, offset, orderBy, sortDirection){
+    async submissionCrossValidationResults(submissionID, nodeTypes, batchIDs, severities, first, offset, orderBy, sortDirection, dataCommons = null){
         let dataRecordQCResultsPipeline = [];
         // Filter by submission ID
         dataRecordQCResultsPipeline.push({
@@ -129,6 +129,15 @@ class DataRecordDAO extends GenericDAO {
                 submissionID: submissionID
             }
         });
+
+        // Filter by dataCommons scope for cross validation - ticket CRDCDH-3247
+        if (dataCommons) {
+            dataRecordQCResultsPipeline.push({
+                $match: {
+                    dataCommons: dataCommons
+                }
+            });
+        }
 
         // Filter by Batch IDs
         if (!!batchIDs && batchIDs.length > 0) {

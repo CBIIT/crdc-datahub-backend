@@ -654,4 +654,108 @@ describe('Submission Service - getSubmission', () => {
                 .rejects.toThrow('Database error');
         });
     });
+
+    describe('submissionCrossValidationResults', () => {
+        test('should pass dataCommons parameter for cross validation scope filtering', async () => {
+            // Mock data
+            const mockParams = {
+                submissionID: 'submission-123',
+                nodeTypes: ['case'],
+                batchIDs: ['batch-1'],
+                severities: 'Error',
+                first: 10,
+                offset: 0,
+                orderBy: 'validatedDate',
+                sortDirection: 'DESC'
+            };
+
+            const mockContext = {
+                userInfo: {
+                    _id: 'user-123',
+                    role: ROLES.DATA_COMMONS_PERSONNEL,
+                    studies: ['study-123'],
+                    dataCommons: ['test-data-commons']
+                }
+            };
+
+            const mockSubmission = {
+                _id: 'submission-123',
+                dataCommons: 'test-data-commons',
+                studyID: 'study-123'
+            };
+
+            const mockCrossValidationResults = {
+                results: [],
+                total: 0
+            };
+
+            // Setup mocks
+            submissionService._findByID.mockResolvedValue(mockSubmission);
+            submissionService._getUserScope.mockResolvedValue({ isNoneScope: () => false });
+            submissionService.dataRecordDAO.submissionCrossValidationResults.mockResolvedValue(mockCrossValidationResults);
+
+            // Execute
+            const result = await submissionService.submissionCrossValidationResults(mockParams, mockContext);
+
+            // Verify
+            expect(submissionService.dataRecordDAO.submissionCrossValidationResults).toHaveBeenCalledWith(
+                'submission-123',
+                ['case'],
+                ['batch-1'],
+                'Error',
+                10,
+                0,
+                'validatedDate',
+                'DESC',
+                'test-data-commons' // dataCommons parameter should be passed
+            );
+            expect(result).toEqual(mockCrossValidationResults);
+        });
+
+        test('should handle missing dataCommons gracefully', async () => {
+            // Mock data
+            const mockParams = {
+                submissionID: 'submission-123'
+            };
+
+            const mockContext = {
+                userInfo: {
+                    _id: 'user-123',
+                    role: ROLES.DATA_COMMONS_PERSONNEL
+                }
+            };
+
+            const mockSubmission = {
+                _id: 'submission-123',
+                dataCommons: null // No dataCommons
+            };
+
+            const mockCrossValidationResults = {
+                results: [],
+                total: 0
+            };
+
+            // Setup mocks
+            submissionService._findByID.mockResolvedValue(mockSubmission);
+            submissionService._getUserScope.mockResolvedValue({ isNoneScope: () => false });
+            submissionService.dataRecordDAO.submissionCrossValidationResults.mockResolvedValue(mockCrossValidationResults);
+
+            // Execute
+            const result = await submissionService.submissionCrossValidationResults(mockParams, mockContext);
+
+            // Verify
+            expect(submissionService.dataRecordDAO.submissionCrossValidationResults).toHaveBeenCalledWith(
+                'submission-123',
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                null // dataCommons should be null
+            );
+            expect(result).toEqual(mockCrossValidationResults);
+        });
+    });
 }); 
