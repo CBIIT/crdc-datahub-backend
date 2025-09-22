@@ -778,9 +778,7 @@ class Submission {
         if (!validationRecord) {
             throw new Error(ERROR.FAILED_INSERT_VALIDATION_OBJECT);
         }
-        // Extract dataCommons for cross validation scope - ticket CRDCDH-3247
-        const dataCommons = aSubmission?.dataCommons || null;
-        const result = await this.dataRecordService.validateMetadata(params._id, params?.types, params?.scope, validationRecord.id, dataCommons);
+        const result = await this.dataRecordService.validateMetadata(params._id, params?.types, params?.scope, validationRecord.id);
         const updatedSubmission = await this._recordSubmissionValidation(params._id, validationRecord, params?.types, aSubmission);
         // roll back validation if service failed
         if (!result.success) {

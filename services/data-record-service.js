@@ -151,7 +151,7 @@ class DataRecordService {
         }
     }
 
-    async validateMetadata(submissionID, types, scope, validationID, dataCommons = null) {
+    async validateMetadata(submissionID, types, scope, validationID) {
         isValidMetadata(types, scope);
         const isMetadata = types.some(t => t === VALIDATION.TYPES.METADATA || t === VALIDATION.TYPES.CROSS_SUBMISSION);
         let errorMessages = [];
@@ -162,8 +162,8 @@ class DataRecordService {
                 // updated for task CRDCDH-3001, both cross-submission and metadata need to be validated in parallel in a condition
                 // if the user role is DATA_COMMONS_PERSONNEL, and the submission status is "Submitted", and aSubmission?.crossSubmissionStatus is "Error",
                 if (types.includes(VALIDATION.TYPES.CROSS_SUBMISSION)) {
-                    // Include dataCommons in cross validation message for scope filtering - ticket CRDCDH-3247
-                    const msg = Message.createMetadataMessage("Validate Cross-submission", submissionID, null, validationID, dataCommons);
+                    // Data commons will be retrieved from the submission in the external validation service
+                    const msg = Message.createMetadataMessage("Validate Cross-submission", submissionID, null, validationID);
                     const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.metadataQueueName, submissionID);
                     if (!success.success)
                         errorMessages.push(ERRORS.FAILED_VALIDATE_CROSS_SUBMISSION, success.message);
@@ -797,14 +797,11 @@ class Message {
             this.validationID = validationID;
         }
     }
-    static createMetadataMessage(type, submissionID, scope, validationID, dataCommons) {
+    static createMetadataMessage(type, submissionID, scope, validationID) {
         const msg = new Message(type, validationID);
         msg.submissionID = submissionID;
         if (scope) {
             msg.scope= scope;
-        }
-        if (dataCommons) {
-            msg.dataCommons = dataCommons;
         }
         return msg;
     }
