@@ -311,9 +311,10 @@ class ApprovedStudiesService {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_UPDATE);
         }
 
-        const isPendingCleared = !isTrue(updateStudy?.pendingModelChange) && !isTrue(updateStudy?.isPendingGPA) && Boolean(updateStudy?.dbGaPID) && isTrue(updateStudy.controlledAccess);
-        const isPendingUpdated = currPendingModelChange !== updateStudy.pendingModelChange || currDbGaPID !== updateStudy.dbGaPID || currPendingGPA !== updateStudy.isPendingGPA;
-        if (isPendingUpdated && isPendingCleared && updateStudy.pendingApplicationID) {
+        const isPendingModelChange = !isTrue(updateStudy?.pendingModelChange) && currPendingModelChange !== updateStudy.pendingModelChange;
+        const isPendingGPAChange = !isTrue(updateStudy?.isPendingGPA) && currPendingGPA !== updateStudy.isPendingGPA;
+        const isDbGaPIDChange = (Boolean(updateStudy?.dbGaPID) && isTrue(updateStudy.controlledAccess)) && currDbGaPID !== updateStudy.dbGaPID;
+        if ((isPendingModelChange || isPendingGPAChange || isDbGaPIDChange) && updateStudy.pendingApplicationID) {
             await this._notifyClearPendingState(updateStudy);
         }
 
