@@ -1800,11 +1800,11 @@ class Submission {
     async _notifyConfigurationChange(userInfo, aSubmission, newModelVersion, prevSubmitter, newSubmitter) {
         const users = await this.userDAO.getUsersByNotifications([EN.DATA_SUBMISSION.CHANGE_CONFIGURATION]);
         const isSubmitterChanged = Boolean(newSubmitter && prevSubmitter?.id !== newSubmitter?.id);
-        const submitterID = isSubmitterChanged ? newSubmitter?._id : aSubmission?.submitterID;
+        const submitterID = isSubmitterChanged ? newSubmitter?.id : aSubmission?.submitterID;
         const { submitterEmails, BCCEmails } = (users || []).reduce(
             (acc, u) => {
                 if (u?.email) {
-                    if (u?._id === submitterID && u.role === USER.ROLES.SUBMITTER) {
+                    if (u?.id === submitterID && u.role === USER.ROLES.SUBMITTER) {
                         acc.submitterEmails.push(u?.email);
                     }
 
