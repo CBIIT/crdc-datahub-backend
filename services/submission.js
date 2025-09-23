@@ -1809,7 +1809,7 @@ class Submission {
                     }
 
                     if ([USER.ROLES.FEDERAL_LEAD, USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.ADMIN].includes(u?.role)) {
-                        acc.BCCEmails.push(u?.email)
+                        acc.BCCEmails.push(u?.email);
                     }
                 }
                 return acc;
