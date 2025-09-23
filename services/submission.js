@@ -1833,12 +1833,12 @@ class Submission {
             });
 
             if (sent?.accepted?.length === 0) {
-                console.error(`${ERROR.FAILED_NOTIFY_SUBMISSION_UPDATE};submissionID ${aSubmission?._id}`);
+                console.error(`${ERROR.FAILED_NOTIFY_SUBMISSION_UPDATE};submissionID ${aSubmission?.id}`);
             }
         }
 
         if (submitterEmails?.length === 0) {
-            console.log(`Submission updated; email notification to submitter not sent. submissionID: ${aSubmission?._id}`);
+            console.log(`Submission updated; email notification to submitter not sent. submissionID: ${aSubmission?.id}`);
         }
     }
 
