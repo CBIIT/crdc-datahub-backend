@@ -1279,7 +1279,7 @@
             "group": "Data Submission Emails",
             "name": "When changed",
             "order": 11,
-            "checked": false,
+            "checked": true,
             "disabled": true
           },
           {
