@@ -1,3 +1,9 @@
+function isValidUUID(uuid) {
+    // UUID v4 regex pattern
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    return typeof uuid === 'string' && uuidRegex.test(uuid);
+}
+
 async function findProgramIdForStudy(studyID) {
     const prog = await db.organization.findOne(
         { "studies._id": studyID }, // direct array membership check
@@ -19,6 +25,7 @@ async function setProgramIDs() {
 
     let total = 0;
     let successCount = 0;
+    let skippedCount = 0;
     const failed = [];
 
     while (await cursor.hasNext()) {
@@ -26,6 +33,13 @@ async function setProgramIDs() {
         total++;
 
         try {
+            // Skip if programID exists and is already a valid UUID
+            if (s.programID && isValidUUID(s.programID)) {
+                console.log(`Skipping submission ${s._id} - programID already valid UUID: ${s.programID}`);
+                skippedCount++;
+                continue;
+            }
+
             const programId = (await findProgramIdForStudy(s.studyID)) || naProgram._id;
             const res = await db.submissions.updateOne(
                 { _id: s._id },
@@ -33,7 +47,7 @@ async function setProgramIDs() {
             );
 
             if (res.modifiedCount === 1) {
-                console.log(`Updated submissionID: ${s._id} programID: ${programId} studyID: ${s.studyID}`);
+                console.log(`Updated submissionID: ${s._id} programID: ${programId} studyID: ${s.studyID} (was: ${s.programID || 'missing'})`);
                 successCount++;
             }
 
@@ -47,6 +61,7 @@ async function setProgramIDs() {
     console.log(`\nSummary setting a ProgramID for the submissions.`);
     console.log(`Scanned:  ${total}`);
     console.log(`Updated:  ${successCount}`);
+    console.log(`Skipped:  ${skippedCount}`);
     if (failed.length > 0) {
         console.log(`\n❌ Failed: ${failed.length}`);
         console.log(JSON.stringify(failed, null, 2));

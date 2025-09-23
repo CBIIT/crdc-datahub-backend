@@ -139,7 +139,10 @@ Commands:
       );
   - remove all submitter info from application collection for CRDCDH-3059: |      
       db.applications.updateMany(
-      { "applicant.applicantID": { $exists: true } },   // only where applicantID exists
+      { 
+        "applicant.applicantID": { $exists: true },   // only where nested applicantID exists
+        "applicantID": { $exists: false }             // AND root applicantID doesn't exist
+      },
       [
         {
           $set: {
