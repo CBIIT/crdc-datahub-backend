@@ -162,6 +162,7 @@ class DataRecordService {
                 // updated for task CRDCDH-3001, both cross-submission and metadata need to be validated in parallel in a condition
                 // if the user role is DATA_COMMONS_PERSONNEL, and the submission status is "Submitted", and aSubmission?.crossSubmissionStatus is "Error",
                 if (types.includes(VALIDATION.TYPES.CROSS_SUBMISSION)) {
+                    // Data commons will be retrieved from the submission in the external validation service
                     const msg = Message.createMetadataMessage("Validate Cross-submission", submissionID, null, validationID);
                     const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.metadataQueueName, submissionID);
                     if (!success.success)
