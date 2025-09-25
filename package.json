@@ -6,7 +6,8 @@
   "scripts": {
     "prestart": "prisma generate",
     "start": "node ./bin/www",
-    "test": "jest"
+    "test": "jest",
+    "migrate": "node ./scripts/3-4-0-migrations.js"
   },
   "dependencies": {
     "@graphql-tools/schema": "^10.0.23",
