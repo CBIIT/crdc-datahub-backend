@@ -209,8 +209,8 @@ Commands:
       );
   - program collection has a type property for updatedAt: |
       db.organization.updateMany({updatedAt: {$exists: true}}, { $unset: { updatedAt: "" } })
-  - submitter role remove data_submission:cfg_changed by default: |
+  - submitter role should have data_submission:cfg_changed by default: |
       db.users.updateMany(
         { role: "Submitter" },
-        { $pull: { notifications: "data_submission:cfg_changed" } }
+        {$addToSet: { notifications: "data_submission:cfg_changed" }}
       );
