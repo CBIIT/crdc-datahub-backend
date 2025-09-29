@@ -314,9 +314,9 @@ class ApprovedStudiesService {
         const isDbGapIDPending = isTrue(updateStudy.controlledAccess) ? !Boolean(updateStudy?.dbGaPID) : false;
         const hasPendingGPA = isTrue(updateStudy.controlledAccess) ? Boolean(updateStudy?.isPendingGPA) : false;
         const isClearedPending = !isTrue(updateStudy?.pendingModelChange) && !hasPendingGPA && !isDbGapIDPending;
-        const isCurrDbGapIDPending = isTrue(updateStudy.controlledAccess) ? !Boolean(currDbGaPID) : false;
-        const hasCurrPending = isTrue(currPendingModelChange) || isTrue(currPendingGPA) || isCurrDbGapIDPending;
-        if (isClearedPending && hasCurrPending && updateStudy?.pendingApplicationID) {
+        const wasPendingDbGaPID = isTrue(updateStudy.controlledAccess) ? !Boolean(currDbGaPID) : false;
+        const hadPendingConditions = isTrue(currPendingModelChange) || isTrue(currPendingGPA) || wasPendingDbGaPID;
+        if (isClearedPending && hadPendingConditions && updateStudy?.pendingApplicationID) {
             await this._notifyClearPendingState(updateStudy);
         }
 
