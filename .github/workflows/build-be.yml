@@ -10,7 +10,7 @@ on:
         description: Choose the environment to build
         type: environment
       branch:
-        description: Branch to build validation
+        description: Branch to build
         required: true
       trivy_test_scan_be:
         description: "Run Trivy Test Scan"
