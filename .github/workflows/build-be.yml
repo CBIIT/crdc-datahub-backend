@@ -10,7 +10,7 @@ on:
         description: Choose the environment to build
         type: environment
       branch:
-        description: Branch to build validation
+        description: Branch to build
         required: true
       trivy_test_scan_be:
         description: "Run Trivy Test Scan"
@@ -34,7 +34,7 @@ jobs:
     name: Build backend image
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'build' }}
     env:
       ECR_REPO_BE: "crdc-hub-backend"
       REGION: "us-east-1"
@@ -42,8 +42,8 @@ jobs:
       AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-      TRIVY_TEST_SCAN_BE: ${{ github.event.inputs.trivy_test_scan_be || 'true' }}
-      UNIT_TEST: ${{ github.event.inputs.unit_test || 'true' }}
+      TRIVY_TEST_SCAN_BE: ${{ github.event.inputs.trivy_test_scan_be != '' && github.event.inputs.trivy_test_scan_be || 'true' }}
+      UNIT_TEST: ${{ github.event.inputs.unit_test != '' && github.event.inputs.unit_test || 'true' }}
 
     steps:
 
