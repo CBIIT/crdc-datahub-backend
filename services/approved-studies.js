@@ -316,9 +316,13 @@ class ApprovedStudiesService {
         const isCurrDbGapIDPending = isTrue(updateStudy.controlledAccess) ? !Boolean(currDbGaPID) : false;
         const hasCurrPending = isTrue(currPendingModelChange) || isTrue(currPendingGPA) || isCurrDbGapIDPending;
         if (isClearedPending && hasCurrPending) {
-            await this._notifyClearPendingState(updateStudy);
+            try{
+                await this._notifyClearPendingState(updateStudy);
+            } catch (error) {
+                // log an error that the notification has failed but continue the update
+                console.error(error);
+            }
         }
-
         const programs = await this._findOrganizationByStudyID(studyID);
         const conciergeID = this._getConcierge(programs, primaryContact, useProgramPC);
         const updatedSubmissions = await this.submissionDAO.updateMany({
