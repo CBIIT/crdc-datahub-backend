@@ -313,16 +313,6 @@ class ApprovedStudiesService {
 
         const isDbGapIDPending = isTrue(updateStudy.controlledAccess) ? !Boolean(updateStudy?.dbGaPID) : false;
         const isClearedPending = !isTrue(updateStudy?.pendingModelChange) && !isTrue(updateStudy?.isPendingGPA) && !isDbGapIDPending;
-        const isCurrDbGapIDPending = isTrue(updateStudy.controlledAccess) ? !Boolean(currDbGaPID) : false;
-        const hasCurrPending = isTrue(currPendingModelChange) || isTrue(currPendingGPA) || isCurrDbGapIDPending;
-        if (isClearedPending && hasCurrPending) {
-            try{
-                await this._notifyClearPendingState(updateStudy);
-            } catch (error) {
-                // log an error that the notification has failed but continue the update
-                console.error(error);
-            }
-        }
         const programs = await this._findOrganizationByStudyID(studyID);
         const conciergeID = this._getConcierge(programs, primaryContact, useProgramPC);
         const updatedSubmissions = await this.submissionDAO.updateMany({
@@ -338,6 +328,13 @@ class ApprovedStudiesService {
         if (!(updatedSubmissions?.count >= 0)) {
             console.log(ERROR.FAILED_PRIMARY_CONTACT_UPDATE, `StudyID: ${studyID}`);
             throw new Error(ERROR.FAILED_PRIMARY_CONTACT_UPDATE);
+        }
+        // notify the submitter that the pending state has been cleared
+        // if the notification fails, an error response will be thrown but the study will still be updated
+        const isCurrDbGapIDPending = isTrue(updateStudy.controlledAccess) ? !Boolean(currDbGaPID) : false;
+        const hasCurrPending = isTrue(currPendingModelChange) || isTrue(currPendingGPA) || isCurrDbGapIDPending;
+        if (isClearedPending && hasCurrPending) {
+            await this._notifyClearPendingState(updateStudy);
         }
 
         let approvedStudy = {...updateStudy, programs: programs, primaryContact: primaryContact};
@@ -375,34 +372,41 @@ class ApprovedStudiesService {
     }
 
     async _notifyClearPendingState(updateStudy) {
-        const application = await this.applicationDAO.findFirst({id: updateStudy.pendingApplicationID});
         const errorMsg = replaceErrorString(ERROR.FAILED_TO_NOTIFY_CLEAR_PENDING_STATE, `studyID: ${updateStudy?._id}`);
-        if (!application || !application?._id) {
-            console.error(errorMsg);
-            throw new Error(errorMsg);
-        }
-
-        const aSubmitter = await this.userDAO.findFirst({id: application?.applicantID});
-        if (!aSubmitter?._id) {
-            console.error(errorMsg);
-            throw new Error(errorMsg);
-        }
-        const BCCUsers = await this.userDAO.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_PENDING_CLEARED],
-            [USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.FEDERAL_LEAD, USER.ROLES.ADMIN]);
-        const filteredBCCUsers = BCCUsers.filter((u) => u?._id !== aSubmitter?._id);
-
-        if (aSubmitter?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_PENDING_CLEARED)) {
-            const res = await this.notificationsService.clearPendingModelState(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
-                firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`,
-                studyName: updateStudy?.studyName || NA,
-                portalURL: this.emailParams.url || NA,
-                submissionGuideURL: this.emailParams?.submissionGuideURL,
-                contactEmail: this.emailParams.contactEmail || NA,
-            });
-            if (res?.accepted?.length === 0 || !res) {
-                console.error(errorMsg);
-                throw new Error(errorMsg);
+        try{
+            const application = await this.applicationDAO.findFirst({id: updateStudy.pendingApplicationID});
+        
+            if (!application || !application?._id) {
+                // internal error for the logs, this will not be displayed to the user
+                throw new Error("Unable to find application with ID: " + updateStudy.pendingApplicationID);
             }
+
+            const aSubmitter = await this.userDAO.findFirst({id: application?.applicantID});
+            if (!aSubmitter?._id) {
+                // internal error for the logs, this will not be displayed to the user
+                throw new Error("Unable to find submitter with ID: " + application?.applicantID);
+            }
+            const BCCUsers = await this.userDAO.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_PENDING_CLEARED],
+                [USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.FEDERAL_LEAD, USER.ROLES.ADMIN]);
+            const filteredBCCUsers = BCCUsers.filter((u) => u?._id !== aSubmitter?._id);
+
+            if (aSubmitter?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_PENDING_CLEARED)) {
+                const res = await this.notificationsService.clearPendingModelState(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
+                    firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`,
+                    studyName: updateStudy?.studyName || NA,
+                    portalURL: this.emailParams.url || NA,
+                    submissionGuideURL: this.emailParams?.submissionGuideURL,
+                    contactEmail: this.emailParams.contactEmail || NA,
+                });
+                if (res?.accepted?.length === 0 || !res) {
+                    // internal error for the logs, this will not be displayed to the user
+                    throw new Error("Failed to send notification for clearing the approved study; " + updateStudy?._id);
+                }
+            }
+        } catch (error) {
+            // log the internal error but throw a general error to be displayed to the user
+            console.error(error);
+            throw new Error(errorMsg);
         }
     }
 
