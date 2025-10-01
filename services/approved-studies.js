@@ -378,7 +378,6 @@ class ApprovedStudiesService {
         const errorMsg = replaceErrorString(ERROR.FAILED_TO_NOTIFY_CLEAR_PENDING_STATE, `studyID: ${updateStudy?._id}`);
         try{
             const application = await this.applicationDAO.findFirst({id: updateStudy.pendingApplicationID});
-        
             if (!application || !application?._id) {
                 // internal error for the logs, this will not be displayed to the user
                 throw new Error("Unable to find application with ID: " + updateStudy.pendingApplicationID);
