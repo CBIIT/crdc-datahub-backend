@@ -344,13 +344,10 @@ class ApprovedStudiesService {
     }
 
     _setPendingGPA (updateStudy, controlledAccess, isPendingGPA, GPAName) {
+        // Validate GPA parameters before setting them
+        this._validatePendingGPA(GPAName, controlledAccess, isPendingGPA);
+
         if (isTrue(updateStudy.controlledAccess)) {
-            // only editing GPAName
-            if (GPAName !== undefined) {
-                if (!isTrue(isPendingGPA) && !GPAName?.trim()) {
-                    throw new Error(ERROR.INVALID_PENDING_GPA + ";GPA name is missing.");
-                }
-            }
             if (isPendingGPA != null) {
                 updateStudy.isPendingGPA = isPendingGPA;
             }
@@ -370,8 +367,9 @@ class ApprovedStudiesService {
             throw new Error(ERROR.INVALID_PENDING_GPA);
         }
 
-        if (isTrue(controlledAccess) && isPendingGPA !== undefined && !isTrue(isPendingGPA) && !GPAName?.trim()) {
-            throw new Error(ERROR.INVALID_PENDING_GPA + ";GPA name is missing.");
+        // If GPAName is null or empty, isPendingGPA must be true
+        if (isTrue(controlledAccess) && (!GPAName || GPAName.trim() === "") && !isTrue(isPendingGPA)) {
+            throw new Error(ERROR.INVALID_PENDING_GPA);
         }
     }
 
@@ -465,10 +463,6 @@ class ApprovedStudiesService {
         // verify name exists and is not an empty string
         if (!params.name) {
             throw new Error(ERROR.MISSING_STUDY_NAME);
-        }
-        // verify that dbGaPID exists if the study is controlledAccess
-        if (!!params.controlledAccess && !params.dbGaPID){
-            throw new Error(ERROR.MISSING_DB_GAP_ID);
         }
         // validate that ORCID if it exists
         if (!!params.ORCID && !this._validateIdentifier(params.ORCID)) {
