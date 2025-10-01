@@ -311,8 +311,15 @@ class ApprovedStudiesService {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_UPDATE);
         }
 
-        const isDbGapIDPending = isTrue(updateStudy.controlledAccess) ? !Boolean(updateStudy?.dbGaPID) : false;
-        const isClearedPending = !isTrue(updateStudy?.pendingModelChange) && !isTrue(updateStudy?.isPendingGPA) && !isDbGapIDPending;
+        const pendingDbGaPID = isTrue(updateStudy.controlledAccess) ? !Boolean(updateStudy?.dbGaPID) : false;
+        const pendingGPA = isTrue(updateStudy.controlledAccess) ? Boolean(updateStudy?.isPendingGPA) : false;
+        const allPendingsCleared = !isTrue(updateStudy?.pendingModelChange) && !pendingGPA && !pendingDbGaPID;
+        const wasPendingDbGaPID = isTrue(updateStudy.controlledAccess) ? !Boolean(currDbGaPID) : false;
+        const hadPendingsConditions = isTrue(currPendingModelChange) || isTrue(currPendingGPA) || wasPendingDbGaPID;
+        if (allPendingsCleared && hadPendingsConditions && updateStudy?.pendingApplicationID) {
+            await this._notifyClearPendingState(updateStudy);
+        }
+
         const programs = await this._findOrganizationByStudyID(studyID);
         const conciergeID = this._getConcierge(programs, primaryContact, useProgramPC);
         const updatedSubmissions = await this.submissionDAO.updateMany({
@@ -331,6 +338,8 @@ class ApprovedStudiesService {
         }
         // notify the submitter that the pending state has been cleared
         // if the notification fails, an error response will be thrown but the study will still be updated
+        const isDbGapIDPending = isTrue(updateStudy.controlledAccess) ? !Boolean(updateStudy?.dbGaPID) : false;
+        const isClearedPending = !isTrue(updateStudy?.pendingModelChange) && !isTrue(updateStudy?.isPendingGPA) && !isDbGapIDPending;
         const isCurrDbGapIDPending = isTrue(updateStudy.controlledAccess) ? !Boolean(currDbGaPID) : false;
         const hasCurrPending = isTrue(currPendingModelChange) || isTrue(currPendingGPA) || isCurrDbGapIDPending;
         if (isClearedPending && hasCurrPending) {
@@ -349,7 +358,9 @@ class ApprovedStudiesService {
                     throw new Error(ERROR.INVALID_PENDING_GPA + ";GPA name is missing.");
                 }
             }
-            updateStudy.isPendingGPA = isPendingGPA;
+            if (isPendingGPA != null) {
+                updateStudy.isPendingGPA = isPendingGPA;
+            }
         }
 
         if (!isTrue(updateStudy.controlledAccess)) {
