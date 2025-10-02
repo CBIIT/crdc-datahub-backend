@@ -826,10 +826,19 @@ class MigrationRunner {
             ]
         });
 
+        // Count submissions with null/empty concierge fields
+        const submissionsWithEmptyConciergeFields = await this.db.collection('submissions').countDocuments({
+            $or: [
+                { conciergeName: { $in: [null, ""] } },
+                { conciergeEmail: { $in: [null, ""] } }
+            ]
+        });
+
         console.log(`📊 Verification Results:`);
         console.log(`   Total submissions: ${totalSubmissions}`);
         console.log(`   Submissions with conciergeID: ${submissionsWithConciergeID}`);
         console.log(`   Submissions with old fields to clean: ${submissionsWithOldFields}`);
+        console.log(`   Submissions with null/empty concierge fields: ${submissionsWithEmptyConciergeFields}`);
 
         // Safety check: Only proceed if conciergeID migration was successful
         if (submissionsWithConciergeID === 0) {
@@ -855,7 +864,8 @@ class MigrationRunner {
 
         console.log("✅ Verification passed: Safe to clean old concierge fields");
         
-        const unsetRes = await this.db.collection('submissions').updateMany(
+        // Clean up old fields from submissions with conciergeID
+        const unsetRes1 = await this.db.collection('submissions').updateMany(
             {
                 conciergeID: { $exists: true }
             },
@@ -867,7 +877,26 @@ class MigrationRunner {
                 }
             }
         );
-        console.log(`Cleanup complete. Removed old fields from ${unsetRes.modifiedCount} submissions.`);
+        console.log(`✅ Removed old fields from ${unsetRes1.modifiedCount} submissions with conciergeID`);
+
+        // Clean up null/empty concierge fields from all submissions
+        const unsetRes2 = await this.db.collection('submissions').updateMany(
+            {
+                $or: [
+                    { conciergeName: { $in: [null, ""] } },
+                    { conciergeEmail: { $in: [null, ""] } }
+                ]
+            },
+            {
+                $unset: {
+                    conciergeName: "",
+                    conciergeEmail: ""
+                }
+            }
+        );
+        console.log(`✅ Removed null/empty concierge fields from ${unsetRes2.modifiedCount} submissions`);
+        
+        console.log(`🧹 Cleanup complete. Total submissions cleaned: ${unsetRes1.modifiedCount + unsetRes2.modifiedCount}`);
     }
 
     // Restore user notifications function (from shared functions)
