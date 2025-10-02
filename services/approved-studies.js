@@ -311,13 +311,6 @@ class ApprovedStudiesService {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_UPDATE);
         }
 
-        const isDbGapIDPending = isTrue(updateStudy.controlledAccess) ? !Boolean(updateStudy?.dbGaPID) : false;
-        const isClearedPending = !isTrue(updateStudy?.pendingModelChange) && !isTrue(updateStudy?.isPendingGPA) && !isDbGapIDPending;
-        const isCurrDbGapIDPending = isTrue(updateStudy.controlledAccess) ? !Boolean(currDbGaPID) : false;
-        const hasCurrPending = isTrue(currPendingModelChange) || isTrue(currPendingGPA) || isCurrDbGapIDPending;
-        if (isClearedPending && hasCurrPending) {
-            await this._notifyClearPendingState(updateStudy);
-        }
 
         const programs = await this._findOrganizationByStudyID(studyID);
         const conciergeID = this._getConcierge(programs, primaryContact, useProgramPC);
@@ -335,20 +328,29 @@ class ApprovedStudiesService {
             console.log(ERROR.FAILED_PRIMARY_CONTACT_UPDATE, `StudyID: ${studyID}`);
             throw new Error(ERROR.FAILED_PRIMARY_CONTACT_UPDATE);
         }
+        // notify the submitter that the pending state has been cleared
+        // if the notification fails, an error response will be thrown but the study will still be updated
+        const pendingDbGaPID = isTrue(updateStudy.controlledAccess) ? !Boolean(updateStudy?.dbGaPID) : false;
+        const pendingGPA = isTrue(updateStudy.controlledAccess) ? Boolean(updateStudy?.isPendingGPA) : false;
+        const allPendingsCleared = !isTrue(updateStudy?.pendingModelChange) && !pendingGPA && !pendingDbGaPID;
+        const wasPendingDbGaPID = isTrue(updateStudy.controlledAccess) ? !Boolean(currDbGaPID) : false;
+        const hadPendingsConditions = isTrue(currPendingModelChange) || isTrue(currPendingGPA) || wasPendingDbGaPID;
+        if (allPendingsCleared && hadPendingsConditions && updateStudy?.pendingApplicationID) {
+            await this._notifyClearPendingState(updateStudy);
+        }
 
         let approvedStudy = {...updateStudy, programs: programs, primaryContact: primaryContact};
         return getDataCommonsDisplayNamesForApprovedStudy(approvedStudy);
     }
 
     _setPendingGPA (updateStudy, controlledAccess, isPendingGPA, GPAName) {
+        // Validate GPA parameters before setting them
+        this._validatePendingGPA(GPAName, controlledAccess, isPendingGPA);
+
         if (isTrue(updateStudy.controlledAccess)) {
-            // only editing GPAName
-            if (GPAName !== undefined) {
-                if (!isTrue(isPendingGPA) && !GPAName?.trim()) {
-                    throw new Error(ERROR.INVALID_PENDING_GPA + ";GPA name is missing.");
-                }
+            if (isPendingGPA != null) {
+                updateStudy.isPendingGPA = isPendingGPA;
             }
-            updateStudy.isPendingGPA = isPendingGPA;
         }
 
         if (!isTrue(updateStudy.controlledAccess)) {
@@ -365,40 +367,47 @@ class ApprovedStudiesService {
             throw new Error(ERROR.INVALID_PENDING_GPA);
         }
 
-        if (isTrue(controlledAccess) && isPendingGPA !== undefined && !isTrue(isPendingGPA) && !GPAName?.trim()) {
-            throw new Error(ERROR.INVALID_PENDING_GPA + ";GPA name is missing.");
+        // If GPAName is null or empty, isPendingGPA must be true
+        if (isTrue(controlledAccess) && (!GPAName || GPAName.trim() === "") && !isTrue(isPendingGPA)) {
+            throw new Error(ERROR.INVALID_PENDING_GPA);
         }
     }
 
     async _notifyClearPendingState(updateStudy) {
-        const application = await this.applicationDAO.findFirst({id: updateStudy.pendingApplicationID});
         const errorMsg = replaceErrorString(ERROR.FAILED_TO_NOTIFY_CLEAR_PENDING_STATE, `studyID: ${updateStudy?._id}`);
-        if (!application || !application?._id) {
-            console.error(errorMsg);
-            throw new Error(errorMsg);
-        }
-
-        const aSubmitter = await this.userDAO.findFirst({id: application?.applicantID});
-        if (!aSubmitter?._id) {
-            console.error(errorMsg);
-            throw new Error(errorMsg);
-        }
-        const BCCUsers = await this.userDAO.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_PENDING_CLEARED],
-            [USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.FEDERAL_LEAD, USER.ROLES.ADMIN]);
-        const filteredBCCUsers = BCCUsers.filter((u) => u?._id !== aSubmitter?._id);
-
-        if (aSubmitter?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_PENDING_CLEARED)) {
-            const res = await this.notificationsService.clearPendingModelState(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
-                firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`,
-                studyName: updateStudy?.studyName || NA,
-                portalURL: this.emailParams.url || NA,
-                submissionGuideURL: this.emailParams?.submissionGuideURL,
-                contactEmail: this.emailParams.contactEmail || NA,
-            });
-            if (res?.accepted?.length === 0 || !res) {
-                console.error(errorMsg);
-                throw new Error(errorMsg);
+        try{
+            const application = await this.applicationDAO.findFirst({id: updateStudy.pendingApplicationID});
+            if (!application || !application?._id) {
+                // internal error for the logs, this will not be displayed to the user
+                throw new Error("Unable to find application with ID: " + updateStudy.pendingApplicationID);
             }
+
+            const aSubmitter = await this.userDAO.findFirst({id: application?.applicantID});
+            if (!aSubmitter?._id) {
+                // internal error for the logs, this will not be displayed to the user
+                throw new Error("Unable to find submitter with ID: " + application?.applicantID);
+            }
+            const BCCUsers = await this.userDAO.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_PENDING_CLEARED],
+                [USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.FEDERAL_LEAD, USER.ROLES.ADMIN]);
+            const filteredBCCUsers = BCCUsers.filter((u) => u?._id !== aSubmitter?._id);
+
+            if (aSubmitter?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_PENDING_CLEARED)) {
+                const res = await this.notificationsService.clearPendingModelState(aSubmitter?.email, getUserEmails(filteredBCCUsers), {
+                    firstName: `${aSubmitter?.firstName} ${aSubmitter?.lastName || ''}`,
+                    studyName: updateStudy?.studyName || NA,
+                    portalURL: this.emailParams.url || NA,
+                    submissionGuideURL: this.emailParams?.submissionGuideURL,
+                    contactEmail: this.emailParams.contactEmail || NA,
+                });
+                if (res?.accepted?.length === 0 || !res) {
+                    // internal error for the logs, this will not be displayed to the user
+                    throw new Error("Failed to send notification for clearing the approved study; " + updateStudy?._id);
+                }
+            }
+        } catch (error) {
+            // log the internal error but throw a general error to be displayed to the user
+            console.error(error);
+            throw new Error(errorMsg);
         }
     }
 
@@ -454,10 +463,6 @@ class ApprovedStudiesService {
         // verify name exists and is not an empty string
         if (!params.name) {
             throw new Error(ERROR.MISSING_STUDY_NAME);
-        }
-        // verify that dbGaPID exists if the study is controlledAccess
-        if (!!params.controlledAccess && !params.dbGaPID){
-            throw new Error(ERROR.MISSING_DB_GAP_ID);
         }
         // validate that ORCID if it exists
         if (!!params.ORCID && !this._validateIdentifier(params.ORCID)) {
