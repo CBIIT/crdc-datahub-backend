@@ -58,6 +58,8 @@ function convertMongoFilterToPrismaFilter(mongoFilter) {
     } else if (key === '$not' && typeof value === 'object') {
       prismaFilter['not'] = convertMongoFilterToPrismaFilter(value);
     } else if ((key === 'in' || key === 'notIn') && Array.isArray(value)) {
+      // TODO: Fix Prisma conversion error for status field
+      // The current implementation attempts to convert all array values as dates,
       prismaFilter[key] = value.map(v => tryConvertDate(v));
     } else {
       // Assume field name (e.g. createdAt: { $gt: ... })
