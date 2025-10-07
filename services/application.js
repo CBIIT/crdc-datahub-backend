@@ -1192,9 +1192,9 @@ class Application {
     }
 
     async _updateApplication(application, prevStatus, userID) {
-        if (prevStatus !== IN_PROGRESS) {
+        if (prevStatus !== application.status) {
             application = {history: [], ...application};
-            const historyEvent = HistoryEventBuilder.createEvent(userID, IN_PROGRESS, null);
+            const historyEvent = HistoryEventBuilder.createEvent(userID, application.status, null);
             application.history.push(historyEvent);
         }
         // Save an email reminder when an inactive application is reactivated.
