@@ -18,6 +18,7 @@ const ERROR = {
         EMPTY_APPLICATION: "Application array is empty",
         UNDEFINED_STATUS_APPLICATION: "Application state is undefined",
         INVALID_STATE_APPLICATION: "Application state is invalid",
+        INVALID_STATUS_APPLICATION: "The provided application status is invalid",
         // Batch
         UNDEFINED_BATCH_SUBMISSION_ID: "Batch submission ID is undefined",
         UNDEFINED_BATCH_ID: "Batch ID is undefined",

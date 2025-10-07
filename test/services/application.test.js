@@ -1,6 +1,8 @@
-const {Application} = require('../../services/application'); // Adjust if needed
+const { Application } = require('../../services/application'); // Adjust if needed
 const ApplicationDAO = require('../../dao/application');
 const USER_PERMISSION_CONSTANTS = require("../../crdc-datahub-database-drivers/constants/user-permission-constants");
+const ERROR = require('../../constants/error-constants');
+const { NEW, APPROVED, IN_PROGRESS, INQUIRED, CANCELED, REJECTED, DELETED, SUBMITTED, IN_REVIEW } = require('../../constants/application-constants');
 
 // Mock ApplicationDAO
 jest.mock('../../dao/application');
@@ -45,33 +47,7 @@ const mockConfigurationService = { findByType: jest.fn() };
 const mockAuthorizationService = { getPermissionScope: jest.fn() };
 
 // Mocked constants and helpers
-global.NEW = 'New';
-global.IN_PROGRESS = 'In Progress';
-global.SUBMITTED = 'Submitted';
-global.IN_REVIEW = 'In Review';
-global.APPROVED = 'Approved';
-global.INQUIRED = 'Inquired';
-global.CANCELED = 'Canceled';
-global.REJECTED = 'Rejected';
-global.DELETED = 'Deleted';
 global.APPLICATION = 'Application';
-global.ERROR = {
-    VERIFY: { 
-        INVALID_PERMISSION: 'You do not have permission to perform this action.', 
-        INVALID_STATE_APPLICATION: 'Invalid state', 
-        INVALID_USER_SCOPE: 'Invalid user scope' 
-    },
-    APPLICATION_NOT_FOUND: 'The provided application ID was not found in the database. Provided _id: ',
-    DUPLICATE_APPROVED_STUDY_NAME: 'Duplicate: ',
-    CONTROLLED_STUDY_NO_DBGAPID: 'dbGaP ID must be provided before data submissions can begin.',
-    PENDING_APPROVED_STUDY: 'The Data Commons team is reviewing this study for potential data model changes. Data submissions cannot be created until any required model updates are released.',
-    UPDATE_FAILED: 'Update failed',
-    FAILED_DELETE_APPLICATION: 'Failed delete',
-    FAILED_RESTORE_APPLICATION: 'Failed restore',
-    INVALID_APPLICATION_RESTORE_STATE: 'Invalid restore state',
-    APPLICATION_CONTROLLED_ACCESS_NOT_FOUND: 'Controlled access not found',
-    APPLICATION_INVALID_STATUES: 'Invalid statuses'
-};
 global.USER_PERMISSION_CONSTANTS = {
     SUBMISSION_REQUEST: {
         VIEW: 'VIEW',
@@ -171,19 +147,23 @@ describe('Application', () => {
             mockAuthorizationService
         );
 
-        context = { userInfo: { _id: 'user1', firstName: 'John', lastName: 'Doe', email: 'john@doe.com', organization: { orgID: 'org1', orgName: 'Org' }, 
-        role: ROLES.ADMIN, notifications: [EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW], permissions: [ "dashboard:view",
-                "user:manage:all",
-                "submission_request:view",
-                "submission_request:review",
-                "submission_request:create",
-                "submission_request:submit",
-                "program:manage:all",
-                "study:manage:all",
-                "data_submission:view",
-                "data_submission:create",
-                "data_submission:confirm",
-                "access:request"] } };
+        context = {
+            userInfo: {
+                _id: 'user1', firstName: 'John', lastName: 'Doe', email: 'john@doe.com', organization: { orgID: 'org1', orgName: 'Org' },
+                role: ROLES.ADMIN, notifications: [USER_PERMISSION_CONSTANTS.EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW], permissions: ["dashboard:view",
+                    "user:manage:all",
+                    "submission_request:view",
+                    "submission_request:review",
+                    "submission_request:create",
+                    "submission_request:submit",
+                    "program:manage:all",
+                    "study:manage:all",
+                    "data_submission:view",
+                    "data_submission:create",
+                    "data_submission:confirm",
+                    "access:request"]
+            }
+        };
     });
 
     describe('getApplication', () => {
@@ -231,13 +211,11 @@ describe('Application', () => {
     describe('_checkConditionalApproval', () => {
         it('sets conditional and pendingConditions if needed', async () => {
             mockApprovedStudiesService.findByStudyName.mockResolvedValue([{ controlledAccess: true, dbGaPID: null, pendingModelChange: true }]);
-            global.ERROR.CONTROLLED_STUDY_NO_DBGAPID = 'dbGaP ID must be provided before data submissions can begin.';
-            global.ERROR.PENDING_APPROVED_STUDY = 'The Data Commons team is reviewing this study for potential data model changes. Data submissions cannot be created until any required model updates are released.';
             const application = { studyName: 'study1' };
             await app._checkConditionalApproval(application);
             expect(application.conditional).toBe(true);
-            expect(application.pendingConditions).toContain(global.ERROR.CONTROLLED_STUDY_NO_DBGAPID);
-            expect(application.pendingConditions).toContain(global.ERROR.PENDING_APPROVED_STUDY);
+            expect(application.pendingConditions).toContain(ERROR.CONTROLLED_STUDY_NO_DBGAPID);
+            expect(application.pendingConditions).toContain(ERROR.PENDING_APPROVED_STUDY);
         });
 
         it('does nothing if no studies found', async () => {
@@ -306,7 +284,7 @@ describe('Application', () => {
             mockConfigurationService.findByType.mockResolvedValue({ current: '2.0', new: '3.0' });
             const application = { controlledAccess: true };
             const userInfo = context.userInfo;
-            await expect(app.createApplication(application, userInfo)).resolves.toMatchObject({ controlledAccess: true});
+            await expect(app.createApplication(application, userInfo)).resolves.toMatchObject({ controlledAccess: true });
             expect(app.applicationDAO.insert).toHaveBeenCalled();
             expect(mockLogCollection.insert).toHaveBeenCalled();
         });
@@ -330,6 +308,24 @@ describe('Application', () => {
             ApplicationDAO.prototype.findFirst = jest.fn().mockResolvedValue(null);
             mockConfigurationService.findByType.mockResolvedValue({ current: '2.0', new: '3.0' });
             await expect(app.saveApplication(params, context)).rejects.toThrow(ERROR.APPLICATION_NOT_FOUND);
+        });
+
+        it.each([CANCELED, REJECTED, DELETED, SUBMITTED, IN_REVIEW, APPROVED])('should throw error when trying to set the status to %s', async (status) => {
+            userScopeMock.isNoneScope.mockReturnValue(false);
+            userScopeMock.isAllScope.mockReturnValue(false);
+            userScopeMock.isOwnScope.mockReturnValue(true);
+            const params = { application: { _id: 'invalid-status-provided' }, status };
+            jest.spyOn(app, 'getApplicationById').mockResolvedValue({ _id: 'app1', applicant: { applicantID: 'user1' }, status: NEW });
+            await expect(app.saveApplication(params, context)).rejects.toThrow(ERROR.VERIFY.INVALID_STATUS_APPLICATION);
+        });
+
+        it("should throw an error if no status is provided", async () => {
+            userScopeMock.isNoneScope.mockReturnValue(false);
+            userScopeMock.isAllScope.mockReturnValue(false);
+            userScopeMock.isOwnScope.mockReturnValue(true);
+            const params = { application: { _id: 'no-status-provided' } }; // NOTE: We're omitting status param
+            jest.spyOn(app, 'getApplicationById').mockResolvedValue({ _id: 'app1', applicant: { applicantID: 'user1' }, status: NEW });
+            await expect(app.saveApplication(params, context)).rejects.toThrow(ERROR.VERIFY.INVALID_STATUS_APPLICATION);
         });
 
         it('throws if not owner', async () => {
