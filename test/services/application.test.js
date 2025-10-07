@@ -325,7 +325,7 @@ describe('Application', () => {
             userScopeMock.isAllScope.mockReturnValue(false);
             userScopeMock.isOwnScope.mockReturnValue(true);
 
-            jest.spyOn(app, 'getApplicationById').mockResolvedValue({ _id: 'app1', applicant: { applicantID: 'user1' }, status: NEW });
+            jest.spyOn(app, 'getApplicationById').mockResolvedValue({ _id: 'no-status-provided', applicant: { applicantID: 'user1' }, status: NEW });
 
             const params = { application: { _id: 'no-status-provided' } }; // NOTE: We're omitting status param
             await expect(app.saveApplication(params, context)).rejects.toThrow(ERROR.VERIFY.INVALID_STATUS_APPLICATION);
