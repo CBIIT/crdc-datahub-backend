@@ -299,14 +299,13 @@ describe('Application', () => {
             await expect(app.saveApplication(params, context)).resolves.toEqual({ _id: 'app2' });
         });
 
-        it('updates existing application', async () => {
+        it("should throw an error when the application does not exist", async () => {
             userScopeMock.isNoneScope.mockReturnValue(false);
             userScopeMock.isAllScope.mockReturnValue(false);
             userScopeMock.isOwnScope.mockReturnValue(true);
-            const params = { application: { _id: 'app1' } };
-            // Mock ApplicationDAO.findFirst to return null (application not found)
-            ApplicationDAO.prototype.findFirst = jest.fn().mockResolvedValue(null);
-            mockConfigurationService.findByType.mockResolvedValue({ current: '2.0', new: '3.0' });
+
+            const params = { application: { _id: 'a-app-that-does-not-exist' } };
+
             await expect(app.saveApplication(params, context)).rejects.toThrow(ERROR.APPLICATION_NOT_FOUND);
         });
 
@@ -314,8 +313,10 @@ describe('Application', () => {
             userScopeMock.isNoneScope.mockReturnValue(false);
             userScopeMock.isAllScope.mockReturnValue(false);
             userScopeMock.isOwnScope.mockReturnValue(true);
+
+            jest.spyOn(app, 'getApplicationById').mockResolvedValue({ _id: 'invalid-status-provided', applicant: { applicantID: 'user1' }, status: NEW });
+
             const params = { application: { _id: 'invalid-status-provided' }, status };
-            jest.spyOn(app, 'getApplicationById').mockResolvedValue({ _id: 'app1', applicant: { applicantID: 'user1' }, status: NEW });
             await expect(app.saveApplication(params, context)).rejects.toThrow(ERROR.VERIFY.INVALID_STATUS_APPLICATION);
         });
 
@@ -323,8 +324,10 @@ describe('Application', () => {
             userScopeMock.isNoneScope.mockReturnValue(false);
             userScopeMock.isAllScope.mockReturnValue(false);
             userScopeMock.isOwnScope.mockReturnValue(true);
-            const params = { application: { _id: 'no-status-provided' } }; // NOTE: We're omitting status param
+
             jest.spyOn(app, 'getApplicationById').mockResolvedValue({ _id: 'app1', applicant: { applicantID: 'user1' }, status: NEW });
+
+            const params = { application: { _id: 'no-status-provided' } }; // NOTE: We're omitting status param
             await expect(app.saveApplication(params, context)).rejects.toThrow(ERROR.VERIFY.INVALID_STATUS_APPLICATION);
         });
 
