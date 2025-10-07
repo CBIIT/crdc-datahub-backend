@@ -191,7 +191,7 @@ class Application {
      * Provides API functionality to create or save an application.
      * 
      * @note If no ID is provided in the application object, a new application will be created.
-     * @param {{ application: object, status: "New" | "In Progress" }} params The request parameters containing the application input object
+     * @param {{ application: object, status: typeof NEW | typeof IN_PROGRESS }} params The request parameters containing the application input object
      * @param {object} context The request context containing user information
      * @returns {Promise<object>} The created or updated application object
      */
