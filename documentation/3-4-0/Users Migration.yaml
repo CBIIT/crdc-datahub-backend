@@ -169,6 +169,11 @@ Commands:
         }
       ]
       );
+  - add studyName field to applications if it does not exist: |
+      db.applications.updateMany(
+        { studyName: { $exists: false } },
+        { $set: { studyName: "" } }
+      );
       
       db.submissions.updateMany(
       {},

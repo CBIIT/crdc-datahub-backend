@@ -10,3 +10,4 @@ local-files
 coverage
 dist/
 generated/prisma/
+integration-tests

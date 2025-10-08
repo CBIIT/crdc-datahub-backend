@@ -105,6 +105,7 @@ class MigrationRunner {
             console.log("✅ Study and organization management completed");
             console.log("✅ Submission data migration completed");
             console.log("✅ Configuration and cleanup completed");
+            console.log("✅ StudyName field added to applications completed");
             console.log("✅ Institution status migration completed");
             console.log("✅ Review comment array fix completed");
             console.log("✅ Concierge cleanup completed");
@@ -121,6 +122,7 @@ class MigrationRunner {
             console.log("db.submissions.find({programID: {$exists: true}}).count();");
             console.log("db.submissions.find({conciergeID: {$exists: true}}).count();");
             console.log("db.applications.find({applicantID: {$exists: true}}).count();");
+            console.log("db.applications.find({studyName: {$exists: true}}).count();");
             console.log("db.institutions.find({status: 'Active'}).count();");
             console.log("db.submissions.find({reviewComment: {$type: 'array'}}).count();");
 
@@ -628,7 +630,19 @@ class MigrationRunner {
             console.log("❌ Error adding reminder flags:", e.message);
         }
 
-        // 5.4 Cleanup Operations
+        // 5.4 Add studyName Field to Applications
+        console.log("Adding studyName field to applications...");
+        try {
+            const result = await this.db.collection('applications').updateMany(
+                { studyName: { $exists: false } },
+                { $set: { studyName: "" } }
+            );
+            console.log(`✅ Added studyName field to ${result.modifiedCount} applications`);
+        } catch (e) {
+            console.log("❌ Error adding studyName field:", e.message);
+        }
+
+        // 5.5 Cleanup Operations
         console.log("Performing cleanup operations...");
         try {
             // Remove empty organizations from users
@@ -706,7 +720,7 @@ class MigrationRunner {
             console.log("❌ Error during cleanup:", e.message);
         }
 
-        // 5.5 Notification Adjustments
+        // 5.6 Notification Adjustments
         console.log("Adjusting user notifications...");
         try {
             // Add configuration change notification
@@ -738,7 +752,7 @@ class MigrationRunner {
             console.log("❌ Error adjusting notifications:", e.message);
         }
 
-        // 5.6 Institution Status Migration
+        // 5.7 Institution Status Migration
         console.log("Setting default institution status...");
         try {
             const result = await this.db.collection('institutions').updateMany(
@@ -757,7 +771,7 @@ class MigrationRunner {
             console.log("❌ Error setting institution status:", e.message);
         }
 
-        // 5.7 Review Comment Array Fix
+        // 5.8 Review Comment Array Fix
         console.log("Fixing reviewComment arrays...");
         try {
             const result = await this.db.collection('submissions').updateMany(
@@ -789,7 +803,7 @@ class MigrationRunner {
             console.log("❌ Error fixing reviewComment arrays:", e.message);
         }
 
-        // 5.8 Date Type Conversion (QA2 Only)
+        // 5.9 Date Type Conversion (QA2 Only)
         console.log("Converting string dates to DateTime (QA2 only)...");
         try {
             const result1 = await this.db.collection('users').updateMany(
