@@ -50,6 +50,9 @@ describe('ApprovedStudiesService', () => {
         };
         mockOrganizationService = {
             findByStudyID: jest.fn(),
+            findOneByStudyID: jest.fn(),
+            getOrganizationByID: jest.fn(),
+            getOrganizationByName: jest.fn(),
             organizationCollection: {
                 aggregate: jest.fn()
             }
@@ -61,9 +64,10 @@ describe('ApprovedStudiesService', () => {
             getPermissionScope: jest.fn()
         };
 
-        // Mock the DAO with getApprovedStudyByID
+        // Mock the DAO with getApprovedStudyByID and findFirst
         mockApprovedStudyDAO = {
-            getApprovedStudyByID: jest.fn()
+            getApprovedStudyByID: jest.fn(),
+            findFirst: jest.fn()
         };
 
         service = new ApprovedStudiesService(
@@ -123,7 +127,7 @@ describe('ApprovedStudiesService', () => {
             service._getUserScope = jest.fn().mockResolvedValue(mockUserScope);
             service._validateStudyName = jest.fn().mockResolvedValue(true);
             service._findUserByID = jest.fn().mockResolvedValue(mockPrimaryContact);
-            service.storeApprovedStudies = jest.fn().mockResolvedValue(mockNewStudy);
+            service.storeApprovedStudies = jest.fn().mockResolvedValue({_id: 'new-study-id'});
             service.organizationService.getOrganizationByName = jest.fn().mockResolvedValue(mockOrg);
             service.organizationService.storeApprovedStudies = jest.fn().mockResolvedValue();
             getDataCommonsDisplayNamesForApprovedStudy.mockReturnValue(mockDisplayStudy);
@@ -137,12 +141,9 @@ describe('ApprovedStudiesService', () => {
             expect(service._validateStudyName).toHaveBeenCalledWith('New Study');
             expect(service._findUserByID).toHaveBeenCalledWith('contact-id');
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
-                null, 'New Study', 'NS', '1234-5678-9012-345', null, true, '0000-0002-1825-0097', 'Dr. New', false, null, false, false, 'contact-id', mockGPA            );
+                null, 'New Study', 'NS', '1234-5678-9012-345', null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', mockGPA, 'org-id'            );
             expect(service.organizationService.getOrganizationByName).toHaveBeenCalledWith('NA');
-            expect(service.organizationService.storeApprovedStudies).toHaveBeenCalledWith('org-id', 'new-study-id');
-            expect(getDataCommonsDisplayNamesForApprovedStudy).toHaveBeenCalledWith(mockNewStudy);
-            expect(getDataCommonsDisplayNamesForUser).toHaveBeenCalledWith(mockPrimaryContact);
-            expect(result).toEqual({ ...mockDisplayStudy, primaryContact: mockDisplayUser });
+            expect(result).toEqual('new-study-id');
         });
 
         it('should throw error if user does not have permission', async () => {
@@ -173,9 +174,9 @@ describe('ApprovedStudiesService', () => {
             };
             const result = await service.addApprovedStudyAPI(paramsWithoutDbGaPID, mockContext);
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
-                null, 'New Study', 'NS', undefined, null, true, '0000-0002-1825-0097', 'Dr. New', false, null, false, false, 'contact-id', mockGPA
+                null, 'New Study', 'NS', undefined, null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', mockGPA, 'org-id'
             );
-            expect(result).toEqual({ ...mockDisplayStudy, primaryContact: mockDisplayUser });
+            expect(result).toEqual("new-study-id");
         });
 
         it('should throw error when creating controlled access study without GPAName and isPendingGPA false', async () => {
@@ -208,9 +209,9 @@ describe('ApprovedStudiesService', () => {
             };
             const result = await service.addApprovedStudyAPI(paramsWithoutGPAName, mockContext);
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
-                null, 'New Study', 'NS', '1234-5678-9012-345', null, true, '0000-0002-1825-0097', 'Dr. New', false, null, false, false, 'contact-id', { GPAName: undefined, isPendingGPA: true }
+                null, 'New Study', 'NS', '1234-5678-9012-345', null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: undefined, isPendingGPA: true }, "org-id"
             );
-            expect(result).toEqual({ ...mockDisplayStudy, primaryContact: mockDisplayUser });
+            expect(result).toEqual("new-study-id");
         });
 
         it('should successfully create a controlled access study with empty GPAName when isPendingGPA is true', async () => {
@@ -222,9 +223,9 @@ describe('ApprovedStudiesService', () => {
             };
             const result = await service.addApprovedStudyAPI(paramsWithEmptyGPAName, mockContext);
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
-                null, 'New Study', 'NS', '1234-5678-9012-345', null, true, '0000-0002-1825-0097', 'Dr. New', false, null, false, false, 'contact-id', { GPAName: '', isPendingGPA: true }
+                null, 'New Study', 'NS', '1234-5678-9012-345', null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: '', isPendingGPA: true }, "org-id"
             );
-            expect(result).toEqual({ ...mockDisplayStudy, primaryContact: mockDisplayUser });
+            expect(result).toEqual("new-study-id");
         });
 
         it('should successfully create a non-controlled access study without dbGaPID', async () => {
@@ -236,9 +237,9 @@ describe('ApprovedStudiesService', () => {
             };
             const result = await service.addApprovedStudyAPI(paramsWithoutDbGaPID, mockContext);
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
-                null, 'New Study', 'NS', undefined, null, false, '0000-0002-1825-0097', 'Dr. New', false, null, false, false, 'contact-id', { GPAName: "GPA name", isPendingGPA: false }
+                null, 'New Study', 'NS', undefined, null, false, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: "GPA name", isPendingGPA: false }, "org-id"
             );
-            expect(result).toEqual({ ...mockDisplayStudy, primaryContact: mockDisplayUser });
+            expect(result).toEqual("new-study-id");
         });
 
         it('should successfully create a non-controlled access study without GPAName', async () => {
@@ -250,9 +251,9 @@ describe('ApprovedStudiesService', () => {
             };
             const result = await service.addApprovedStudyAPI(paramsWithoutGPAName, mockContext);
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
-                null, 'New Study', 'NS', '1234-5678-9012-345', null, false, '0000-0002-1825-0097', 'Dr. New', false, null, false, false, 'contact-id', { GPAName: undefined, isPendingGPA: false }
+                null, 'New Study', 'NS', '1234-5678-9012-345', null, false, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: undefined, isPendingGPA: false }, "org-id"
             );
-            expect(result).toEqual({ ...mockDisplayStudy, primaryContact: mockDisplayUser });
+            expect(result).toEqual("new-study-id");
         });
     });
 
@@ -288,7 +289,8 @@ describe('ApprovedStudiesService', () => {
             PI: 'Dr. Old',
             primaryContactID: null,
             useProgramPC: false,
-            pendingModelChange: false
+            pendingModelChange: false,
+            programID: 'program-id'  // New field in relationships model
         };
         const mockPrimaryContact = {
             _id: 'contact-id',
@@ -315,7 +317,10 @@ describe('ApprovedStudiesService', () => {
             service._findUserByID = jest.fn().mockResolvedValue(mockPrimaryContact);
             service.approvedStudyDAO.findFirst = jest.fn().mockResolvedValue({ ...mockStudy });
             service.approvedStudyDAO.update = jest.fn().mockResolvedValue(true);
-            service._findOrganizationByStudyID = jest.fn().mockResolvedValue(mockPrograms);
+            // Mock the organization service to return programs when finding by study ID
+            service.organizationService.findOneByStudyID = jest.fn().mockResolvedValue(mockPrograms[0]);
+            service.organizationService.getOrganizationByID = jest.fn().mockResolvedValue(mockPrograms[0]);
+            service.organizationService.getOrganizationByName = jest.fn().mockResolvedValue({_id: 'org-id', name: 'NA'});
             service.submissionDAO.updateMany = jest.fn().mockResolvedValue({ count: 0 });
             service._getConcierge = jest.fn().mockReturnValue(['Concierge Name', 'concierge@email.com']);
             getDataCommonsDisplayNamesForApprovedStudy.mockReturnValue(mockDisplayStudy);
@@ -782,59 +787,5 @@ describe('ApprovedStudiesService', () => {
             });
         });
 
-        describe('_setPendingGPA', () => {
-            let mockUpdateStudy;
-
-            beforeEach(() => {
-                mockUpdateStudy = {
-                    controlledAccess: true,
-                    isPendingGPA: false,
-                    GPAName: 'Old GPA Name'
-                };
-            });
-
-            it('should throw error when GPAName is undefined for controlled access study with isPendingGPA false', () => {
-                expect(() => service._setPendingGPA(mockUpdateStudy, true, false, undefined)).toThrow(ERROR.INVALID_PENDING_GPA);
-            });
-
-            it('should throw error when GPAName is null for controlled access study with isPendingGPA false', () => {
-                expect(() => service._setPendingGPA(mockUpdateStudy, true, false, null)).toThrow(ERROR.INVALID_PENDING_GPA);
-            });
-
-            it('should throw error when GPAName is empty string for controlled access study with isPendingGPA false', () => {
-                expect(() => service._setPendingGPA(mockUpdateStudy, true, false, '')).toThrow(ERROR.INVALID_PENDING_GPA);
-            });
-
-            it('should not throw error when GPAName is undefined for controlled access study with isPendingGPA true', () => {
-                expect(() => service._setPendingGPA(mockUpdateStudy, true, true, undefined)).not.toThrow();
-                expect(mockUpdateStudy.GPAName).toBe('Old GPA Name'); // Should remain unchanged when undefined
-            });
-
-            it('should not throw error when GPAName is null for controlled access study with isPendingGPA true', () => {
-                expect(() => service._setPendingGPA(mockUpdateStudy, true, true, null)).not.toThrow();
-                expect(mockUpdateStudy.GPAName).toBe('');
-            });
-
-            it('should not throw error when GPAName is empty string for controlled access study with isPendingGPA true', () => {
-                expect(() => service._setPendingGPA(mockUpdateStudy, true, true, '')).not.toThrow();
-                expect(mockUpdateStudy.GPAName).toBe('');
-            });
-
-            it('should update GPAName when provided for controlled access study', () => {
-                service._setPendingGPA(mockUpdateStudy, true, false, 'New GPA Name');
-                expect(mockUpdateStudy.GPAName).toBe('New GPA Name');
-            });
-
-            it('should set isPendingGPA to false for non-controlled access study', () => {
-                mockUpdateStudy.controlledAccess = false;
-                service._setPendingGPA(mockUpdateStudy, false, false, 'GPA Name');
-                expect(mockUpdateStudy.isPendingGPA).toBe(false);
-            });
-
-            it('should update isPendingGPA when provided for controlled access study', () => {
-                service._setPendingGPA(mockUpdateStudy, true, true, 'GPA Name');
-                expect(mockUpdateStudy.isPendingGPA).toBe(true);
-            });
-        });
     });
 });
