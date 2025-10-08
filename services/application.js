@@ -723,12 +723,7 @@ class Application {
 
                 const [name, abbreviation, description] = [application?.programName, application?.programAbbreviation, application?.programDescription];
                 if (name?.trim()?.length > 0 && !existingProgram?._id) {
-                    promises.push(this.organizationService.upsertByProgramName(name, abbreviation, description, [newApprovedStudy]));
-                }
-                const programStudies = existingProgram?.studies || [];
-                const filteredStudies = programStudies.filter((study)=> study?._id === newApprovedStudy?._id);
-                if (existingProgram && (programStudies.length === 0 || filteredStudies.length === 0)) {
-                    promises.push(this.organizationService.organizationCollection.update({_id: existingProgram?._id, studies: [...programStudies, newApprovedStudy], updatedAt: getCurrentTime()}));
+                    promises.push(this.organizationService.upsertByProgramName(name, abbreviation, description));
                 }
             }
             promises.push(this.logCollection.insert(
@@ -1163,10 +1158,18 @@ class Application {
         }
         const programName = aApplication?.programName ?? "NA";
         const pendingGPA = PendingGPA.create(aApplication?.GPAName, isPendingGPA);
+        
+        // Look up program ID by name
+        let programID = null;
+        const program = await this.organizationService.findOneByProgramName(programName);
+        if (program) {
+            programID = program._id;
+        }
+
         // Upon approval of the submission request, the data concierge is retrieved from the associated program.
         return await this.approvedStudiesService.storeApprovedStudies(
             aApplication?._id, aApplication?.studyName, studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name, controlledAccess, aApplication?.ORCID,
-            aApplication?.PI, aApplication?.openAccess, programName, true, pendingModelChange, null, pendingGPA
+            aApplication?.PI, aApplication?.openAccess, programID, true, pendingModelChange, null, pendingGPA
         );
     }
 

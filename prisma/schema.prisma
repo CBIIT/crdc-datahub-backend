@@ -204,6 +204,7 @@ model ApprovedStudy {
   originalOrg       String?
   primaryContactID  String?
   programName       String?
+  programID         String?
   studyAbbreviation String
   studyName         String
   useProgramPC      Boolean?
@@ -215,7 +216,9 @@ model ApprovedStudy {
   isPendingGPA      Boolean?
   GPAName           String?
   Concierge User? @relation(fields: [primaryContactID], references: [id])
+  program Program? @relation(fields: [programID], references: [id])
 
+  @@index([programID], map: "programID_index")
   @@map("approvedStudies")
 }
 
@@ -421,11 +424,11 @@ model Program {
   name           String
   rootPath       String?
   status         String
-  studies        StudyByID[]
   createdAt      DateTime    @default(now()) @db.Date
   updateAt       DateTime    @updatedAt @db.Date // this is a typo, but it's been like this for a while
   readOnly       Boolean?
   submission Submission[]
+  studies ApprovedStudy[]
   Concierge User? @relation(fields: [conciergeID], references: [id])
 
   @@map("organization")

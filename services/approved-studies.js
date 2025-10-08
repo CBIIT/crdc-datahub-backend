@@ -44,8 +44,8 @@ class ApprovedStudiesService {
         this.applicationDAO = new ApplicationDAO();
     }
 
-    async storeApprovedStudies(applicationID, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID, pendingGPA) {
-        const approvedStudies = ApprovedStudies.createApprovedStudies(applicationID, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName, useProgramPC, pendingModelChange, primaryContactID, pendingGPA);
+    async storeApprovedStudies(applicationID, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, useProgramPC, pendingModelChange, primaryContactID, pendingGPA, programID) {
+        const approvedStudies = ApprovedStudies.createApprovedStudies(applicationID, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, useProgramPC, pendingModelChange, primaryContactID, pendingGPA, programID);
         const res = await this.approvedStudyDAO.create(approvedStudies);
 
         if (!res) {
@@ -105,8 +105,10 @@ class ApprovedStudiesService {
         if (!approvedStudy) {
             throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
         }
-        // find program/organization by study ID
-        approvedStudy.programs = await this._findOrganizationByStudyID(_id);
+        // find program/organization by programID reference
+        if (approvedStudy?.programID) {
+            approvedStudy.program = await this.organizationService.getOrganizationByID(approvedStudy.programID);
+        }
         // find primaryContact
         if (approvedStudy?.primaryContactID)
         {
@@ -114,16 +116,6 @@ class ApprovedStudiesService {
         }
 
         return approvedStudy;
-    }
-
-    async _findOrganizationByStudyID(studyID){
-        const orgIds = await this.organizationService.findByStudyID(studyID);
-        if (orgIds && orgIds.length > 0 ) {
-            const filters = {_id: {"$in": orgIds}};
-            // For the data concierge purpose, the sort should be enabled.
-            return await this.programDAO.findMany(filters, {orderBy: {id: PRISMA_SORT.DESC,}});
-        }
-        return null;
     }
 
     /**
@@ -171,7 +163,7 @@ class ApprovedStudiesService {
      * @api
      * @param {Object} params Endpoint parameters
      * @param {{ cookie: Object, userInfo: Object }} context request context
-     * @returns {Promise<Object>} The newly created ApprovedStudy
+     * @returns {Promise<{_id: ID}>} The newly created ApprovedStudy's ID
      */
     async addApprovedStudyAPI(params, context) {
         verifySession(context)
@@ -193,7 +185,8 @@ class ApprovedStudiesService {
             useProgramPC,
             pendingModelChange,
             isPendingGPA,
-            GPAName
+            GPAName,
+            programID
         } = this._verifyAndFormatStudyParams(params);
         // check if name is unique
         await this._validateStudyName(name)
@@ -215,15 +208,11 @@ class ApprovedStudiesService {
 
         this._validatePendingGPA(GPAName, controlledAccess, isPendingGPA);
         const pendingGPA = PendingGPA.create(GPAName, isPendingGPA);
-        let newStudy = await this.storeApprovedStudies(null, name, acronym, dbGaPID, null, controlledAccess, ORCID, PI, openAccess, null, useProgramPC, pendingModelChange, primaryContactID, pendingGPA);
-        // add new study to organization with name of "NA"
-        const org = await this.organizationService.getOrganizationByName(NA_PROGRAM);
-        if (org && org?._id) {
-            await this.organizationService.storeApprovedStudies(org._id, newStudy._id);
-        }
-        newStudy = getDataCommonsDisplayNamesForApprovedStudy(newStudy);
-        primaryContact = getDataCommonsDisplayNamesForUser(primaryContact);
-        return {...newStudy, primaryContact: primaryContact};
+        const program = await this._validateProgramID(programID);
+        programID = program?._id;
+        // store the new study
+        let newStudy = await this.storeApprovedStudies(null, name, acronym, dbGaPID, null, controlledAccess, ORCID, PI, openAccess, useProgramPC, pendingModelChange, primaryContactID, pendingGPA, programID);
+        return {_id: newStudy?._id};
     }
     /**
      * Edit Approved Study API
@@ -239,6 +228,7 @@ class ApprovedStudiesService {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
+        // extract and verify the parameters
         const {
             studyID,
             name,
@@ -252,17 +242,41 @@ class ApprovedStudiesService {
             useProgramPC,
             pendingModelChange,
             isPendingGPA,
-            GPAName
+            GPAName,
+            programID
         } = this._verifyAndFormatStudyParams(params);
+        // Find the study to update
         let updateStudy = await this.approvedStudyDAO.findFirst({id: studyID});
         if (!updateStudy) {
             throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
         }
-        const {isPendingGPA: currPendingGPA, dbGaPID: currDbGaPID} = updateStudy;
 
-        // check if name is unique
+        // study state verifications
+        // if the name is changing, verify that the new name is unique
         if (name !== updateStudy.studyName)
             await this._validateStudyName(name)
+        // verify the programID or use the NA program
+        const program = await this._validateProgramID(programID);
+        // verify that useProgramPC is false or primaryContactID is null
+        if (useProgramPC && primaryContactID) {
+            throw new Error(ERROR.INVALID_PRIMARY_CONTACT_ATTEMPT);
+        }
+        // verify that the isPendingGPA, controlledAccess, and GPAName variables are compatible
+        this._validatePendingGPA(GPAName, controlledAccess, isPendingGPA);
+        // find the primary contact if the primaryContactID is provided
+        // verify that if the primaryContactID is provided, the primary contact is found and the primary contact role is Data Commons Personnel
+        let primaryContact = null;
+        if(primaryContactID){
+            primaryContact = await this._findUserByID(primaryContactID);
+            if (!primaryContact) {
+                throw new Error(ERROR.INVALID_PRIMARY_CONTACT);
+            }
+            if (primaryContact.role !== USER.ROLES.DATA_COMMONS_PERSONNEL){
+                throw new Error(ERROR.INVALID_PRIMARY_CONTACT_ROLE);
+            }
+        }
+
+        // update the study object
         updateStudy.studyName = name;
         updateStudy.controlledAccess = controlledAccess;
         updateStudy.useProgramPC = useProgramPC;
@@ -281,39 +295,32 @@ class ApprovedStudiesService {
         if (PI !== undefined) {
             updateStudy.PI = PI;
         }
-
         const currPendingModelChange = updateStudy.pendingModelChange;
         if (pendingModelChange !== undefined) {
             updateStudy.pendingModelChange = isTrue(pendingModelChange);
         }
-
-        if (useProgramPC && primaryContactID) {
-            throw new Error(ERROR.INVALID_PRIMARY_CONTACT_ATTEMPT);
-        }
-
-        let primaryContact = null;
-        if(primaryContactID){
-            primaryContact = await this._findUserByID(primaryContactID);
-            if (!primaryContact) {
-                throw new Error(ERROR.INVALID_PRIMARY_CONTACT);
-            }
-            if (primaryContact.role !== USER.ROLES.DATA_COMMONS_PERSONNEL){
-                throw new Error(ERROR.INVALID_PRIMARY_CONTACT_ROLE);
+        updateStudy.programID = program?._id;
+        if (isTrue(updateStudy.controlledAccess)) {
+            if (isPendingGPA != null) {
+                updateStudy.isPendingGPA = isPendingGPA;
             }
         }
-
-        this._setPendingGPA(updateStudy, controlledAccess, isPendingGPA, GPAName);
-
+        if (!isTrue(updateStudy.controlledAccess)) {
+            updateStudy.isPendingGPA = false;
+        }
+        if (GPAName !== undefined) {
+            updateStudy.GPAName = GPAName?.trim() || "";
+        }
         updateStudy.primaryContactID = useProgramPC ? null : primaryContactID;
         updateStudy.updatedAt = getCurrentTime();
+        // update the study in the database
         const result = await this.approvedStudyDAO.update(studyID, updateStudy);
         if (!result) {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_UPDATE);
         }
-
-
-        const programs = await this._findOrganizationByStudyID(studyID);
-        const conciergeID = this._getConcierge(programs, primaryContact, useProgramPC);
+        // set conciergeID 
+        const conciergeID = (useProgramPC ? program?.conciergeID : primaryContact?._id) || "";
+        
         const updatedSubmissions = await this.submissionDAO.updateMany({
             studyID: updateStudy._id,
             status: {
@@ -328,6 +335,9 @@ class ApprovedStudiesService {
             console.log(ERROR.FAILED_PRIMARY_CONTACT_UPDATE, `StudyID: ${studyID}`);
             throw new Error(ERROR.FAILED_PRIMARY_CONTACT_UPDATE);
         }
+
+        // extract the current pending GPA and dbGaPID to variables
+        const {isPendingGPA: currPendingGPA, dbGaPID: currDbGaPID} = updateStudy;
         // notify the submitter that the pending state has been cleared
         // if the notification fails, an error response will be thrown but the study will still be updated
         const pendingDbGaPID = isTrue(updateStudy.controlledAccess) ? !Boolean(updateStudy?.dbGaPID) : false;
@@ -339,35 +349,16 @@ class ApprovedStudiesService {
             await this._notifyClearPendingState(updateStudy);
         }
 
-        let approvedStudy = {...updateStudy, programs: programs, primaryContact: primaryContact};
+        let approvedStudy = {...updateStudy, program: program, primaryContact: primaryContact};
         return getDataCommonsDisplayNamesForApprovedStudy(approvedStudy);
     }
 
-    _setPendingGPA (updateStudy, controlledAccess, isPendingGPA, GPAName) {
-        // Validate GPA parameters before setting them
-        this._validatePendingGPA(GPAName, controlledAccess, isPendingGPA);
-
-        if (isTrue(updateStudy.controlledAccess)) {
-            if (isPendingGPA != null) {
-                updateStudy.isPendingGPA = isPendingGPA;
-            }
-        }
-
-        if (!isTrue(updateStudy.controlledAccess)) {
-            updateStudy.isPendingGPA = false;
-        }
-
-        if (GPAName !== undefined) {
-            updateStudy.GPAName = GPAName?.trim() || "";
-        }
-    }
-
     _validatePendingGPA(GPAName, controlledAccess, isPendingGPA) {
+        // verify that controlled access is true or isPendingGPA is false
         if (!isTrue(controlledAccess) && isTrue(isPendingGPA)) {
             throw new Error(ERROR.INVALID_PENDING_GPA);
         }
-
-        // If GPAName is null or empty, isPendingGPA must be true
+        // verify that controlled access is true and GPAName is provided or isPendingGPA is true
         if (isTrue(controlledAccess) && (!GPAName || GPAName.trim() === "") && !isTrue(isPendingGPA)) {
             throw new Error(ERROR.INVALID_PENDING_GPA);
         }
@@ -482,6 +473,34 @@ class ApprovedStudiesService {
         }
         return userScope;
     }
+
+    
+    /**
+     * Validates that the provided programID matches a program in the database.
+     * If the provided programID is invalid or null, falls back to the "NA" program.
+     * 
+     * @param {string|null} programID The program ID to validate
+     * @returns {Promise<Object>} The validated program object
+     * @throws {Error} If neither the provided programID nor the NA program can be found
+     */
+    async _validateProgramID(programID) {
+        let program = null;
+         // verify the provided programID is valid
+        if (programID){
+            program = await this.organizationService.getOrganizationByID(programID);
+        }
+        // if the provided programID is not valid was not provided then use the NA program as a fallback
+        if (!program){
+            program = await this.organizationService.getOrganizationByName(NA_PROGRAM);
+        }
+        // if the program is still not valid then throw an error, this should not happen
+        if (!program){
+            console.error("Unable to find a program with the provided programID then unable to find the NA program as a fallback. Please verify that the NA program has been properly initialized.");
+            throw new Error(ERROR.STUDY_CREATION_FAILED);
+        }
+        return program;
+    }
+
 }
 
 const getUserEmails = (users) => {
