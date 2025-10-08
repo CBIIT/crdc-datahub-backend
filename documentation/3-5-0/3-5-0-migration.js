@@ -1,146 +1,266 @@
+/**
+ * 3.5.0 Migration Script
+ * Node.js migration orchestrator that explicitly calls each migration file
+ * 
+ * Usage: npm run migrate:3.5.0
+ *         (or directly: node documentation/3-5-0/3-5-0-migration.js)
+ * 
+ * Migration files:
+ * - psdc-data-commons-update.js: Complete PSDC Data Commons configuration  
+ * - populate-program-id.js: Complete Program ID population migration
+ */
+
+const { MongoClient } = require('mongodb');
+
+// Load environment variables
+require('dotenv').config();
+
+// ============================================================================
+// DATABASE CONNECTION
+// ============================================================================
 
 /**
- * Add PSDC to DATA_COMMONS_LIST configuration
+ * Create MongoDB connection using environment variables
  */
-function addPSDCToDataCommonsList() {
-    print("🔄 Adding PSDC to DATA_COMMONS_LIST configuration...");
-    
+async function createDatabaseConnection() {
     try {
-        // Check if DATA_COMMONS_LIST configuration exists
-        var existingConfig = db.configuration.findOne({ type: "DATA_COMMONS_LIST" });
+        const user = process.env.MONGO_DB_USER;
+        const password = process.env.MONGO_DB_PASSWORD;
+        const host = process.env.MONGO_DB_HOST || 'localhost';
+        const port = process.env.MONGO_DB_PORT || '27017';
         
-        if (existingConfig) {
-            // Update existing configuration to include PSDC
-            var currentList = existingConfig.key || [];
-            if (currentList.indexOf("PSDC") === -1) {
-                currentList.push("PSDC");
-                db.configuration.updateOne(
-                    { type: "DATA_COMMONS_LIST" },
-                    { $set: { key: currentList } }
-                );
-                print("✅ Successfully added PSDC to existing DATA_COMMONS_LIST configuration");
-                print("📋 Updated list: " + JSON.stringify(currentList));
-            } else {
-                print("ℹ️  PSDC already exists in DATA_COMMONS_LIST configuration");
-            }
+        // Construct connection string
+        let connectionString;
+        if (user && password) {
+            connectionString = `mongodb://${user}:${password}@${host}:${port}`;
         } else {
-            // Create new configuration if it doesn't exist
-            db.configuration.insertOne({
-                type: "DATA_COMMONS_LIST",
-                key: ["CDS", "ICDC", "CTDC", "CCDI", "PSDC", "Test MDF", "Hidden Model"]
-            });
-            print("✅ Successfully created new DATA_COMMONS_LIST configuration with PSDC");
+            connectionString = `mongodb://${host}:${port}`;
         }
         
-        return { success: true, message: "PSDC added to DATA_COMMONS_LIST" };
-    } catch (error) {
-        print("❌ Error adding PSDC to DATA_COMMONS_LIST: " + error.message);
-        return { success: false, error: error.message };
-    }
-}
-
-/**
- * Verify PSDC configuration is properly set up
- * This function checks that PSDC is in DATA_COMMONS_LIST and S3 bucket mapping exists
- */
-function verifyPSDCConfiguration() {
-    print("🔍 Verifying PSDC configuration...");
-    
-    try {
-        var results = {
-            dataCommonsList: false,
-            s3BucketMapping: false
+        const client = new MongoClient(connectionString);
+        await client.connect();
+        
+        // Get database name from environment or use default
+        const dbName = process.env.MONGO_DB_NAME || process.env.DATABASE_NAME || 'crdc-datahub';
+        const db = client.db(dbName);
+        
+        console.log(`📊 Connected to database: ${dbName}`);
+        
+        return {
+            client,
+            db,
+            dbName,
+            connectionString: `mongodb://${user ? user + ':***@' : ''}${host}:${port}/${dbName}`
         };
         
-        // Check DATA_COMMONS_LIST configuration
-        var dataCommonsListConfig = db.configuration.findOne({ type: "DATA_COMMONS_LIST" });
-        if (dataCommonsListConfig && dataCommonsListConfig.key && dataCommonsListConfig.key.includes("PSDC")) {
-            results.dataCommonsList = true;
-            print("✅ PSDC found in DATA_COMMONS_LIST configuration");
-        } else {
-            print("❌ PSDC NOT found in DATA_COMMONS_LIST configuration");
-        }
-        
-        // Check S3 bucket mapping
-        var s3BucketMapping = db.configuration.findOne({ 
-            type: "Metadata Bucket", 
-            dataCommons: "PSDC" 
-        });
-        if (s3BucketMapping) {
-            results.s3BucketMapping = true;
-            print("✅ PSDC S3 bucket mapping found");
-            print("📦 Bucket name: " + s3BucketMapping.bucketName);
-        } else {
-            print("❌ PSDC S3 bucket mapping NOT found");
-            print("📝 Please manually add the S3 bucket mapping:");
-        }
-        
-        var allConfigured = Object.values(results).every(v => v === true);
-        if (allConfigured) {
-            print("🎉 PSDC configuration verification completed successfully!");
-        } else {
-            print("⚠️  PSDC configuration verification completed with issues");
-        }
-        
-        return { success: allConfigured, results: results };
     } catch (error) {
-        print("❌ Error verifying PSDC configuration: " + error.message);
-        return { success: false, error: error.message };
+        console.error('❌ Failed to connect to database:', error.message);
+        throw error;
     }
 }
 
+/**
+ * Close database connection
+ */
+async function closeDatabaseConnection(client) {
+    try {
+        await client.close();
+        console.log('✅ Database connection closed');
+    } catch (error) {
+        console.error('❌ Error closing database connection:', error.message);
+    }
+}
+
+
 // ============================================================================
-// MAIN MIGRATION FUNCTION
+// MIGRATION ORCHESTRATOR
 // ============================================================================
 
 /**
- * Main migration function that runs all PSDC-related updates
- * This function is idempotent and can be run multiple times safely
+ * Execute PSDC migration
  */
-function migratePSDCDataCommons() {
-    print("🚀 Starting 3.5.0 migration...");
-    print("============================================================");
-    
-    var startTime = new Date();
-    var results = [];
+async function executePSDCMigration(db) {
+    console.log('🔄 Executing PSDC Data Commons migration...');
     
     try {
-        // Add PSDC to DATA_COMMONS_LIST
-        results.push(addPSDCToDataCommonsList());
+        const fpdcMigration = require('./psdc-data-commons-update');
         
-        // Verify configuration
-        var verification = verifyPSDCConfiguration();
-        results.push(verification);
-        
-        var endTime = new Date();
-        var duration = endTime - startTime;
-        
-        print("============================================================");
-        print("📊 Migration Summary:");
-        print("⏱️  Duration: " + duration + "ms");
-        
-        var successCount = results.filter(r => r.success).length;
-        var totalCount = results.length;
-        
-        print("✅ Successful operations: " + successCount + "/" + totalCount);
-        
-        if (successCount === totalCount) {
-            print("🎉 PSDC Data Commons migration completed successfully!");
+        // Call the migration function with database connection
+        const result = await fpdcMigration.migratePSDCDataCommons(db);
+
+        if (result.success) {
+            console.log('✅ PSDC migration completed successfully');
         } else {
-            print("⚠️  PSDC Data Commons migration completed with some issues");
-            print("📝 Please check the output above for manual steps required");
+            console.log('❌ PSDC migration failed');
+        }
+        
+        return result;
+        
+    } catch (error) {
+        console.error('❌ Error executing PSDC migration:', error.message);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+}
+
+/**
+ * Execute Program ID migration
+ */
+async function executeProgramIDMigration(db) {
+    console.log('🔄 Executing Program ID population migration...');
+    
+    try {
+        const programIDMigration = require('./populate-program-id');
+        
+        // Call the migration function with database connection
+        const result = await programIDMigration.populateProgramIDInApprovedStudies(db);
+
+        if (result.success) {
+            console.log('✅ Program ID migration completed successfully');
+        } else {
+            console.log('❌ Program ID migration failed');
+        }
+        
+        return result;
+        
+    } catch (error) {
+        console.error('❌ Error executing Program ID migration:', error.message);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+}
+
+/**
+ * Main orchestrator function
+ */
+async function orchestrateMigration() {
+    console.log('🚀 Starting 3.5.0 migrations execution...');
+    console.log('============================================================');
+    
+    const startTime = new Date();
+    let client;
+    
+    try {
+        // Create database connection
+        const dbConnection = await createDatabaseConnection();
+        client = dbConnection.client;
+        const db = dbConnection.db;
+        
+        // Define available migrations explicitly  
+        const availableMigrations = [
+            {
+                name: "PSDC Data Commons Setup",
+                file: "psdc-data-commons-update.js",
+                execute: () => executePSDCMigration(db)
+            },
+            {
+                name: "Populate Program ID",
+                file: "populate-program-id.js", 
+                execute: () => executeProgramIDMigration(db)
+            }
+        ];
+        
+        // Execute migrations (each migration handles its own status checking)
+        const migrations = [];
+        
+        for (const migration of availableMigrations) {
+            
+            try {
+                const result = await migration.execute();
+                migrations.push({
+                    name: migration.name,
+                    file: migration.file,
+                    success: result.success !== false,
+                    result: result
+                });
+                
+            } catch (error) {
+                console.error(`❌ ${migration.name} failed: ${error.message}`);
+                migrations.push({
+                    name: migration.name,
+                    file: migration.file,
+                    success: false,
+                    error: error.message
+                });
+            }
+        }
+        
+        // Summary
+        const endTime = new Date();
+        const duration = endTime - startTime;
+        
+        const successCount = migrations.filter(m => m.success).length;
+        const totalCount = migrations.length;
+        
+        console.log(`✅ Migration process completed: ${successCount}/${totalCount} successful (${duration}ms)`);
+        
+        if (successCount !== totalCount) {
+            console.warn("⚠️  Some migrations encountered issues - see errors above");
         }
         
         return {
             success: successCount === totalCount,
             duration: duration,
-            results: results
+            migrationsExecuted: totalCount,
+            migrationsSuccessful: successCount,
+            results: migrations
         };
         
     } catch (error) {
-        print("❌ Migration failed with error: " + error.message);
+        console.error('❌ Migration orchestration failed:', error.message);
         return { success: false, error: error.message };
+    } finally {
+        if (client) {
+            await closeDatabaseConnection(client);
+        }
     }
 }
 
-migratePSDCDataCommons();
+// ============================================================================
+// EXECUTION
+// ============================================================================
+
+// Run the orchestrator
+async function main() {
+    try {
+        const result = await orchestrateMigration();
+        
+        if (result.success) {
+            console.log('\n✅ Migration orchestration completed successfully!');
+            process.exit(0);
+        } else {
+            console.log('\n❌ Migration orchestration failed');
+            process.exit(1);
+        }
+    } catch (error) {
+        console.error('\n❌ Fatal error:', error.message);
+        process.exit(1);
+    }
+}
+
+// Handle unhandled rejections
+process.on('unhandledRejection', (error) => {
+    console.error('❌ Unhandled rejection:', error.message);
+    process.exit(1);
+});
+
+// Handle SIGINT for graceful shutdown
+process.on('SIGINT', () => {
+    console.log('\n🛑 Received SIGINT, shutting down gracefully...');
+    process.exit(0);
+});
+
+// Execute if this file is run directly
+if (require.main === module) {
+    main();
+}
+
+module.exports = {
+    orchestrateMigration,
+    createDatabaseConnection,
+    closeDatabaseConnection
+};
