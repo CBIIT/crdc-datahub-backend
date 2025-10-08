@@ -1,18 +1,36 @@
 const ProgramDAO = require('../../dao/program');
 
+// Mock Prisma
+jest.mock('../../prisma', () => ({
+    program: {
+        findUnique: jest.fn(),
+        findFirst: jest.fn(),
+        findMany: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
+        name: 'Program'
+    },
+}));
+
 describe('ProgramDAO', () => {
     let programDAO;
     let mockOrganizationCollection;
+    let mockPrisma;
 
     beforeEach(() => {
         mockOrganizationCollection = {
-            findOne: jest.fn()
+            findOne: jest.fn(),
+            aggregate: jest.fn()
         };
 
         programDAO = new ProgramDAO(mockOrganizationCollection);
         
         // Override the organizationCollection property directly
         programDAO.organizationCollection = mockOrganizationCollection;
+        
+        // Get the mocked Prisma client
+        mockPrisma = require('../../prisma');
         
         jest.clearAllMocks();
     });
@@ -246,25 +264,25 @@ describe('ProgramDAO', () => {
             it(testCase.name, async () => {
                 // Setup mock
                 const mockResult = testCase.shouldFind ? { 
-                    _id: 'org123', 
+                    id: 'org123', 
                     name: testCase.dbName,
                     studyProgramLeadName: 'Dr. Test',
                     studyProgramLeadEmail: 'test@example.com'
                 } : null;
                 
-                mockOrganizationCollection.findOne.mockResolvedValue(mockResult);
+                mockPrisma.program.findFirst.mockResolvedValue(mockResult);
 
                 // Execute
                 const result = await programDAO.getOrganizationByName(testCase.inputName);
 
                 // Verify query was called with expected parameters
-                expect(mockOrganizationCollection.findOne).toHaveBeenCalledWith(
-                    testCase.expectedQuery || testCase.anticipatedQuery
-                );
+                expect(mockPrisma.program.findFirst).toHaveBeenCalledWith({
+                    where: { name: testCase.inputName?.trim() }
+                });
 
                 // Verify result
                 if (testCase.shouldFind) {
-                    expect(result).toEqual(mockResult);
+                    expect(result).toEqual({ ...mockResult, _id: mockResult.id });
                 } else {
                     expect(result).toBeNull();
                 }
@@ -273,23 +291,23 @@ describe('ProgramDAO', () => {
 
         // Edge case: null/undefined input
         it('should handle null input', async () => {
-            mockOrganizationCollection.findOne.mockResolvedValue(null);
+            mockPrisma.program.findFirst.mockResolvedValue(null);
             
             const result = await programDAO.getOrganizationByName(null);
             
-            expect(mockOrganizationCollection.findOne).toHaveBeenCalledWith({
-                name: { $regex: new RegExp('^undefined$', 'i') }
+            expect(mockPrisma.program.findFirst).toHaveBeenCalledWith({
+                where: { name: undefined }
             });
             expect(result).toBeNull();
         });
 
         it('should handle undefined input', async () => {
-            mockOrganizationCollection.findOne.mockResolvedValue(null);
+            mockPrisma.program.findFirst.mockResolvedValue(null);
             
             const result = await programDAO.getOrganizationByName(undefined);
             
-            expect(mockOrganizationCollection.findOne).toHaveBeenCalledWith({
-                name: { $regex: new RegExp('^undefined$', 'i') }
+            expect(mockPrisma.program.findFirst).toHaveBeenCalledWith({
+                where: { name: undefined }
             });
             expect(result).toBeNull();
         });
@@ -297,10 +315,10 @@ describe('ProgramDAO', () => {
         // Error handling
         it('should handle database errors gracefully', async () => {
             const dbError = new Error('Database connection failed');
-            mockOrganizationCollection.findOne.mockRejectedValue(dbError);
+            mockPrisma.program.findFirst.mockRejectedValue(dbError);
 
             await expect(programDAO.getOrganizationByName('Test Program'))
-                .rejects.toThrow('Database connection failed');
+                .rejects.toThrow('Failed to find first Program');
         });
 
         // Performance test - multiple calls
@@ -313,8 +331,8 @@ describe('ProgramDAO', () => {
                 'Immunology Study Program'
             ];
 
-            mockOrganizationCollection.findOne.mockResolvedValue({ 
-                _id: 'org123', 
+            mockPrisma.program.findFirst.mockResolvedValue({ 
+                id: 'org123', 
                 name: 'Test Program' 
             });
 
@@ -329,7 +347,9 @@ describe('ProgramDAO', () => {
 
             // Should complete all queries in reasonable time (adjust threshold as needed)
             expect(duration).toBeLessThan(1000);
-            expect(mockOrganizationCollection.findOne).toHaveBeenCalledTimes(testNames.length);
+            expect(mockPrisma.program.findFirst).toHaveBeenCalledTimes(testNames.length);
+            expect(results).toHaveLength(testNames.length);
+            expect(results.every(result => result._id === 'org123')).toBe(true);
         });
 
         // Integration-style test
@@ -346,10 +366,10 @@ describe('ProgramDAO', () => {
 
             // Mock returning different results for each call
             let callCount = 0;
-            mockOrganizationCollection.findOne.mockImplementation(() => {
+            mockPrisma.program.findFirst.mockImplementation(() => {
                 callCount++;
                 return Promise.resolve({ 
-                    _id: `org${callCount}`, 
+                    id: `org${callCount}`, 
                     name: realisticNames[callCount - 1]
                 });
             });
@@ -359,12 +379,13 @@ describe('ProgramDAO', () => {
                 const result = await programDAO.getOrganizationByName(realisticNames[i]);
                 
                 expect(result).toEqual({
-                    _id: `org${i + 1}`,
-                    name: realisticNames[i]
+                    id: `org${i + 1}`,
+                    name: realisticNames[i],
+                    _id: `org${i + 1}`
                 });
                 
-                expect(mockOrganizationCollection.findOne).toHaveBeenCalledWith({
-                    name: { $regex: new RegExp(`^${realisticNames[i]}$`, 'i') }
+                expect(mockPrisma.program.findFirst).toHaveBeenCalledWith({
+                    where: { name: realisticNames[i] }
                 });
             }
         });
@@ -373,24 +394,24 @@ describe('ProgramDAO', () => {
     describe('getOrganizationByID', () => {
         it('should find organization by ID', async () => {
             const mockOrg = {
-                _id: 'org123',
+                id: 'org123',
                 name: 'Test Organization',
                 studyProgramLeadName: 'Dr. Test',
                 studyProgramLeadEmail: 'test@example.com'
             };
 
-            mockOrganizationCollection.findOne.mockResolvedValue(mockOrg);
+            mockPrisma.program.findUnique.mockResolvedValue(mockOrg);
 
             const result = await programDAO.getOrganizationByID('org123');
 
-            expect(mockOrganizationCollection.findOne).toHaveBeenCalledWith({
-                _id: 'org123'
+            expect(mockPrisma.program.findUnique).toHaveBeenCalledWith({
+                where: { id: 'org123' }
             });
-            expect(result).toEqual(mockOrg);
+            expect(result).toEqual({ ...mockOrg, _id: mockOrg.id });
         });
 
         it('should return null when organization not found', async () => {
-            mockOrganizationCollection.findOne.mockResolvedValue(null);
+            mockPrisma.program.findUnique.mockResolvedValue(null);
 
             const result = await programDAO.getOrganizationByID('nonexistent');
 
@@ -399,10 +420,10 @@ describe('ProgramDAO', () => {
 
         it('should handle database errors', async () => {
             const dbError = new Error('Database connection failed');
-            mockOrganizationCollection.findOne.mockRejectedValue(dbError);
+            mockPrisma.program.findUnique.mockRejectedValue(dbError);
 
             await expect(programDAO.getOrganizationByID('org123'))
-                .rejects.toThrow('Database connection failed');
+                .rejects.toThrow('Failed to find Program by ID');
         });
     });
 });

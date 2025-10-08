@@ -143,7 +143,7 @@ describe('ApprovedStudiesService', () => {
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
                 null, 'New Study', 'NS', '1234-5678-9012-345', null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', mockGPA, 'org-id'            );
             expect(service.organizationService.getOrganizationByName).toHaveBeenCalledWith('NA');
-            expect(result).toEqual('new-study-id');
+            expect(result).toEqual({_id: 'new-study-id'});
         });
 
         it('should throw error if user does not have permission', async () => {
@@ -176,7 +176,7 @@ describe('ApprovedStudiesService', () => {
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
                 null, 'New Study', 'NS', undefined, null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', mockGPA, 'org-id'
             );
-            expect(result).toEqual("new-study-id");
+            expect(result).toEqual({_id: "new-study-id"});
         });
 
         it('should throw error when creating controlled access study without GPAName and isPendingGPA false', async () => {
@@ -211,7 +211,7 @@ describe('ApprovedStudiesService', () => {
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
                 null, 'New Study', 'NS', '1234-5678-9012-345', null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: undefined, isPendingGPA: true }, "org-id"
             );
-            expect(result).toEqual("new-study-id");
+            expect(result).toEqual({_id: "new-study-id"});
         });
 
         it('should successfully create a controlled access study with empty GPAName when isPendingGPA is true', async () => {
@@ -225,7 +225,7 @@ describe('ApprovedStudiesService', () => {
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
                 null, 'New Study', 'NS', '1234-5678-9012-345', null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: '', isPendingGPA: true }, "org-id"
             );
-            expect(result).toEqual("new-study-id");
+            expect(result).toEqual({_id: "new-study-id"});
         });
 
         it('should successfully create a non-controlled access study without dbGaPID', async () => {
@@ -239,7 +239,7 @@ describe('ApprovedStudiesService', () => {
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
                 null, 'New Study', 'NS', undefined, null, false, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: "GPA name", isPendingGPA: false }, "org-id"
             );
-            expect(result).toEqual("new-study-id");
+            expect(result).toEqual({_id: "new-study-id"});
         });
 
         it('should successfully create a non-controlled access study without GPAName', async () => {
@@ -253,7 +253,7 @@ describe('ApprovedStudiesService', () => {
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
                 null, 'New Study', 'NS', '1234-5678-9012-345', null, false, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: undefined, isPendingGPA: false }, "org-id"
             );
-            expect(result).toEqual("new-study-id");
+            expect(result).toEqual({_id: "new-study-id"});
         });
     });
 
