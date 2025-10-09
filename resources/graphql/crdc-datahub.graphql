@@ -923,7 +923,7 @@ type Query {
 }
 type Mutation {
     "User initiated operations"
-    saveApplication(application: AppInput!, status: String!): Application
+    saveApplication(application: AppInput!, status: String = "In Progress"): Application
     submitApplication(_id: ID!): Application
     reopenApplication(_id: ID!): Application
 
