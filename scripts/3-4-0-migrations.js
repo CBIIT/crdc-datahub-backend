@@ -729,25 +729,6 @@ class MigrationRunner {
                 { $addToSet: { notifications: "data_submission:cfg_changed" } }
             );
             console.log(`✅ Added cfg_changed notification to ${result1.modifiedCount} users`);
-
-            // Remove configuration change notification from Submitter role
-            // Verification: Check how many Submitters have this notification
-            const submittersWithNotification = await this.db.collection('users').countDocuments({
-                role: "Submitter",
-                notifications: "data_submission:cfg_changed"
-            });
-            
-            console.log(`📊 Verification: ${submittersWithNotification} Submitters have cfg_changed notification to remove`);
-            
-            if (submittersWithNotification === 0) {
-                console.log("✅ No Submitters have cfg_changed notification to remove");
-            } else {
-                const result2 = await this.db.collection('users').updateMany(
-                    { role: "Submitter" },
-                    { $pull: { notifications: "data_submission:cfg_changed" } }
-                );
-                console.log(`✅ Removed cfg_changed notification from ${result2.modifiedCount} Submitters`);
-            }
         } catch (e) {
             console.log("❌ Error adjusting notifications:", e.message);
         }
