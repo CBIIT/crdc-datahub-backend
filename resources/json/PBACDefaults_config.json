@@ -292,7 +292,7 @@
           {
             "_id": "data_submission:cfg_changed",
             "group": "Data Submission Emails",
-            "name": "When changed",
+            "name": "When config changed",
             "order": 11,
             "checked": false,
             "disabled": false
@@ -621,7 +621,7 @@
           {
             "_id": "data_submission:cfg_changed",
             "group": "Data Submission Emails",
-            "name": "When changed",
+            "name": "When config changed",
             "order": 11,
             "checked": true,
             "disabled": false
@@ -949,7 +949,7 @@
           {
             "_id": "data_submission:cfg_changed",
             "group": "Data Submission Emails",
-            "name": "When changed",
+            "name": "When config changed",
             "order": 11,
             "checked": false,
             "disabled": false
@@ -1277,7 +1277,7 @@
           {
             "_id": "data_submission:cfg_changed",
             "group": "Data Submission Emails",
-            "name": "When changed",
+            "name": "When config changed",
             "order": 11,
             "checked": true,
             "disabled": true
@@ -1603,7 +1603,7 @@
           {
             "_id": "data_submission:cfg_changed",
             "group": "Data Submission Emails",
-            "name": "When changed",
+            "name": "When config changed",
             "order": 11,
             "checked": false,
             "disabled": true

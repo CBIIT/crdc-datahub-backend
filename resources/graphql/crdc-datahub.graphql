@@ -1003,14 +1003,14 @@ type Mutation {
         acronym: String, #acronym of the study, optional
         controlledAccess: Boolean!,
         openAccess: Boolean, #optional 
-        dbGaPID: String, # required only Controlled
+        dbGaPID: String, # optional 
         ORCID: String, #optional in format of 0000-1234-2345-3456
         PI: String #optional
         primaryContactID: String #data concierge user ID
         useProgramPC: Boolean!,
         pendingModelChange: Boolean
         isPendingGPA: Boolean
-        GPAName: String
+        GPAName: String # optional 
     ): ApprovedStudy
 
     updateApprovedStudy(
@@ -1019,14 +1019,14 @@ type Mutation {
         acronym: String, #acronym of the study, optional
         controlledAccess: Boolean!,
         openAccess: Boolean, #optional 
-        dbGaPID: String, # required only Controlled
+        dbGaPID: String, # optional 
         ORCID: String, #optional in format of 0000-1234-2345-3456
         PI: String #optional 
         primaryContactID: String, #data concierge user ID
         useProgramPC: Boolean!,
         pendingModelChange: Boolean
         isPendingGPA: Boolean
-        GPAName: String
+        GPAName: String # optional 
     ): ApprovedStudy
 
     requestAccess(
