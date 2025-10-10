@@ -317,7 +317,7 @@ describe('Application', () => {
             jest.spyOn(app, 'getApplicationById').mockResolvedValue({ _id: 'invalid-status-provided', applicant: { applicantID: 'user1' }, status: NEW });
 
             const params = { application: { _id: 'invalid-status-provided' }, status };
-            await expect(app.saveApplication(params, context)).rejects.toThrow(ERROR.VERIFY.INVALID_STATUS_APPLICATION);
+            await expect(app.saveApplication(params, context)).rejects.toThrow(ERROR.VERIFY.INVALID_STATE_APPLICATION);
         });
 
         it("should throw an error if no status is provided", async () => {
@@ -328,7 +328,7 @@ describe('Application', () => {
             jest.spyOn(app, 'getApplicationById').mockResolvedValue({ _id: 'no-status-provided', applicant: { applicantID: 'user1' }, status: NEW });
 
             const params = { application: { _id: 'no-status-provided' } }; // NOTE: We're omitting status param
-            await expect(app.saveApplication(params, context)).rejects.toThrow(ERROR.VERIFY.INVALID_STATUS_APPLICATION);
+            await expect(app.saveApplication(params, context)).rejects.toThrow(ERROR.VERIFY.INVALID_STATE_APPLICATION);
         });
 
         it('throws if not owner', async () => {

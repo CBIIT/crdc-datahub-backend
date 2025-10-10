@@ -214,7 +214,7 @@ class Application {
         }
 
         if (!params?.status || ![NEW, IN_PROGRESS].includes(params.status)) {
-            throw new Error(ERROR.VERIFY.INVALID_STATUS_APPLICATION);
+            throw new Error(ERROR.VERIFY.INVALID_STATE_APPLICATION);
         }
 
         const prevStatus = storedApplication?.status;
