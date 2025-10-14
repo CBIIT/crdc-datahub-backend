@@ -909,15 +909,14 @@ class MigrationRunner {
         console.log("🔄 Starting GPAName migration...");
         
         // Query all applications to check for GPAName mismatches
-        const cursor = this.db.collection('applications').find({});
+        const applications = await this.db.collection('applications').find({}).toArray();
         
         let updatedCount = 0;
         let matchedCount = 0;
         let missingInQuestionnaireCount = 0;
         let failed = [];
         
-        while (await cursor.hasNext()) {
-            const application = await cursor.next();
+        for (const application of applications) {
             
             try {
                 // Check if questionnaireData exists
