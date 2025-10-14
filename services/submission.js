@@ -126,9 +126,20 @@ class Submission {
     async createSubmission(params, context) {
         verifySession(context)
             .verifyInitialized();
+        // Check user permission to create submission
         const userScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
-        if (userScope.isNoneScope()) {
-            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        // User has ALL scope - can create submissions for any study
+        if (!userScope.isAllScope()) {
+            // User has OWN or STUDY scope - must be assigned to the study
+            if (userScope.isOwnScope() || userScope.isStudyScope()) {
+                const hasStudyAccess = validateStudyAccess(context?.userInfo?.studies, params.studyID);
+                if (!hasStudyAccess) {
+                    throw new Error(ERROR.INVALID_STUDY_ACCESS);
+                }
+            }
+            else {
+                throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+            }
         }
 
         const intention = [INTENTION.UPDATE, INTENTION.DELETE].find((i) => i.toLowerCase() === params?.intention.toLowerCase());
@@ -1628,7 +1639,7 @@ class Submission {
         if (!userScope.isAllScope()) {
             if (userScope.isOwnScope() || userScope.isStudyScope()) {
                 if (!validateStudyAccess(userInfo.studies, aSubmission?.studyID)) {
-                    throw new Error(ERROR.INVALID_ROLE_STUDY)
+                    throw new Error(ERROR.INVALID_STUDY_ACCESS)
                 }
             } 
         }
