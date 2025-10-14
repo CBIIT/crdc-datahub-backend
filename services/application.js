@@ -187,6 +187,14 @@ class Application {
         return application;
     }
 
+    /**
+     * Provides API functionality to create or save an application.
+     * 
+     * @note If no ID is provided in the application object, a new application will be created.
+     * @param {{ application: object, status: typeof NEW | typeof IN_PROGRESS }} params The request parameters containing the application input object
+     * @param {object} context The request context containing user information
+     * @returns {Promise<object>} The created or updated application object
+     */
     async saveApplication(params, context) {
         verifySession(context)
             .verifyInitialized()
@@ -205,10 +213,14 @@ class Application {
             throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
+        if (!params?.status || ![NEW, IN_PROGRESS].includes(params.status)) {
+            throw new Error(ERROR.VERIFY.INVALID_STATE_APPLICATION);
+        }
+
         const prevStatus = storedApplication?.status;
-        let application = {...storedApplication, ...inputApplication, status: IN_PROGRESS};
+        let application = {...storedApplication, ...inputApplication, status: params.status };
         // auto upgrade version based on configuration
-        application.version = await this._getApplicationVersionByStatus(IN_PROGRESS);
+        application.version = await this._getApplicationVersionByStatus(application.status);
 
         if (inputApplication?.newInstitutions?.length > 0) {
             await this._validateNewInstitution(inputApplication?.newInstitutions);
@@ -1180,9 +1192,9 @@ class Application {
     }
 
     async _updateApplication(application, prevStatus, userID) {
-        if (prevStatus !== IN_PROGRESS) {
+        if (prevStatus !== application.status) {
             application = {history: [], ...application};
-            const historyEvent = HistoryEventBuilder.createEvent(userID, IN_PROGRESS, null);
+            const historyEvent = HistoryEventBuilder.createEvent(userID, application.status, null);
             application.history.push(historyEvent);
         }
         // Save an email reminder when an inactive application is reactivated.
