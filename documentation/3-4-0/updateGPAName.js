@@ -59,7 +59,7 @@ async function updateGPAName() {
             let needsUpdate = false;
             let updateReason = "";
             
-            if (!application.GPAName || application.GPAName === "" || application.GPAName === null) {
+            if (!application.GPAName) {
                 // GPAName is missing or empty at root level
                 needsUpdate = true;
                 updateReason = "missing/empty at root level";
