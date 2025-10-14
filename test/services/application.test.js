@@ -411,6 +411,102 @@ describe('Application', () => {
         });
     });
 
+    describe("_saveApprovedStudies", () => {
+        it.each([
+            ["phs001234", "phs001234"],
+            ["phs001234.v5", "phs001234"],
+            ["phs001234.p3", "phs001234"],
+            ["phs001234.v5.p2", "phs001234"],
+            ["phs001234.v5.p2 ", "phs001234"],
+        ])(
+            "should store only the base phs prefix and 6 digits when dbGaPPPHSNumber is %s",
+            async (phsInput, expectedBase) => {
+                const aApplication = {
+                    _id: 'app1',
+                    studyName: 'Study One',
+                    studyAbbreviation: 'STUDY1',
+                    organization: { name: 'Org One' },
+                    controlledAccess: true,
+                    ORCID: '0000-0001',
+                    PI: 'PI Name',
+                    openAccess: false,
+                    programName: 'Program One',
+                };
+                const questionnaire = {
+                    study: { name: 'Study One Name', dbGaPPPHSNumber: phsInput },
+                };
+                mockApprovedStudiesService.storeApprovedStudies.mockResolvedValue({ _id: 'approvedStudy1' });
+
+                await app._saveApprovedStudies(aApplication, questionnaire, false, false);
+
+                expect(mockApprovedStudiesService.storeApprovedStudies).toHaveBeenCalled();
+                const args = mockApprovedStudiesService.storeApprovedStudies.mock.calls[0];
+                expect(args[3]).toBe(expectedBase);
+            }
+        );
+
+        it.each([
+            ['', null],
+            [' ', null],
+            ['phs', null],
+            ['phs1234', null],
+            ['phs00123', null],
+            ['001234', null],
+            ['phs-001234', null],
+            ['abc', null],
+            ['.v5', null],
+        ])(
+            "should default to null when it doesn't start with phs prefix and 6 digits: %s",
+            async (phsInput) => {
+                const aApplication = {
+                    _id: 'app1',
+                    studyName: 'Study One',
+                    studyAbbreviation: 'STUDY1',
+                    organization: { name: 'Org One' },
+                    controlledAccess: true,
+                    ORCID: '0000-0001',
+                    PI: 'PI Name',
+                    openAccess: false,
+                    programName: 'Program One',
+                };
+                const questionnaire = {
+                    study: { name: 'Study One Name', dbGaPPPHSNumber: phsInput },
+                };
+                mockApprovedStudiesService.storeApprovedStudies.mockResolvedValue({ _id: 'approvedStudy1' });
+
+                await app._saveApprovedStudies(aApplication, questionnaire, false, false);
+
+                expect(mockApprovedStudiesService.storeApprovedStudies).toHaveBeenCalled();
+                const args = mockApprovedStudiesService.storeApprovedStudies.mock.calls[0];
+                expect(args[3]).toBeNull();
+            }
+        );
+
+        it('should handle null dbGaPPPHSNumber value', async () => {
+            const aApplication = {
+                _id: 'app1',
+                studyName: 'Study One',
+                studyAbbreviation: 'STUDY1',
+                organization: { name: 'Org One' },
+                controlledAccess: true,
+                ORCID: '0000-0001',
+                PI: 'PI Name',
+                openAccess: false,
+                programName: 'Program One',
+            };
+            const questionnaire = {
+                study: { name: 'Study One Name', dbGaPPPHSNumber: null },
+            };
+            mockApprovedStudiesService.storeApprovedStudies.mockResolvedValue({ _id: 'approvedStudy1' });
+
+            await app._saveApprovedStudies(aApplication, questionnaire, false, false);
+
+            expect(mockApprovedStudiesService.storeApprovedStudies).toHaveBeenCalled();
+            const args = mockApprovedStudiesService.storeApprovedStudies.mock.calls[0];
+            expect(args[3]).toBeNull();
+        });
+    });
+
     // The file already contains comprehensive unit tests for the Application service.
     // No further changes are needed for basic coverage.
 });

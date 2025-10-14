@@ -1175,9 +1175,14 @@ class Application {
         }
         const programName = aApplication?.programName ?? "NA";
         const pendingGPA = PendingGPA.create(aApplication?.GPAName, isPendingGPA);
+
+        // Clean dbGaPPPHSNumber to only store the base "phs######"
+        const trimmedDbGaP = String(questionnaire?.study?.dbGaPPPHSNumber ?? "").trim();
+        const baseDbGaP = trimmedDbGaP.match(/^phs\d{6}/i)?.[0]?.toLowerCase() ?? null;
+
         // Upon approval of the submission request, the data concierge is retrieved from the associated program.
         return await this.approvedStudiesService.storeApprovedStudies(
-            aApplication?._id, aApplication?.studyName, studyAbbreviation, questionnaire?.study?.dbGaPPPHSNumber, aApplication?.organization?.name, controlledAccess, aApplication?.ORCID,
+            aApplication?._id, aApplication?.studyName, studyAbbreviation, baseDbGaP, aApplication?.organization?.name, controlledAccess, aApplication?.ORCID,
             aApplication?.PI, aApplication?.openAccess, programName, true, pendingModelChange, null, pendingGPA
         );
     }
