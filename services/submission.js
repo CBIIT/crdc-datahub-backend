@@ -1772,7 +1772,7 @@ class Submission {
             throw new Error(msg);
         }
 
-        await this._notifyConfigurationChange(userInfo, aSubmission, version, prevSubmitter, newSubmitter);
+        await this._notifyConfigurationChange(aSubmission, version, prevSubmitter, newSubmitter);
 
         // Log for the modifying submission
         if (updatedSubmission) {
@@ -1797,38 +1797,66 @@ class Submission {
         return updatedSubmission;
     }
 
-    async _notifyConfigurationChange(userInfo, aSubmission, newModelVersion, prevSubmitter, newSubmitter) {
-        const users = await this.userDAO.getUsersByNotifications([EN.DATA_SUBMISSION.CHANGE_CONFIGURATION]);
+    async _notifyConfigurationChange(aSubmission, newModelVersion, prevSubmitter, newSubmitter) {
         const isSubmitterChanged = Boolean(newSubmitter && prevSubmitter?.id !== newSubmitter?.id);
-        const submitterID = isSubmitterChanged ? newSubmitter?.id : aSubmission?.submitterID;
-        const { submitterEmails, BCCEmails } = (users || []).reduce(
-            (acc, u) => {
-                if (u?.email) {
-                    if (u?.id === submitterID && u.role === USER.ROLES.SUBMITTER) {
-                        acc.submitterEmails.push(u?.email);
-                    }
-
-                    if ([USER.ROLES.FEDERAL_LEAD, USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.ADMIN].includes(u?.role)) {
-                        acc.BCCEmails.push(u?.email);
-                    }
-                }
-                return acc;
-            },
-            { submitterEmails: [], BCCEmails: [] }
+        // Check if the submitter has the required notification enabled
+        if (!newSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.CHANGE_CONFIGURATION)) {
+            console.warn(`Submission updated; submitter does not have configuration change notifications enabled. submissionID: ${aSubmission?.id}, submitterID: ${newSubmitter?.id}`);
+            return;
+        }
+        // Initialize recipient variables
+        const submitterEmails = [newSubmitter?.email];
+        let CCEmails = [];
+        let BCCEmails = [];
+        // If there's a new submitter, check if the old submitter should be CC'd
+        if (isSubmitterChanged && prevSubmitter?.id) {
+            const prevSubmitterUser = await this.userDAO.findByIdAndStatus(prevSubmitter.id, USER.STATUSES.ACTIVE);
+            if (prevSubmitterUser?.email && 
+                prevSubmitterUser.notifications?.includes(EN.DATA_SUBMISSION.CHANGE_CONFIGURATION) && 
+                prevSubmitterUser.role === USER.ROLES.SUBMITTER) {
+                CCEmails = [prevSubmitterUser.email];
+            }
+        }
+        // Lookup admins, federal leads, and data commons personnel with notification enabled to intialize BCC list
+        const otherUsers = await this.userDAO.getUsersByNotifications(
+            [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION],
+            [USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.FEDERAL_LEAD, USER.ROLES.ADMIN]
         );
-
+        const submissionDataCommons = aSubmission?.dataCommons;
+        const submissionStudyID = aSubmission?.studyID;
+        // filter the BCC list
+        BCCEmails = otherUsers.reduce((acc, u) => {
+            if (!u?.email) return acc;
+            if (u.role === USER.ROLES.DATA_COMMONS_PERSONNEL) {
+                // Data Commons Personnel: filter by matching data commons
+                if (validateDataCommonsAccess(u.dataCommons, submissionDataCommons)) {
+                    acc.push(u.email);
+                }
+            }
+            else if (u.role === USER.ROLES.FEDERAL_LEAD) {
+                // Federal Lead: filter by matching study or study "ALL"
+                if (validateStudyAccess(u.studies, submissionStudyID)) {
+                    acc.push(u.email);
+                }
+            }
+            else if (u.role === USER.ROLES.ADMIN) {
+                // Admin: no filtering required
+                acc.push(u.email);
+            }
+            return acc;
+        }, []);
+        
         if (submitterEmails?.length > 0) {
-            const originalSubmitterEmail = isSubmitterChanged ? [prevSubmitter?.email] : [];
             const isVersionChanged = newModelVersion && newModelVersion !== aSubmission?.modelVersion;
-            const sent = await this.notificationService.updateSubmissionNotification(submitterEmails, originalSubmitterEmail, BCCEmails, {
-                firstName: getEmailUserName(userInfo),
+            const sent = await this.notificationService.updateSubmissionNotification(submitterEmails, CCEmails, BCCEmails, {
+                firstName: getEmailUserName(newSubmitter),
                 portalURL: this.emailParams.url || NA,
                 studyName: aSubmission?.study?.studyName || NA,
                 // Changing the model version
                 ...(isVersionChanged ? {prevModelVersion: aSubmission?.modelVersion || NA} : {}),
                 ...(isVersionChanged ? {newModelVersion: newModelVersion || NA} : {}),
                 // Changing the submitter
-                ...(isSubmitterChanged ? { prevSubmitterName: getEmailUserName(prevSubmitter) || NA } : {}),
+                ...(isSubmitterChanged && prevSubmitter ? { prevSubmitterName: getEmailUserName(prevSubmitter) || NA } : {}),
                 ...(isSubmitterChanged ? { newSubmitterName: getEmailUserName(newSubmitter) || NA } : {})
             });
 
