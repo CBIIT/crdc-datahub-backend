@@ -106,6 +106,7 @@ class MigrationRunner {
             console.log("✅ Submission data migration completed");
             console.log("✅ Configuration and cleanup completed");
             console.log("✅ StudyName field added to applications completed");
+            console.log("✅ GPAName field updated from questionnaireData (missing/mismatched values) completed");
             console.log("✅ Institution status migration completed");
             console.log("✅ Review comment array fix completed");
             console.log("✅ Concierge cleanup completed");
@@ -123,6 +124,7 @@ class MigrationRunner {
             console.log("db.submissions.find({conciergeID: {$exists: true}}).count();");
             console.log("db.applications.find({applicantID: {$exists: true}}).count();");
             console.log("db.applications.find({studyName: {$exists: true}}).count();");
+            console.log("db.applications.find({GPAName: {$exists: true, $ne: ''}}).count();");
             console.log("db.institutions.find({status: 'Active'}).count();");
             console.log("db.submissions.find({reviewComment: {$type: 'array'}}).count();");
 
@@ -642,7 +644,15 @@ class MigrationRunner {
             console.log("❌ Error adding studyName field:", e.message);
         }
 
-        // 5.5 Cleanup Operations
+        // 5.5 Update GPAName Field from Questionnaire Data
+        console.log("Updating GPAName field from questionnaireData (missing/mismatched values)...");
+        try {
+            await this.updateGPANameFromQuestionnaire();
+        } catch (e) {
+            console.log("❌ Error updating GPAName field:", e.message);
+        }
+
+        // 5.6 Cleanup Operations
         console.log("Performing cleanup operations...");
         try {
             // Remove empty organizations from users
@@ -892,6 +902,116 @@ class MigrationRunner {
         console.log(`✅ Removed null/empty concierge fields from ${unsetRes2.modifiedCount} submissions`);
         
         console.log(`🧹 Cleanup complete. Total submissions cleaned: ${unsetRes1.modifiedCount + unsetRes2.modifiedCount}`);
+    }
+
+    // Update GPAName field from questionnaireData
+    async updateGPANameFromQuestionnaire() {
+        console.log("🔄 Starting GPAName migration...");
+        
+        // Query all applications to check for GPAName mismatches
+        const applications = await this.db.collection('applications').find({}).toArray();
+        
+        let updatedCount = 0;
+        let matchedCount = 0;
+        let missingInQuestionnaireCount = 0;
+        let failed = [];
+        
+        for (const application of applications) {
+            
+            try {
+                // Check if questionnaireData exists
+                if (!application.questionnaireData) {
+                    missingInQuestionnaireCount++;
+                    continue;
+                }
+                
+                // Parse questionnaireData JSON
+                let questionnaire;
+                try {
+                    questionnaire = JSON.parse(application.questionnaireData);
+                } catch (parseError) {
+                    console.error(`❌ Failed to parse questionnaireData for application ${application._id}: ${parseError.message}`);
+                    failed.push({ 
+                        id: application._id, 
+                        error: `JSON parse error: ${parseError.message}` 
+                    });
+                    continue;
+                }
+                
+                // Check if study object exists
+                if (!questionnaire.study) {
+                    missingInQuestionnaireCount++;
+                    continue;
+                }
+                
+                // Extract GPAName from study object
+                const extractedGPAName = questionnaire.study.GPAName;
+                
+                // Skip if GPAName is falsy or empty string in questionnaireData
+                if (!extractedGPAName || extractedGPAName.trim() === "") {
+                    missingInQuestionnaireCount++;
+                    continue;
+                }
+                
+                const trimmedExtractedGPAName = extractedGPAName.trim();
+                const currentGPAName = application.GPAName ? application.GPAName.trim() : "";
+                
+                // Check if update is needed
+                let needsUpdate = false;
+                let updateReason = "";
+                
+                if (!application.GPAName) {
+                    // GPAName is missing or empty at root level
+                    needsUpdate = true;
+                    updateReason = "missing/empty at root level";
+                } else if (currentGPAName !== trimmedExtractedGPAName) {
+                    // GPAName exists but doesn't match
+                    needsUpdate = true;
+                    updateReason = `mismatch: root="${currentGPAName}" vs questionnaire="${trimmedExtractedGPAName}"`;
+                }
+                
+                if (!needsUpdate) {
+                    matchedCount++;
+                    continue;
+                }
+                
+                // Update the application with extracted GPAName
+                const result = await this.db.collection('applications').updateOne(
+                    { _id: application._id },
+                    { $set: { GPAName: trimmedExtractedGPAName } }
+                );
+                
+                if (result.modifiedCount === 1) {
+                    console.log(`✅ Updated application ${application._id} with GPAName: "${trimmedExtractedGPAName}" (${updateReason})`);
+                    updatedCount++;
+                }
+                
+            } catch (error) {
+                console.error(`❌ Failed to process application ${application._id}: ${error.message}`);
+                failed.push({ 
+                    id: application._id, 
+                    error: error.message 
+                });
+            }
+        }
+        
+        // Print summary
+        console.log("\n" + "=".repeat(50));
+        console.log("📊 GPAName Migration Summary:");
+        console.log(`✅ GPAName updated: ${updatedCount}`);
+        console.log(`✅ GPAName matched: ${matchedCount}`);
+        console.log(`⚠️  GPAName missing in questionnaire data: ${missingInQuestionnaireCount}`);
+        console.log(`❌ Failed: ${failed.length}`);
+        
+        if (failed.length > 0) {
+            console.log("\n❌ Failed applications:");
+            failed.forEach(failure => {
+                console.log(`   - Application ID: ${failure.id}, Error: ${failure.error}`);
+            });
+        }
+        
+        console.log("=".repeat(50));
+        console.log("🎉 GPAName migration completed!");
     }
 
     // Restore user notifications function (from shared functions)
