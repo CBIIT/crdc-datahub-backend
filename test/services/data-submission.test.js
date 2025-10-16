@@ -949,57 +949,6 @@ describe("Submission.createSubmission", () => {
         // }
     });
 
-
-    // Test for _hasStudyAccess method in submission.js
-    describe("Submission._hasStudyAccess", () => {
-        it("should return true if the userStudies includes the submissionStudy id", () => {
-            const userStudies = [
-                { _id: "study1", name: "Alpha" },
-                { _id: "study2", name: "Beta" },
-            ];
-            const submissionStudy = "study1";
-            // We assume _hasStudyAccess is an instance method of submissionService
-            expect(submissionService._hasStudyAccess(userStudies, submissionStudy)).toBe(true);
-        });
-
-        it("should return false if the userStudies does not include the submissionStudy id", () => {
-            const userStudies = [
-                { _id: "study1", name: "Alpha" },
-                { _id: "study2", name: "Beta" },
-            ];
-            const submissionStudy = "study3";
-            expect(submissionService._hasStudyAccess(userStudies, submissionStudy)).toBe(false);
-        });
-
-        it("should return true if userStudies has a study with id (not _id) matching submissionStudy", () => {
-            const userStudies = [
-                { id: "foo", name: "Bar" },
-                { id: "studyX", name: "Gamma" },
-            ];
-            const submissionStudy = "studyX";
-            expect(submissionService._hasStudyAccess(userStudies, submissionStudy)).toBe(true);
-        });
-
-        it("should return false for null or empty userStudies", () => {
-            expect(submissionService._hasStudyAccess(null, "study1")).toBe(false);
-            expect(submissionService._hasStudyAccess([], "study1")).toBe(false);
-        });
-
-        it("should return true if userStudies has a study with _id 'All'", () => {
-            const userStudies = [
-                { _id: "All" }
-            ];
-            expect(submissionService._hasStudyAccess(userStudies, "whatever")).toBe(true);
-        });
-
-        it("should return true if userStudies has a study with id 'All'", () => {
-            const userStudies = [
-                { id: "All" }
-            ];
-            expect(submissionService._hasStudyAccess(userStudies, "anything")).toBe(true);
-        });
-    });
-    
     it("should throw error if submission intention is invalid", async () => {
         // Provide an invalid intention
         const invalidParams = { ...mockParams, intention: "invalid_intention" };

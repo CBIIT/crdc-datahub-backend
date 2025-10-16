@@ -1410,7 +1410,7 @@ class Submission {
                 return users?.filter(({ role, studies }) => (
                     role === USER.ROLES.ADMIN ||
                     (role === USER.ROLES.FEDERAL_LEAD &&
-                        (this._hasStudyAccess(studies, approvedStudy?.id)))
+                        (validateStudyAccess(studies, approvedStudy?.id)))
                 ));
             })(),
         ]);
@@ -2512,10 +2512,6 @@ class Submission {
             // Don't throw error for logging failures as it shouldn't break the main flow
             return null;
         }
-    }
-
-    _hasStudyAccess(userStudies, studyID) {
-        return isAllStudy(userStudies) || validateStudyAccess(userStudies, studyID);
     }
 }
 
