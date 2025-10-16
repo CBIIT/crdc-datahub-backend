@@ -64,12 +64,23 @@ class ApplicationDAO extends GenericDAO {
                     },
                     // Tracks whether the notification has already been sent
                     ...(inactiveFlagField ? {[inactiveFlagField]: {not: true}} : {})
+                },
+                include: {
+                    applicant: true,
                 }
             });
-
             return applications.map(item => ({
                 ...item,
-                ...(item.id ? { _id: item.id } : {})
+                ...(item.id ? { _id: item.id } : {}),
+                ...(item?.applicant ? {
+                    applicant: {
+                        ...item?.applicant,
+                        applicantID: item?.applicant?.id || "",
+                        applicantName: item?.applicant?.fullName || "",
+                        applicantEmail: item?.applicant.email || ""
+                    }
+                }
+                : {}),
             }));
         } catch (error) {
             console.error('Error getting getInactiveApplication:', error);
