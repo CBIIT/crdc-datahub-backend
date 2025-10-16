@@ -1241,7 +1241,7 @@ describe('Submission._remindPrimaryContactEmail', () => {
         ];
 
         const mockCCUsers = [
-            { email: 'admin@test.com' }
+            { email: 'admin@test.com', role: USER.ROLES.ADMIN }
         ];
 
         mockUserService.findUsersByNotificationsAndRole

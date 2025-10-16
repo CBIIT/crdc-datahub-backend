@@ -1402,10 +1402,17 @@ class Submission {
                 [USER.ROLES.DATA_COMMONS_PERSONNEL],
                 aSubmission?.dataCommons
             ),
-            this.userService.findUsersByNotificationsAndRole(
-                [EN.DATA_SUBMISSION.CREATE],
-                [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD]
-            )
+            (async () => {
+                const users = await this.userService.findUsersByNotificationsAndRole(
+                    [EN.DATA_SUBMISSION.CREATE],
+                    [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD]
+                );
+                return users?.filter(({ role, studies }) => (
+                    role === USER.ROLES.ADMIN ||
+                    (role === USER.ROLES.FEDERAL_LEAD &&
+                        (validateStudyAccess(studies, approvedStudy?.id)))
+                ));
+            })(),
         ]);
 
         if (dcpUsers?.length > 0) {
