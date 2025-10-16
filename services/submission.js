@@ -1410,7 +1410,7 @@ class Submission {
                 return users?.filter(({ role, studies }) => (
                     role === USER.ROLES.ADMIN ||
                     (role === USER.ROLES.FEDERAL_LEAD &&
-                        (isAllStudy(studies) || validateStudyAccess(studies, approvedStudy?._id)))
+                        (isAllStudy(studies) || validateStudyAccess(studies, approvedStudy?.id)))
                 ));
             })(),
         ]);
