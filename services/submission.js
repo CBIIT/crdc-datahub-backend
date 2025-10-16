@@ -1797,7 +1797,31 @@ class Submission {
         return updatedSubmission;
     }
 
+    /**
+     * Notifies users about configuration changes to a submission.
+     * Sends email notifications to the new submitter, CCs the previous submitter (if changed),
+     * and BCCs relevant administrators and data commons personnel.
+     * 
+     * @param {Object} aSubmission - The submission object containing submission details (required)
+     * @param {string|null} newModelVersion - The new model version for the submission (can be null)
+     * @param {Object} prevSubmitter - The previous submitter object (assumed to be valid, not null/undefined)
+     * @param {Object} newSubmitter - The new submitter object (assumed to be valid, not null/undefined)
+     * @throws {Error} If aSubmission, newSubmitter, or prevSubmitter are null/undefined
+     */
     async _notifyConfigurationChange(aSubmission, newModelVersion, prevSubmitter, newSubmitter) {
+        // Validate required parameters
+        if (!aSubmission) {
+            console.error(`${ERROR.FAILED_NOTIFY_SUBMISSION_UPDATE}; aSubmission parameter is required and cannot be null or undefined`);
+            throw new Error(ERROR.FAILED_NOTIFY_SUBMISSION_UPDATE);
+        }
+        if (!newSubmitter) {
+            console.error(`${ERROR.FAILED_NOTIFY_SUBMISSION_UPDATE}; newSubmitter parameter is required and cannot be null or undefined`);
+            throw new Error(ERROR.FAILED_NOTIFY_SUBMISSION_UPDATE);
+        }
+        if (!prevSubmitter) {
+            console.error(`${ERROR.FAILED_NOTIFY_SUBMISSION_UPDATE}; prevSubmitter parameter is required and cannot be null or undefined`);
+            throw new Error(ERROR.FAILED_NOTIFY_SUBMISSION_UPDATE);
+        }
         const isSubmitterChanged = Boolean(newSubmitter && prevSubmitter?.id !== newSubmitter?.id);
         // Check if the submitter has the required notification enabled
         if (!newSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.CHANGE_CONFIGURATION)) {
@@ -1812,8 +1836,7 @@ class Submission {
         if (isSubmitterChanged && prevSubmitter?.id) {
             const prevSubmitterUser = await this.userDAO.findByIdAndStatus(prevSubmitter.id, USER.STATUSES.ACTIVE);
             if (prevSubmitterUser?.email && 
-                prevSubmitterUser.notifications?.includes(EN.DATA_SUBMISSION.CHANGE_CONFIGURATION) && 
-                prevSubmitterUser.role === USER.ROLES.SUBMITTER) {
+                prevSubmitterUser.notifications?.includes(EN.DATA_SUBMISSION.CHANGE_CONFIGURATION)){
                 CCEmails = [prevSubmitterUser.email];
             }
         }
@@ -1847,7 +1870,7 @@ class Submission {
         }, []);
         
         if (submitterEmails?.length > 0) {
-            const isVersionChanged = newModelVersion && newModelVersion !== aSubmission?.modelVersion;
+            const isVersionChanged = newModelVersion != null && newModelVersion !== aSubmission.modelVersion;
             const sent = await this.notificationService.updateSubmissionNotification(submitterEmails, CCEmails, BCCEmails, {
                 firstName: getEmailUserName(newSubmitter),
                 portalURL: this.emailParams.url || NA,
@@ -3045,8 +3068,28 @@ class SubmissionAttributes {
     }
 }
 
+/**
+ * Formats user name for email display.
+ * 
+ * @param {Object} userInfo - User object containing firstName and lastName
+ * @returns {string} Formatted name string, or "user" if userInfo is null/undefined or results in empty string
+ * @note The fallback to "user" indicates an invalid use case that should be investigated
+ */
 const getEmailUserName = (userInfo) => {
-    return `${userInfo.firstName} ${userInfo?.lastName || ''}`;
+    if (!userInfo) {
+        console.warn('getEmailUserName: userInfo is null/undefined, falling back to "user"');
+        return 'user';
+    }
+    const formattedName = `${userInfo.firstName || ''} ${userInfo?.lastName || ''}`.trim();
+    if (!formattedName) {
+        console.warn('getEmailUserName: formatted name is empty, falling back to "user"', {
+            firstName: userInfo.firstName,
+            lastName: userInfo.lastName,
+            userId: userInfo.id
+        });
+        return 'user';
+    }
+    return formattedName;
 }
 
 

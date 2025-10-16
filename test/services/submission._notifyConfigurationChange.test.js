@@ -64,6 +64,612 @@ describe('Submission._notifyConfigurationChange', () => {
         jest.clearAllMocks();
     });
 
+    describe('parameter validation', () => {
+        it('should throw error when aSubmission is null', async () => {
+            // Arrange
+            const newSubmitter = {
+                id: 'user1',
+                email: 'submitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION]
+            };
+            const prevSubmitter = {
+                id: 'user1',
+                email: 'submitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION]
+            };
+            const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+
+            // Act & Assert
+            await expect(
+                submissionService._notifyConfigurationChange(
+                    null, // aSubmission is null
+                    'v2.0',
+                    prevSubmitter,
+                    newSubmitter
+                )
+            ).rejects.toThrow('Failed to notify the configuration update');
+
+            expect(consoleErrorSpy).toHaveBeenCalledWith(
+                expect.stringContaining('aSubmission parameter is required and cannot be null or undefined')
+            );
+            consoleErrorSpy.mockRestore();
+        });
+
+        it('should throw error when newSubmitter is null', async () => {
+            // Arrange
+            const prevSubmitter = {
+                id: 'user1',
+                email: 'submitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION]
+            };
+            const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+
+            // Act & Assert
+            await expect(
+                submissionService._notifyConfigurationChange(
+                    mockSubmission,
+                    'v2.0',
+                    prevSubmitter,
+                    null // newSubmitter is null
+                )
+            ).rejects.toThrow('Failed to notify the configuration update');
+
+            expect(consoleErrorSpy).toHaveBeenCalledWith(
+                expect.stringContaining('newSubmitter parameter is required and cannot be null or undefined')
+            );
+            consoleErrorSpy.mockRestore();
+        });
+
+        it('should throw error when prevSubmitter is null', async () => {
+            // Arrange
+            const newSubmitter = {
+                id: 'user1',
+                email: 'submitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION]
+            };
+            const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+
+            // Act & Assert
+            await expect(
+                submissionService._notifyConfigurationChange(
+                    mockSubmission,
+                    'v2.0',
+                    null, // prevSubmitter is null
+                    newSubmitter
+                )
+            ).rejects.toThrow('Failed to notify the configuration update');
+
+            expect(consoleErrorSpy).toHaveBeenCalledWith(
+                expect.stringContaining('prevSubmitter parameter is required and cannot be null or undefined')
+            );
+            consoleErrorSpy.mockRestore();
+        });
+
+        it('should handle null newModelVersion correctly (isVersionChanged should be false)', async () => {
+            // Arrange
+            const newSubmitter = {
+                id: 'user1',
+                email: 'submitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION],
+                firstName: 'John',
+                lastName: 'Doe'
+            };
+            const prevSubmitter = {
+                id: 'user1',
+                email: 'submitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION]
+            };
+            mockUserDAO.getUsersByNotifications.mockResolvedValue([]);
+
+            // Act
+            await submissionService._notifyConfigurationChange(
+                mockSubmission,
+                null, // newModelVersion is null
+                prevSubmitter,
+                newSubmitter
+            );
+
+            // Assert
+            expect(mockNotificationService.updateSubmissionNotification).toHaveBeenCalledWith(
+                ['submitter@test.com'],
+                [],
+                [],
+                expect.objectContaining({
+                    firstName: 'John Doe',
+                    portalURL: 'https://test.com',
+                    studyName: 'Test Study'
+                    // Should NOT include prevModelVersion or newModelVersion when isVersionChanged is false
+                })
+            );
+
+            // Verify that version change fields are not included
+            const callArgs = mockNotificationService.updateSubmissionNotification.mock.calls[0][3];
+            expect(callArgs).not.toHaveProperty('prevModelVersion');
+            expect(callArgs).not.toHaveProperty('newModelVersion');
+        });
+
+        it('should handle empty firstName and lastName with "user" fallback', async () => {
+            // Arrange
+            const newSubmitter = {
+                id: 'user1',
+                email: 'submitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION],
+                firstName: 'John',
+                lastName: 'Doe'
+            };
+            const prevSubmitter = {
+                id: 'user2',
+                email: 'oldsubmitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION],
+                firstName: '', // Test empty firstName
+                lastName: '' // Test empty lastName
+            };
+            mockUserDAO.findByIdAndStatus.mockResolvedValue(prevSubmitter);
+            mockUserDAO.getUsersByNotifications.mockResolvedValue([]);
+            const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+
+            // Act
+            await submissionService._notifyConfigurationChange(
+                mockSubmission,
+                'v2.0',
+                prevSubmitter,
+                newSubmitter
+            );
+
+            // Assert
+            expect(mockNotificationService.updateSubmissionNotification).toHaveBeenCalledWith(
+                ['submitter@test.com'],
+                ['oldsubmitter@test.com'],
+                [],
+                expect.objectContaining({
+                    prevSubmitterName: 'user', // Should fallback to "user" when both names are empty
+                    newSubmitterName: 'John Doe'
+                })
+            );
+            expect(consoleWarnSpy).toHaveBeenCalledWith(
+                'getEmailUserName: formatted name is empty, falling back to "user"',
+                expect.objectContaining({
+                    firstName: '',
+                    lastName: '',
+                    userId: 'user2'
+                })
+            );
+            consoleWarnSpy.mockRestore();
+        });
+
+        it('should log warning when userInfo is null/undefined', async () => {
+            // Arrange
+            const newSubmitter = {
+                id: 'user1',
+                email: 'submitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION],
+                firstName: 'John',
+                lastName: 'Doe'
+            };
+            const prevSubmitter = {
+                id: 'user2',
+                email: 'oldsubmitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION]
+                // No firstName/lastName properties - will be undefined
+            };
+            mockUserDAO.findByIdAndStatus.mockResolvedValue(prevSubmitter);
+            mockUserDAO.getUsersByNotifications.mockResolvedValue([]);
+            const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+
+            // Act
+            await submissionService._notifyConfigurationChange(
+                mockSubmission,
+                'v2.0',
+                prevSubmitter,
+                newSubmitter
+            );
+
+            // Assert
+            expect(mockNotificationService.updateSubmissionNotification).toHaveBeenCalledWith(
+                ['submitter@test.com'],
+                ['oldsubmitter@test.com'],
+                [],
+                expect.objectContaining({
+                    prevSubmitterName: 'user', // Should fallback to "user" when name is empty
+                    newSubmitterName: 'John Doe'
+                })
+            );
+            expect(consoleWarnSpy).toHaveBeenCalledWith(
+                'getEmailUserName: formatted name is empty, falling back to "user"',
+                expect.objectContaining({
+                    firstName: undefined,
+                    lastName: undefined,
+                    userId: 'user2'
+                })
+            );
+            consoleWarnSpy.mockRestore();
+        });
+
+        it('should handle null/undefined userInfo in getEmailUserName gracefully with "user" fallback', async () => {
+            // Arrange
+            const newSubmitter = {
+                id: 'user1',
+                email: 'submitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION],
+                firstName: 'John',
+                lastName: 'Doe'
+            };
+            const prevSubmitter = {
+                id: 'user2',
+                email: 'oldsubmitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION],
+                firstName: null, // Test null firstName
+                lastName: undefined // Test undefined lastName
+            };
+            mockUserDAO.findByIdAndStatus.mockResolvedValue(prevSubmitter);
+            mockUserDAO.getUsersByNotifications.mockResolvedValue([]);
+            const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+
+            // Act
+            await submissionService._notifyConfigurationChange(
+                mockSubmission,
+                'v2.0',
+                prevSubmitter,
+                newSubmitter
+            );
+
+            // Assert
+            expect(mockNotificationService.updateSubmissionNotification).toHaveBeenCalledWith(
+                ['submitter@test.com'],
+                ['oldsubmitter@test.com'],
+                [],
+                expect.objectContaining({
+                    prevSubmitterName: 'user', // Should fallback to "user" when name is empty/whitespace
+                    newSubmitterName: 'John Doe'
+                })
+            );
+            expect(consoleWarnSpy).toHaveBeenCalledWith(
+                'getEmailUserName: formatted name is empty, falling back to "user"',
+                expect.objectContaining({
+                    firstName: null,
+                    lastName: undefined,
+                    userId: 'user2'
+                })
+            );
+            consoleWarnSpy.mockRestore();
+        });
+    });
+
+    describe('invalid user data scenarios', () => {
+        beforeEach(() => {
+            // Setup common valid submitter for all invalid data tests
+            const validSubmitter = {
+                id: 'validUser',
+                email: 'valid@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION],
+                firstName: 'Valid',
+                lastName: 'User'
+            };
+            mockUserDAO.getUsersByNotifications.mockResolvedValue([]);
+        });
+
+        it('should handle userInfo with null firstName and lastName', async () => {
+            // Arrange
+            const newSubmitter = {
+                id: 'user1',
+                email: 'submitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION],
+                firstName: 'John',
+                lastName: 'Doe'
+            };
+            const prevSubmitter = {
+                id: 'user2',
+                email: 'oldsubmitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION],
+                firstName: null,
+                lastName: null
+            };
+            mockUserDAO.findByIdAndStatus.mockResolvedValue(prevSubmitter);
+            const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+
+            // Act
+            await submissionService._notifyConfigurationChange(
+                mockSubmission,
+                'v2.0',
+                prevSubmitter,
+                newSubmitter
+            );
+
+            // Assert
+            expect(mockNotificationService.updateSubmissionNotification).toHaveBeenCalledWith(
+                ['submitter@test.com'],
+                ['oldsubmitter@test.com'],
+                [],
+                expect.objectContaining({
+                    prevSubmitterName: 'user',
+                    newSubmitterName: 'John Doe'
+                })
+            );
+            expect(consoleWarnSpy).toHaveBeenCalledWith(
+                'getEmailUserName: formatted name is empty, falling back to "user"',
+                expect.objectContaining({
+                    firstName: null,
+                    lastName: null,
+                    userId: 'user2'
+                })
+            );
+            consoleWarnSpy.mockRestore();
+        });
+
+        it('should handle userInfo with undefined firstName and lastName', async () => {
+            // Arrange
+            const newSubmitter = {
+                id: 'user1',
+                email: 'submitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION],
+                firstName: 'John',
+                lastName: 'Doe'
+            };
+            const prevSubmitter = {
+                id: 'user2',
+                email: 'oldsubmitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION]
+                // firstName and lastName are undefined (not set)
+            };
+            mockUserDAO.findByIdAndStatus.mockResolvedValue(prevSubmitter);
+            const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+
+            // Act
+            await submissionService._notifyConfigurationChange(
+                mockSubmission,
+                'v2.0',
+                prevSubmitter,
+                newSubmitter
+            );
+
+            // Assert
+            expect(mockNotificationService.updateSubmissionNotification).toHaveBeenCalledWith(
+                ['submitter@test.com'],
+                ['oldsubmitter@test.com'],
+                [],
+                expect.objectContaining({
+                    prevSubmitterName: 'user',
+                    newSubmitterName: 'John Doe'
+                })
+            );
+            expect(consoleWarnSpy).toHaveBeenCalledWith(
+                'getEmailUserName: formatted name is empty, falling back to "user"',
+                expect.objectContaining({
+                    firstName: undefined,
+                    lastName: undefined,
+                    userId: 'user2'
+                })
+            );
+            consoleWarnSpy.mockRestore();
+        });
+
+        it('should handle userInfo with empty string firstName and lastName', async () => {
+            // Arrange
+            const newSubmitter = {
+                id: 'user1',
+                email: 'submitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION],
+                firstName: 'John',
+                lastName: 'Doe'
+            };
+            const prevSubmitter = {
+                id: 'user2',
+                email: 'oldsubmitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION],
+                firstName: '',
+                lastName: ''
+            };
+            mockUserDAO.findByIdAndStatus.mockResolvedValue(prevSubmitter);
+            const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+
+            // Act
+            await submissionService._notifyConfigurationChange(
+                mockSubmission,
+                'v2.0',
+                prevSubmitter,
+                newSubmitter
+            );
+
+            // Assert
+            expect(mockNotificationService.updateSubmissionNotification).toHaveBeenCalledWith(
+                ['submitter@test.com'],
+                ['oldsubmitter@test.com'],
+                [],
+                expect.objectContaining({
+                    prevSubmitterName: 'user',
+                    newSubmitterName: 'John Doe'
+                })
+            );
+            expect(consoleWarnSpy).toHaveBeenCalledWith(
+                'getEmailUserName: formatted name is empty, falling back to "user"',
+                expect.objectContaining({
+                    firstName: '',
+                    lastName: '',
+                    userId: 'user2'
+                })
+            );
+            consoleWarnSpy.mockRestore();
+        });
+
+        it('should handle userInfo with whitespace-only firstName and lastName', async () => {
+            // Arrange
+            const newSubmitter = {
+                id: 'user1',
+                email: 'submitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION],
+                firstName: 'John',
+                lastName: 'Doe'
+            };
+            const prevSubmitter = {
+                id: 'user2',
+                email: 'oldsubmitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION],
+                firstName: '   ',
+                lastName: '\t\n'
+            };
+            mockUserDAO.findByIdAndStatus.mockResolvedValue(prevSubmitter);
+            const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+
+            // Act
+            await submissionService._notifyConfigurationChange(
+                mockSubmission,
+                'v2.0',
+                prevSubmitter,
+                newSubmitter
+            );
+
+            // Assert
+            expect(mockNotificationService.updateSubmissionNotification).toHaveBeenCalledWith(
+                ['submitter@test.com'],
+                ['oldsubmitter@test.com'],
+                [],
+                expect.objectContaining({
+                    prevSubmitterName: 'user',
+                    newSubmitterName: 'John Doe'
+                })
+            );
+            expect(consoleWarnSpy).toHaveBeenCalledWith(
+                'getEmailUserName: formatted name is empty, falling back to "user"',
+                expect.objectContaining({
+                    firstName: '   ',
+                    lastName: '\t\n',
+                    userId: 'user2'
+                })
+            );
+            consoleWarnSpy.mockRestore();
+        });
+
+        it('should handle mixed invalid firstName and lastName values', async () => {
+            // Arrange
+            const newSubmitter = {
+                id: 'user1',
+                email: 'submitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION],
+                firstName: 'John',
+                lastName: 'Doe'
+            };
+            const prevSubmitter = {
+                id: 'user2',
+                email: 'oldsubmitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION],
+                firstName: null,
+                lastName: ''
+            };
+            mockUserDAO.findByIdAndStatus.mockResolvedValue(prevSubmitter);
+            const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+
+            // Act
+            await submissionService._notifyConfigurationChange(
+                mockSubmission,
+                'v2.0',
+                prevSubmitter,
+                newSubmitter
+            );
+
+            // Assert
+            expect(mockNotificationService.updateSubmissionNotification).toHaveBeenCalledWith(
+                ['submitter@test.com'],
+                ['oldsubmitter@test.com'],
+                [],
+                expect.objectContaining({
+                    prevSubmitterName: 'user',
+                    newSubmitterName: 'John Doe'
+                })
+            );
+            expect(consoleWarnSpy).toHaveBeenCalledWith(
+                'getEmailUserName: formatted name is empty, falling back to "user"',
+                expect.objectContaining({
+                    firstName: null,
+                    lastName: '',
+                    userId: 'user2'
+                })
+            );
+            consoleWarnSpy.mockRestore();
+        });
+
+        it('should handle userInfo with only firstName (no lastName)', async () => {
+            // Arrange
+            const newSubmitter = {
+                id: 'user1',
+                email: 'submitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION],
+                firstName: 'John',
+                lastName: 'Doe'
+            };
+            const prevSubmitter = {
+                id: 'user2',
+                email: 'oldsubmitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION],
+                firstName: 'ValidFirst',
+                lastName: null
+            };
+            mockUserDAO.findByIdAndStatus.mockResolvedValue(prevSubmitter);
+            const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+
+            // Act
+            await submissionService._notifyConfigurationChange(
+                mockSubmission,
+                'v2.0',
+                prevSubmitter,
+                newSubmitter
+            );
+
+            // Assert
+            expect(mockNotificationService.updateSubmissionNotification).toHaveBeenCalledWith(
+                ['submitter@test.com'],
+                ['oldsubmitter@test.com'],
+                [],
+                expect.objectContaining({
+                    prevSubmitterName: 'ValidFirst', // Should work with just firstName
+                    newSubmitterName: 'John Doe'
+                })
+            );
+            expect(consoleWarnSpy).not.toHaveBeenCalled();
+            consoleWarnSpy.mockRestore();
+        });
+
+        it('should handle userInfo with only lastName (no firstName)', async () => {
+            // Arrange
+            const newSubmitter = {
+                id: 'user1',
+                email: 'submitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION],
+                firstName: 'John',
+                lastName: 'Doe'
+            };
+            const prevSubmitter = {
+                id: 'user2',
+                email: 'oldsubmitter@test.com',
+                notifications: [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION],
+                firstName: '',
+                lastName: 'ValidLast'
+            };
+            mockUserDAO.findByIdAndStatus.mockResolvedValue(prevSubmitter);
+            const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+
+            // Act
+            await submissionService._notifyConfigurationChange(
+                mockSubmission,
+                'v2.0',
+                prevSubmitter,
+                newSubmitter
+            );
+
+            // Assert
+            expect(mockNotificationService.updateSubmissionNotification).toHaveBeenCalledWith(
+                ['submitter@test.com'],
+                ['oldsubmitter@test.com'],
+                [],
+                expect.objectContaining({
+                    prevSubmitterName: 'ValidLast', // Should work with just lastName
+                    newSubmitterName: 'John Doe'
+                })
+            );
+            expect(consoleWarnSpy).not.toHaveBeenCalled();
+            consoleWarnSpy.mockRestore();
+        });
+    });
+
     describe('submitter validation', () => {
         it('should return early when newSubmitter has no notification enabled', async () => {
             // Arrange
@@ -78,7 +684,7 @@ describe('Submission._notifyConfigurationChange', () => {
             await submissionService._notifyConfigurationChange(
                 mockSubmission,
                 'v2.0',
-                null,
+                { id: 'user1', email: 'submitter@test.com', notifications: [] }, // prevSubmitter
                 newSubmitter
             );
 
@@ -105,7 +711,7 @@ describe('Submission._notifyConfigurationChange', () => {
             await submissionService._notifyConfigurationChange(
                 mockSubmission,
                 'v2.0',
-                null,
+                { id: 'user1', email: 'submitter@test.com', notifications: [] }, // prevSubmitter
                 newSubmitter
             );
 
@@ -233,7 +839,7 @@ describe('Submission._notifyConfigurationChange', () => {
             await submissionService._notifyConfigurationChange(
                 mockSubmission,
                 'v2.0',
-                null,
+                { id: 'user1', email: 'submitter@test.com', notifications: [] }, // prevSubmitter
                 newSubmitter
             );
 
@@ -274,7 +880,7 @@ describe('Submission._notifyConfigurationChange', () => {
             await submissionService._notifyConfigurationChange(
                 mockSubmission,
                 'v2.0',
-                null,
+                { id: 'user1', email: 'submitter@test.com', notifications: [] }, // prevSubmitter
                 newSubmitter
             );
 
@@ -308,7 +914,7 @@ describe('Submission._notifyConfigurationChange', () => {
             await submissionService._notifyConfigurationChange(
                 mockSubmission,
                 'v2.0',
-                null,
+                { id: 'user1', email: 'submitter@test.com', notifications: [] }, // prevSubmitter
                 newSubmitter
             );
 
@@ -338,7 +944,7 @@ describe('Submission._notifyConfigurationChange', () => {
             await submissionService._notifyConfigurationChange(
                 mockSubmission,
                 'v2.0',
-                null,
+                { id: 'user1', email: 'submitter@test.com', notifications: [] }, // prevSubmitter
                 newSubmitter
             );
 
