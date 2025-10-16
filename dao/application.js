@@ -77,7 +77,7 @@ class ApplicationDAO extends GenericDAO {
                         ...item?.applicant,
                         applicantID: item?.applicant?.id || "",
                         applicantName: item?.applicant?.fullName || "",
-                        applicantEmail: item?.applicant.email || ""
+                        applicantEmail: item?.applicant?.email || ""
                     }
                 }
                 : {}),
