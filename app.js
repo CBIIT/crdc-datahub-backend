@@ -133,38 +133,47 @@ app.use("/api/graphql", graphqlRouter);
             // Health check functions for external services
             const healthChecks = {
                 // MongoDB connection health check
-                database: async () => {
-                    try {
-                        // Test database connectivity with a simple query
-                        await dataInterface.applicationDAO.findFirst({}, { take: 1 });
-                        return { status: 'healthy', message: 'Database connection successful' };
-                    } catch (error) {
-                        return { status: 'unhealthy', message: `Database connection failed: ${error.message}` };
+                database: {
+                    displayName: 'MongoDB Database',
+                    check: async () => {
+                        try {
+                            // Test database connectivity with a simple query
+                            await dataInterface.applicationDAO.findFirst({}, { take: 1 });
+                            return { status: 'healthy', message: 'Database connection successful' };
+                        } catch (error) {
+                            return { status: 'unhealthy', message: `Database connection failed: ${error.message}` };
+                        }
                     }
                 },
                 // S3 connection health check
-                s3: async () => {
-                    try {
-                        // Test S3 connectivity by checking if we can list buckets
-                        // This is a lightweight operation that validates AWS credentials and connectivity
-                        const AWS = require('aws-sdk');
-                        const s3 = new AWS.S3();
-                        await s3.listBuckets().promise();
-                        return { status: 'healthy', message: 'S3 connection successful' };
-                    } catch (error) {
-                        return { status: 'unhealthy', message: `S3 connection failed: ${error.message}` };
+                s3: {
+                    displayName: 'AWS S3 Storage',
+                    check: async () => {
+                        try {
+                            // Test S3 connectivity by checking if we can list buckets
+                            // This is a lightweight operation that validates AWS credentials and connectivity
+                            const AWS = require('aws-sdk');
+                            const s3 = new AWS.S3();
+                            await s3.listBuckets().promise();
+                            return { status: 'healthy', message: 'S3 connection successful' };
+                        } catch (error) {
+                            return { status: 'unhealthy', message: `S3 connection failed: ${error.message}` };
+                        }
                     }
                 },
                 // Email service connection health check
-                email: async () => {
-                    try {
-                        // Test email service configuration
-                        if (!emailService.emailsEnabled) {
-                            return { status: 'disabled', message: 'Email service is disabled by configuration' };
+                email: {
+                    displayName: 'Amazon Simple Email Service (SES)',
+                    check: async () => {
+                        try {
+                            // Test email service configuration
+                            if (!emailService.emailsEnabled) {
+                                return { status: 'disabled', message: 'Email service is disabled by configuration' };
+                            }
+                            return { status: 'healthy', message: 'Email service is enabled and configured' };
+                        } catch (error) {
+                            return { status: 'unhealthy', message: `Email service check failed: ${error.message}` };
                         }
-                        return { status: 'healthy', message: 'Email service is enabled and configured' };
-                    } catch (error) {
-                        return { status: 'unhealthy', message: `Email service check failed: ${error.message}` };
                     }
                 }
             };
@@ -172,31 +181,36 @@ app.use("/api/graphql", graphqlRouter);
             console.log('Running Health Checks');
             const healthCheckResults = new Map();
             
-            for (const [serviceName, healthCheckFn] of Object.entries(healthChecks)) {
+            for (const [serviceName, healthCheckConfig] of Object.entries(healthChecks)) {
                 try {
                     const result = await Promise.race([
-                        healthCheckFn(),
+                        healthCheckConfig.check(),
                         new Promise((_, reject) => 
                             setTimeout(() => reject(new Error('Health check timeout')), TEN_SECOND_TIMEOUT)
                         )
                     ]);
                     healthCheckResults.set(serviceName, result);
-                    const statusIndicator = result.status === 'healthy' ? 'OK' : result.status === 'disabled' ? 'DISABLED' : 'FAILED';
-                    console.log(`${statusIndicator} ${serviceName}: ${result.message}`);
+                    if (result.status === 'healthy') {
+                        console.log(`${healthCheckConfig.displayName} connection is ${result.status}: ${result.message}`);
+                    } else if (result.status === 'disabled') {
+                        console.warn(`${healthCheckConfig.displayName} connection is ${result.status}: ${result.message}`);
+                    } else {
+                        console.error(`${healthCheckConfig.displayName} connection is unhealthy: ${result.message}`);
+                    }
                 } catch (error) {
                     const result = { status: 'unhealthy', message: `Health check failed: ${error.message}` };
                     healthCheckResults.set(serviceName, result);
-                    console.log(`FAILED ${serviceName}: ${result.message}`);
+                    console.error(`An error occurred while running the health check for ${healthCheckConfig.displayName} connection: ${error.message}`);
                 }
             }
             
             // Check if any critical services are unhealthy
             const unhealthyServices = Array.from(healthCheckResults.entries())
                 .filter(([_, result]) => result.status === 'unhealthy')
-                .map(([serviceName, _]) => serviceName);
+                .map(([serviceName, _]) => healthChecks[serviceName].displayName);
             
             if (unhealthyServices.length > 0) {
-                console.error(`\nCritical services are unhealthy: ${unhealthyServices.join(', ')}`);
+                console.error(`Critical services are unhealthy: ${unhealthyServices.join(', ')}`);
                 console.log('Tasks will still attempt to run, but may fail due to service issues.');
             }
             
@@ -401,17 +415,17 @@ app.use("/api/graphql", graphqlRouter);
             const timeoutTasks = results.filter(r => r.error && r.error.includes('Task timeout')).length;
             const totalTasks = results.length;
             
-            console.log(`\nScheduled tasks completed at ${cronEndTime}`);
+            console.log(`Scheduled tasks completed at ${cronEndTime}`);
             console.log(`Total tasks: ${totalTasks}, Successful: ${successfulTasks}, Failed: ${failedTasks}, Skipped: ${skippedTasks}, Timeouts: ${timeoutTasks}`);
             console.log(`Total execution time: ${totalExecutionTime}ms`);
             
             // Health check summary
             const healthyServices = Array.from(healthCheckResults.entries())
                 .filter(([_, result]) => result.status === 'healthy')
-                .map(([serviceName, _]) => serviceName);
+                .map(([serviceName, _]) => healthChecks[serviceName].displayName);
             const disabledServices = Array.from(healthCheckResults.entries())
                 .filter(([_, result]) => result.status === 'disabled')
-                .map(([serviceName, _]) => serviceName);
+                .map(([serviceName, _]) => healthChecks[serviceName].displayName);
             
             console.log(`Service health: ${healthyServices.length} healthy, ${unhealthyServices.length} unhealthy, ${disabledServices.length} disabled`);
             
