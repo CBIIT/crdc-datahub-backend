@@ -126,9 +126,6 @@ app.use("/api/graphql", graphqlRouter);
 
         const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, null, configurationService, null);
         
-        // Initialize health check service
-        const { HealthCheckService } = require('./services/health-check-service');
-        const healthCheckService = new HealthCheckService();
         
         cronJob.schedule(config.scheduledJobTime, async () => {
             // Log the start time of the cron job
@@ -138,19 +135,6 @@ app.use("/api/graphql", graphqlRouter);
             // Timeout constants
             const FIVE_MINUTE_TIMEOUT = 5 * 60 * 1000;
             
-            // Map of each task's external service dependencies
-            const taskHealthRequirements = {
-                deleteInactiveApplications: ['database', 'email'],
-                remindApplicationSubmission: ['database', 'email'],
-                runDeactivateInactiveUsers: ['database', 'email'],
-                deleteInactiveSubmissions: ['database', 's3'],
-                remindInactiveSubmission: ['database', 'email'],
-                archiveSubmissions: ['database', 's3'],
-                purgeDeletedDataFiles: ['s3']
-            };
-            
-            // Run health checks before executing tasks
-            const healthCheckResults = await healthCheckService.runHealthChecks(dataInterface, emailService);
             
             // Sequential tasks - all tasks run one after another
             const tasks = [
@@ -238,29 +222,6 @@ app.use("/api/graphql", graphqlRouter);
                     continue;
                 }
                 
-                // Check health requirements for this task
-                const requiredServices = taskHealthRequirements[task.name] || [];
-                const unhealthyRequiredServices = requiredServices.filter(service => {
-                    const result = healthCheckResults.get(service);
-                    return result && result.status === 'unhealthy';
-                });
-                
-                if (unhealthyRequiredServices.length > 0) {
-                    console.log(`Skipping ${task.description} - required services unhealthy: ${unhealthyRequiredServices.join(', ')}`);
-                    
-                    const result = {
-                        name: task.name,
-                        status: 'skipped',
-                        duration: 0,
-                        startTime: taskStartTime,
-                        endTime: taskStartTime,
-                        error: `Required services unhealthy: ${unhealthyRequiredServices.join(', ')}`,
-                        taskNumber: taskIndex + 1
-                    };
-                    
-                    results.push(result);
-                    continue;
-                }
                 
                 console.log(`Running scheduled task: ${task.description} at ${taskStartTime}`);
                 
@@ -330,16 +291,6 @@ app.use("/api/graphql", graphqlRouter);
             console.log(`Total tasks: ${totalTasks}, Successful: ${successfulTasks}, Failed: ${failedTasks}, Skipped: ${skippedTasks}, Timeouts: ${timeoutTasks}`);
             console.log(`Total execution time: ${totalExecutionTime}ms`);
             
-            // Health check summary
-            const healthyServices = Array.from(healthCheckResults.entries())
-                .filter(([_, result]) => result.status === 'healthy')
-                .map(([serviceName, _]) => healthCheckService.getServiceDisplayName(serviceName));
-            const unhealthyServices = healthCheckService.getUnhealthyServices(healthCheckResults);
-            const disabledServices = Array.from(healthCheckResults.entries())
-                .filter(([_, result]) => result.status === 'disabled')
-                .map(([serviceName, _]) => healthCheckService.getServiceDisplayName(serviceName));
-            
-            console.log(`Service health: ${healthyServices.length} healthy, ${unhealthyServices.length} unhealthy, ${disabledServices.length} disabled`);
             
             
             if (failedTasks > 0) {
