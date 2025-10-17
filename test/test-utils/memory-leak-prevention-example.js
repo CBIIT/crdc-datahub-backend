@@ -10,7 +10,7 @@ const {
     setupTestEnvironment,
     cleanupTestEnvironment,
     finalCleanupTestEnvironment
-} = require('./test-utils/memory-leak-prevention');
+} = require('./memory-leak-prevention');
 
 describe('Example Test with Memory Leak Prevention', () => {
     let leakPrevention;
