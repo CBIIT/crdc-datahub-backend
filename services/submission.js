@@ -2890,6 +2890,23 @@ const isUserScope = (userID, userRole, userStudies, userDataCommons, aSubmission
     }
 }
 
+
+/**
+ * Determines if a user has valid access to a submission based on their scope.
+ *
+ * Validates the following scope types:
+ * - all: User has access to all submissions.
+ * - own: User has access to their own submissions.
+ * - study: User has access to submissions for assigned studies.
+ * - dataCommons: User has access to submissions for assigned data commons.
+ *
+ * @param {string} userID - The ID of the user.
+ * @param {Object} userScope - The scope object with methods to check scope type.
+ * @param {Array<Object>} userStudies - Array of study objects assigned to the user.
+ * @param {Array<string>} userDataCommons - Array of data commons IDs assigned to the user.
+ * @param {Object} aSubmission - The submission object to check access for.
+ * @returns {boolean} True if the user has valid access to the submission, false otherwise.
+ */
 const userHasValidScope = (userID, userScope, userStudies, userDataCommons, aSubmission) => {
     if (!aSubmission)
         return false;
@@ -2900,9 +2917,7 @@ const userHasValidScope = (userID, userScope, userStudies, userDataCommons, aSub
         return aSubmission.submitterID === userID // Access to own submissions.
     } else if (userScope.isStudyScope()) {
         const studies = Array.isArray(userStudies) && userStudies.length > 0 ? userStudies : [];
-        return isAllStudy(studies) ? true : studies.find(study =>
-            study._id === aSubmission.studyID
-        );
+        return isAllStudy(studies) || Boolean(studies.find(study => study._id === aSubmission.studyID));
     } else if (userScope.isDCScope()) {
         return userDataCommons.includes(aSubmission.dataCommons); // Access to assigned data commons.
     }
