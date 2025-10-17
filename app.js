@@ -125,23 +125,318 @@ app.use("/api/graphql", graphqlRouter);
             config.uploaderCLIConfigs, config.submission_bucket, configurationService);
 
         const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, null, configurationService, null);
+        
+        // Service display names mapping
+        const SERVICE_DISPLAY_NAMES = {
+            database: 'MongoDB Database',
+            s3: 'AWS S3 Storage',
+            email: 'Amazon Simple Email Service (SES)'
+        };
+
+        // Function to run health checks for external services
+        const runHealthChecks = async (dataInterface, emailService) => {
+            const TEN_SECOND_TIMEOUT = 10 * 1000;
+            
+            // Health check functions for external services
+            const healthChecks = {
+                // MongoDB connection health check
+                database: async () => {
+                    try {
+                        // Test database connectivity with a simple query
+                        await dataInterface.applicationDAO.findFirst({}, { take: 1 });
+                        return { status: 'healthy', message: 'Database connection successful' };
+                    } catch (error) {
+                        return { status: 'unhealthy', message: `Database connection failed: ${error.message}` };
+                    }
+                },
+                // S3 connection health check
+                s3: async () => {
+                    try {
+                        // Test S3 connectivity by checking if we can list buckets
+                        // This is a lightweight operation that validates AWS credentials and connectivity
+                        const AWS = require('aws-sdk');
+                        const s3 = new AWS.S3();
+                        await s3.listBuckets().promise();
+                        return { status: 'healthy', message: 'S3 connection successful' };
+                    } catch (error) {
+                        return { status: 'unhealthy', message: `S3 connection failed: ${error.message}` };
+                    }
+                },
+                // Email service connection health check
+                email: async () => {
+                    try {
+                        // Test email service connectivity by verifying SMTP connection
+                        return await emailService.verifyConnectivity();
+                    } catch (error) {
+                        return { status: 'unhealthy', message: `Email service check failed: ${error.message}` };
+                    }
+                }
+            };
+            
+            console.log('Running Health Checks');
+            const healthCheckResults = new Map();
+            
+            for (const [serviceName, healthCheckFn] of Object.entries(healthChecks)) {
+                try {
+                    const result = await Promise.race([
+                        healthCheckFn(),
+                        new Promise((_, reject) => 
+                            setTimeout(() => reject(new Error('Health check timeout')), TEN_SECOND_TIMEOUT)
+                        )
+                    ]);
+                    healthCheckResults.set(serviceName, result);
+                    const displayName = SERVICE_DISPLAY_NAMES[serviceName] || serviceName;
+                    if (result.status === 'healthy') {
+                        console.log(`${displayName} connection is ${result.status}: ${result.message}`);
+                    } else if (result.status === 'disabled') {
+                        console.warn(`${displayName} connection is ${result.status}: ${result.message}`);
+                    } else {
+                        console.error(`${displayName} connection is unhealthy: ${result.message}`);
+                    }
+                } catch (error) {
+                    const result = { status: 'unhealthy', message: `Health check failed: ${error.message}` };
+                    healthCheckResults.set(serviceName, result);
+                    const displayName = SERVICE_DISPLAY_NAMES[serviceName] || serviceName;
+                    console.error(`An error occurred while running the health check for ${displayName} connection: ${error.message}`);
+                }
+            }
+            
+            // Check if any critical services are unhealthy
+            const unhealthyServices = Array.from(healthCheckResults.entries())
+                .filter(([_, result]) => result.status === 'unhealthy')
+                .map(([serviceName, _]) => SERVICE_DISPLAY_NAMES[serviceName] || serviceName);
+            
+            if (unhealthyServices.length > 0) {
+                console.error(`Critical services are unhealthy: ${unhealthyServices.join(', ')}`);
+                console.log('Tasks will still attempt to run, but may fail due to service issues.');
+            }
+            
+            console.log('Health Checks Complete');
+            
+            return healthCheckResults;
+        };
+        
         cronJob.schedule(config.scheduledJobTime, async () => {
-            // The delete application job should run before the inactive application reminder. Once the application deleted, the reminder email should not be sent.
-            console.log("Running a scheduled background task to delete inactive application at " + getCurrentTime());
-            await dataInterface.deleteInactiveApplications();
-            console.log("Running a scheduled background task to remind inactive application at " + getCurrentTime());
-            await dataInterface.remindApplicationSubmission();
-            console.log("Running a scheduled job to disable user(s) because of no activities at " + getCurrentTime());
-            await runDeactivateInactiveUsers(userService, notificationsService, config.inactive_user_days, emailParams);
-            // The delete data-submission job should run before the inactive data-submission reminder. Once the submission deleted, the reminder email should not be sent.
-            console.log("Running a scheduled job to delete inactive data submission and related data ann files at " + getCurrentTime());
-            await submissionService.deleteInactiveSubmissions();
-            console.log("Running a scheduled background task to remind inactive submission at " + getCurrentTime());
-            await submissionService.remindInactiveSubmission();
-            console.log("Running a scheduled job to archive completed submissions at " + getCurrentTime());
-            await submissionService.archiveSubmissions();
-            console.log("Running a scheduled job to purge deleted data files at " + getCurrentTime());
-            await submissionService.purgeDeletedDataFiles();
+            // Log the start time of the cron job
+            const cronStartTime = getCurrentTime();
+            console.log(`Starting scheduled tasks at ${cronStartTime}`);
+            
+            // Timeout constants
+            const FIVE_MINUTE_TIMEOUT = 5 * 60 * 1000;
+            
+            // Map of each task's external service dependencies
+            const taskHealthRequirements = {
+                deleteInactiveApplications: ['database', 'email'],
+                remindApplicationSubmission: ['database', 'email'],
+                runDeactivateInactiveUsers: ['database', 'email'],
+                deleteInactiveSubmissions: ['database', 's3'],
+                remindInactiveSubmission: ['database', 'email'],
+                archiveSubmissions: ['database', 's3'],
+                purgeDeletedDataFiles: ['s3']
+            };
+            
+            // Run health checks before executing tasks
+            const healthCheckResults = await runHealthChecks(dataInterface, emailService);
+            
+            // Sequential tasks - all tasks run one after another
+            const tasks = [
+                {
+                    name: "deleteInactiveApplications",
+                    description: "Delete inactive submission requests",
+                    timeout: FIVE_MINUTE_TIMEOUT,
+                    fn: () => dataInterface.deleteInactiveApplications(),
+                    dependencies: [] // No dependencies
+                },
+                {
+                    name: "runDeactivateInactiveUsers",
+                    description: "Disable inactive users", 
+                    timeout: FIVE_MINUTE_TIMEOUT,
+                    fn: () => runDeactivateInactiveUsers(userService, notificationsService, config.inactive_user_days, emailParams),
+                    dependencies: [] // No dependencies
+                },
+                {
+                    name: "deleteInactiveSubmissions",
+                    description: "Delete inactive submissions then delete any orphaned data and files",
+                    timeout: FIVE_MINUTE_TIMEOUT,
+                    fn: () => submissionService.deleteInactiveSubmissions(),
+                    dependencies: [] // No dependencies
+                },
+                {
+                    name: "remindApplicationSubmission", 
+                    description: "Send reminder email for inactive submission requests",
+                    timeout: FIVE_MINUTE_TIMEOUT,
+                    fn: () => dataInterface.remindApplicationSubmission(),
+                    dependencies: ["deleteInactiveApplications"] // Don't remind about deleted applications
+                },
+                {
+                    name: "remindInactiveSubmission",
+                    description: "Send reminder email for inactive submissions",
+                    timeout: FIVE_MINUTE_TIMEOUT,
+                    fn: () => submissionService.remindInactiveSubmission(),
+                    dependencies: ["deleteInactiveSubmissions"] // Don't remind about deleted submissions
+                },
+                {
+                    name: "archiveSubmissions",
+                    description: "Archive completed submissions",
+                    timeout: FIVE_MINUTE_TIMEOUT,
+                    fn: () => submissionService.archiveSubmissions(),
+                    dependencies: [] // No dependencies
+                },
+                {
+                    name: "purgeDeletedDataFiles",
+                    description: "Purge deleted data files from S3",
+                    timeout: FIVE_MINUTE_TIMEOUT,
+                    fn: () => submissionService.purgeDeletedDataFiles(),
+                    dependencies: [] // No dependencies
+                }
+            ];
+
+            const results = [];
+            let totalExecutionTime = 0;
+
+            // Execute tasks sequentially, one after another
+            for (let taskIndex = 0; taskIndex < tasks.length; taskIndex++) {
+                const task = tasks[taskIndex];
+                console.log(`Executing Task ${taskIndex + 1}/${tasks.length}: ${task.description}`);
+                
+                const taskStartTime = getCurrentTime();
+                
+                // Check if any dependencies failed or were skipped
+                const incompleteDependencies = task.dependencies.filter(depName => {
+                    const depResult = results.find(r => r.name === depName);
+                    return depResult && (depResult.status === 'failed' || depResult.status === 'skipped');
+                });
+                
+                if (incompleteDependencies.length > 0) {
+                    console.log(`Skipping ${task.description} - dependency failed or skipped: ${incompleteDependencies.join(', ')}`);
+                    
+                    const result = {
+                        name: task.name,
+                        status: 'skipped',
+                        duration: 0,
+                        startTime: taskStartTime,
+                        endTime: taskStartTime,
+                        error: `Dependency failed or skipped: ${incompleteDependencies.join(', ')}`,
+                        taskNumber: taskIndex + 1
+                    };
+                    
+                    results.push(result);
+                    continue;
+                }
+                
+                // Check health requirements for this task
+                const requiredServices = taskHealthRequirements[task.name] || [];
+                const unhealthyRequiredServices = requiredServices.filter(service => {
+                    const result = healthCheckResults.get(service);
+                    return result && result.status === 'unhealthy';
+                });
+                
+                if (unhealthyRequiredServices.length > 0) {
+                    console.log(`Skipping ${task.description} - required services unhealthy: ${unhealthyRequiredServices.join(', ')}`);
+                    
+                    const result = {
+                        name: task.name,
+                        status: 'skipped',
+                        duration: 0,
+                        startTime: taskStartTime,
+                        endTime: taskStartTime,
+                        error: `Required services unhealthy: ${unhealthyRequiredServices.join(', ')}`,
+                        taskNumber: taskIndex + 1
+                    };
+                    
+                    results.push(result);
+                    continue;
+                }
+                
+                console.log(`Running scheduled task: ${task.description} at ${taskStartTime}`);
+                
+                try {
+                    // Create timeout promise
+                    const timeoutPromise = new Promise((_, reject) => {
+                        setTimeout(() => {
+                            reject(new Error(`Task timeout after ${task.timeout}ms`));
+                        }, task.timeout);
+                    });
+
+                    // Enforce timeout for each task
+                    await Promise.race([
+                        task.fn(),
+                        timeoutPromise
+                    ]);
+                    
+                    const taskEndTime = getCurrentTime();
+                    const taskDuration = taskEndTime - taskStartTime;
+                    
+                    const result = {
+                        name: task.name,
+                        status: 'success',
+                        duration: taskDuration,
+                        startTime: taskStartTime,
+                        endTime: taskEndTime,
+                        taskNumber: taskIndex + 1
+                    };
+                    
+                    console.log(`Completed ${task.description} successfully in ${taskDuration}ms`);
+                    results.push(result);
+                    totalExecutionTime += taskDuration;
+                } catch (error) {
+                    const taskEndTime = getCurrentTime();
+                    const taskDuration = taskEndTime - taskStartTime;
+                    
+                    const result = {
+                        name: task.name,
+                        status: 'failed',
+                        duration: taskDuration,
+                        startTime: taskStartTime,
+                        endTime: taskEndTime,
+                        error: error.message,
+                        taskNumber: taskIndex + 1
+                    };
+                    
+                    if (error.message.includes('Task timeout')) {
+                        console.error(`${task.description} timed out after ${task.timeout}ms`);
+                    } else {
+                        console.error(`Failed ${task.description} after ${taskDuration}ms:`, error.message);
+                    }
+                    results.push(result);
+                    totalExecutionTime += taskDuration;
+                }
+                
+                console.log(`--- Task ${taskIndex + 1} completed ---`);
+            }
+
+            const cronEndTime = getCurrentTime();
+            const successfulTasks = results.filter(r => r.status === 'success').length;
+            const failedTasks = results.filter(r => r.status === 'failed').length;
+            const skippedTasks = results.filter(r => r.status === 'skipped').length;
+            const timeoutTasks = results.filter(r => r.error && r.error.includes('Task timeout')).length;
+            const totalTasks = results.length;
+            
+            console.log(`Scheduled tasks completed at ${cronEndTime}`);
+            console.log(`Total tasks: ${totalTasks}, Successful: ${successfulTasks}, Failed: ${failedTasks}, Skipped: ${skippedTasks}, Timeouts: ${timeoutTasks}`);
+            console.log(`Total execution time: ${totalExecutionTime}ms`);
+            
+            // Health check summary
+            const healthyServices = Array.from(healthCheckResults.entries())
+                .filter(([_, result]) => result.status === 'healthy')
+                .map(([serviceName, _]) => SERVICE_DISPLAY_NAMES[serviceName] || serviceName);
+            const unhealthyServices = Array.from(healthCheckResults.entries())
+                .filter(([_, result]) => result.status === 'unhealthy')
+                .map(([serviceName, _]) => SERVICE_DISPLAY_NAMES[serviceName] || serviceName);
+            const disabledServices = Array.from(healthCheckResults.entries())
+                .filter(([_, result]) => result.status === 'disabled')
+                .map(([serviceName, _]) => SERVICE_DISPLAY_NAMES[serviceName] || serviceName);
+            
+            console.log(`Service health: ${healthyServices.length} healthy, ${unhealthyServices.length} unhealthy, ${disabledServices.length} disabled`);
+            
+            
+            if (failedTasks > 0) {
+                console.error(`Failed tasks:`, results.filter(r => r.status === 'failed').map(r => `Task ${r.taskNumber} - ${r.name}: ${r.error}`));
+            }
+            
+            if (skippedTasks > 0) {
+                console.warn(`Skipped tasks:`, results.filter(r => r.status === 'skipped').map(r => `Task ${r.taskNumber} - ${r.name}: ${r.error}`));
+            }
         });
     });
 })();
