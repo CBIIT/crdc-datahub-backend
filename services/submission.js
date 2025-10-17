@@ -375,6 +375,10 @@ class Submission {
           throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
+        if (!userHasValidScope(context?.userInfo?._id, viewScope, context?.userInfo?.studies, context?.userInfo?.dataCommons, aSubmission)) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
         await Promise.all([
             // Store data file size into submission document
             (async () => {
@@ -2884,6 +2888,25 @@ const isUserScope = (userID, userRole, userStudies, userDataCommons, aSubmission
         default:
             return false; // No access for other roles.
     }
+}
+
+const userHasValidScope = (userID, userScope, userStudies, userDataCommons, aSubmission) => {
+    if (!aSubmission)
+        return false;
+
+    if (userScope.isAllScope()) {
+        return true; // Admin has access to all data submissions.
+    } else if (userScope.isOwnScope()) {
+        return aSubmission.submitterID === userID // Access to own submissions.
+    } else if (userScope.isStudyScope()) {
+        const studies = Array.isArray(userStudies) && userStudies.length > 0 ? userStudies : [];
+        return isAllStudy(studies) ? true : studies.find(study =>
+            study._id === aSubmission.studyID
+        );
+    } else if (userScope.isDCScope()) {
+        return userDataCommons.includes(aSubmission.dataCommons); // Access to assigned data commons.
+    }
+    return false;
 }
 
 function validateStudyAccess (userStudies, submissionStudy) {
