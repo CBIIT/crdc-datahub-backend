@@ -809,7 +809,7 @@ class Application {
             const applications = await this.applicationDAO.getInactiveApplication(this.emailParams.inactiveDays);
             
             // Handle undefined/null/empty applications gracefully
-            if (!applications || !Array.isArray(applications) || applications.length === 0) {
+            if (!applications?.length) {
                 console.log("No inactive applications found to delete");
                 return;
             }
