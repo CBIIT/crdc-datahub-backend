@@ -52,6 +52,28 @@ class EmailService {
             : [values];
     }
 
+    /**
+     * Test email service connectivity by verifying SMTP connection
+     * @returns {Promise<{status: string, message: string}>}
+     */
+    async verifyConnectivity() {
+        if (!this.emailsEnabled) {
+            return { status: 'disabled', message: 'Email service is disabled by configuration' };
+        }
+
+        try {
+            const transport = createTransport(this.emailTransport);
+            
+            // Test SMTP connection by calling verify()
+            // This will attempt to connect to the SMTP server and authenticate
+            await transport.verify();
+            
+            return { status: 'healthy', message: 'Email service connectivity verified successfully' };
+        } catch (error) {
+            return { status: 'unhealthy', message: `Email service connectivity failed: ${error.message}` };
+        }
+    }
+
 }
 
 module.exports = {EmailService}
