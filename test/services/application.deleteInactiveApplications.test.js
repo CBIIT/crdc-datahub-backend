@@ -24,25 +24,33 @@ const mockOrganizationService = {};
 const mockConfigurationService = {};
 const mockAuthorizationService = {};
 
-// Mock constants
-global.DELETED = 'DELETED';
-global.EMAIL_NOTIFICATIONS = {
-    SUBMISSION_REQUEST: {
-        REQUEST_DELETE: 'REQUEST_DELETE'
-    }
-};
-global.ROLES = {
-    FEDERAL_LEAD: 'FEDERAL_LEAD',
-    DATA_COMMONS_PERSONNEL: 'DATA_COMMONS_PERSONNEL',
-    ADMIN: 'ADMIN'
-};
-
 describe('deleteInactiveApplications Error Handling', () => {
     let applicationService;
     let mockApplicationDAO;
+    let originalGlobals;
 
     beforeEach(() => {
         jest.clearAllMocks();
+        
+        // Store original global values to restore later
+        originalGlobals = {
+            DELETED: global.DELETED,
+            EMAIL_NOTIFICATIONS: global.EMAIL_NOTIFICATIONS,
+            ROLES: global.ROLES
+        };
+        
+        // Mock constants
+        global.DELETED = 'DELETED';
+        global.EMAIL_NOTIFICATIONS = {
+            SUBMISSION_REQUEST: {
+                REQUEST_DELETE: 'REQUEST_DELETE'
+            }
+        };
+        global.ROLES = {
+            FEDERAL_LEAD: 'FEDERAL_LEAD',
+            DATA_COMMONS_PERSONNEL: 'DATA_COMMONS_PERSONNEL',
+            ADMIN: 'ADMIN'
+        };
         
         // Create mock DAO
         mockApplicationDAO = {
@@ -69,16 +77,35 @@ describe('deleteInactiveApplications Error Handling', () => {
         applicationService.applicationDAO = mockApplicationDAO;
     });
 
+    afterEach(() => {
+        // Restore original global values
+        if (originalGlobals) {
+            global.DELETED = originalGlobals.DELETED;
+            global.EMAIL_NOTIFICATIONS = originalGlobals.EMAIL_NOTIFICATIONS;
+            global.ROLES = originalGlobals.ROLES;
+        }
+        
+        // Clear all mocks
+        jest.clearAllMocks();
+    });
+
+    afterAll(() => {
+        // Final cleanup
+        jest.restoreAllMocks();
+    });
+
     describe('Error Handling Improvements', () => {
         test('should handle database query failures with try-catch', async () => {
             mockApplicationDAO.getInactiveApplication.mockRejectedValue(new Error('Database connection failed'));
 
             const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
 
-            await expect(applicationService.deleteInactiveApplications()).rejects.toThrow('Database connection failed');
-            expect(consoleSpy).toHaveBeenCalledWith('Error in deleteInactiveApplications task:', expect.any(Error));
-
-            consoleSpy.mockRestore();
+            try {
+                await expect(applicationService.deleteInactiveApplications()).rejects.toThrow('Database connection failed');
+                expect(consoleSpy).toHaveBeenCalledWith('Error in deleteInactiveApplications task:', expect.any(Error));
+            } finally {
+                consoleSpy.mockRestore();
+            }
         });
 
         test('should handle no inactive applications gracefully', async () => {
@@ -86,12 +113,14 @@ describe('deleteInactiveApplications Error Handling', () => {
 
             const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
 
-            await applicationService.deleteInactiveApplications();
+            try {
+                await applicationService.deleteInactiveApplications();
 
-            expect(consoleSpy).toHaveBeenCalledWith('No inactive applications found to delete');
-            expect(mockApplicationDAO.update).not.toHaveBeenCalled();
-
-            consoleSpy.mockRestore();
+                expect(consoleSpy).toHaveBeenCalledWith('No inactive applications found to delete');
+                expect(mockApplicationDAO.update).not.toHaveBeenCalled();
+            } finally {
+                consoleSpy.mockRestore();
+            }
         });
 
         test('should handle undefined applications array gracefully', async () => {
@@ -99,12 +128,14 @@ describe('deleteInactiveApplications Error Handling', () => {
 
             const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
 
-            await applicationService.deleteInactiveApplications();
+            try {
+                await applicationService.deleteInactiveApplications();
 
-            expect(consoleSpy).toHaveBeenCalledWith('No inactive applications found to delete');
-            expect(mockApplicationDAO.update).not.toHaveBeenCalled();
-
-            consoleSpy.mockRestore();
+                expect(consoleSpy).toHaveBeenCalledWith('No inactive applications found to delete');
+                expect(mockApplicationDAO.update).not.toHaveBeenCalled();
+            } finally {
+                consoleSpy.mockRestore();
+            }
         });
 
         test('should log when applications are found', async () => {
@@ -126,11 +157,13 @@ describe('deleteInactiveApplications Error Handling', () => {
 
             const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
 
-            await applicationService.deleteInactiveApplications();
+            try {
+                await applicationService.deleteInactiveApplications();
 
-            expect(consoleSpy).toHaveBeenCalledWith('Found 1 inactive applications to process');
-
-            consoleSpy.mockRestore();
+                expect(consoleSpy).toHaveBeenCalledWith('Found 1 inactive applications to process');
+            } finally {
+                consoleSpy.mockRestore();
+            }
         });
     });
 
@@ -167,17 +200,19 @@ describe('deleteInactiveApplications Error Handling', () => {
             const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
             const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
 
-            await applicationService.deleteInactiveApplications();
+            try {
+                await applicationService.deleteInactiveApplications();
 
-            // Should log successful processing
-            expect(consoleSpy).toHaveBeenCalledWith('Found 2 inactive applications to process');
-            expect(consoleSpy).toHaveBeenCalledWith('Successfully processed 1 inactive applications');
-            
-            // Should log the failure
-            expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to update 1 applications:', expect.any(Array));
-
-            consoleSpy.mockRestore();
-            consoleErrorSpy.mockRestore();
+                // Should log successful processing
+                expect(consoleSpy).toHaveBeenCalledWith('Found 2 inactive applications to process');
+                expect(consoleSpy).toHaveBeenCalledWith('Successfully processed 1 inactive applications');
+                
+                // Should log the failure
+                expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to update 1 applications:', expect.any(Array));
+            } finally {
+                consoleSpy.mockRestore();
+                consoleErrorSpy.mockRestore();
+            }
         });
 
         test('should only send emails for successfully updated applications', async () => {
@@ -212,20 +247,22 @@ describe('deleteInactiveApplications Error Handling', () => {
             const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
             const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
 
-            await applicationService.deleteInactiveApplications();
+            try {
+                await applicationService.deleteInactiveApplications();
 
-            // Should log successful processing
-            expect(consoleSpy).toHaveBeenCalledWith('Found 2 inactive applications to process');
-            expect(consoleSpy).toHaveBeenCalledWith('Successfully processed 1 inactive applications');
-            
-            // Should log the failure
-            expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to update 1 applications:', expect.any(Array));
-            
-            // Verify that only 1 email notification was attempted (for the successful update)
-            expect(consoleSpy).toHaveBeenCalledWith('Sent 1 email notifications for inactive applications');
-
-            consoleSpy.mockRestore();
-            consoleErrorSpy.mockRestore();
+                // Should log successful processing
+                expect(consoleSpy).toHaveBeenCalledWith('Found 2 inactive applications to process');
+                expect(consoleSpy).toHaveBeenCalledWith('Successfully processed 1 inactive applications');
+                
+                // Should log the failure
+                expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to update 1 applications:', expect.any(Array));
+                
+                // Verify that only 1 email notification was attempted (for the successful update)
+                expect(consoleSpy).toHaveBeenCalledWith('Sent 1 email notifications for inactive applications');
+            } finally {
+                consoleSpy.mockRestore();
+                consoleErrorSpy.mockRestore();
+            }
         });
     });
 

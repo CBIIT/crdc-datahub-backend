@@ -7,99 +7,13 @@ jest.mock('aws-sdk', () => ({
     }))
 }));
 
-// Import the health check function (extracted for testing)
-const runHealthChecks = async (dataInterface, emailService) => {
-    const TEN_SECOND_TIMEOUT = 10 * 1000;
-    
-    // Service display names mapping
-    const SERVICE_DISPLAY_NAMES = {
-        database: 'MongoDB Database',
-        s3: 'AWS S3 Storage',
-        email: 'Amazon Simple Email Service (SES)'
-    };
-    
-    // Health check functions for external services
-    const healthChecks = {
-        // MongoDB connection health check
-        database: async () => {
-            try {
-                // Test database connectivity with a simple query
-                await dataInterface.applicationDAO.findFirst({}, { take: 1 });
-                return { status: 'healthy', message: 'Database connection successful' };
-            } catch (error) {
-                return { status: 'unhealthy', message: `Database connection failed: ${error.message}` };
-            }
-        },
-        // S3 connection health check
-        s3: async () => {
-            try {
-                // Test S3 connectivity by checking if we can list buckets
-                // This is a lightweight operation that validates AWS credentials and connectivity
-                const AWS = require('aws-sdk');
-                const s3 = new AWS.S3();
-                await s3.listBuckets().promise();
-                return { status: 'healthy', message: 'S3 connection successful' };
-            } catch (error) {
-                return { status: 'unhealthy', message: `S3 connection failed: ${error.message}` };
-            }
-        },
-        // Email service connection health check
-        email: async () => {
-            try {
-                // Test email service connectivity by verifying SMTP connection
-                return await emailService.verifyConnectivity();
-            } catch (error) {
-                return { status: 'unhealthy', message: `Email service check failed: ${error.message}` };
-            }
-        }
-    };
-    
-    console.log('Running Health Checks');
-    const healthCheckResults = new Map();
-    
-    for (const [serviceName, healthCheckFn] of Object.entries(healthChecks)) {
-        try {
-            const result = await Promise.race([
-                healthCheckFn(),
-                new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Health check timeout')), TEN_SECOND_TIMEOUT)
-                )
-            ]);
-            healthCheckResults.set(serviceName, result);
-            const displayName = SERVICE_DISPLAY_NAMES[serviceName] || serviceName;
-            if (result.status === 'healthy') {
-                console.log(`${displayName} connection is ${result.status}: ${result.message}`);
-            } else if (result.status === 'disabled') {
-                console.warn(`${displayName} connection is ${result.status}: ${result.message}`);
-            } else {
-                console.error(`${displayName} connection is unhealthy: ${result.message}`);
-            }
-        } catch (error) {
-            const result = { status: 'unhealthy', message: `Health check failed: ${error.message}` };
-            healthCheckResults.set(serviceName, result);
-            const displayName = SERVICE_DISPLAY_NAMES[serviceName] || serviceName;
-            console.error(`An error occurred while running the health check for ${displayName} connection: ${error.message}`);
-        }
-    }
-    
-    // Check if any critical services are unhealthy
-    const unhealthyServices = Array.from(healthCheckResults.entries())
-        .filter(([_, result]) => result.status === 'unhealthy')
-        .map(([serviceName, _]) => SERVICE_DISPLAY_NAMES[serviceName] || serviceName);
-    
-    if (unhealthyServices.length > 0) {
-        console.error(`Critical services are unhealthy: ${unhealthyServices.join(', ')}`);
-        console.log('Tasks will still attempt to run, but may fail due to service issues.');
-    }
-    
-    console.log('Health Checks Complete');
-    
-    return healthCheckResults;
-};
+// Import the health check service
+const { HealthCheckService } = require('../services/health-check-service');
 
 describe('Health Check System', () => {
     let mockDataInterface;
     let mockEmailService;
+    let healthCheckService;
     let consoleSpy;
     let consoleErrorSpy;
     let consoleWarnSpy;
@@ -119,23 +33,45 @@ describe('Health Check System', () => {
             verifyConnectivity: jest.fn()
         };
         
+        // Create mock S3 instance for dependency injection
+        const mockS3Instance = {
+            listBuckets: jest.fn().mockReturnValue({
+                promise: jest.fn()
+            })
+        };
+        
+        healthCheckService = new HealthCheckService(mockS3Instance);
+        
         consoleSpy = jest.spyOn(console, 'log').mockImplementation();
         consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
         consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
     });
 
     afterEach(() => {
+        // Clean up timers
         jest.useRealTimers();
-        consoleSpy.mockRestore();
-        consoleErrorSpy.mockRestore();
-        consoleWarnSpy.mockRestore();
+        
+        // Clean up console spies
+        if (consoleSpy) consoleSpy.mockRestore();
+        if (consoleErrorSpy) consoleErrorSpy.mockRestore();
+        if (consoleWarnSpy) consoleWarnSpy.mockRestore();
+        
+        // Clear all timers and mocks
+        jest.clearAllTimers();
+        jest.clearAllMocks();
+    });
+
+    afterAll(() => {
+        // Final cleanup to prevent memory leaks
+        jest.restoreAllMocks();
+        jest.useRealTimers();
     });
 
     describe('Database Health Check', () => {
         test('should return healthy when database query succeeds', async () => {
             mockDataInterface.applicationDAO.findFirst.mockResolvedValue({ id: 1 });
 
-            const results = await runHealthChecks(mockDataInterface, mockEmailService);
+            const results = await healthCheckService.runHealthChecks(mockDataInterface, mockEmailService);
 
             expect(results.get('database').status).toBe('healthy');
             expect(results.get('database').message).toBe('Database connection successful');
@@ -145,7 +81,7 @@ describe('Health Check System', () => {
         test('should return unhealthy when database query fails', async () => {
             mockDataInterface.applicationDAO.findFirst.mockRejectedValue(new Error('Connection timeout'));
 
-            const results = await runHealthChecks(mockDataInterface, mockEmailService);
+            const results = await healthCheckService.runHealthChecks(mockDataInterface, mockEmailService);
 
             expect(results.get('database').status).toBe('unhealthy');
             expect(results.get('database').message).toBe('Database connection failed: Connection timeout');
@@ -155,11 +91,10 @@ describe('Health Check System', () => {
 
     describe('S3 Health Check', () => {
         test('should return healthy when S3 listBuckets succeeds', async () => {
-            const AWS = require('aws-sdk');
-            const mockS3 = new AWS.S3();
-            mockS3.listBuckets().promise.mockResolvedValue({ Buckets: [] });
+            // Configure the injected mock S3 instance
+            healthCheckService.s3.listBuckets().promise.mockResolvedValue({ Buckets: [] });
 
-            const results = await runHealthChecks(mockDataInterface, mockEmailService);
+            const results = await healthCheckService.runHealthChecks(mockDataInterface, mockEmailService);
 
             expect(results.get('s3').status).toBe('healthy');
             expect(results.get('s3').message).toBe('S3 connection successful');
@@ -167,16 +102,10 @@ describe('Health Check System', () => {
         });
 
         test('should return unhealthy when S3 listBuckets fails', async () => {
-            // Mock AWS SDK to return a failing promise
-            const AWS = require('aws-sdk');
-            const mockS3Instance = {
-                listBuckets: jest.fn().mockReturnValue({
-                    promise: jest.fn().mockRejectedValue(new Error('Access denied'))
-                })
-            };
-            AWS.S3.mockImplementation(() => mockS3Instance);
+            // Configure the injected mock S3 instance to fail
+            healthCheckService.s3.listBuckets().promise.mockRejectedValue(new Error('Access denied'));
 
-            const results = await runHealthChecks(mockDataInterface, mockEmailService);
+            const results = await healthCheckService.runHealthChecks(mockDataInterface, mockEmailService);
 
             expect(results.get('s3').status).toBe('unhealthy');
             expect(results.get('s3').message).toBe('S3 connection failed: Access denied');
@@ -191,7 +120,7 @@ describe('Health Check System', () => {
                 message: 'Email service connectivity verified successfully'
             });
 
-            const results = await runHealthChecks(mockDataInterface, mockEmailService);
+            const results = await healthCheckService.runHealthChecks(mockDataInterface, mockEmailService);
 
             expect(results.get('email').status).toBe('healthy');
             expect(results.get('email').message).toBe('Email service connectivity verified successfully');
@@ -207,7 +136,7 @@ describe('Health Check System', () => {
                 })
             };
             
-            const results = await runHealthChecks(mockDataInterface, disabledEmailService);
+            const results = await healthCheckService.runHealthChecks(mockDataInterface, disabledEmailService);
 
             expect(results.get('email').status).toBe('disabled');
             expect(results.get('email').message).toBe('Email service is disabled by configuration');
@@ -220,7 +149,7 @@ describe('Health Check System', () => {
                 message: 'Email service connectivity failed: SMTP connection timeout'
             });
 
-            const results = await runHealthChecks(mockDataInterface, mockEmailService);
+            const results = await healthCheckService.runHealthChecks(mockDataInterface, mockEmailService);
 
             expect(results.get('email').status).toBe('unhealthy');
             expect(results.get('email').message).toBe('Email service connectivity failed: SMTP connection timeout');
@@ -232,16 +161,15 @@ describe('Health Check System', () => {
         test('should run all health checks and return comprehensive results', async () => {
             mockDataInterface.applicationDAO.findFirst.mockResolvedValue({});
             
-            const AWS = require('aws-sdk');
-            const mockS3 = new AWS.S3();
-            mockS3.listBuckets().promise.mockResolvedValue({});
+            // Configure the injected mock S3 instance
+            healthCheckService.s3.listBuckets().promise.mockResolvedValue({});
 
             mockEmailService.verifyConnectivity.mockResolvedValue({
                 status: 'healthy',
                 message: 'Email service connectivity verified successfully'
             });
 
-            const results = await runHealthChecks(mockDataInterface, mockEmailService);
+            const results = await healthCheckService.runHealthChecks(mockDataInterface, mockEmailService);
 
             expect(results.size).toBe(3);
             expect(results.has('database')).toBe(true);
@@ -255,24 +183,51 @@ describe('Health Check System', () => {
         test('should log critical service warnings when services are unhealthy', async () => {
             mockDataInterface.applicationDAO.findFirst.mockRejectedValue(new Error('DB down'));
             
-            // Mock AWS SDK to return a failing promise
-            const AWS = require('aws-sdk');
-            const mockS3Instance = {
-                listBuckets: jest.fn().mockReturnValue({
-                    promise: jest.fn().mockRejectedValue(new Error('S3 down'))
-                })
-            };
-            AWS.S3.mockImplementation(() => mockS3Instance);
+            // Configure the injected mock S3 instance to fail
+            healthCheckService.s3.listBuckets().promise.mockRejectedValue(new Error('S3 down'));
 
             mockEmailService.verifyConnectivity.mockResolvedValue({
                 status: 'healthy',
                 message: 'Email service connectivity verified successfully'
             });
 
-            await runHealthChecks(mockDataInterface, mockEmailService);
+            await healthCheckService.runHealthChecks(mockDataInterface, mockEmailService);
 
             expect(consoleErrorSpy).toHaveBeenCalledWith('Critical services are unhealthy: MongoDB Database, AWS S3 Storage');
             expect(consoleSpy).toHaveBeenCalledWith('Tasks will still attempt to run, but may fail due to service issues.');
+        });
+    });
+
+    describe('Health Check Service Methods', () => {
+        test('should return correct service display names', () => {
+            expect(healthCheckService.getServiceDisplayName('database')).toBe('MongoDB Database');
+            expect(healthCheckService.getServiceDisplayName('s3')).toBe('AWS S3 Storage');
+            expect(healthCheckService.getServiceDisplayName('email')).toBe('Amazon Simple Email Service (SES)');
+            expect(healthCheckService.getServiceDisplayName('unknown')).toBe('unknown');
+        });
+
+        test('should correctly identify healthy services', async () => {
+            const mockResults = new Map([
+                ['database', { status: 'healthy', message: 'OK' }],
+                ['s3', { status: 'unhealthy', message: 'Failed' }],
+                ['email', { status: 'disabled', message: 'Disabled' }]
+            ]);
+
+            expect(healthCheckService.isServiceHealthy(mockResults, 'database')).toBe(true);
+            expect(healthCheckService.isServiceHealthy(mockResults, 's3')).toBe(false);
+            expect(healthCheckService.isServiceHealthy(mockResults, 'email')).toBe(false);
+            expect(healthCheckService.isServiceHealthy(mockResults, 'unknown')).toBe(false);
+        });
+
+        test('should return unhealthy services correctly', async () => {
+            const mockResults = new Map([
+                ['database', { status: 'healthy', message: 'OK' }],
+                ['s3', { status: 'unhealthy', message: 'Failed' }],
+                ['email', { status: 'disabled', message: 'Disabled' }]
+            ]);
+
+            const unhealthyServices = healthCheckService.getUnhealthyServices(mockResults);
+            expect(unhealthyServices).toEqual(['AWS S3 Storage']);
         });
     });
 
