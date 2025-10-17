@@ -166,11 +166,8 @@ app.use("/api/graphql", graphqlRouter);
                     displayName: 'Amazon Simple Email Service (SES)',
                     check: async () => {
                         try {
-                            // Test email service configuration
-                            if (!emailService.emailsEnabled) {
-                                return { status: 'disabled', message: 'Email service is disabled by configuration' };
-                            }
-                            return { status: 'healthy', message: 'Email service is enabled and configured' };
+                            // Test email service connectivity by verifying SMTP connection
+                            return await emailService.verifyConnectivity();
                         } catch (error) {
                             return { status: 'unhealthy', message: `Email service check failed: ${error.message}` };
                         }
@@ -304,14 +301,14 @@ app.use("/api/graphql", graphqlRouter);
                 
                 const taskStartTime = getCurrentTime();
                 
-                // Check if any dependencies failed
-                const failedDependencies = task.dependencies.filter(depName => {
+                // Check if any dependencies failed or were skipped
+                const incompleteDependencies = task.dependencies.filter(depName => {
                     const depResult = results.find(r => r.name === depName);
-                    return depResult && depResult.status === 'failed';
+                    return depResult && (depResult.status === 'failed' || depResult.status === 'skipped');
                 });
                 
-                if (failedDependencies.length > 0) {
-                    console.log(`Skipping ${task.description} - dependency failed: ${failedDependencies.join(', ')}`);
+                if (incompleteDependencies.length > 0) {
+                    console.log(`Skipping ${task.description} - dependency failed or skipped: ${incompleteDependencies.join(', ')}`);
                     
                     const result = {
                         name: task.name,
@@ -319,7 +316,7 @@ app.use("/api/graphql", graphqlRouter);
                         duration: 0,
                         startTime: taskStartTime,
                         endTime: taskStartTime,
-                        error: `Dependency failed: ${failedDependencies.join(', ')}`,
+                        error: `Dependency failed or skipped: ${incompleteDependencies.join(', ')}`,
                         taskNumber: taskIndex + 1
                     };
                     
