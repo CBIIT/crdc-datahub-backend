@@ -909,7 +909,14 @@ class MigrationRunner {
         console.log("🔄 Starting GPAName migration...");
         
         // Query all applications to check for GPAName mismatches
-        const applications = await this.db.collection('applications').find({}).toArray();
+        const applications = await this.db.collection('applications').find({
+            controlledAccess: true,
+            $or: [
+                { GPAName: { $exists: false } },
+                { GPAName: null },
+                { GPAName: "" }
+            ]
+        }).toArray();
         
         let updatedCount = 0;
         let matchedCount = 0;
@@ -919,6 +926,8 @@ class MigrationRunner {
         for (const application of applications) {
             
             try {
+
+                console.log(`Processing application ${application._id}`);
                 // Check if questionnaireData exists
                 if (!application.questionnaireData) {
                     missingInQuestionnaireCount++;
@@ -944,8 +953,25 @@ class MigrationRunner {
                     continue;
                 }
                 
-                // Extract GPAName from study object
-                const extractedGPAName = questionnaire.study.GPAName;
+                let extractedGPAName = null;
+                
+                // Check funding array for nciGPA values
+                if (questionnaire.study.funding && Array.isArray(questionnaire.study.funding)) {
+                    for (const funding of questionnaire.study.funding) {
+                        // Validate funding entry structure
+                        if (funding && typeof funding === 'object' && 'nciGPA' in funding) {
+                            if (funding.nciGPA && typeof funding.nciGPA === 'string' && funding.nciGPA.trim() !== "") {
+                                extractedGPAName = funding.nciGPA.trim();
+                                break; // Use first non-empty value found
+                            }
+                        }
+                    }
+                }
+                
+                // Fall back to new GPAName format if no nciGPA found
+                if (!extractedGPAName) {
+                    extractedGPAName = questionnaire.study.GPAName;
+                }
                 
                 // Skip if GPAName is falsy or empty string in questionnaireData
                 if (!extractedGPAName || extractedGPAName.trim() === "") {
