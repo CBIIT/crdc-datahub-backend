@@ -60,6 +60,7 @@ const ERROR = {
     FAILED_STORE_APPROVED_STUDIES: "The approved studies are not being stored because the questionnaire data string is not correctly parsed",
     DUPLICATE_APPROVED_STUDY_NAME: "This is a duplicate study name. The $item$ study already exists in the system.",
     DUPLICATE_PROGRAM_NAME: "This is a duplicate program name. The $item$ program already exists in the system.",
+    STUDY_CREATION_FAILED: "An internal error occured while initializing a new study. Please alert the admins.",
     // Submission Permission
     INVALID_SUBMISSION_STATUS: "The batch creation is aborted because the current submission is not in the valid state to be created.",
     // Create Submission

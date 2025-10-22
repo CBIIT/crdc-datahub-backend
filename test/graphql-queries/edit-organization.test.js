@@ -29,8 +29,8 @@ describe('Test Organization Service', () => {
             "name": "NA",
             "abbreviation": "NA",
             "description": "This is a catch-all place for all studies without a program associated.",
-            "status": "Active",
-            "studies": ["test"],
+            "status": "Active"
+            // studies array removed since studies are now referenced by programID, not stored in programs
         };
         let params = {...defaultParams};
         // read only flag with no changes
