@@ -137,6 +137,13 @@ class Submission {
                     throw new Error(ERROR.INVALID_STUDY_ACCESS);
                 }
             }
+            // User has DC scope - must be assigned to the data commons
+            else if (userScope.isDCScope()) {
+                const hasDataCommonsAccess = validateDataCommonsAccess(context?.userInfo?.dataCommons, params.dataCommons);
+                if (!hasDataCommonsAccess) {
+                    throw new Error(ERROR.INVALID_DATA_COMMONS_ACCESS);
+                }
+            }
             else {
                 throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
             }

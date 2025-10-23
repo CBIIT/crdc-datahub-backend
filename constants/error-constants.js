@@ -162,6 +162,7 @@ const ERROR = {
     CREATE_USER_MISSING_INFO: "Email and IDP are required to create a new user.",
     CREATE_USER_ORG_MISSING_INFO: "Organization ID is required to initialize the user's organization information.",
     INVALID_STUDY_ACCESS: "User does not have access to the study.",
+    INVALID_DATA_COMMONS_ACCESS: "User does not have access to the data commons.",
     // Submission Stats
     MISSING_DATA_FILE: {
         TITLE: "Data file not found",
