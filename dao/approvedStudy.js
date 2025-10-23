@@ -63,16 +63,15 @@ class ApprovedStudyDAO extends GenericDAO  {
         }
 
         if (programID && programID !== this._ALL) {
-            matches["programs._id"] = programID;
+            matches["programID"] = programID;
         }
 
         let pipelines = [
-            // Join with the program
-            // The studies._id should be array in otder to use prisma.
+            // Join with the program using the programID as the foreign field
             {"$lookup": {
                     from: ORGANIZATION_COLLECTION,
-                    localField: "_id",
-                    foreignField: "studies._id",
+                    localField: "programID",
+                    foreignField: "_id",
                     as: "programs"}},
             {"$lookup": {
                     from: USER_COLLECTION,

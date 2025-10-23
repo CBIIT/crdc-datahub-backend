@@ -46,6 +46,7 @@ Environment variables can either be set in the runtime environment or specified 
  - **SCHEDULE_JOB**: Set a time expression to schedule a cron job
  - **SUBMISSION_DOC_URL**: Set the url for submission documentation
  - **DASHBOARD_SESSION_TIMEOUT**: Set the timeout for AWS QuickSight dashboard by default 30 minutes
+ - **DATA_COMMONS_LIST**: JSON array of available data commons (e.g., ["CDS", "ICDC", "CTDC", "CCDI", "PSDC", "Test MDF", "Hidden Model"])
 ### Creating a .env File
 
 1. Locate the [**env.template**](./env.template) file and create a copy

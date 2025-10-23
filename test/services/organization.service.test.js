@@ -103,7 +103,7 @@ describe('Organization.createOrganization', () => {
     mockUserDAO = { findFirst: jest.fn() };
     mockSubmissionDAO = {};
     mockApplicationDAO = {};
-    mockApprovedStudyDAO = { findMany: jest.fn() };
+    mockApprovedStudyDAO = { findMany: jest.fn(), findFirst: jest.fn(), updateMany: jest.fn() };
     ProgramDAO.mockImplementation(() => mockProgramDAO);
     UserDAO.mockImplementation(() => mockUserDAO);
     SubmissionDAO.mockImplementation(() => mockSubmissionDAO);
@@ -187,20 +187,61 @@ describe('Organization.createOrganization', () => {
     expect(mockProgramDAO.create).toHaveBeenCalled();
   });
 
-  it('should create organization with studies', async () => {
+  it('should create organization with studies and update their programID', async () => {
     const params = {
       name: 'Test Org',
       abbreviation: 'TST',
       description: 'desc',
-      studies: [{ studyID: 'study1' }, { studyID: 'study2' }]
+      studies: [
+        { studyID: 'study-1' },
+        { studyID: 'study-2' }
+      ]
     };
+    const createdOrg = { _id: 'org-123', name: 'Test Org', abbreviation: 'TST', description: 'desc' };
+    const existingStudies = [
+      { id: 'study-1' },
+      { id: 'study-2' }
+    ];
+
     mockProgramDAO.getOrganizationByName.mockResolvedValue(null);
-    mockApprovedStudyDAO.findMany.mockResolvedValue([{ _id: 'study1' }, { _id: 'study2' }]);
-    mockProgramDAO.create.mockResolvedValue({ _id: 'orgid', name: 'Test Org', abbreviation: 'TST', description: 'desc', studies: [{ _id: 'study1' }, { _id: 'study2' }] });
+    mockProgramDAO.create.mockResolvedValue(createdOrg);
+    mockApprovedStudyDAO.findMany.mockResolvedValue(existingStudies);
+    mockApprovedStudyDAO.updateMany.mockResolvedValue({ count: 2 });
+
     const result = await organization.createOrganization(params);
-    expect(result).toEqual({ _id: 'orgid', name: 'Test Org', abbreviation: 'TST', description: 'desc', studies: [{ _id: 'study1' }, { _id: 'study2' }] });
-    expect(mockApprovedStudyDAO.findMany).toHaveBeenCalledWith({ id: { in: ['study1', 'study2'] } });
+    
+    expect(result).toEqual(createdOrg);
     expect(mockProgramDAO.create).toHaveBeenCalled();
+    expect(mockApprovedStudyDAO.findMany).toHaveBeenCalledWith({ id: { in: ['study-1', 'study-2'] } });
+    expect(mockApprovedStudyDAO.updateMany).toHaveBeenCalledWith(
+      { id: { in: ['study-1', 'study-2'] } },
+      { programID: 'org-123', updatedAt: expect.any(Date) }
+    );
+  });
+
+  it('should throw error when study IDs do not exist during organization creation', async () => {
+    const params = {
+      name: 'Test Org',
+      abbreviation: 'TST',
+      description: 'desc',
+      studies: [
+        { studyID: 'study-1' },
+        { studyID: 'study-2' }
+      ]
+    };
+    const createdOrg = { _id: 'org-123', name: 'Test Org', abbreviation: 'TST', description: 'desc' };
+    const existingStudies = [{ id: 'study-1' }]; // Only study-1 exists
+
+    mockProgramDAO.getOrganizationByName.mockResolvedValue(null);
+    mockProgramDAO.create.mockResolvedValue(createdOrg);
+    mockApprovedStudyDAO.findMany.mockResolvedValue(existingStudies);
+
+    await expect(organization.createOrganization(params))
+      .rejects.toThrow(`Update failed, these provided study IDs do not exist: study-2`);
+    
+    expect(mockProgramDAO.create).toHaveBeenCalled();
+    expect(mockApprovedStudyDAO.findMany).toHaveBeenCalled();
+    expect(mockApprovedStudyDAO.updateMany).not.toHaveBeenCalled();
   });
 });
 
@@ -237,7 +278,7 @@ describe('Organization.getOrganizationAPI', () => {
     mockProgramDAO.getOrganizationByID.mockResolvedValue(mockOrg);
     const result = await organization.getOrganizationAPI(params, context);
     expect(result).toEqual(mockOrg);
-    expect(mockProgramDAO.getOrganizationByID).toHaveBeenCalledWith('org123', false);
+    expect(mockProgramDAO.getOrganizationByID).toHaveBeenCalledWith('org123');
   });
 
   it('should throw error if orgID is missing', async () => {
@@ -248,5 +289,112 @@ describe('Organization.getOrganizationAPI', () => {
     const params = { orgID: 'org123' };
     const badContext = { userInfo: {} };
     await expect(organization.getOrganizationAPI(params, badContext)).rejects.toThrow(ERROR.NOT_LOGGED_IN);
+  });
+});
+
+describe('Organization.editOrganization', () => {
+  let organization;
+  let mockProgramDAO;
+  let mockUserDAO;
+  let mockSubmissionDAO;
+  let mockApplicationDAO;
+  let mockApprovedStudyDAO;
+
+  beforeEach(() => {
+    mockProgramDAO = { 
+      getOrganizationByID: jest.fn(), 
+      getOrganizationByName: jest.fn(),
+      updateMany: jest.fn() 
+    };
+    mockUserDAO = { findFirst: jest.fn(), updateUserOrg: jest.fn() };
+    mockSubmissionDAO = {};
+    mockApplicationDAO = { updateApplicationOrg: jest.fn() };
+    mockApprovedStudyDAO = { findMany: jest.fn(), updateMany: jest.fn() };
+    
+    ProgramDAO.mockImplementation(() => mockProgramDAO);
+    UserDAO.mockImplementation(() => mockUserDAO);
+    SubmissionDAO.mockImplementation(() => mockSubmissionDAO);
+    ApplicationDAO.mockImplementation(() => mockApplicationDAO);
+    ApprovedStudyDAO.mockImplementation(() => mockApprovedStudyDAO);
+    
+    organization = new Organization({}, {}, {}, {}, {});
+    jest.clearAllMocks();
+  });
+
+  it('should edit organization and update studies successfully', async () => {
+    const orgID = 'org-123';
+    const params = {
+      name: 'Updated Org',
+      studies: [
+        { studyID: 'study-1' },
+        { studyID: 'study-2' }
+      ]
+    };
+    const currentOrg = { _id: orgID, name: 'Test Org', abbreviation: 'TST' };
+    const existingStudies = [
+      { id: 'study-1' },
+      { id: 'study-2' }
+    ];
+
+    mockProgramDAO.getOrganizationByID.mockResolvedValue(currentOrg);
+    mockProgramDAO.getOrganizationByName.mockResolvedValue(null);
+    mockProgramDAO.updateMany.mockResolvedValue({ acknowledged: true });
+    mockApprovedStudyDAO.findMany.mockResolvedValue(existingStudies);
+    mockApprovedStudyDAO.updateMany.mockResolvedValue({ count: 2 });
+
+    const result = await organization.editOrganization(orgID, params);
+    
+    expect(result).toEqual({ ...currentOrg, name: 'Updated Org', updateAt: expect.any(Date) });
+    expect(mockProgramDAO.updateMany).toHaveBeenCalled();
+    expect(mockApprovedStudyDAO.findMany).toHaveBeenCalledWith({ id: { in: ['study-1', 'study-2'] } });
+    expect(mockApprovedStudyDAO.updateMany).toHaveBeenCalledWith(
+      { id: { in: ['study-1', 'study-2'] } },
+      { programID: orgID, updatedAt: expect.any(Date) }
+    );
+  });
+
+  it('should edit organization without updating studies when studies array is empty', async () => {
+    const orgID = 'org-123';
+    const params = {
+      name: 'Updated Org',
+      studies: []
+    };
+    const currentOrg = { _id: orgID, name: 'Test Org', abbreviation: 'TST' };
+
+    mockProgramDAO.getOrganizationByID.mockResolvedValue(currentOrg);
+    mockProgramDAO.getOrganizationByName.mockResolvedValue(null);
+    mockProgramDAO.updateMany.mockResolvedValue({ acknowledged: true });
+
+    const result = await organization.editOrganization(orgID, params);
+    
+    expect(result).toEqual({ ...currentOrg, name: 'Updated Org', updateAt: expect.any(Date) });
+    expect(mockProgramDAO.updateMany).toHaveBeenCalled();
+    expect(mockApprovedStudyDAO.findMany).not.toHaveBeenCalled();
+    expect(mockApprovedStudyDAO.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('should throw error when study IDs do not exist during organization edit', async () => {
+    const orgID = 'org-123';
+    const params = {
+      name: 'Updated Org',
+      studies: [
+        { studyID: 'study-1' },
+        { studyID: 'study-2' }
+      ]
+    };
+    const currentOrg = { _id: orgID, name: 'Test Org', abbreviation: 'TST' };
+    const existingStudies = [{ id: 'study-1' }]; // Only study-1 exists
+
+    mockProgramDAO.getOrganizationByID.mockResolvedValue(currentOrg);
+    mockProgramDAO.getOrganizationByName.mockResolvedValue(null);
+    mockProgramDAO.updateMany.mockResolvedValue({ acknowledged: true });
+    mockApprovedStudyDAO.findMany.mockResolvedValue(existingStudies);
+
+    await expect(organization.editOrganization(orgID, params))
+      .rejects.toThrow(`Update failed, these provided study IDs do not exist: study-2`);
+    
+    expect(mockProgramDAO.updateMany).toHaveBeenCalled();
+    expect(mockApprovedStudyDAO.findMany).toHaveBeenCalled();
+    expect(mockApprovedStudyDAO.updateMany).not.toHaveBeenCalled();
   });
 });
