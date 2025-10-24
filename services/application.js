@@ -698,7 +698,7 @@ class Application {
         }
 
         // Checking for duplicate programs if no existing program ID is found
-        if (!(existingProgram?._id) && duplicatePrograms?.length > 0) {
+        if (!(existingProgram?._id) && duplicatePrograms) {
             throw new Error(replaceErrorString(ERROR.DUPLICATE_PROGRAM_NAME, `'${application?.programName}'`));
         }
 
@@ -721,7 +721,11 @@ class Application {
         if (updated) {
             promises.unshift(this.getApplicationById(document._id));
             if(questionnaire) {
-                const newApprovedStudy = await this._saveApprovedStudies(updated, questionnaire, document?.pendingModelChange, isPendingGPA);
+                const [name, abbreviation, description] = [application?.programName, application?.programAbbreviation, application?.programDescription];
+                if (name?.trim()?.length > 0 && !existingProgram?._id) {
+                    promises.push(this.organizationService.upsertByProgramName(name, abbreviation, description));
+                }
+                const newApprovedStudy = await this._saveApprovedStudies(updated, questionnaire, document?.pendingModelChange, isPendingGPA, existingProgram);
                 // added approved studies into user collection
                 const applicants = await this._findUsersByApplicantIDs([application]);
                 if (applicants?.length > 0) {
@@ -733,10 +737,6 @@ class Application {
                         applicant, updateUser, _id, applicant?.userStatus, applicant?.role, newStudiesIDs));
                 }
 
-                const [name, abbreviation, description] = [application?.programName, application?.programAbbreviation, application?.programDescription];
-                if (name?.trim()?.length > 0 && !existingProgram?._id) {
-                    promises.push(this.organizationService.upsertByProgramName(name, abbreviation, description));
-                }
             }
             promises.push(this.logCollection.insert(
                 UpdateApplicationStateEvent.create(context.userInfo._id, context.userInfo.email, context.userInfo.IDP, application._id, application.status, APPROVED)
@@ -1161,7 +1161,7 @@ class Application {
         }, {[`${this._FINAL_INACTIVE_REMINDER}`]: status});
     }
 
-    async _saveApprovedStudies(aApplication, questionnaire, pendingModelChange, isPendingGPA) {
+    async _saveApprovedStudies(aApplication, questionnaire, pendingModelChange, isPendingGPA, existingProgram) {
         // use study name when study abbreviation is not available
         const studyAbbreviation = !!aApplication?.studyAbbreviation?.trim() ? aApplication?.studyAbbreviation : questionnaire?.study?.name;
         const controlledAccess = aApplication?.controlledAccess;
@@ -1171,12 +1171,8 @@ class Application {
         const programName = aApplication?.programName ?? "NA";
         const pendingGPA = PendingGPA.create(aApplication?.GPAName, isPendingGPA);
         
-        // Look up program ID by name
-        let programID = null;
-        const program = await this.organizationService.findOneByProgramName(programName);
-        if (program) {
-            programID = program._id;
-        }
+        // Use the existing program ID from the questionnaire lookup
+        const programID = existingProgram?._id || null;
       
         // Clean dbGaPPPHSNumber to only store the base "phs######"
         const trimmedDbGaP = String(questionnaire?.study?.dbGaPPPHSNumber ?? "").trim();

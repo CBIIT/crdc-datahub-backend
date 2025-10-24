@@ -117,11 +117,11 @@ describe('Data Commons Remapper Test', () => {
             test: "test"
         }
         let inputApprovedStudy = {
-            programs: [inputUserOrg, inputUserOrg],
+            program: inputUserOrg,
             primaryContact: inputUser
         }
         let outputApprovedStudy = {
-            programs: [inputUserOrg, inputUserOrg],
+            program: inputUserOrg,
             primaryContact: outputUser
         }
 
