@@ -722,10 +722,12 @@ class Application {
             promises.unshift(this.getApplicationById(document._id));
             if(questionnaire) {
                 const [name, abbreviation, description] = [application?.programName, application?.programAbbreviation, application?.programDescription];
+                let program = existingProgram;
                 if (name?.trim()?.length > 0 && !existingProgram?._id) {
-                    promises.push(this.organizationService.upsertByProgramName(name, abbreviation, description));
+                    // Await program creation before creating approved study to avoid race condition
+                    program = await this.organizationService.upsertByProgramName(name, abbreviation, description);
                 }
-                const newApprovedStudy = await this._saveApprovedStudies(updated, questionnaire, document?.pendingModelChange, isPendingGPA, existingProgram);
+                const newApprovedStudy = await this._saveApprovedStudies(updated, questionnaire, document?.pendingModelChange, isPendingGPA, program);
                 // added approved studies into user collection
                 const applicants = await this._findUsersByApplicantIDs([application]);
                 if (applicants?.length > 0) {
@@ -1181,7 +1183,7 @@ class Application {
         // Upon approval of the submission request, the data concierge is retrieved from the associated program.
         return await this.approvedStudiesService.storeApprovedStudies(
             aApplication?._id, aApplication?.studyName, studyAbbreviation, baseDbGaP, aApplication?.organization?.name, controlledAccess, aApplication?.ORCID,
-            aApplication?.PI, aApplication?.openAccess, programID, true, pendingModelChange, null, pendingGPA
+            aApplication?.PI, aApplication?.openAccess, true, pendingModelChange, null, pendingGPA, programID
         );
     }
 
@@ -1232,7 +1234,7 @@ const getCCEmails = (submitterEmail, application) => {
     }
     const CCEmailsSet = new Set([questionnaire?.primaryContact?.email, questionnaire?.pi?.email]
         .filter((email) => email && email !== submitterEmail && EMAIL_REGEX.test(email)));
-    return CCEmailsSet.toArray();
+    return Array.from(CCEmailsSet);
 }
 
 const sendEmails = {

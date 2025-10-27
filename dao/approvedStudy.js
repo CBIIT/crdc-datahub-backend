@@ -126,7 +126,8 @@ class ApprovedStudyDAO extends GenericDAO  {
         ];
 
         pipelines.push({$match: matches});
-        if (orderBy === "program.name") {
+        let sortField = orderBy;
+        if (sortField === "program.name") {
             pipelines.push({
                 $set: {
                     programSort: {
@@ -134,9 +135,9 @@ class ApprovedStudyDAO extends GenericDAO  {
                     }
                 }
             });
-            orderBy = "programSort";
+            sortField = "programSort";
         }
-        const pagination = new MongoPagination(first, offset, orderBy, sortDirection);
+        const pagination = new MongoPagination(first, offset, sortField, sortDirection);
         const paginationPipe = pagination.getPaginationPipeline()
         // Added the custom sort
         const isNotStudyName = orderBy !== "studyName";

@@ -421,11 +421,13 @@ describe('Application', () => {
                 questionnaireData: JSON.stringify({ program: { _id: null } })
             };
             const mockQuestionnaire = { program: { _id: null } };
+            const mockNewProgram = { _id: 'new-program-1', name: 'Program One' };
             
             app.getApplicationById = jest.fn().mockResolvedValue(mockApplication);
             mockApprovedStudiesService.findByStudyName.mockResolvedValue([]);
             mockOrganizationService.getOrganizationByID.mockResolvedValue(null);
             mockOrganizationService.findOneByProgramName.mockResolvedValue(null);
+            mockOrganizationService.upsertByProgramName.mockResolvedValue(mockNewProgram);
             app.applicationDAO.update = jest.fn().mockResolvedValue(true);
             app.getApplicationById = jest.fn().mockResolvedValue(mockApplication);
             app._saveApprovedStudies = jest.fn().mockResolvedValue({ _id: 'study1' });
@@ -439,7 +441,7 @@ describe('Application', () => {
                 'Program One', 'PO', 'Program Description'
             );
             expect(app._saveApprovedStudies).toHaveBeenCalledWith(
-                true, mockQuestionnaire, undefined, undefined, null
+                true, mockQuestionnaire, undefined, undefined, mockNewProgram
             );
         });
 
