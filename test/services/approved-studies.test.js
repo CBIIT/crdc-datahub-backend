@@ -560,7 +560,7 @@ describe('ApprovedStudiesService', () => {
             studyName: 'Test Study',
             studyAbbreviation: 'TS',
             primaryContactID: 'user-id',
-            programs: [{ _id: 'org-id', name: 'Org' }],
+            program: { _id: 'org-id', name: 'Org' },
         };
         const mockDisplayStudy = { ...mockApprovedStudy, dataCommonsDisplayName: 'Test Study Display' };
 
