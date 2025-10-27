@@ -1181,9 +1181,12 @@ class Application {
         const baseDbGaP = trimmedDbGaP.match(/^phs\d{6}/i)?.[0]?.toLowerCase() ?? null;
 
         // Upon approval of the submission request, the data concierge is retrieved from the associated program.
+        // These two parameters for storeApprovedStudies will be constant here, saved to variables for clarity.
+        const useProgramPC = true;
+        const primaryContactID = null;
         return await this.approvedStudiesService.storeApprovedStudies(
             aApplication?._id, aApplication?.studyName, studyAbbreviation, baseDbGaP, aApplication?.organization?.name, controlledAccess, aApplication?.ORCID,
-            aApplication?.PI, aApplication?.openAccess, true, pendingModelChange, null, pendingGPA, programID
+            aApplication?.PI, aApplication?.openAccess, useProgramPC, pendingModelChange, primaryContactID, pendingGPA, programID
         );
     }
 

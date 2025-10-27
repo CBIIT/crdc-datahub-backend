@@ -10,7 +10,7 @@ jest.mock('../../crdc-datahub-database-drivers/domain/mongo-pagination');
 const ApprovedStudyDAO = require('../../dao/approvedStudy');
 const { MongoPagination } = require('../../crdc-datahub-database-drivers/domain/mongo-pagination');
 const { ORGANIZATION_COLLECTION, USER_COLLECTION } = require('../../crdc-datahub-database-drivers/database-constants');
-const { DIRECTION, SORT } = require('../../crdc-datahub-database-drivers/constants/mongodb-constants');
+const { DIRECTION, SORT } = require('../../crdc-datahub-database-drivers/constants/monogodb-constants');
 
 describe('ApprovedStudyDAO - listApprovedStudies', () => {
     let dao;
