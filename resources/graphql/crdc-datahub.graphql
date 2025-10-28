@@ -610,7 +610,9 @@ type aggregatedQCResult {
     title: String,
     severity: String,
     count: Int,
-    code: String
+    code: String,
+    property: String,
+    value: String
 }
 
 type Permission {

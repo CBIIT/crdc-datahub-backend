@@ -496,8 +496,8 @@ describe('QcResultService', () => {
             qcResultService.qcResultDAO.aggregatedSubmissionQCResults
                 .mockResolvedValueOnce({
                     results: [
-                        { title: "Missing required field", severity: "Error", code: "E001", count: 2 },
-                        { title: "Invalid data format", severity: "Error", code: "E002", count: 1 }
+                        { title: "Missing required field", severity: "Error", code: "E001", count: 2, property: "N/A", value: "N/A" },
+                        { title: "Invalid data format", severity: "Error", code: "E002", count: 1, property: "N/A", value: "N/A" }
                     ],
                     total: 2
                 });
@@ -512,8 +512,8 @@ describe('QcResultService', () => {
             expect(result).toEqual({
                 total: 2,
                 results: [
-                    { title: "Missing required field", severity: "Error", code: "E001", count: 2 },
-                    { title: "Invalid data format", severity: "Error", code: "E002", count: 1 }
+                    { title: "Missing required field", severity: "Error", code: "E001", count: 2, property: "N/A", value: "N/A" },
+                    { title: "Invalid data format", severity: "Error", code: "E002", count: 1, property: "N/A", value: "N/A" }
                 ]
             });
             expect(qcResultService.submissionDAO.findFirst).toHaveBeenCalledWith({ id: mockParams.submissionID });
@@ -559,8 +559,8 @@ describe('QcResultService', () => {
         it('should aggregate QC results by error severity', async () => {
             const mockCountResult = [{ total: 2 }];
             const mockDataResult = [
-                { title: "Missing required field", severity: "Error", code: "E001", count: 3 },
-                { title: "Invalid format", severity: "Error", code: "E002", count: 2 }
+                { title: "Missing required field", severity: "Error", code: "E001", count: 3, property: "N/A", value: "N/A" },
+                { title: "Invalid format", severity: "Error", code: "E002", count: 2, property: "N/A", value: "N/A" }
             ];
             
             mockQcResultCollection.aggregate
@@ -583,7 +583,7 @@ describe('QcResultService', () => {
 
         it('should aggregate QC results by warning severity', async () => {
             const mockCountResult = [{ total: 1 }];
-            const mockDataResult = [{ title: "Optional field missing", severity: "Warning", code: "W001", count: 1 }];
+            const mockDataResult = [{ title: "Optional field missing", severity: "Warning", code: "W001", count: 1, property: "N/A", value: "N/A" }];
             
             mockQcResultCollection.aggregate
                 .mockResolvedValueOnce(mockCountResult)
@@ -605,8 +605,8 @@ describe('QcResultService', () => {
         it('should handle no severity filter', async () => {
             const mockCountResult = [{ total: 2 }];
             const mockDataResult = [
-                { title: "Missing required field", severity: "Error", code: "E001", count: 2 },
-                { title: "Optional field missing", severity: "Warning", code: "W001", count: 1 }
+                { title: "Missing required field", severity: "Error", code: "E001", count: 2, property: "N/A", value: "N/A" },
+                { title: "Optional field missing", severity: "Warning", code: "W001", count: 1, property: "N/A", value: "N/A" }
             ];
             
             mockQcResultCollection.aggregate
@@ -628,7 +628,7 @@ describe('QcResultService', () => {
 
         it('should handle pagination correctly', async () => {
             const mockCountResult = [{ total: 3 }];
-            const mockDataResult = [{ title: "Missing required field", severity: "Error", code: "E001", count: 2 }];
+            const mockDataResult = [{ title: "Missing required field", severity: "Error", code: "E001", count: 2, property: "N/A", value: "N/A" }];
             
             mockQcResultCollection.aggregate
                 .mockResolvedValueOnce(mockCountResult)
@@ -647,6 +647,215 @@ describe('QcResultService', () => {
             expect(result.results).toHaveLength(1);
         });
 
+        it('should group same issue type by different property/value combinations separately', async () => {
+            // This test verifies that the same issue (title, severity, code) with different
+            // property/value combinations are grouped as separate entries
+            const mockCountResult = [{ total: 2 }];
+            const mockDataResult = [
+                { 
+                    title: "Missing required field", 
+                    severity: "Error", 
+                    code: "E001", 
+                    count: 3,
+                    property: "age",
+                    value: ""
+                },
+                { 
+                    title: "Missing required field", 
+                    severity: "Error", 
+                    code: "E001", 
+                    count: 2,
+                    property: "name",
+                    value: ""
+                }
+            ];
+            
+            mockQcResultCollection.aggregate
+                .mockResolvedValueOnce(mockCountResult)
+                .mockResolvedValueOnce(mockDataResult);
+
+            const result = await qcResultService.qcResultDAO.aggregatedSubmissionQCResults(
+                "test_submission_id",
+                "error",
+                10,
+                0,
+                "count",
+                "desc"
+            );
+
+            expect(result.total).toBe(2);
+            expect(result.results).toHaveLength(2);
+            // Both have same issue type but different property
+            expect(result.results[0].title).toBe("Missing required field");
+            expect(result.results[1].title).toBe("Missing required field");
+            expect(result.results[0].code).toBe("E001");
+            expect(result.results[1].code).toBe("E001");
+            // But different property values
+            expect(result.results[0].property).toBe("age");
+            expect(result.results[1].property).toBe("name");
+            expect(result.results[0].count).toBe(3);
+            expect(result.results[1].count).toBe(2);
+        });
+
+        it('should group same issue type with same property/value together', async () => {
+            // This test verifies that the same issue with the same property/value
+            // are grouped together and counts are summed
+            const mockCountResult = [{ total: 1 }];
+            const mockDataResult = [
+                { 
+                    title: "Invalid data type", 
+                    severity: "Error", 
+                    code: "E002", 
+                    count: 5, // Multiple records with same issue/property/value
+                    property: "date_of_birth",
+                    value: "2023-13-45" // Invalid date format
+                }
+            ];
+            
+            mockQcResultCollection.aggregate
+                .mockResolvedValueOnce(mockCountResult)
+                .mockResolvedValueOnce(mockDataResult);
+
+            const result = await qcResultService.qcResultDAO.aggregatedSubmissionQCResults(
+                "test_submission_id",
+                "error",
+                10,
+                0,
+                "count",
+                "desc"
+            );
+
+            expect(result.total).toBe(1);
+            expect(result.results).toHaveLength(1);
+            expect(result.results[0].title).toBe("Invalid data type");
+            expect(result.results[0].property).toBe("date_of_birth");
+            expect(result.results[0].value).toBe("2023-13-45");
+            expect(result.results[0].count).toBe(5); // All grouped together
+        });
+
+        it('should handle property and value fields with null values', async () => {
+            // This test verifies that null property/value are handled correctly
+            const mockCountResult = [{ total: 2 }];
+            const mockDataResult = [
+                { 
+                    title: "Missing required field", 
+                    severity: "Error", 
+                    code: "E003", 
+                    count: 1,
+                    property: "N/A",
+                    value: "N/A"
+                },
+                { 
+                    title: "Schema validation error", 
+                    severity: "Error", 
+                    code: "E004", 
+                    count: 3,
+                    property: "gender",
+                    value: "unknown"
+                }
+            ];
+            
+            mockQcResultCollection.aggregate
+                .mockResolvedValueOnce(mockCountResult)
+                .mockResolvedValueOnce(mockDataResult);
+
+            const result = await qcResultService.qcResultDAO.aggregatedSubmissionQCResults(
+                "test_submission_id",
+                "error",
+                10,
+                0,
+                "count",
+                "desc"
+            );
+
+            expect(result.total).toBe(2);
+            expect(result.results).toHaveLength(2);
+            
+            // Find results by code to avoid order dependency
+            const result1 = result.results.find(r => r.code === "E003");
+            const result2 = result.results.find(r => r.code === "E004");
+            
+            expect(result1).toBeDefined();
+            expect(result1.property).toBe("N/A");
+            expect(result1.value).toBe("N/A");
+            
+            expect(result2).toBeDefined();
+            expect(result2.property).toBe("gender");
+            expect(result2.value).toBe("unknown");
+        });
+
+        it('should handle mixed issues with various property/value combinations', async () => {
+            // Comprehensive test with multiple issue types and property/value combinations
+            const mockCountResult = [{ total: 4 }];
+            const mockDataResult = [
+                { 
+                    title: "Missing required field", 
+                    severity: "Error", 
+                    code: "E001", 
+                    count: 10,
+                    property: "patient_id",
+                    value: ""
+                },
+                { 
+                    title: "Missing required field", 
+                    severity: "Error", 
+                    code: "E001", 
+                    count: 5,
+                    property: "study_id",
+                    value: ""
+                },
+                { 
+                    title: "Invalid data format", 
+                    severity: "Error", 
+                    code: "E005", 
+                    count: 3,
+                    property: "age",
+                    value: "xyz"
+                },
+                { 
+                    title: "Out of range value", 
+                    severity: "Warning", 
+                    code: "W002", 
+                    count: 1,
+                    property: "temperature",
+                    value: "999.99"
+                }
+            ];
+            
+            mockQcResultCollection.aggregate
+                .mockResolvedValueOnce(mockCountResult)
+                .mockResolvedValueOnce(mockDataResult);
+
+            const result = await qcResultService.qcResultDAO.aggregatedSubmissionQCResults(
+                "test_submission_id",
+                null, // No severity filter
+                10,
+                0,
+                "count",
+                "desc"
+            );
+
+            expect(result.total).toBe(4);
+            expect(result.results).toHaveLength(4);
+            
+            // Verify first issue (missing patient_id) has highest count
+            expect(result.results[0].title).toBe("Missing required field");
+            expect(result.results[0].code).toBe("E001");
+            expect(result.results[0].property).toBe("patient_id");
+            expect(result.results[0].count).toBe(10);
+            
+            // Verify second issue (missing study_id) grouped separately
+            expect(result.results[1].title).toBe("Missing required field");
+            expect(result.results[1].code).toBe("E001");
+            expect(result.results[1].property).toBe("study_id");
+            expect(result.results[1].count).toBe(5);
+            
+            // Verify warnings are included when no severity filter
+            const warningResult = result.results.find(r => r.severity === "Warning");
+            expect(warningResult).toBeDefined();
+            expect(warningResult.code).toBe("W002");
+        });
+
         it('should count distinct records rather than individual issues', async () => {
             // This test demonstrates that the count represents distinct data records (by dataRecordID)
             // that contain the specific issue, not the total number of individual issue occurrences
@@ -656,7 +865,9 @@ describe('QcResultService', () => {
                     title: "Missing required field", 
                     severity: "Error", 
                     code: "E001", 
-                    count: 2  // 2 distinct data records (by dataRecordID) contain this issue
+                    count: 2,  // 2 distinct data records (by dataRecordID) contain this issue
+                    property: "N/A",
+                    value: "N/A"
                 }
             ];
             
