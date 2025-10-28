@@ -433,44 +433,6 @@ describe('ApprovedStudiesService - Notification Error Handling', () => {
                 expect(service.notificationsService.clearPendingModelState).not.toHaveBeenCalled();
                 expect(result).toEqual(mockDisplayStudy);
             });
-            it('should throw error if dbGaPID in wrong format when updating the study', async () => {
-                const mockParamsUpdateStudy = {
-                    ...mockParams,
-                    dbGaPID: 'phs000001.v1.p1' // invalid format
-                };
-                service.applicationDAO.findFirst = jest.fn().mockResolvedValue(mockApplication);
-                service.userDAO.findFirst = jest.fn().mockResolvedValue(mockSubmitter);
-                service.userDAO.getUsersByNotifications = jest.fn().mockResolvedValue(mockBCCUsers);
-                service.notificationsService.clearPendingModelState = jest.fn().mockResolvedValue({ accepted: ['email'] });
-                await expect(service.editApprovedStudyAPI(mockParamsUpdateStudy, mockContext))
-                    .rejects.toThrow(ERROR.INVALID_DB_GAP_ID);
-            });
-
-            it('should update the study successfully if dbGaPID in correct format when updating the study', async () => {
-                const mockParamsUpdateStudy = {
-                    ...mockParams,
-                    dbGaPID: 'phs000002' // invalid format
-                };
-                service.applicationDAO.findFirst = jest.fn().mockResolvedValue(mockApplication);
-                service.userDAO.findFirst = jest.fn().mockResolvedValue(mockSubmitter);
-                service.userDAO.getUsersByNotifications = jest.fn().mockResolvedValue(mockBCCUsers);
-                service.notificationsService.clearPendingModelState = jest.fn().mockResolvedValue({ accepted: ['email'] });
-                const result = await service.editApprovedStudyAPI(mockParamsUpdateStudy, mockContext);
-                expect(result).toEqual(mockDisplayStudy);
-            });
-
-            it('should update the study successfully if dbGaPID in correct format but with upper-case when updating the study', async () => {
-                const mockParamsUpdateStudy = {
-                    ...mockParams,
-                    dbGaPID: 'Phs000002' // invalid format
-                };
-                service.applicationDAO.findFirst = jest.fn().mockResolvedValue(mockApplication);
-                service.userDAO.findFirst = jest.fn().mockResolvedValue(mockSubmitter);
-                service.userDAO.getUsersByNotifications = jest.fn().mockResolvedValue(mockBCCUsers);
-                service.notificationsService.clearPendingModelState = jest.fn().mockResolvedValue({ accepted: ['email'] });
-                const result = await service.editApprovedStudyAPI(mockParamsUpdateStudy, mockContext);
-                expect(result).toEqual(mockDisplayStudy);
-            });
 
             it('should handle case when no BCC users are found', async () => {
                 service.applicationDAO.findFirst = jest.fn().mockResolvedValue(mockApplication);

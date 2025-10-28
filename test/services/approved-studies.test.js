@@ -265,7 +265,7 @@ describe('ApprovedStudiesService', () => {
             acronym: 'US',
             controlledAccess: true,
             openAccess: true,
-            dbGaPID: '1234-5678-9012-345',
+            dbGaPID: 'phs000001',
             ORCID: '0000-0002-1825-0097',
             PI: 'Dr. Updated',
             primaryContactID: 'contact-id',
@@ -284,7 +284,7 @@ describe('ApprovedStudiesService', () => {
             studyAbbreviation: 'OS',
             controlledAccess: false,
             openAccess: false,
-            dbGaPID: 'old-gap',
+            dbGaPID: 'phs000001',
             ORCID: 'old-orcid',
             PI: 'Dr. Old',
             primaryContactID: null,
@@ -478,6 +478,33 @@ describe('ApprovedStudiesService', () => {
             };
             const result = await service.editApprovedStudyAPI(paramsWithEmptyGPAName, mockContext);
             expect(service.approvedStudyDAO.update).toHaveBeenCalled();
+            expect(result).toEqual(mockDisplayStudy);
+        });
+
+        it('should throw error if dbGaPID in wrong format when updating the study', async () => {
+            const mockParamsUpdateStudy = {
+                ...mockParams,
+                dbGaPID: 'phs000001.v1.p1' // invalid format
+            };
+            await expect(service.editApprovedStudyAPI(mockParamsUpdateStudy, mockContext))
+                .rejects.toThrow(ERROR.INVALID_DB_GAP_ID);
+        });
+
+        it('should update the study successfully if dbGaPID in correct format when updating the study', async () => {
+            const mockParamsUpdateStudy = {
+                ...mockParams,
+                dbGaPID: 'phs000002' // invalid format
+            };
+            const result = await service.editApprovedStudyAPI(mockParamsUpdateStudy, mockContext);
+            expect(result).toEqual(mockDisplayStudy);
+        });
+
+        it('should update the study successfully if dbGaPID in correct format but with upper-case when updating the study', async () => {
+            const mockParamsUpdateStudy = {
+                ...mockParams,
+                dbGaPID: 'Phs000002' // invalid format
+            };
+            const result = await service.editApprovedStudyAPI(mockParamsUpdateStudy, mockContext);
             expect(result).toEqual(mockDisplayStudy);
         });
     });

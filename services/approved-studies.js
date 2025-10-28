@@ -289,9 +289,13 @@ class ApprovedStudiesService {
         if (dbGaPID !== undefined) {
             const trimedDbGaPID = String(dbGaPID || "").trim();
             const re = /^phs\d{6}$/i;
-            if (!re.test(trimedDbGaPID)) {
+            if (trimedDbGaPID === "") {
+                updateStudy.dbGaPID = null;
+            }
+            else if (!re.test(trimedDbGaPID)) {
                 throw new Error(ERROR.INVALID_DB_GAP_ID);
-            } else {
+            }
+            else {
                 updateStudy.dbGaPID = trimedDbGaPID;
         }
         }
