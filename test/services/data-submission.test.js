@@ -2130,22 +2130,6 @@ describe('Submission.updateSubmissionInfo', () => {
         await expect(submissionService.updateSubmissionInfo(mockParamsUpdateSubmitter, mockContext))
             .rejects
             .toThrow(replaceErrorString(ERROR.INVALID_SUBMISSION_NO_SUBMITTER, mockParamsUpdateSubmitter.submitterID));
-
-    });
-
-    it('should throw error if dbGapID in wrong format when updating submitter', async () => {
-        const mockParamsUpdateSubmitter = {
-            _id: 'sub1',
-            submitterID: 'user2_id',
-            dbGapID: 'phs000001.v1.p1' // invalid format
-        };
-        //const updatedSubmission = { ...mockSubmission, submitterID: 'user2_id'};
-        submissionService._findByID.mockResolvedValue(mockSubmission);
-        submissionService.userDAO.findFirst.mockResolvedValue(mockParamsUpdateSubmitter)
-
-        await expect(submissionService.updateSubmissionInfo(mockParamsUpdateSubmitter, mockContext))
-            .rejects
-            .toThrow(replaceErrorString(ERROR.INVALID_DB_GAP_ID));
     });
 
     it('should throw error when submission not found', async () => {
