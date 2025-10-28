@@ -110,7 +110,7 @@ describe('ApprovedStudiesService - Notification Error Handling', () => {
             acronym: 'US',
             controlledAccess: true,
             openAccess: true,
-            dbGaPID: '1234-5678-9012-345',
+            dbGaPID: 'phs000000',
             ORCID: '0000-0002-1825-0097',
             PI: 'Dr. Updated',
             primaryContactID: 'contact-id',

@@ -287,7 +287,17 @@ class ApprovedStudiesService {
             updateStudy.openAccess = openAccess;
         }
         if (dbGaPID !== undefined) {
-            updateStudy.dbGaPID = dbGaPID;
+            const trimedDbGaPID = String(dbGaPID || "").trim();
+            const re = /^phs\d{6}$/i;
+            if (trimedDbGaPID === "") {
+                updateStudy.dbGaPID = null;
+            }
+            else if (!re.test(trimedDbGaPID)) {
+                throw new Error(ERROR.INVALID_DB_GAP_ID);
+            }
+            else {
+                updateStudy.dbGaPID = trimedDbGaPID;
+        }
         }
         if (ORCID !== undefined) {
             updateStudy.ORCID = ORCID;
