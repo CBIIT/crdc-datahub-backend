@@ -1,0 +1,188 @@
+name: Build Backend service
+permissions: 
+  contents: write
+  id-token: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Choose the environment to build
+        type: environment
+#      code_branch:
+#        description: Branch to build validation
+#        required: false
+      trivy_test_scan_be:
+        description: "Run Trivy Test Scan"
+        required: true
+        type: boolean
+        default: true
+      unit_test:
+        description: "Run Unit Test"
+        required: true
+        type: boolean
+        default: true
+
+  pull_request:
+    types:
+      - closed
+    branches:
+      - "*.*.*"
+
+jobs:
+  build-backend:
+    name: Build backend image
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      ECR_REPO_BE: "crdc-hub-backend"
+      REGION: "us-east-1"
+#      CODE_BRANCH: "${{ github.event.inputs.code_branch }}"
+      AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      TRIVY_TEST_SCAN_BE: ${{ github.event.inputs.trivy_test_scan_be || 'true' }}
+      UNIT_TEST: ${{ github.event.inputs.unit_test || 'true' }}
+
+    steps:
+
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+        with:
+#          ref: ${{ env.CODE_BRANCH }}
+          ref: ${{ github.ref_name }}
+#          submodules: true
+          submodules: recursive
+          clean: true
+          fetch-depth: 0
+
+      - name: Extract branch name and set tag image
+        id: extract_branch
+        run: |
+          BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          echo "branch=$BRANCH_NAME" >> "$GITHUB_ENV"
+          echo "Current branch is: $BRANCH_NAME"
+          git fetch --tags --force --quiet
+          #tag=$(git tag -l $BRANCH_NAME* | tail -1)
+          tag=$(git tag -l $BRANCH_NAME* | sort -V | tail -1)
+          if  [ ! -z "$tag" ];
+          then
+            # Increment the build number if a tag is found
+            build_num=$(echo "${tag##*.}")
+            build_num=$((build_num+1))
+            echo "IMAGE_TAG=$BRANCH_NAME.$build_num" >> $GITHUB_ENV
+          else
+            # If no tag is found create a new tag name
+            build_num=1
+            echo "IMAGE_TAG=$BRANCH_NAME.$build_num" >> $GITHUB_ENV
+          fi
+      
+      - name: Run Unit Test
+        id: unit-test
+        if: github.event.inputs.unit_test == 'true'
+        run: |
+          echo "Running unit tests..."
+          npm ci
+          npx prisma generate
+          npm test
+        
+
+      - name: Build Backend Docker Image
+        id: build-image
+        env:
+          REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+          #BE_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_BE }}:${{ env.branch }}.${{ github.run_number }}
+          BE_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_BE }}:${{ env.IMAGE_TAG }}
+        run: |
+          echo "Building: $BE_IMAGE_NAME"
+          docker build --no-cache -t $BE_IMAGE_NAME .
+
+      - name: Run Trivy test scan for BE Docker Image
+        id: trivy-scan-be
+        if: github.event.inputs.trivy_test_scan_be == 'true'
+        env:
+          REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+          BE_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_BE }}:${{ env.IMAGE_TAG }}
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.BE_IMAGE_NAME }}'
+          format: 'table'
+          exit-code: 1
+          severity: 'CRITICAL,HIGH'
+
+      - name: Create git tag for image
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git tag ${{ env.IMAGE_TAG }}
+          git push origin ${{ env.IMAGE_TAG }}
+
+      - name: Configure AWS Role to assume using OIDC authentication
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+      - name: Login to Amazon ECR
+        id: login-ecr
+        env:
+          REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+        run:  |
+          aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $REGISTRY_URL
+
+      - name: Push docker Image for BE
+        if: success()
+        env:
+          REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.REGION }}.amazonaws.com
+          BE_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_BE }}:${{ env.IMAGE_TAG }}
+        run: |
+          echo "Pushing: $BE_IMAGE_NAME"
+          docker push $BE_IMAGE_NAME
+
+      - name: Slack Notification
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        uses: act10ns/slack@87c73aef9f8838eb6feae81589a6b1487a4a9e08     # v1.6.0
+        with:
+          status: ${{ job.status }}
+          steps: ${{ toJson(steps) }}
+        if: always()
+
+#1st try      - name: scan docker image with AWS inspector
+#        id: scan-inspector
+#        env:
+#          REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.REGION }}.amazonaws.com
+#          PV_PULLER_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_PVPULLER }}:${{ env.CODE_BRANCH }}.${{ github.run_number }}
+#        run: |
+#          echo "AWS Inspector scan for image: $PV_PULLER_IMAGE_NAME"
+#          SCAN_ID=$(aws inspector2 start-scan --resource-group-arn arn:aws:inspector2:${{ secrets.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:resourcegroup/default \
+#                     -image-arn arn:aws:ecr:${{ secrets.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:repository/$ECR_REPO)
+#          echo "Scan started: $SCAN_ID"
+
+#      - name: wait for scan results
+#        run: |
+#          echo "Waiting for scan results..."
+#          sleep 60
+
+#      - name: get scan findings
+#        env:
+#          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+#        run: |
+#          aws inspector2 list-findings --filter '{
+#            "awsAccountId": { "equals": ["'$AWS_ACCOUNT_ID'"] },
+#            "severity": { "equals": ["HIGH", "CRITICAL"] }
+#          }' > findings.json
+#          cat findings.json
+
+#      - name: Fail if vulnerabilities are found
+#        if: github.event.inputs.trivy_test_scan_file_validation == 'true'
+#        run: |
+#          CRITICAL_COUNT=$(jq '.findings | map(select(.severity == "CRITICAL")) | length' findings.json)
+#          HIGH_COUNT=$(jq '.findings | map(select(.severity == "HIGH")) | length' findings.json)
+
+#          if [[ $CRITICAL_COUNT -gt 0 || $HIGH_COUNT -gt 0 ]]; then
+#            echo "Securities vuls found"
+#            exit 1
+#          else
+#            echo "Pass"
+#          fi

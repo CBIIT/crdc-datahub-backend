@@ -1,3 +1,20 @@
+// Submission orderBy mapping for Prisma queries
+// Note: organization filter in listSubmissions always expects organization names, not IDs
+const SUBMISSION_ORDER_BY_MAP = {
+    "updatedAt": "updatedAt",
+    "createdAt": "createdAt",
+    "name": "name",
+    "dataCommons": "dataCommons",
+    "organization": "organization.name",
+    "studyAbbreviation": "study.studyAbbreviation",
+    "dbGaPID": "dbGaPID",
+    "status": "status",
+    "concierge": "concierge",
+    "dataFileSize.size": "dataFileSize.size",
+    "submitterName": "submitter.fullName",
+    "conciergeName": "concierge.fullName",
+};
+
 module.exports = Object.freeze({
     // Data Submission Status
     NEW: 'New',
@@ -56,8 +73,9 @@ module.exports = Object.freeze({
         NAME_MAX_LENGTH: 25
     },
     COLLABORATOR_PERMISSIONS: {
-        CAN_EDIT: "Can Edit"
+        CAN_EDIT: "Can Edit",
+        NO_ACCESS: "No Access"
     },
-    UPLOADING_HEARTBEAT_CONFIG_TYPE: "UPLOADING_HEARTBEAT"
-
+    UPLOADING_HEARTBEAT_CONFIG_TYPE: "UPLOADING_HEARTBEAT",
+    SUBMISSION_ORDER_BY_MAP
 });

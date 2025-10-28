@@ -103,7 +103,7 @@ function removePrimaryContactProgram() {
                 conciergeID: "",
                 conciergeName: "",
                 conciergeEmail: "",
-                updatedAt: new Date()
+                updateAt: new Date()
             }
         }
     );

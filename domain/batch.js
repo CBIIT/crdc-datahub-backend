@@ -1,10 +1,9 @@
 const {getCurrentTime} = require("../crdc-datahub-database-drivers/utility/time-utility");
-const {v4, v5} = require("uuid");
+const {v5} = require("uuid");
 const {BATCH, FILE} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const DCF_PREFIX = "dg.4DFC";
 class Batch {
     constructor(submissionID, displayID, bucketName, filePrefix, type, status, submitterID, submitterName) {
-        this._id = v4();
         this.bucketName = bucketName;
         this.submissionID = submissionID;
         this.displayID = displayID;
@@ -25,15 +24,15 @@ class Batch {
     }
 
     addDataFile(name, url, studyID, isOmitPrefix){
-        const fileID = this.#generateDataFileUUID(name, url, studyID, isOmitPrefix);
-        this.#addFile(name, null, true, fileID);
+        const fileID = this._generateDataFileUUID(name, url, studyID, isOmitPrefix);
+        this._addFile(name, null, true, fileID);
     }
 
     addMetadataFile(name, signedURL){
-        this.#addFile(name, signedURL, false)
+        this._addFile(name, signedURL, false)
     }
 
-    #generateDataFileUUID(fileName, url, studyID, isOmitPrefix) {
+    _generateDataFileUUID(fileName, url, studyID, isOmitPrefix) {
         const urlUUID = v5(url, v5.URL, undefined, undefined);
         const studyUUID = v5(studyID, urlUUID, undefined, undefined);
         const fileNameUUID = `${v5(fileName, studyUUID, undefined, undefined)}`
@@ -41,7 +40,7 @@ class Batch {
     }
 
 
-    #addFile(name, signedURL, isDataFile, fileID) {
+    _addFile(name, signedURL, isDataFile, fileID) {
         const file = new BatchFile(name, signedURL, this.filePrefix, isDataFile, fileID);
         this.files.push(file);
         this.fileCount += 1;

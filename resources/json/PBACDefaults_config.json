@@ -1,7 +1,7 @@
 {
     "_id": "06e527d4-0040-48cd-a4a1-bd8d850ab828",
     "type": "PBAC",
-    "version": "2.0.0",
+    "version": "2.2.0",
     "Defaults": [
       {
         "role": "Federal Lead",
@@ -36,6 +36,7 @@
             "_id": "submission_request:submit:all",
             "group": "Submission Request Permissions",
             "name": "Submit",
+            "inherited": ["submission_request:view:all"],
             "order": 3,
             "checked": true,
             "disabled": false
@@ -44,6 +45,7 @@
             "_id": "submission_request:cancel:all",
             "group": "Submission Request Permissions",
             "name": "Cancel/Restore",
+            "inherited": ["submission_request:view:all"],
             "order": 5,
             "checked": false,
             "disabled": false
@@ -77,6 +79,7 @@
             "_id": "data_submission:cancel:study",
             "group": "Data Submission Permissions",
             "name": "Cancel",
+            "inherited": ["data_submission:view:study"],
             "order": 3,
             "checked": false,
             "disabled": false
@@ -94,6 +97,7 @@
             "_id": "data_submission:admin_submit:study",
             "group": "Data Submission Permissions",
             "name": "Admin Submit",
+            "inherited": ["data_submission:view:study"],
             "order": 5,
             "checked": false,
             "disabled": true
@@ -102,6 +106,7 @@
             "_id": "data_submission:confirm:study",
             "group": "Data Submission Permissions",
             "name": "Confirm",
+            "inherited": ["data_submission:view:study"],
             "order": 6,
             "checked": false,
             "disabled": false
@@ -173,10 +178,18 @@
             "disabled": false
           },
           {
+            "_id": "submission_request:pending_cleared",
+            "group": "Submission Request Emails",
+            "name": "When pending cleared",
+            "order": 4,
+            "checked": false,
+            "disabled": false
+          },
+          {
             "_id": "submission_request:canceled",
             "group": "Submission Request Emails",
             "name": "When canceled/restored",
-            "order": 4,
+            "order": 5,
             "checked": false,
             "disabled": false
           },
@@ -184,7 +197,7 @@
             "_id": "submission_request:deleted",
             "group": "Submission Request Emails",
             "name": "When deleted",
-            "order": 6,
+            "order": 7,
             "checked": false,
             "disabled": false
           },
@@ -192,7 +205,7 @@
             "_id": "submission_request:expiring",
             "group": "Submission Request Emails",
             "name": "When expiring",
-            "order": 5,
+            "order": 6,
             "checked": false,
             "disabled": false
           },
@@ -269,6 +282,22 @@
             "disabled": false
           },
           {
+            "_id": "data_submission:pv_requested",
+            "group": "Data Submission Emails",
+            "name": "When New PV requested",
+            "order": 10,
+            "checked": false,
+            "disabled": false
+          },
+          {
+            "_id": "data_submission:cfg_changed",
+            "group": "Data Submission Emails",
+            "name": "When config changed",
+            "order": 11,
+            "checked": false,
+            "disabled": false
+          },
+          {
             "_id": "access:requested",
             "group": "Miscellaneous",
             "name": "Request Access",
@@ -335,6 +364,7 @@
             "_id": "submission_request:submit:all",
             "group": "Submission Request Permissions",
             "name": "Submit",
+            "inherited": ["submission_request:view:all"],
             "order": 3,
             "checked": false,
             "disabled": false
@@ -343,6 +373,7 @@
             "_id": "submission_request:cancel:all",
             "group": "Submission Request Permissions",
             "name": "Cancel/Restore",
+            "inherited": ["submission_request:view:all"],
             "order": 5,
             "checked": false,
             "disabled": false
@@ -376,6 +407,7 @@
             "_id": "data_submission:cancel:DC",
             "group": "Data Submission Permissions",
             "name": "Cancel",
+            "inherited": ["data_submission:view:DC"],
             "order": 3,
             "checked": true,
             "disabled": false
@@ -393,6 +425,7 @@
             "_id": "data_submission:admin_submit:DC",
             "group": "Data Submission Permissions",
             "name": "Admin Submit",
+            "inherited": ["data_submission:view:DC"],
             "order": 5,
             "checked": true,
             "disabled": false
@@ -401,6 +434,7 @@
             "_id": "data_submission:confirm:DC",
             "group": "Data Submission Permissions",
             "name": "Confirm",
+            "inherited": ["data_submission:view:DC"],
             "order": 6,
             "checked": true,
             "disabled": false
@@ -473,10 +507,18 @@
             "disabled": false
           },
           {
+            "_id": "submission_request:pending_cleared",
+            "group": "Submission Request Emails",
+            "name": "When pending cleared",
+            "order": 4,
+            "checked": false,
+            "disabled": false
+          },
+          {
             "_id": "submission_request:canceled",
             "group": "Submission Request Emails",
             "name": "When canceled/restored",
-            "order": 4,
+            "order": 5,
             "checked": false,
             "disabled": false
           },
@@ -484,7 +526,7 @@
             "_id": "submission_request:deleted",
             "group": "Submission Request Emails",
             "name": "When deleted",
-            "order": 6,
+            "order": 7,
             "checked": false,
             "disabled": false
           },
@@ -492,7 +534,7 @@
             "_id": "submission_request:expiring",
             "group": "Submission Request Emails",
             "name": "When expiring",
-            "order": 5,
+            "order": 6,
             "checked": false,
             "disabled": false
           },
@@ -565,6 +607,22 @@
             "group": "Data Submission Emails",
             "name": "When deleted",
             "order": 9,
+            "checked": true,
+            "disabled": false
+          },
+          {
+            "_id": "data_submission:pv_requested",
+            "group": "Data Submission Emails",
+            "name": "When New PV requested",
+            "order": 10,
+            "checked": true,
+            "disabled": false
+          },
+          {
+            "_id": "data_submission:cfg_changed",
+            "group": "Data Submission Emails",
+            "name": "When config changed",
+            "order": 11,
             "checked": true,
             "disabled": false
           },
@@ -635,6 +693,7 @@
             "_id": "submission_request:submit:all",
             "group": "Submission Request Permissions",
             "name": "Submit",
+            "inherited": ["submission_request:view:all"],
             "order": 3,
             "checked": false,
             "disabled": false
@@ -643,6 +702,7 @@
             "_id": "submission_request:cancel:all",
             "group": "Submission Request Permissions",
             "name": "Cancel/Restore",
+            "inherited": ["submission_request:view:all"],
             "order": 5,
             "checked": false,
             "disabled": false
@@ -676,6 +736,7 @@
             "_id": "data_submission:cancel:all",
             "group": "Data Submission Permissions",
             "name": "Cancel",
+            "inherited": ["data_submission:view:all"],
             "order": 3,
             "checked": false,
             "disabled": false
@@ -693,6 +754,7 @@
             "_id": "data_submission:admin_submit:all",
             "group": "Data Submission Permissions",
             "name": "Admin Submit",
+            "inherited": ["data_submission:view:all"],
             "order": 5,
             "checked": true,
             "disabled": false
@@ -701,11 +763,11 @@
             "_id": "data_submission:confirm:all",
             "group": "Data Submission Permissions",
             "name": "Confirm",
+            "inherited": ["data_submission:view:all"],
             "order": 6,
             "checked": false,
             "disabled": false
           },
-          
           {
             "_id": "user:manage:all",
             "group": "Admin Permissions",
@@ -773,10 +835,18 @@
             "disabled": false
           },
           {
+            "_id": "submission_request:pending_cleared",
+            "group": "Submission Request Emails",
+            "name": "When pending cleared",
+            "order": 4,
+            "checked": false,
+            "disabled": false
+          },
+          {
             "_id": "submission_request:canceled",
             "group": "Submission Request Emails",
             "name": "When canceled/restored",
-            "order": 4,
+            "order": 5,
             "checked": false,
             "disabled": false
           },
@@ -784,7 +854,7 @@
             "_id": "submission_request:deleted",
             "group": "Submission Request Emails",
             "name": "When deleted",
-            "order": 6,
+            "order": 7,
             "checked": false,
             "disabled": false
           },
@@ -792,7 +862,7 @@
             "_id": "submission_request:expiring",
             "group": "Submission Request Emails",
             "name": "When expiring",
-            "order": 5,
+            "order": 6,
             "checked": false,
             "disabled": false
           },
@@ -869,6 +939,22 @@
             "disabled": false
           },
           {
+            "_id": "data_submission:pv_requested",
+            "group": "Data Submission Emails",
+            "name": "When New PV requested",
+            "order": 10,
+            "checked": false,
+            "disabled": false
+          },
+          {
+            "_id": "data_submission:cfg_changed",
+            "group": "Data Submission Emails",
+            "name": "When config changed",
+            "order": 11,
+            "checked": false,
+            "disabled": false
+          },
+          {
             "_id": "access:requested",
             "group": "Miscellaneous",
             "name": "Request Access",
@@ -935,6 +1021,7 @@
             "_id": "submission_request:submit:own",
             "group": "Submission Request Permissions",
             "name": "Submit",
+            "inherited": ["submission_request:view:own"],
             "order": 3,
             "checked": true,
             "disabled": true
@@ -943,6 +1030,7 @@
             "_id": "submission_request:cancel:own",
             "group": "Submission Request Permissions",
             "name": "Cancel/Restore",
+            "inherited": ["submission_request:view:own"],
             "order": 5,
             "checked": true,
             "disabled": true
@@ -993,6 +1081,7 @@
             "_id": "data_submission:admin_submit:none",
             "group": "Data Submission Permissions",
             "name": "Admin Submit",
+            "inherited": ["data_submission:view:study"],
             "order": 5,
             "checked": false,
             "disabled": true
@@ -1001,6 +1090,7 @@
             "_id": "data_submission:confirm:none",
             "group": "Data Submission Permissions",
             "name": "Confirm",
+            "inherited": ["data_submission:view:study"],
             "order": 6,
             "checked": false,
             "disabled": true
@@ -1073,10 +1163,18 @@
             "disabled": true
           },
           {
+            "_id": "submission_request:pending_cleared",
+            "group": "Submission Request Emails",
+            "name": "When pending cleared",
+            "order": 4,
+            "checked": true,
+            "disabled": true
+          },
+          {
             "_id": "submission_request:canceled",
             "group": "Submission Request Emails",
             "name": "When canceled/restored",
-            "order": 4,
+            "order": 5,
             "checked": true,
             "disabled": true
           },
@@ -1084,7 +1182,7 @@
             "_id": "submission_request:deleted",
             "group": "Submission Request Emails",
             "name": "When deleted",
-            "order": 6,
+            "order": 7,
             "checked": true,
             "disabled": true
           },
@@ -1092,7 +1190,7 @@
             "_id": "submission_request:expiring",
             "group": "Submission Request Emails",
             "name": "When expiring",
-            "order": 5,
+            "order": 6,
             "checked": true,
             "disabled": true
           },
@@ -1169,6 +1267,22 @@
             "disabled": true
           },
           {
+            "_id": "data_submission:pv_requested",
+            "group": "Data Submission Emails",
+            "name": "When New PV requested",
+            "order": 10,
+            "checked": false,
+            "disabled": true
+          },
+          {
+            "_id": "data_submission:cfg_changed",
+            "group": "Data Submission Emails",
+            "name": "When config changed",
+            "order": 11,
+            "checked": true,
+            "disabled": true
+          },
+          {
             "_id": "access:requested",
             "group": "Miscellaneous",
             "name": "Request Access",
@@ -1235,6 +1349,7 @@
             "_id": "submission_request:submit:own",
             "group": "Submission Request Permissions",
             "name": "Submit",
+            "inherited": ["submission_request:view:own"],
             "order": 3,
             "checked": true,
             "disabled": true
@@ -1243,6 +1358,7 @@
             "_id": "submission_request:cancel:own",
             "group": "Submission Request Permissions",
             "name": "Cancel/Restore",
+            "inherited": ["submission_request:view:own"],
             "order": 5,
             "checked": true,
             "disabled": true
@@ -1373,10 +1489,18 @@
             "disabled": true
           },
           {
+            "_id": "submission_request:pending_cleared",
+            "group": "Submission Request Emails",
+            "name": "When pending cleared",
+            "order": 4,
+            "checked": true,
+            "disabled": true
+          },
+          {
             "_id": "submission_request:canceled",
             "group": "Submission Request Emails",
             "name": "When canceled/restored",
-            "order": 4,
+            "order": 5,
             "checked": true,
             "disabled": true
           },
@@ -1384,7 +1508,7 @@
             "_id": "submission_request:deleted",
             "group": "Submission Request Emails",
             "name": "When deleted",
-            "order": 6,
+            "order": 7,
             "checked": true,
             "disabled": true
           },
@@ -1392,7 +1516,7 @@
             "_id": "submission_request:expiring",
             "group": "Submission Request Emails",
             "name": "When expiring",
-            "order": 5,
+            "order": 6,
             "checked": true,
             "disabled": true
           },
@@ -1465,6 +1589,22 @@
             "group": "Data Submission Emails",
             "name": "When deleted",
             "order": 9,
+            "checked": false,
+            "disabled": true
+          },
+          {
+            "_id": "data_submission:pv_requested",
+            "group": "Data Submission Emails",
+            "name": "When New PV requested",
+            "order": 10,
+            "checked": false,
+            "disabled": true
+          },
+          {
+            "_id": "data_submission:cfg_changed",
+            "group": "Data Submission Emails",
+            "name": "When config changed",
+            "order": 11,
             "checked": false,
             "disabled": true
           },

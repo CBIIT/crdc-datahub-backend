@@ -9,9 +9,9 @@ on:
       environment:
         description: Choose the environment to build
         type: environment
-#      code_branch:
-#        description: Branch to build validation
-#        required: false
+      branch:
+        description: Branch to build
+        required: true
       trivy_test_scan_be:
         description: "Run Trivy Test Scan"
         required: true
@@ -23,12 +23,18 @@ on:
         type: boolean
         default: true
 
+  pull_request:
+    types:
+      - closed
+    branches:
+      - "*.*.*"
 
 jobs:
   build-backend:
     name: Build backend image
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'build' }}
     env:
       ECR_REPO_BE: "crdc-hub-backend"
       REGION: "us-east-1"
@@ -36,6 +42,8 @@ jobs:
       AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      TRIVY_TEST_SCAN_BE: ${{ github.event.inputs.trivy_test_scan_be != '' && github.event.inputs.trivy_test_scan_be || 'true' }}
+      UNIT_TEST: ${{ github.event.inputs.unit_test != '' && github.event.inputs.unit_test || 'true' }}
 
     steps:
 
@@ -43,7 +51,8 @@ jobs:
         uses: actions/checkout@v4
         with:
 #          ref: ${{ env.CODE_BRANCH }}
-          ref: ${{ github.ref_name }}
+#          ref: ${{ github.ref_name }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.branch || github.event.pull_request.base.ref }}
 #          submodules: true
           submodules: recursive
           clean: true
@@ -52,9 +61,18 @@ jobs:
       - name: Extract branch name and set tag image
         id: extract_branch
         run: |
-          BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          #BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          # Determine branch name
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BRANCH_NAME="${{ github.event.inputs.branch }}"
+          else
+            BRANCH_NAME="${{ github.event.pull_request.base.ref }}"
+          fi
+          
           echo "branch=$BRANCH_NAME" >> "$GITHUB_ENV"
           echo "Current branch is: $BRANCH_NAME"
+
+          # fetch tags and determine next build number
           git fetch --tags --force --quiet
           #tag=$(git tag -l $BRANCH_NAME* | tail -1)
           tag=$(git tag -l $BRANCH_NAME* | sort -V | tail -1)
@@ -72,10 +90,11 @@ jobs:
       
       - name: Run Unit Test
         id: unit-test
-        if: github.event.inputs.unit_test == 'true'
+        if: github.event_name == 'pull_request' && github.event.pull_request.merged == true || (github.event_name == 'workflow_dispatch' && inputs.unit_test == 'true')
         run: |
           echo "Running unit tests..."
           npm ci
+          npx prisma generate
           npm test
         
 
@@ -91,7 +110,7 @@ jobs:
 
       - name: Run Trivy test scan for BE Docker Image
         id: trivy-scan-be
-        if: github.event.inputs.trivy_test_scan_be == 'true'
+        if: github.event_name == 'pull_request' && github.event.pull_request.merged == true || (github.event_name == 'workflow_dispatch' && inputs.trivy_test_scan_be == 'true')
         env:
           REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
           BE_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_BE }}:${{ env.IMAGE_TAG }}

@@ -1,0 +1,221 @@
+Commands:
+  - Select database:
+      For DEV2 or QA2: |
+        use crdc-datahub2
+      For all other tiers: |
+        use crdc-datahub
+  - create the lookup table for the dataCommons display names into dataCommons collection CRDCDH-2809:  |
+        db.dataCommons.insertOne({
+          "_id": "4245e09e-52eb-42b6-85e9-a3a23539994f",
+          "dataCommons": "CDS",
+          "dataCommonsDisplayName": "GC"
+        });
+  - Set the default value of pendingModelChange to false in all approved studies CRDCDH-2926: |
+        db.approvedStudies.updateMany(
+          { pendingModelChange: { $exists: false } },
+          { $set: { pendingModelChange: false } }
+        );
+  - create a collection called pendingPVs CRDCDH-2974: |
+        db.createCollection("pendingPvs");:
+  - add the data_submission:pv_requested email notification to the data commons personnel CRDCDH-2930: |
+        db.users.updateMany(
+          {
+            role: {$in: ["Data Commons Personnel"]},
+          },
+          {
+            $addToSet: { notifications: "data_submission:pv_requested" }
+          }
+        );
+  - remove empty organization from the user & add the default notification for clearing pending state CRDCDH-2967: |
+        db.users.updateMany(
+          { organization: { $type: "object", $eq: {} } },
+          { $unset: { organization: "" } }
+        );
+      
+        db.applications.updateMany(
+        {
+          $or: [
+            { organization: { $type: "object", $eq: {} } },
+            { "organization._id": null }
+          ]
+        },
+        { $unset: { organization: "" } }
+        );
+      
+        db.users.updateMany(
+          {
+            role: {$in: ["User", "Submitter"]},
+          },
+          {
+            $addToSet: { notifications: "submission_request:pending_cleared" }
+          }
+        );
+  - migration user institution id CRDCDH-2852: |     
+      db.institutions.updateMany(
+        {
+          $or: [
+            { status: { $exists: false } },
+            { status: { $nin: ["Active", "Inactive"] } }
+          ]
+        },
+        {
+          $set: { status: "Active" }
+        }
+      )
+  - migration script programID: |
+      db.submissions.updateMany(
+        {},
+        [
+          {
+            $set: {
+              programID: {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $ne: ["$organization._id", null] },
+                      { $ne: ["$organization._id", undefined] }
+                    ]
+                  },
+                  then: "$organization._id",
+                  else: "$$REMOVE"
+                }
+              }
+            }
+          }
+        ]
+      )
+      // reviewComment is stored array causing the prisma scheme issue.
+      db.submissions.updateMany(
+        {
+          $or: [
+            { reviewComment: { $exists: true } },
+            { reviewComment: { $type: "array" } }
+          ]
+        },
+        [
+          {
+            $set: {
+              reviewComment: {
+                $cond: [
+                  { $or: [
+                    { $eq: [{ $type: "$reviewComment" }, "array"] },
+                    { $not: ["$reviewComment"] }
+                  ]},
+                  "",
+                  "$reviewComment"
+                ]
+              }
+            }
+          }
+        ]
+      );
+  - add the OMB message to the configuration collection CRDCDH-3008: |
+      db.configuration.updateOne(
+        { type: "OMB_INFO" },
+        {
+          $set: {
+            OMBInfo: [
+              "Collection of this information is authorized by The Public Health Service Act, Section 411 (42 USC 285a). Rights of participants are protected by The Privacy Act of 1974. Participation is voluntary, and there are no penalties for not participating or withdrawing at any time. Refusal to participate will not affect your benefits in any way. The information collected will be kept private to the extent provided by law. Names and other identifiers will not appear in any report. Information provided will be combined for all participants and reported as summaries. You are being contacted online to complete this form so that NCI can consider your study for submission into the Cancer Research Data Commons.",
+              "Public reporting burden for this collection of information is estimated to average 60 minutes per response, including the time for reviewing instructions, searching existing data sources, gathering and maintaining the data needed, and completing and reviewing the collection of information. An agency may not conduct or sponsor, and a person is not required to respond to, a collection of information unless it displays a currently valid OMB control number. Send comments regarding this burden estimate or any other aspect of this collection of information, including suggestions for reducing this burden to: NIH, Project Clearance Branch, 6705 Rockledge Drive, MSC 7974, Bethesda, MD 20892-7974, ATTN: PRA (0925-7775). Do not return the completed form to this address."
+            ],
+            OMBNumber: "0925-7775",
+            expirationDate: {
+              "$date": "2025-06-30T00:00:00.000Z"
+            },
+            type: "OMB_INFO"
+          }
+        },
+        { upsert: true }
+      );
+
+  - add the default email notification configuration change CRDCDH-3032: |
+      db.users.updateMany(
+        {
+          role: {$in: ["Data Commons Personnel", "Submitter"]},
+        },
+        {
+          $addToSet: { notifications: "data_submission:cfg_changed" }
+        }
+      );
+  - remove all submitter info from application collection for CRDCDH-3059: |      
+      db.applications.updateMany(
+      { 
+        "applicant.applicantID": { $exists: true },   // only where nested applicantID exists
+        "applicantID": { $exists: false }             // AND root applicantID doesn't exist
+      },
+      [
+        {
+          $set: {
+            applicantID: "$applicant.applicantID" // move to root
+          }
+        },
+        {
+          $unset: "applicant" // optional: remove from nested applicant
+        }
+      ]
+      );
+  - add all inactive data submission/submission request flags if not existing: |
+      db.applications.updateMany(
+      {},
+      [
+        {
+          $set: {
+            inactiveReminder: { $ifNull: ["$inactiveReminder", false] },
+            inactiveReminder_7: { $ifNull: ["$inactiveReminder_7", false] },
+            inactiveReminder_15: { $ifNull: ["$inactiveReminder_15", false] },
+            inactiveReminder_30: { $ifNull: ["$inactiveReminder_30", false] },
+            finalInactiveReminder: { $ifNull: ["$finalInactiveReminder", false] }
+          }
+        }
+      ]
+      );
+  - add studyName field to applications if it does not exist: |
+      db.applications.updateMany(
+        { studyName: { $exists: false } },
+        { $set: { studyName: "" } }
+      );
+      
+      db.submissions.updateMany(
+      {},
+      [
+        {
+          $set: {
+            inactiveReminder_7: { $ifNull: ["$inactiveReminder_7", false] },
+            inactiveReminder_30: { $ifNull: ["$inactiveReminder_30", false] },
+            inactiveReminder_60: { $ifNull: ["$inactiveReminder_60", false] },
+            finalInactiveReminder: { $ifNull: ["$finalInactiveReminder", false] }
+          }
+        }
+      ]
+      );
+  - Setting the string type to date time type on QA2: |
+      db.users.updateMany(
+        { createdAt: { $type: "string" } },
+        [
+          { $set: { createdAt: { $toDate: "$createdAt" } } }
+        ]
+      );
+      db.users.updateMany(
+        { updateAt: { $type: "string" } },
+        [
+          { $set: { updateAt: { $toDate: "$updateAt" } } }
+        ]
+      );
+
+  - remove empty collaborators for CRDCDH-3210: |
+      db.submissions.updateMany(
+        { "collaborators.Organization": {$exists: true} },
+        { $unset: { "collaborators.$[].Organization": "" } }
+      );
+      
+      db.users.updateMany(
+        { "organization": { $exists: true} },
+        { $unset: { "organization": "" } }
+      );
+  - program collection has a type property for updatedAt: |
+      db.organization.updateMany({updatedAt: {$exists: true}}, { $unset: { updatedAt: "" } })
+  - submitter role should have data_submission:cfg_changed by default: |
+      db.users.updateMany(
+        { role: "Submitter" },
+        {$addToSet: { notifications: "data_submission:cfg_changed" }}
+      );

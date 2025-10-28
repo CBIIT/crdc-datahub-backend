@@ -45,11 +45,13 @@ function readJsonFile2Object(filePath) {
  */
 async function zipFilesInDir(dirPath, zipFilePath) {
     const output = fs.createWriteStream(zipFilePath);
+    if (!output) return false;
     const archive = archiver('zip', { zlib: { level: 9 } });
     archive.pipe(output);
     // Add all files in the temp folder to the zip archive
     archive.directory(dirPath, false);
     await archive.finalize();
+    return true
 }
 /**
  * makeDir
@@ -61,12 +63,47 @@ function makeDir(dirPath) {
     }
 }
 
+/**
+ * Convert an array of objects to a TSV (Tab-Separated Values) string and write it to a file.
+ * @param {Array} data - An array of objects to be converted to TSV.
+ * @param {string} filename - The name of the output file.
+ * @throws {Error} If the input is not an array or is empty.
+ */
+function arrayOfObjectsToTSV(array, filename, columns = null) {
+  if (!Array.isArray(array) || array.length === 0) {
+    console.error('Input must be a non-empty array');
+    return;
+  }
+
+  // Extract headers from the first object
+  const headers = columns || Object.keys(array[0]);
+  // Create a string for the headers
+  const headerString = headers.join('\t') + '\n';
+
+  // Create an array to hold the data rows
+  const dataRows = array.map(obj => {
+    return headers.map(header => {
+      // Handle potential null or undefined values
+      return obj[header] !== null && obj[header] !== undefined ? obj[header].toString() : '';
+    }).join('\t');
+  }).join('\n');
+
+  // Combine headers and data rows
+  const tsvString = headerString + dataRows;
+
+  // Write the TSV string to a file
+  fs.writeFileSync(filename, tsvString, 'utf8');
+
+  console.log(`Data has been written to ${filename}`);
+}
+
 module.exports = {
     readFile2Text,
     write2file, 
     writeObject2JsonFile,
     readJsonFile2Object,
     zipFilesInDir,
-    makeDir
+    makeDir,
+    arrayOfObjectsToTSV
 }
 

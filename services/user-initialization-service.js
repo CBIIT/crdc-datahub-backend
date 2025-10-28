@@ -4,7 +4,8 @@ const orgToUserOrg = require("../crdc-datahub-database-drivers/utility/org-to-us
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {v4} = require("uuid");
 const {getDataCommonsDisplayNamesForUser} = require("../utility/data-commons-remapper");
-
+const { isAllStudy } = require("../utility/study-utility");
+const {formatName} = require("../utility/format-name");
 class UserInitializationService {
 
     constructor(userCollection, organizationCollection, approvedStudiesCollection, configurationService) {
@@ -25,15 +26,15 @@ class UserInitializationService {
             // required user information is missing from userInfo
             throw new Error(ERROR.NOT_LOGGED_IN)
         }
-        let user = await this.#getUserByEmailAndIDP(email, IDP);
+        let user = await this._getUserByEmailAndIDP(email, IDP);
         let orgID = user?.organization?.orgID;
         if (!user){
             // create an account for the user
-            user = await this.#createNewUser(userInfo);
+            user = await this._createNewUser(userInfo);
         }
         if(orgID){
             // add full organization info to user info
-            user.organization = await this.#getUserOrganization(orgID);
+            user.organization = await this._getUserOrganization(orgID);
         }
 
         const isMaintenanceMode = await this.configurationService.isMaintenanceMode();
@@ -45,7 +46,7 @@ class UserInitializationService {
         return user;
     }
 
-    async #getUserOrganization(orgID){
+    async _getUserOrganization(orgID){
         let result = await this.organizationCollection.find(orgID);
         if (!result) {
             console.error("Organization lookup by orgID failed");
@@ -58,7 +59,7 @@ class UserInitializationService {
         return orgToUserOrg(result[0]);
     }
 
-    async #getUserByEmailAndIDP(email, IDP) {
+    async _getUserByEmailAndIDP(email, IDP) {
         let result = await this.userCollection.aggregate([
             {
                 "$match": {
@@ -78,7 +79,7 @@ class UserInitializationService {
         }
         if ( result[0]?.studies && result[0]?.studies.length > 0) {
             let approvedStudies = null;
-            const allStudy = (result[0]?.studies[0] instanceof Object) ? result[0]?.studies.find(study=>study._id === "All"): result[0]?.studies.find(study=>study=== "All");
+            const allStudy = isAllStudy(result[0]?.studies);
             if(allStudy){
                 approvedStudies = [{_id: "All", studyName: "All"}];
                 result[0].studies = approvedStudies;
@@ -96,7 +97,7 @@ class UserInitializationService {
         return result.length > 0 ? result[0] : null;
     }
 
-    async #createNewUser(userInfo) {
+    async _createNewUser(userInfo) {
         const email = userInfo?.email;
         const IDP = userInfo?.IDP;
         if (!email || !IDP){
@@ -105,6 +106,8 @@ class UserInitializationService {
         }
         let sessionCurrentTime = getCurrentTime();
         const accessControl = await this.configurationService.getAccessControl(USER.ROLES.USER);
+        const firstName = userInfo?.firstName || email.split("@")[0];
+        const lastName = userInfo?.lastName;
         const newUser = {
             _id: v4(),
             email: email,
@@ -113,8 +116,9 @@ class UserInitializationService {
             role: USER.ROLES.USER,
             organization: {},
             dataCommons: [],
-            firstName: userInfo?.firstName || email.split("@")[0],
-            lastName: userInfo?.lastName,
+            firstName: firstName,
+            lastName: lastName,
+            fullName: formatName({firstName, lastName}),
             createdAt: sessionCurrentTime,
             updateAt: sessionCurrentTime,
             permissions: accessControl?.permissions?.permitted,

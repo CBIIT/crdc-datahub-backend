@@ -1,6 +1,6 @@
 const SCOPES = require("../constants/permission-scope-constants");
 class UserScope {
-    #ALL_STUDIES = "All";
+    _ALL_STUDIES = "All";
     constructor(validScopes) {
         this.scopes = validScopes || [];
     }
@@ -35,15 +35,15 @@ class UserScope {
     }
 
     isRoleScope() {
-        return this.scopes?.some(scope => scope?.scope === SCOPES.ROLE);
+        return this.scopes?.some(scope => scope?.scope === SCOPES.ROLE || scope === SCOPES.ROLE);
     }
 
     isOwnScope() {
-        return this.scopes?.some(scope => scope?.scope === SCOPES.OWN);
+        return this.scopes?.some(scope => scope?.scope === SCOPES.OWN || scope === SCOPES.OWN);
     }
 
     isAllScope() {
-        return this.scopes?.some(scope => scope?.scope === SCOPES.ALL);
+        return this.scopes?.some(scope => scope?.scope === SCOPES.ALL || scope === SCOPES.ALL);
     }
 
     isNoneScope() {
@@ -55,7 +55,7 @@ class UserScope {
     }
 
     hasStudyValue(studyID) {
-        return this.scopes?.some(scope => scope?.scope === SCOPES.STUDY && (scope?.scopeValues.includes(studyID) || scope?.scopeValues?.includes(this.#ALL_STUDIES)));
+        return this.scopes?.some(scope => scope?.scope === SCOPES.STUDY && (scope?.scopeValues.includes(studyID) || scope?.scopeValues?.includes(this._ALL_STUDIES)));
     }
 
     isDCScope() {
@@ -65,7 +65,19 @@ class UserScope {
     hasDCValue(dataCommons) {
         return this.scopes?.some(scope => scope?.scope === SCOPES.DC && scope?.scopeValues.includes(dataCommons));
     }
-
+    /**
+    * @param {string} studyID - optional studyID to check access.
+    * @returns {boolean} True if the user has access to all studies or the specific study, false otherwise.
+     * */
+    hasAccessToStudy(studyID = null) {
+        if (!this.isStudyScope()) {
+            return false;
+        }
+        const studyScope = this.getStudyScope();
+        const scopeValues = studyScope?.scopeValues || []
+        const hasAllStudy = scopeValues.includes(this._ALL_STUDIES);
+        return hasAllStudy || (Boolean(studyID) && scopeValues.includes(studyID));
+    }
 }
 
 module.exports = {

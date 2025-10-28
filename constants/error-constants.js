@@ -46,6 +46,7 @@ const ERROR = {
     INVALID_BATCH_PERMISSION: "You do not have permission to run a batch operation",
     SUBMISSION_NOT_EXIST: "The submission you are trying to access does not exist",
     INVALID_STATUS_EDIT_COLLABORATOR: "Submission status is invalid to edit collaborator; $item$",
+    INVALID_ACCESS_EDIT_COLLABORATOR: "Collaborator access is invalid to edit collaborator; $item$",
     BATCH_NOT_EXIST: "The batch you are trying to access does not exist",
     INVALID_UPDATE_BATCH_STATUS: "The batch update is aborted because the current batch status is not suitable for modification",
     FAILED_BATCH_UPDATE: "An error occurred while updating a batch",
@@ -58,6 +59,7 @@ const ERROR = {
     ORGANIZATION_APPROVED_STUDIES_INSERTION: "An error occurred while attempting to insert the approved studies for the organization into the database.",
     FAILED_STORE_APPROVED_STUDIES: "The approved studies are not being stored because the questionnaire data string is not correctly parsed",
     DUPLICATE_APPROVED_STUDY_NAME: "This is a duplicate study name. The $item$ study already exists in the system.",
+    DUPLICATE_PROGRAM_NAME: "This is a duplicate program name. The $item$ program already exists in the system.",
     // Submission Permission
     INVALID_SUBMISSION_STATUS: "The batch creation is aborted because the current submission is not in the valid state to be created.",
     // Create Submission
@@ -70,13 +72,18 @@ const ERROR = {
     UPDATE_SUBMISSION_ERROR:"An error occurred while attempting to update the submission in the database",
     CREATE_SUBMISSION_INVALID_DATA_COMMONS: "Requested data commons $item$ is not supported",
     CREATE_SUBMISSION_NO_MATCHING_STUDY: "The study provided does not match an approved study within the user's studies",
+    CREATE_SUBMISSION_NO_ASSOCIATED_PROGRAM: "The study is not associated with any program. Please contact your data concierge to resolve this issue.",
     MISSING_CREATE_SUBMISSION_DBGAPID: "dbGapID is required for controlled-access studies.",
+    MISSING_CREATE_SUBMISSION_PENDING_GPA: "Submission cannot be created while GPA approval is pending for this controlled-access study.",
+    PENDING_APPROVED_STUDY: "The Data Commons team is reviewing this study for potential data model changes. Data submissions cannot be created until any required model updates are released.",
+    PENDING_APPROVED_STUDY_NO_GPA_INFO: "Data submissions cannot be created until the required GPA updates are provided.",
     // List Submissions
     LIST_SUBMISSION_INVALID_STATUS_FILTER: "The status filter is invalid",
     INVALID_SUBMISSION_PERMISSION: "You do not have the correct permissions to list submissions",
     INVALID_STATS_SUBMISSION_PERMISSION: "You do not have permission to see the submission stats.",
     INVALID_ROLE: "You do not have the correct role to perform this operation",
     INVALID_PERMISSION: "You do not have permission to view this application",
+    NULL_FILTER_CONDITIONS: "The filter conditions were not properly initialized, please see logs for more information",
     // Submission Notification
     NO_SUBMISSION_RECEIVER: "Submission is unable to send an email notification",
     // Validate Submission
@@ -99,8 +106,19 @@ const ERROR = {
     MISSING_SUBMISSION_FILE_ERRORS: "The file errors property is missing from the submission",
     INVALID_MODEL_VERSION: "The provided model version was not found in the data-commons: $item$",
     INVALID_SUBMISSION_STATUS_MODEL_VERSION: "Invalid submission status to update the model-version: $item$",
+    INVALID_SUBMISSION_NO_SUBMITTER: "The $item$ submitter ID does not exist in the system.",
+    INVALID_SUBMISSION_INVALID_SUBMITTER: "The $item$ submitter ID is not submitter role or inactive status or does not have the required permission, please re-assign another submitter",
+    INVALID_SUBMISSION_INVALID_SUBMITTER_STUDY: "The $item$ submitter does not have access to the study in this submission, please re-assign another submitter",
+    FAILED_TO_REQUEST_PV: "Failed to send notification for PV request; $item$",
+    FAILED_TO_INSERT_REQUEST_PV: "Failed to insert PV request; $item$",
+    DUPLICATE_REQUEST_PV: "Duplicate PV found: $item$",
+    EMPTY_NODE_REQUEST_PV: "node name can not be empty when requesting PV.",
+    EMPTY_PROPERTY_REQUEST_PV: "property can not be empty when requesting PV.",
+    EMPTY_PV_REQUEST_PV: "permission value(PV) can not be empty when requesting PV.",
+    NO_RECIPIENT_PV_REQUEST: "No Data Commons personnel found or no PBAC PV request notification is enabled. The PV request email cannot be sent.",
     INVALID_MODEL_VERSION_PERMISSION: "You do not have the correct permissions to update the model-version",
     FAILED_UPDATE_MODEL_VERSION: "Failed to update the model-version for the submission.",
+    FAILED_UPDATE_SUBMISSION: "Failed to update the submission",
     FAILED_RESET_SUBMISSION: "Failed to update the submission with the new status during model-version update.",
     FAILED_RESET_DATA_RECORDS: "Failed to update the data records with the new status during model-version update.",
     FAILED_RESET_QC_RESULT: "Failed to delete the qc-result data during model-version update.",
@@ -143,7 +161,7 @@ const ERROR = {
     // Initialization
     CREATE_USER_MISSING_INFO: "Email and IDP are required to create a new user.",
     CREATE_USER_ORG_MISSING_INFO: "Organization ID is required to initialize the user's organization information.",
-    INVALID_ROLE_STUDY: "User does not have access to the study.",
+    INVALID_STUDY_ACCESS: "User does not have access to the study.",
     // Submission Stats
     MISSING_DATA_FILE: {
         TITLE: "Data file not found",
@@ -158,7 +176,11 @@ const ERROR = {
     FAILED_APPROVED_STUDY_INSERTION: "Failed to create the approved study.",
     FAILED_APPROVED_STUDY_UPDATE: "Failed to update the approved study.",
     FAILED_PRIMARY_CONTACT_UPDATE: "Failed to update the data concierge in the approved study.",
+    INVALID_PENDING_GPA: "Invalid pending GPA is requested.",
+    FAILED_TO_NOTIFY_CLEAR_PENDING_STATE: "Failed to send notification for clearing the approved study; $item$",
     APPROVED_STUDY_NOT_FOUND: "Approved study not found.",
+    OMB_NOT_FOUND: "OMB information not found.",
+    APPLICATION_FORM_VERSIONS_NOT_FOUND: "APPLICATION_FORM_VERSIONS not found",
     EXISTING_SUBMISSION_COLLABORATOR: "The collaborator exists in the submission already.",
     COLLABORATOR_NOT_EXIST: "collaborator does not exist",
     INVALID_COLLABORATOR_ROLE_SUBMITTER: "Invalid collaborator role for the submitter",
@@ -212,16 +234,31 @@ const ERROR = {
     INVALID_INSTITUTION_STATUS: "Requested status $item$ is not valid.",
     FAILED_UPDATE_INSTITUTION: "Failed to update the institution",
     FAILED_UPDATE_USER_INSTITUTION: "Failed to update the institution in the user document",
+    DUPLICATE_INSTITUTION_ID: "This new institution ID already exists. Please enter a different ID.",
     DUPLICATE_INSTITUTION_NAME: "This institution name already exists. Please enter a different name.",
     FAILED_CREATE_INSTITUTION: "Failed to create a new institution",
     MAX_INSTITUTION_NAME_LIMIT: "Institution name cannot exceed 100 characters.",
+    MAX_SUBMISSION_NAME_LIMIT: "Submission name cannot exceed 100 characters.",
+    EMPTY_SUBMISSION_NAME: "Submission name cannot be empty.",
+    DUPLICATE_STUDY_SUBMISSION_NAME: "A submission with this name already exists for this study. Please choose a different submission name then try again.",
+    FAILED_UPDATE_SUBMISSION_NAME: "Failed to update the submission name",
+    FAILED_NOTIFY_SUBMISSION_UPDATE: "Failed to notify the configuration update",
     // Get Permission Scopes
     INVALID_PERMISSION_STRING: "Failed to parse the permission string, the provided permission is either null or not a string.",
     // User Scope
     INVALID_USER_SCOPE: "Invalid user scope permission is requested",
     INVALID_SCOPE_VALUES: "You have the required permission $item$, but no values are assigned to it.",
     // Maintenance Mode
-    MAINTENANCE_MODE: "The CRDC Submission Portal site is currently undergoing scheduled maintenance. Please check back soon. We appreciate your patience."
+    MAINTENANCE_MODE: "The CRDC Submission Portal site is currently undergoing scheduled maintenance. Please check back soon. We appreciate your patience.",
+    PARTICIPANT_NOT_FOUND: "Both participant and sample data are required for dbGaP loading sheets. This Data Submission has no [sample OR participant] records uploaded. Unable to generate the dbGaP loading sheets at this time.",
+    SAMPLE_NOT_FOUND: "Both participant and sample data are required for dbGaP loading sheets. This Data Submission has no [sample OR participant] records uploaded. Unable to generate the dbGaP loading sheets at this time.",
+    PARTICIPANT_SAMPLE_NOT_FOUND: "This Data Submission currently has no sample records with a link to a participant record. Unable to generate the dbGaP loading sheets at this time.",
+    FAILED_CREATE_LOAD_SHEET: "An unknown error occurred while generating the dbGaP Loading Sheets. Please try again later.",
+    USER_NOT_EXIST: "The user does not exist.",
+    NOT_SUPPORTED_DATA_COMMONS_FOR_LOAD_SHEET: "The current data commons is not supported for generating dbGaP Loading Sheets.",
+    FAILED_DOWNLOAD_ALL_RELEASED_NODES: "Failed to download all released nodes",
+    STUDY_NOT_EXIST: "The requested study does not exist.",
+    INTERNAL_ERROR: "An internal error occurred, please ask the Admins to check the logs for more information",
 }
 
 module.exports = ERROR;

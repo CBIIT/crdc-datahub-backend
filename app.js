@@ -11,7 +11,7 @@ const statusRouter = require("./routers/status-endpoints-router");
 const graphqlRouter = require("./routers/graphql-router");
 const {MongoDBCollection} = require("./crdc-datahub-database-drivers/mongodb-collection");
 const {DATABASE_NAME, APPLICATION_COLLECTION, USER_COLLECTION, LOG_COLLECTION, APPROVED_STUDIES_COLLECTION,
-    ORGANIZATION_COLLECTION, SUBMISSIONS_COLLECTION, BATCH_COLLECTION, DATA_RECORDS_COLLECTION, VALIDATION_COLLECTION,
+    ORGANIZATION_COLLECTION, SUBMISSIONS_COLLECTION, DATA_RECORDS_COLLECTION, VALIDATION_COLLECTION,
     DATA_RECORDS_ARCHIVE_COLLECTION, QC_RESULTS_COLLECTION, RELEASE_DATA_RECORDS_COLLECTION,  CONFIGURATION_COLLECTION
 } = require("./crdc-datahub-database-drivers/database-constants");
 const {Application} = require("./services/application");
@@ -100,9 +100,15 @@ app.use("/api/graphql", graphqlRouter);
 
         const userService = new UserService(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, approvedStudiesService, config.inactive_user_days);
         const s3Service = new S3Service();
-        const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
+
         const awsService = new AWSService(submissionCollection, userService, config.role_arn, config.presign_expiration);
-        const batchService = new BatchService(s3Service, batchCollection, config.sqs_loader_queue, awsService);
+        
+        const utilityService = new UtilityService();
+        const fetchDataModelInfo = async () => {
+            return utilityService.fetchJsonFromUrl(config.model_url)
+        };
+        
+        const batchService = new BatchService(s3Service, config.sqs_loader_queue, awsService, config.prod_url, fetchDataModelInfo);
 
         const qcResultCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, QC_RESULTS_COLLECTION);
         const qcResultsService = new QcResultService(qcResultCollection, submissionCollection);
@@ -112,34 +118,188 @@ app.use("/api/graphql", graphqlRouter);
         const dataRecordArchiveCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_ARCHIVE_COLLECTION);
         const dataRecordService = new DataRecordService(dataRecordCollection, dataRecordArchiveCollection, releaseCollection, config.file_queue, config.metadata_queue, awsService, s3Service, qcResultsService, config.export_queue);
 
-        const utilityService = new UtilityService();
-        const fetchDataModelInfo = async () => {
-            return utilityService.fetchJsonFromUrl(config.model_url)
-        };
         const validationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, VALIDATION_COLLECTION);
         const submissionService = new Submission(logCollection, submissionCollection, batchService, userService,
             organizationService, notificationsService, dataRecordService, fetchDataModelInfo, awsService, config.export_queue,
             s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService, 
             config.uploaderCLIConfigs, config.submission_bucket, configurationService);
 
-        const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, emailParams);
+        const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, null, configurationService, null);
+        
+        
         cronJob.schedule(config.scheduledJobTime, async () => {
-            // The delete application job should run before the inactive application reminder. Once the application deleted, the reminder email should not be sent.
-            console.log("Running a scheduled background task to delete inactive application at " + getCurrentTime());
-            await dataInterface.deleteInactiveApplications();
-            console.log("Running a scheduled background task to remind inactive application at " + getCurrentTime());
-            await dataInterface.remindApplicationSubmission();
-            console.log("Running a scheduled job to disable user(s) because of no activities at " + getCurrentTime());
-            await runDeactivateInactiveUsers(userService, notificationsService, config.inactive_user_days, emailParams);
-            // The delete data-submission job should run before the inactive data-submission reminder. Once the submission deleted, the reminder email should not be sent.
-            console.log("Running a scheduled job to delete inactive data submission and related data ann files at " + getCurrentTime());
-            await submissionService.deleteInactiveSubmissions();
-            console.log("Running a scheduled background task to remind inactive submission at " + getCurrentTime());
-            await submissionService.remindInactiveSubmission();
-            console.log("Running a scheduled job to archive completed submissions at " + getCurrentTime());
-            await submissionService.archiveCompletedSubmissions();
-            console.log("Running a scheduled job to purge deleted data files at " + getCurrentTime());
-            await submissionService.purgeDeletedDataFiles();
+            // Log the start time of the cron job
+            const cronStartTime = getCurrentTime();
+            console.log(`Starting scheduled tasks at ${cronStartTime}`);
+            
+            // Timeout constants
+            const FIVE_MINUTE_TIMEOUT = 5 * 60 * 1000;
+            
+            
+            // Sequential tasks - all tasks run one after another
+            const tasks = [
+                {
+                    name: "deleteInactiveApplications",
+                    description: "Delete inactive submission requests",
+                    timeout: FIVE_MINUTE_TIMEOUT,
+                    fn: () => dataInterface.deleteInactiveApplications(),
+                    dependencies: [] // No dependencies
+                },
+                {
+                    name: "runDeactivateInactiveUsers",
+                    description: "Disable inactive users", 
+                    timeout: FIVE_MINUTE_TIMEOUT,
+                    fn: () => runDeactivateInactiveUsers(userService, notificationsService, config.inactive_user_days, emailParams),
+                    dependencies: [] // No dependencies
+                },
+                {
+                    name: "deleteInactiveSubmissions",
+                    description: "Delete inactive submissions then delete any orphaned data and files",
+                    timeout: FIVE_MINUTE_TIMEOUT,
+                    fn: () => submissionService.deleteInactiveSubmissions(),
+                    dependencies: [] // No dependencies
+                },
+                {
+                    name: "remindApplicationSubmission", 
+                    description: "Send reminder email for inactive submission requests",
+                    timeout: FIVE_MINUTE_TIMEOUT,
+                    fn: () => dataInterface.remindApplicationSubmission(),
+                    dependencies: ["deleteInactiveApplications"] // Don't remind about deleted applications
+                },
+                {
+                    name: "remindInactiveSubmission",
+                    description: "Send reminder email for inactive submissions",
+                    timeout: FIVE_MINUTE_TIMEOUT,
+                    fn: () => submissionService.remindInactiveSubmission(),
+                    dependencies: ["deleteInactiveSubmissions"] // Don't remind about deleted submissions
+                },
+                {
+                    name: "archiveSubmissions",
+                    description: "Archive completed submissions",
+                    timeout: FIVE_MINUTE_TIMEOUT,
+                    fn: () => submissionService.archiveSubmissions(),
+                    dependencies: [] // No dependencies
+                },
+                {
+                    name: "purgeDeletedDataFiles",
+                    description: "Purge deleted data files from S3",
+                    timeout: FIVE_MINUTE_TIMEOUT,
+                    fn: () => submissionService.purgeDeletedDataFiles(),
+                    dependencies: [] // No dependencies
+                }
+            ];
+
+            const results = [];
+            let totalExecutionTime = 0;
+
+            // Execute tasks sequentially, one after another
+            for (let taskIndex = 0; taskIndex < tasks.length; taskIndex++) {
+                const task = tasks[taskIndex];
+                console.log(`Executing Task ${taskIndex + 1}/${tasks.length}: ${task.description}`);
+                
+                const taskStartTime = getCurrentTime();
+                
+                // Check if any dependencies failed or were skipped
+                const incompleteDependencies = task.dependencies.filter(depName => {
+                    const depResult = results.find(r => r.name === depName);
+                    return depResult && (depResult.status === 'failed' || depResult.status === 'skipped');
+                });
+                
+                if (incompleteDependencies.length > 0) {
+                    console.log(`Skipping ${task.description} - dependency failed or skipped: ${incompleteDependencies.join(', ')}`);
+                    
+                    const result = {
+                        name: task.name,
+                        status: 'skipped',
+                        duration: 0,
+                        startTime: taskStartTime,
+                        endTime: taskStartTime,
+                        error: `Dependency failed or skipped: ${incompleteDependencies.join(', ')}`,
+                        taskNumber: taskIndex + 1
+                    };
+                    
+                    results.push(result);
+                    continue;
+                }
+                
+                
+                console.log(`Running scheduled task: ${task.description} at ${taskStartTime}`);
+                
+                try {
+                    // Create timeout promise
+                    const timeoutPromise = new Promise((_, reject) => {
+                        setTimeout(() => {
+                            reject(new Error(`Task timeout after ${task.timeout}ms`));
+                        }, task.timeout);
+                    });
+
+                    // Enforce timeout for each task
+                    await Promise.race([
+                        task.fn(),
+                        timeoutPromise
+                    ]);
+                    
+                    const taskEndTime = getCurrentTime();
+                    const taskDuration = taskEndTime - taskStartTime;
+                    
+                    const result = {
+                        name: task.name,
+                        status: 'success',
+                        duration: taskDuration,
+                        startTime: taskStartTime,
+                        endTime: taskEndTime,
+                        taskNumber: taskIndex + 1
+                    };
+                    
+                    console.log(`Completed ${task.description} successfully in ${taskDuration}ms`);
+                    results.push(result);
+                    totalExecutionTime += taskDuration;
+                } catch (error) {
+                    const taskEndTime = getCurrentTime();
+                    const taskDuration = taskEndTime - taskStartTime;
+                    
+                    const result = {
+                        name: task.name,
+                        status: 'failed',
+                        duration: taskDuration,
+                        startTime: taskStartTime,
+                        endTime: taskEndTime,
+                        error: error.message,
+                        taskNumber: taskIndex + 1
+                    };
+                    
+                    if (error.message.includes('Task timeout')) {
+                        console.error(`${task.description} timed out after ${task.timeout}ms`);
+                    } else {
+                        console.error(`Failed ${task.description} after ${taskDuration}ms:`, error.message);
+                    }
+                    results.push(result);
+                    totalExecutionTime += taskDuration;
+                }
+                
+                console.log(`--- Task ${taskIndex + 1} completed ---`);
+            }
+
+            const cronEndTime = getCurrentTime();
+            const successfulTasks = results.filter(r => r.status === 'success').length;
+            const failedTasks = results.filter(r => r.status === 'failed').length;
+            const skippedTasks = results.filter(r => r.status === 'skipped').length;
+            const timeoutTasks = results.filter(r => r.error && r.error.includes('Task timeout')).length;
+            const totalTasks = results.length;
+            
+            console.log(`Scheduled tasks completed at ${cronEndTime}`);
+            console.log(`Total tasks: ${totalTasks}, Successful: ${successfulTasks}, Failed: ${failedTasks}, Skipped: ${skippedTasks}, Timeouts: ${timeoutTasks}`);
+            console.log(`Total execution time: ${totalExecutionTime}ms`);
+            
+            
+            
+            if (failedTasks > 0) {
+                console.error(`Failed tasks:`, results.filter(r => r.status === 'failed').map(r => `Task ${r.taskNumber} - ${r.name}: ${r.error}`));
+            }
+            
+            if (skippedTasks > 0) {
+                console.warn(`Skipped tasks:`, results.filter(r => r.status === 'skipped').map(r => `Task ${r.taskNumber} - ${r.name}: ${r.error}`));
+            }
         });
     });
 })();

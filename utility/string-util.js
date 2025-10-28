@@ -19,6 +19,15 @@ const replaceErrorString = (original, replacement, pattern = /\$item\$/g) => {
    return (!original || !replacement) ? original : original.replace(pattern, replacement);
 }
 
+// For a MongoDB regex search, the dot '.' means any character in the keyword. It should be removed from the user-input.
+const sanitizeMongoDBInput = (raw) => {
+    if (!raw) return "";
+    if (/^\.+$/.test(raw)) {
+        return "''";
+    }
+    return raw.trim();
+}
+
 
 const getUniqueArr = (arr) => {return (arr) ? arr.filter((v, i, a) => a.indexOf(v) === i) : []};
 
@@ -120,6 +129,25 @@ const fileSizeFormatter = (bytes = 0) => {
     return formattedSize.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
+const getFormatDateStr = (date, format="YYYYMMDD") => {
+    if (!date) return "";
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+
+    switch (format) {
+        case "YYYYMMDD":
+            return `${year}${month}${day}`;
+        case "YYYYMMDDHHmmss":
+            return `${year}${month}${day}${hours}${minutes}${seconds}`;
+        default:
+            return `${year}${month}${day}`;
+    }
+}
+
 module.exports = {
     isCaseInsensitiveEqual,
     isElementInArray,
@@ -132,5 +160,7 @@ module.exports = {
     toPascalCase,
     replaceErrorString,
     isValidFileExtension,
-    fileSizeFormatter
+    fileSizeFormatter,
+    getFormatDateStr,
+    sanitizeMongoDBInput
 }

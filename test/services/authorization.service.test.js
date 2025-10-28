@@ -203,7 +203,7 @@ describe('authorization service test', () => {
         };
 
         const permissionInput = [
-            `${PERMISSIONS.ADMIN.MANAGE_USER}`,
+            `${PERMISSIONS.ADMIN.MANAGE_USER}:all`,
             `${PERMISSIONS.DATA_SUBMISSION.CANCEL}`,
             `${PERMISSIONS.DATA_SUBMISSION.VIEW}`,
             `${PERMISSIONS.DATA_SUBMISSION.CREATE}XXXX:${SCOPES.ALL}`,
@@ -212,9 +212,7 @@ describe('authorization service test', () => {
         ];
 
         const expected = [
-            `${PERMISSIONS.ADMIN.MANAGE_USER}`,
-            `${PERMISSIONS.DATA_SUBMISSION.CANCEL}`,
-            `${PERMISSIONS.DATA_SUBMISSION.VIEW}`,
+            `${PERMISSIONS.ADMIN.MANAGE_USER}:all`
         ];
 
         const result = await authorizationService.filterValidPermissions(userInput, permissionInput);
@@ -254,12 +252,9 @@ describe('authorization service test', () => {
             null,
             undefined
         ];
-
+        // input scope is required
         const expected = [
-            `${PERMISSIONS.DATA_SUBMISSION.CANCEL}`,
-            `${PERMISSIONS.DATA_SUBMISSION.VIEW}`,
-            `${PERMISSIONS.ADMIN.MANAGE_USER}:${SCOPES.DC}:${USER.ROLES.FEDERAL_LEAD}`,
-            `${PERMISSIONS.ADMIN.MANAGE_PROGRAMS}`
+            `${PERMISSIONS.ADMIN.MANAGE_USER}:${SCOPES.DC}:${USER.ROLES.FEDERAL_LEAD}`
         ];
 
         const result = await authorizationService.filterValidPermissions(userInput, permissionInput);

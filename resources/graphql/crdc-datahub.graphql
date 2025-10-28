@@ -1,5 +1,6 @@
 directive @public on FIELD_DEFINITION|QUERY
 scalar Date
+scalar JSON
 
 type Application {
     # backend managed fields
@@ -14,6 +15,7 @@ type Application {
     # sort fields
     programName: String
     studyName: String
+    newInstitutions: [NewInstitution]
     studyAbbreviation: String
     controlledAccess: Boolean
     ORCID: String
@@ -27,6 +29,17 @@ type Application {
     programDescription: String,
     version: String
     reviewComment: String
+    GPAName: String
+}
+
+type NewInstitution {
+    id: ID
+    name: String
+}
+
+input InstitutionInput {
+    id: ID
+    name: String
 }
 
 type Event {
@@ -49,7 +62,9 @@ input AppInput {
     openAccess: Boolean
     programAbbreviation: String
     programDescription: String,
-    version: String
+    version: String,
+    GPAName: String
+    newInstitutions: [InstitutionInput]
 }
 
 type Applicant {
@@ -71,6 +86,29 @@ type ListApplications {
     studies: [String]
     status: [String],
     submitterNames: [String]
+}
+
+type ListReleasedStudies {
+    total: Int
+    dataCommonsDisplayNames: [String]
+    studies: [ReleasedStudy]
+}
+
+type ListNodeTypes {
+    total: Int
+    nodes: [NodeType]
+}
+
+type NodeType {
+    count: Int
+    IDPropName: String
+    name: String
+}
+
+type ListReleasedNodes {
+    total: Int
+    properties: [String], #all properties of a node including parents
+    nodes: [JSON]
 }
 
 type ListSubmissions {
@@ -98,6 +136,7 @@ type Submission {
     dataCommons: String
     dataCommonsDisplayName: String
     modelVersion: String # for future use
+    # note: FE should use study object instead
     studyAbbreviation: String
     dbGaPID: String # aka. phs number
     bucketName: String # populated from organization
@@ -125,7 +164,9 @@ type Submission {
     validationType: [String] # String [metadata, file, cross-submission, data file]
     validationScope: String
     studyID: String
+    # note: FE should use study object instead
     studyName: String
+    study: ApprovedStudy
     controlledAccess: Boolean
     ORCID: String
     deletingData: Boolean
@@ -141,6 +182,20 @@ type Submission {
 type FileSize {
     formatted: String
     size: Float
+}
+
+type OMBConfiguration{
+    _id: ID
+    OMBInfo: [String]
+    OMBNumber: String
+    expirationDate: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    type: String
+}
+type ApplicationFormVersion{
+    _id: ID
+    type: String
+    current: String
+    new: String
 }
 
 # not being used currently
@@ -219,6 +274,15 @@ type TempCredentials {
     expiration: Date
 }
 
+type ReleasedStudy {
+    _id: ID
+    studyName: String
+    dbGaPID: String # aka. phs number
+    dataCommons: [String]
+    dataCommonsDisplayNames: [String]
+    studyAbbreviation: String
+}
+
 type ApprovedStudy {
     _id: ID
     originalOrg: String # organization at the time of approval, can be absent if a submission request doesn't have an organization associated
@@ -233,6 +297,9 @@ type ApprovedStudy {
     programs: [UserOrganization] #retrieve dynamically by studyID
     primaryContact: User
     useProgramPC: Boolean
+    pendingModelChange: Boolean
+    isPendingGPA: Boolean
+    GPAName: String
 }
 
 type ProgramList {
@@ -249,6 +316,7 @@ type User {
   _id: ID # MongoDB native ID or UUID
   firstName: String
   lastName: String
+  fullName: String
   userStatus: String # [Active, Inactive]
   role: String # [User, Submitter, Federal Lead, Admin, Data Commons Personnel]
   IDP: String # [NIH, Login.gov]
@@ -344,6 +412,7 @@ type QCResult{
     severity: String # [Error, Warning]
     uploadedDate: Date
     validatedDate: Date
+    issueCount: Int
     errors: [ErrorMessage]
     warnings: [ErrorMessage]
 }
@@ -373,6 +442,8 @@ type ErrorMessage {
     code: String
     title: String
     description: String
+    offendingProperty: String
+    offendingValue: String
 }
 
 type CrossValidationMessage {
@@ -527,7 +598,7 @@ type Collaborator {
 
 input CollaboratorInput {
    collaboratorID: ID! 
-   permission: String! # ["Can Edit"] 
+   permission: String! # ["Can Edit"]
 }
 
 type aggregatedQCResults {
@@ -590,6 +661,49 @@ type Released_Node {
     updatedAt: Date
 }
 
+type SubmissionAttributesResult {
+    submissionAttributes: SubmissionAttributes
+    isValidationPassed: Boolean
+}
+
+type SubmissionAttributes {
+    isSubmissionStatusNew: Boolean
+    isValidating: Boolean
+    isBatchUploading: Boolean
+    isValidSubmissionStatus: Boolean
+    isValidDeleteIntention: Boolean
+    isReadyMetadataOnly: Boolean
+    isValidDataFileSize: Boolean
+    isReadyMetadataDataFile: Boolean
+    isValidationNotNew: Boolean
+    hasOrphanError: Boolean
+    isMetadataValidationError: Boolean
+    isDatafileValidationError: Boolean
+    isAdminSubmit: Boolean
+}
+
+type PendingPV {
+    id: ID
+    submissionID: String
+    offendingProperty: String
+    value: String
+    createdAt: Date
+    updatedAt: Date
+}
+
+type nodeProp {
+    name: String!
+    required: Boolean!
+    group: String! #value in ["model_defined", "not_defined", "internal"]
+}
+
+type nodeTypeSummary {
+    nodeType: String!
+    new: Int
+    updated: Int
+    deleted: Int
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -623,6 +737,7 @@ type Query {
     ): ApprovedStudyList
     
     getApprovedStudy(_id: ID!): ApprovedStudy
+    getOMB: OMBConfiguration
 
     "Result depends on user's permission"
     listSubmissions(
@@ -635,7 +750,7 @@ type Query {
         first: Int = -1,
         offset: Int = 0,
         # ["updatedAt", "createdAt", "name", "dataCommons", "organization", "studyAbbreviation",
-        #              "dbGapID", "status", "concierge", "dataFileSize.size"]
+        #              "dbGaPID", "status", "concierge", "dataFileSize.size"]
         orderBy: String = "updatedAt",
         sortDirection: String = "DESC"): ListSubmissions
 
@@ -725,7 +840,8 @@ type Query {
         submissionID: String!,
         apiURL: String!,
         dataFolder: String = "/Users/my_name/my_files",
-        manifest: String = "/Users/my_name/my_manifest.tsv"
+        manifest: String = "/Users/my_name/my_manifest.tsv",
+        archive_manifest: String
     ): String
 
     listInstitutions(
@@ -775,9 +891,35 @@ type Query {
 
     downloadMetadataFile(batchID: String!, fileName: String):String # download metadata file from S3 with presigned URL
 
+    getApplicationFormVersion: ApplicationFormVersion
     retrieveCLIUploaderVersion: String @public
     isMaintenanceMode: Boolean @public
-    userIsPrimaryContact(userID: ID!): Boolean 
+    userIsPrimaryContact(userID: ID!): Boolean
+    listReleasedStudies(
+        name: String,
+        dbGaPID: String,
+        dataCommonsDisplayNames: [String]!,
+        first: Int = 20,
+        offset: Int = 0,
+        orderBy: String = "studyAbbreviation",
+        sortDirection: String = "ASC"): ListReleasedStudies
+    getSubmissionAttributes(submissionID: ID!): SubmissionAttributesResult
+    listReleasedDataRecords(
+        studyID: String!
+        nodeType: String!
+        properties: [String]
+        first: Int = 20
+        offset: Int = 0
+        orderBy: String,
+        sortDirection: String = "ASC"
+        dataCommonsDisplayName: String!
+    ): ListReleasedNodes
+    getReleaseNodeTypes(studyID: String!, dataCommonsDisplayName: String!): ListNodeTypes
+    downloadDBGaPLoadSheet(submissionID:String!):String #presigned url of s3
+    getPendingPVs(submissionID: String!): [PendingPV]
+    retrievePropsForNodeType(studyID: String!, dataCommonsDisplayName: String!, nodeType: String!): [nodeProp]
+    downloadAllReleasedNodes(studyID: String!, dataCommonsDisplayName: String!): String #presigned url of s3
+    getSubmissionSummary(submissionID: ID!): [nodeTypeSummary]
 }
 type Mutation {
     "User initiated operations"
@@ -787,18 +929,22 @@ type Mutation {
 
     "Fed lead initiated operations"
     reviewApplication (_id: ID!): Application # same as getApplication but will set Application to "In Review" state
-    approveApplication (_id: ID!, wholeProgram: Boolean, comment: String, institutions: [String]): Application
+    approveApplication (
+        _id: ID!, wholeProgram: Boolean,
+        comment: String,
+        pendingModelChange: Boolean = false
+    ): Application
     rejectApplication (_id: ID!, comment: String!): Application
     inquireApplication (_id: ID!, comment: String!): Application
 
-    deleteApplication (_id: ID!, comment: String!): Application
+    cancelApplication (_id: ID!, comment: String!): Application
     restoreApplication (_id: ID!, comment: String!): Application
 
     "Submitter or Org Owner"
     createSubmission (studyID: String!, dataCommons: String!, name: String!, intention: String!, dataType: String!): Submission
     submissionAction (
         submissionID: ID!,
-        # in [Submit, Release, Withdraw, Reject, Complete, Cancel, Archive]
+        # in [Submit, ReleaseService, Withdraw, Reject, Complete, Cancel, Archive]
         action: String!
         comment: String
     ): Submission
@@ -857,11 +1003,14 @@ type Mutation {
         acronym: String, #acronym of the study, optional
         controlledAccess: Boolean!,
         openAccess: Boolean, #optional 
-        dbGaPID: String, # required only Controlled
+        dbGaPID: String, # optional 
         ORCID: String, #optional in format of 0000-1234-2345-3456
         PI: String #optional
         primaryContactID: String #data concierge user ID
-        useProgramPC: Boolean!
+        useProgramPC: Boolean!,
+        pendingModelChange: Boolean
+        isPendingGPA: Boolean
+        GPAName: String # optional 
     ): ApprovedStudy
 
     updateApprovedStudy(
@@ -870,11 +1019,14 @@ type Mutation {
         acronym: String, #acronym of the study, optional
         controlledAccess: Boolean!,
         openAccess: Boolean, #optional 
-        dbGaPID: String, # required only Controlled
+        dbGaPID: String, # optional 
         ORCID: String, #optional in format of 0000-1234-2345-3456
         PI: String #optional 
         primaryContactID: String, #data concierge user ID
-        useProgramPC: Boolean!
+        useProgramPC: Boolean!,
+        pendingModelChange: Boolean
+        isPendingGPA: Boolean
+        GPAName: String # optional 
     ): ApprovedStudy
 
     requestAccess(
@@ -884,7 +1036,9 @@ type Mutation {
         institutionName: String
     ): AsyncProcessResult
 
-    updateSubmissionModelVersion(_id: String!, version: String!): Submission
+    updateSubmissionInfo(_id: String!, version: String, submitterID: String): Submission
+    editSubmission(_id: String!, newName: String!): Submission
     updateInstitution(_id: ID!, name: String, status: String): Institution
     createInstitution(name: String!, status: String!): Institution
+    requestPV(submissionID: String!, value: String!, nodeName: String!, property: String!, comment: String!): AsyncProcessResult
 }

@@ -37,57 +37,29 @@ function verifySubmissionAction(action, submissionStatus, comment){
 
 class SubmissionActionVerifier {
     // Private variable
-    #actionName;
-    #permissions;
-    #fromStatus;
-    #toStatus;
+    _actionName;
+    _permissions;
+    _fromStatus;
+    _toStatus;
     constructor(actionName, permissions, fromStatus, toStatus){
-        this.#actionName = actionName;
-        this.#permissions = permissions;
-        this.#fromStatus = fromStatus;
-        this.#toStatus = toStatus;
+        this._actionName = actionName;
+        this._permissions = permissions;
+        this._fromStatus = fromStatus;
+        this._toStatus = toStatus;
     }
 
     getNewStatus() {
-        return this.#toStatus;
+        return this._toStatus;
     }
 
     getPrevStatus() {
-        return this.#fromStatus;
+        return this._fromStatus;
     }
 
 
-    isValidSubmitAction(isAdminAction, aSubmission, comment, dataFileSize, hasOrphanedFiles, hasUploadingBatch) {
-        if (this.#actionName === ACTIONS.SUBMIT) {
-            const validationStatuses = [VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING];
-            // 1. The metadataValidationStatus and fileValidationStatus should not be Validating.
-            const validationRunning = aSubmission.metadataValidationStatus === VALIDATION_STATUS.VALIDATING;
-
-            // 2. The dataFileSize.size property should be greater than 0 for submissions with the data type Metadata and Data Files.; ignore if metadata only && delete intention
-            const ignoreDataFileValidation = aSubmission?.intention === INTENTION.DELETE || aSubmission?.dataType === DATA_TYPE.METADATA_ONLY;
-            const isValidDataFileSize = ignoreDataFileValidation || (aSubmission?.dataType === DATA_TYPE.METADATA_AND_DATA_FILES && dataFileSize > 0);
-
-            // 3. The metadataValidationStatus and fileValidationStatus should not be New
-            const isValidValidationNotNew = aSubmission?.metadataValidationStatus !== VALIDATION_STATUS.NEW && aSubmission?.fileValidationStatus !== VALIDATION_STATUS.NEW;
-
-            // Admin can skip the requirement; The metadataValidationStatus and fileValidationStatus should not be Error.
-            const hasValidationErrors = aSubmission?.metadataValidationStatus === VALIDATION_STATUS.ERROR || aSubmission?.fileValidationStatus === VALIDATION_STATUS.ERROR;
-            const ignoreErrorValidation = isAdminAction && hasValidationErrors;
-            // 4. Metadata validation should be initialized for submissions with the intention Delete.
-            const isValidDeleteIntention = aSubmission?.intention === INTENTION.UPDATE || (aSubmission?.intention === INTENTION.DELETE && validationStatuses.includes(aSubmission?.metadataValidationStatus));
-
-            const isValidStatus =
-                // 5. Metadata validation should be initialized for submissions with the intention Delete / the data type Metadata Only.
-                (aSubmission?.dataType === DATA_TYPE.METADATA_ONLY &&
-                    (ignoreErrorValidation || validationStatuses.includes(aSubmission?.metadataValidationStatus))) ||
-                // 6. Metadata validation should be initialized for submissions with the data type Metadata and Data Files.
-                (aSubmission?.dataType === DATA_TYPE.METADATA_AND_DATA_FILES &&
-                    (ignoreErrorValidation || (validationStatuses.includes(aSubmission?.metadataValidationStatus) && validationStatuses.includes(aSubmission?.fileValidationStatus))));
-
-            const isInvalidSubmit = validationRunning || hasUploadingBatch || !isValidDeleteIntention ||
-                !isValidStatus || !isValidDataFileSize || !isValidValidationNotNew || hasOrphanedFiles
-
-            if (isInvalidSubmit) {
+    isValidSubmitAction(isAdminAction, aSubmission, comment, submissionAttributes) {
+        if (this._actionName === ACTIONS.SUBMIT) {
+            if (submissionAttributes.isValidationNotPassed()) {
                 console.error(ERROR.VERIFY.INVALID_SUBMIT_ACTION, `SubmissionID:${aSubmission?._id}`);
                 throw new Error(ERROR.VERIFY.INVALID_SUBMIT_ACTION);
             }
@@ -100,14 +72,14 @@ class SubmissionActionVerifier {
 
     isSubmitActionCommentRequired(aSubmission, isAdminAction, comment) {
             const isError = [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus].includes(VALIDATION_STATUS.ERROR);
-            return this.#actionName === ACTIONS.SUBMIT && isAdminAction && isError && (!comment || comment?.trim()?.length === 0);
+            return this._actionName === ACTIONS.SUBMIT && isAdminAction && isError && (!comment || comment?.trim()?.length === 0);
     }
 
     async isValidPermissions(action, userInfo, collaboratorUserIDs = [], authorizationCallback) {
         const collaboratorCondition = [ACTIONS.SUBMIT, ACTIONS.WITHDRAW, ACTIONS.CANCEL].includes(action) && collaboratorUserIDs.includes(userInfo?._id);
 
         const multiUserScopes = await Promise.all(
-            this.#permissions.map(aPermission => authorizationCallback(userInfo, aPermission))
+            this._permissions.map(aPermission => authorizationCallback(userInfo, aPermission))
         );
 
         const isNotPermitted = multiUserScopes?.every(userScope => userScope.isNoneScope());

@@ -34,6 +34,7 @@ module.exports = {
     TEST_ORGANIZATION: {
         "_id": "test_organization_id",
         "name": "crdc"
-    }
+    },
+    STUDY_ID: "test-study-id"
 
 }

@@ -7,7 +7,7 @@ const {AWSService} = require("../services/aws-request");
 const {CDE} = require("../services/CDEService");
 const {MongoQueries} = require("../crdc-datahub-database-drivers/mongo-queries");
 const {DATABASE_NAME, APPLICATION_COLLECTION, SUBMISSIONS_COLLECTION, USER_COLLECTION, ORGANIZATION_COLLECTION, LOG_COLLECTION,
-    APPROVED_STUDIES_COLLECTION, BATCH_COLLECTION,
+    APPROVED_STUDIES_COLLECTION,
     DATA_RECORDS_COLLECTION,
     INSTITUTION_COLLECTION,
     VALIDATION_COLLECTION,
@@ -15,7 +15,8 @@ const {DATABASE_NAME, APPLICATION_COLLECTION, SUBMISSIONS_COLLECTION, USER_COLLE
     CDE_COLLECTION,
     DATA_RECORDS_ARCHIVE_COLLECTION,
     QC_RESULTS_COLLECTION,
-    RELEASE_DATA_RECORDS_COLLECTION
+    RELEASE_DATA_RECORDS_COLLECTION,
+    PENDING_PVS_COLLECTION
 } = require("../crdc-datahub-database-drivers/database-constants");
 const {MongoDBCollection} = require("../crdc-datahub-database-drivers/mongodb-collection");
 const {DatabaseConnector} = require("../crdc-datahub-database-drivers/database-connector");
@@ -46,6 +47,8 @@ const {AuthorizationService} = require("../services/authorization-service");
 const {UserScope} = require("../domain/user-scope");
 const {replaceErrorString} = require("../utility/string-util");
 const {ADMIN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+const {Release} = require("../services/release-service");
+const DataModelService = require("../services/data-model-service");
 
 // Create schema with constraint directive
 const schema = constraintDirective()(
@@ -66,27 +69,24 @@ dbConnector.connect().then(async () => {
     const notificationsService = new NotifyUser(emailService, config.tier);
 
     const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
-    const configurationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CONFIGURATION_COLLECTION);
-    const configurationService = new ConfigurationService(configurationCollection)
+    const configurationService = new ConfigurationService()
     const authorizationService = new AuthorizationService(configurationService);
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
     const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
-    const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection, approvedStudiesCollection, authorizationService);
-    const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, userCollection, organizationService, submissionCollection, authorizationService);
-
+    const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection, approvedStudiesCollection);
+    const approvedStudiesService = new ApprovedStudiesService(approvedStudiesCollection, userCollection, organizationService, submissionCollection, authorizationService, notificationsService, {url: config.emails_url, contactEmail: config.conditionalSubmissionContact, submissionGuideURL: config.submissionGuideUrl});
 
     const institutionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, INSTITUTION_COLLECTION, userCollection);
-    const institutionService = new InstitutionService(institutionCollection, userCollection, authorizationService);
+    const institutionService = new InstitutionService(institutionCollection, authorizationService);
     const userService = new UserService(userCollection, logCollection, organizationCollection, notificationsService, submissionCollection, applicationCollection, config.official_email, config.emails_url, approvedStudiesService, config.inactive_user_days, configurationService, institutionService, authorizationService);
     const s3Service = new S3Service();
-    const batchCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, BATCH_COLLECTION);
     const awsService = new AWSService(configurationService);
 
     const utilityService = new UtilityService();
     const fetchDataModelInfo = async () => {
         return utilityService.fetchJsonFromUrl(config.model_url)
     };
-    const batchService = new BatchService(s3Service, batchCollection, config.sqs_loader_queue, awsService, config.prod_url, fetchDataModelInfo);
+    const batchService = new BatchService(s3Service, config.sqs_loader_queue, awsService, config.prod_url, fetchDataModelInfo);
 
 
     const qcResultCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, QC_RESULTS_COLLECTION);
@@ -105,20 +105,21 @@ dbConnector.connect().then(async () => {
         completedSubmissionDays: config.completed_submission_days, inactiveSubmissionDays: config.inactive_submission_days, finalRemindSubmissionDay: config.inactive_submission_days,
         inactiveApplicationNotifyDays: config.inactiveApplicationNotifyDays};
         
-    const uploadingMonitor = UploadingMonitor.getInstance(batchCollection, configurationService);
+    const uploadingMonitor = UploadingMonitor.getInstance(batchService.batchDAO, configurationService);
+
+    const cdeService = new CDE();
+    const dataModelService = new DataModelService(fetchDataModelInfo, config.model_url);
     const submissionService = new Submission(logCollection, submissionCollection, batchService, userService,
         organizationService, notificationsService, dataRecordService, fetchDataModelInfo, awsService, config.export_queue,
         s3Service, emailParams, config.dataCommonsList, config.hiddenModels, validationCollection, config.sqs_loader_queue, qcResultsService, config.uploaderCLIConfigs,
-        config.submission_bucket, configurationService, uploadingMonitor, config.dataCommonsBucketMap, authorizationService);
+        config.submission_bucket, configurationService, uploadingMonitor, config.dataCommonsBucketMap, authorizationService, dataModelService, dataRecordCollection);
     const dataInterface = new Application(logCollection, applicationCollection, approvedStudiesService, userService, dbService, notificationsService, emailParams, organizationService, institutionService, configurationService, authorizationService);
 
     const dashboardService = new DashboardService(userService, awsService, configurationService, {sessionTimeout: config.dashboardSessionTimeout}, authorizationService);
     userInitializationService = new UserInitializationService(userCollection, organizationCollection, approvedStudiesCollection, configurationService);
     authenticationService = new AuthenticationService(userCollection);
-    
-    const cdeCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, CDE_COLLECTION);
-    const cdeService = new CDE(cdeCollection);
 
+    const releaseService = new Release(releaseCollection, authorizationService, dataModelService, s3Service, config);
     root = {
         version: () => {return config.version},
         saveApplication: dataInterface.saveApplication.bind(dataInterface),
@@ -140,13 +141,13 @@ dbConnector.connect().then(async () => {
             return await dataInterface.inquireApplication({...params, comment}, context);
         },
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
-        deleteApplication: async (params, context)=> {
+        cancelApplication: async (params, context)=> {
             const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
             if (comment?.trim().length > 500) {
                 throw new Error(ERROR.COMMENT_LIMIT);
             }
 
-            return await dataInterface.deleteApplication({...params, comment}, context);
+            return await dataInterface.cancelApplication({...params, comment}, context);
         },
         restoreApplication: async (params, context)=> {
             const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
@@ -183,7 +184,8 @@ dbConnector.connect().then(async () => {
         listPotentialCollaborators: submissionService.listPotentialCollaborators.bind(submissionService),
         retrieveFileNodeConfig: submissionService.getDataFileConfigs.bind(submissionService),
         retrieveReleasedDataByID: submissionService.getReleasedNodeByIDs.bind(submissionService),
-        updateSubmissionModelVersion: submissionService.updateSubmissionModelVersion.bind(submissionService),
+        updateSubmissionInfo: submissionService.updateSubmissionInfo.bind(submissionService),
+        editSubmission: submissionService.editSubmission.bind(submissionService),
         listInstitutions: institutionService.listInstitutions.bind(institutionService),
         updateInstitution: async (params, context) => {
             const aInstitution = await institutionService.updateInstitution(params, context);
@@ -234,8 +236,26 @@ dbConnector.connect().then(async () => {
         retrievePBACDefaults: configurationService.getPBACDefaults.bind(configurationService),
         downloadMetadataFile: submissionService.getMetadataFile.bind(submissionService),
         retrieveCLIUploaderVersion: configurationService.retrieveCLIUploaderVersion.bind(configurationService),
+        getApplicationFormVersion: configurationService.getApplicationFormVersion.bind(configurationService),
         userIsPrimaryContact: userService.isUserPrimaryContact.bind(userService),
-        isMaintenanceMode: configurationService.isMaintenanceMode.bind(configurationService)
+        isMaintenanceMode: configurationService.isMaintenanceMode.bind(configurationService),
+        getSubmissionAttributes: submissionService.getSubmissionAttributes.bind(submissionService),
+        listReleasedStudies: releaseService.listReleasedStudies.bind(releaseService),
+        getReleaseNodeTypes: releaseService.getReleaseNodeTypes.bind(releaseService),
+        getPendingPVs: submissionService.getPendingPVs.bind(submissionService),
+        listReleasedDataRecords: releaseService.listReleasedDataRecords.bind(releaseService),
+        retrievePropsForNodeType: releaseService.getPropsForNodeType.bind(releaseService),
+        requestPV: async (params, context)=> {
+            const fieldsToSanitize = ['comment', 'nodeName', 'property'];
+            const sanitized = Object.fromEntries(
+                fieldsToSanitize.map(field => [field, sanitizeHtml(params?.[field], { allowedTags: [], allowedAttributes: {} })])
+            );
+            return await submissionService.requestPV({...params, ...sanitized}, context);
+        },
+        downloadDBGaPLoadSheet: submissionService.downloadDBGaPLoadSheet.bind(submissionService),
+        getOMB: configurationService.getOMB.bind(configurationService),
+        downloadAllReleasedNodes: releaseService.downloadAllReleasedNodes.bind(releaseService),
+        getSubmissionSummary: submissionService.getSubmissionSummary.bind(submissionService),
     };
 });
 
