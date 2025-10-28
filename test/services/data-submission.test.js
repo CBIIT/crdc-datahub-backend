@@ -880,7 +880,8 @@ describe("Submission.createSubmission", () => {
                 firstName: "Test",
                 lastName: "User",
                 email: "test@user.com",
-                role: "Submitter"
+                role: "Submitter",
+                studies: [{ _id: "study123" }] // Default assigned study
             }
         };
 
@@ -904,9 +905,13 @@ describe("Submission.createSubmission", () => {
             _id: "program1"
         };
 
-        // Mock _getUserScope to always allow
+        // Mock _getUserScope to simulate ALL scope (admin-like access)
         submissionService._getUserScope = jest.fn().mockResolvedValue({
-            isNoneScope: () => false
+            isNoneScope: () => false,
+            isAllScope: () => true,
+            isOwnScope: () => false,
+            isStudyScope: () => false,
+            isDCScope: () => false
         });
 
         // Mock fetchDataModelInfo and _getModelVersion
@@ -952,13 +957,130 @@ describe("Submission.createSubmission", () => {
             .toThrow(ERROR.CREATE_SUBMISSION_INVALID_INTENTION);
     });
 
-    it("should throw error if user does not have permission", async () => {
+    it("should throw error if user has NONE scope", async () => {
         submissionService._getUserScope.mockResolvedValueOnce({
-            isNoneScope: () => true
+            isNoneScope: () => true,
+            isAllScope: () => false,
+            isOwnScope: () => false,
+            isStudyScope: () => false,
+            isDCScope: () => false
         });
         await expect(submissionService.createSubmission(mockParams, mockContext))
             .rejects
             .toThrow(ERROR.VERIFY.INVALID_PERMISSION);
+    });
+
+    it("should allow submission creation for user with ALL scope", async () => {
+        submissionService._getUserScope.mockResolvedValueOnce({
+            isNoneScope: () => false,
+            isAllScope: () => true,
+            isOwnScope: () => false,
+            isStudyScope: () => false,
+            isDCScope: () => false
+        });
+        
+        const result = await submissionService.createSubmission(mockParams, mockContext);
+        expect(result).toBeDefined();
+        expect(mockSubmissionDAO.create).toHaveBeenCalled();
+    });
+
+    it("should allow submission creation for user with OWN scope and assigned study", async () => {
+        submissionService._getUserScope.mockResolvedValueOnce({
+            isNoneScope: () => false,
+            isAllScope: () => false,
+            isOwnScope: () => true,
+            isStudyScope: () => false,
+            isDCScope: () => false
+        });
+        
+        // Mock user with assigned study
+        mockContext.userInfo.studies = [{ _id: "study123" }];
+        
+        const result = await submissionService.createSubmission(mockParams, mockContext);
+        expect(result).toBeDefined();
+        expect(mockSubmissionDAO.create).toHaveBeenCalled();
+    });
+
+    it("should throw error for user with OWN scope but no assigned study", async () => {
+        submissionService._getUserScope.mockResolvedValueOnce({
+            isNoneScope: () => false,
+            isAllScope: () => false,
+            isOwnScope: () => true,
+            isStudyScope: () => false,
+            isDCScope: () => false
+        });
+        
+        // Mock user with no assigned studies
+        mockContext.userInfo.studies = [];
+        
+        await expect(submissionService.createSubmission(mockParams, mockContext))
+            .rejects
+            .toThrow(ERROR.INVALID_STUDY_ACCESS);
+    });
+
+    it("should allow submission creation for user with STUDY scope and assigned study", async () => {
+        submissionService._getUserScope.mockResolvedValueOnce({
+            isNoneScope: () => false,
+            isAllScope: () => false,
+            isOwnScope: () => false,
+            isStudyScope: () => true,
+            isDCScope: () => false
+        });
+        
+        // Mock user with assigned study
+        mockContext.userInfo.studies = [{ _id: "study123" }];
+        
+        const result = await submissionService.createSubmission(mockParams, mockContext);
+        expect(result).toBeDefined();
+        expect(mockSubmissionDAO.create).toHaveBeenCalled();
+    });
+
+    it("should throw error for user with STUDY scope but no assigned study", async () => {
+        submissionService._getUserScope.mockResolvedValueOnce({
+            isNoneScope: () => false,
+            isAllScope: () => false,
+            isOwnScope: () => false,
+            isStudyScope: () => true,
+            isDCScope: () => false
+        });
+        
+        // Mock user with different assigned study
+        mockContext.userInfo.studies = [{ _id: "different-study" }];
+        
+        await expect(submissionService.createSubmission(mockParams, mockContext))
+            .rejects
+            .toThrow(ERROR.INVALID_STUDY_ACCESS);
+    });
+
+    it("should throw error for user with DC scope", async () => {
+        submissionService._getUserScope.mockResolvedValueOnce({
+            isNoneScope: () => false,
+            isAllScope: () => false,
+            isOwnScope: () => false,
+            isStudyScope: () => false,
+            isDCScope: () => true
+        });
+        
+        await expect(submissionService.createSubmission(mockParams, mockContext))
+            .rejects
+            .toThrow(ERROR.VERIFY.INVALID_PERMISSION);
+    });
+
+    it("should allow submission creation for user with OWN scope and 'All' studies assigned", async () => {
+        submissionService._getUserScope.mockResolvedValueOnce({
+            isNoneScope: () => false,
+            isAllScope: () => false,
+            isOwnScope: () => true,
+            isStudyScope: () => false,
+            isDCScope: () => false
+        });
+        
+        // Mock user with "All" studies assigned
+        mockContext.userInfo.studies = [{ _id: "All" }];
+        
+        const result = await submissionService.createSubmission(mockParams, mockContext);
+        expect(result).toBeDefined();
+        expect(mockSubmissionDAO.create).toHaveBeenCalled();
     });
 
     it("should throw error if no approved study found", async () => {
@@ -1119,7 +1241,7 @@ describe('Submission._remindPrimaryContactEmail', () => {
         ];
 
         const mockCCUsers = [
-            { email: 'admin@test.com' }
+            { email: 'admin@test.com', role: USER.ROLES.ADMIN }
         ];
 
         mockUserService.findUsersByNotificationsAndRole

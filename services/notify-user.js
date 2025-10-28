@@ -610,7 +610,7 @@ class NotifyUser {
                     topMessage,
                     bottomMessage,
                     ...{
-                        firstName: dataCommonsName,
+                        firstName: dataCommonsName + " Team",
                         senderName: CRDC_SUBMISSION_PORTAL,
                         ...templateParams, pendingPV},
                 }),

@@ -12,11 +12,11 @@
  */
 const isAllStudy = (userStudies) => {
     const studies = Array.isArray(userStudies) && userStudies.length > 0 ? userStudies : [];
-    return studies.find(study =>
+    return Boolean(studies.find(study =>
         (typeof study === 'object' && study._id === "All") ||
         (typeof study === 'object' && study.id === "All") ||
         (typeof study === 'string' && study === "All")
-    );
+    ));
 };
 
 module.exports = {

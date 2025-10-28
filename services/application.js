@@ -814,49 +814,98 @@ class Application {
     }
 
     async deleteInactiveApplications() {
-        const applications = await this.applicationDAO.getInactiveApplication(this.emailParams.inactiveDays);
-        verifyApplication(applications)
-            .isUndefined();
-
-        if (applications?.length > 0) {
-            const [applicantUsers, BCCUsers] = await Promise.all([
-                this._findUsersByApplicantIDs(applications),
-                this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_DELETE],
-                    [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]),
-            ]);
-
-            const permittedUserIDs = new Set(
-                applicantUsers
-                    ?.filter((u) => u?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_DELETE))
-                    ?.map((u) => u?._id)
-            );
-            const history = HistoryEventBuilder.createEvent("", DELETED, this._DELETE_REVIEW_COMMENT);
-            // Prisma does not support $set/$push like MongoDB. You need to update each application individually.
-            const updated = await Promise.all(applications.map(async (app) => {
-                const utilityService = new UtilityService();
-                if (utilityService.isEmptyApplication(app)) {
-                    return await this.applicationDAO.delete(app._id);
-                }
-                return await this.applicationDAO.update({
-                    _id: app._id,
-                    status: DELETED,
-                    updatedAt: history.dateTime,
-                    inactiveReminder: true,
-                    history: [...(app.history || []), history]
-                });
-            }));
-            if (updated) {
-                console.log("Executed to delete application(s) because of no activities at " + getCurrentTime());
-                await Promise.all(applications.map(async (app) => {
-                    if (permittedUserIDs.has(app?.applicantID)) {
-                        await sendEmails.inactiveApplications(this.notificationService,this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app, getUserEmails(BCCUsers));
-                    }
-                }));
-                // log disabled applications
-                await Promise.all(applications.map(async (app) => {
-                    this.logCollection.insert(UpdateApplicationStateEvent.createByApp(app._id, app.status, DELETED));
-                }));
+        try {
+            const applications = await this.applicationDAO.getInactiveApplication(this.emailParams.inactiveDays);
+            
+            // Handle undefined/null/empty applications gracefully
+            if (!applications?.length) {
+                console.log("No inactive applications found to delete");
+                return;
             }
+
+            console.log(`Found ${applications.length} inactive applications to process`);
+                
+                const [applicantUsers, BCCUsers] = await Promise.all([
+                    this._findUsersByApplicantIDs(applications),
+                    this.userService.getUsersByNotifications([EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_DELETE],
+                        [ROLES.FEDERAL_LEAD, ROLES.DATA_COMMONS_PERSONNEL, ROLES.ADMIN]),
+                ]);
+
+                const permittedUserIDs = new Set(
+                    applicantUsers
+                        ?.filter((u) => u?.notifications?.includes(EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_DELETE))
+                        ?.map((u) => u?._id)
+                );
+                const history = HistoryEventBuilder.createEvent("", DELETED, this._DELETE_REVIEW_COMMENT);
+                
+                // Use Promise.allSettled to handle partial failures gracefully
+                const updateResults = await Promise.allSettled(applications.map(async (app) => {
+                    const utilityService = new UtilityService();
+                    if (utilityService.isEmptyApplication(app)) {
+                        return await this.applicationDAO.delete(app._id);
+                    }
+                    return await this.applicationDAO.update({
+                        _id: app._id,
+                        status: DELETED,
+                        updatedAt: history.dateTime,
+                        inactiveReminder: true,
+                        history: [...(app.history || []), history]
+                    });
+                }));
+
+                // Count successful updates
+                const successfulUpdates = updateResults.filter(result => result.status === 'fulfilled').length;
+                const failedUpdates = updateResults.filter(result => result.status === 'rejected').length;
+                
+                if (failedUpdates > 0) {
+                    console.error(`Failed to update ${failedUpdates} applications:`, 
+                        updateResults.filter(result => result.status === 'rejected').map(result => result.reason));
+                }
+
+                if (successfulUpdates > 0) {
+                    console.log(`Successfully processed ${successfulUpdates} inactive applications`);
+                    
+                    // Filter applications to only include those that were successfully updated
+                    const successfullyUpdatedApplications = applications.filter((app, index) => {
+                        const updateResult = updateResults[index];
+                        return updateResult && updateResult.status === 'fulfilled';
+                    });
+                    
+                    // Use Promise.allSettled for email notifications - only for successfully updated applications
+                    const emailResults = await Promise.allSettled(successfullyUpdatedApplications.map(async (app) => {
+                        if (permittedUserIDs.has(app?.applicantID)) {
+                            await sendEmails.inactiveApplications(this.notificationService,this.emailParams, app?.applicant?.applicantEmail, app?.applicant?.applicantName, app, getUserEmails(BCCUsers));
+                        }
+                    }));
+                    
+                    const successfulEmails = emailResults.filter(result => result.status === 'fulfilled').length;
+                    const failedEmails = emailResults.filter(result => result.status === 'rejected').length;
+                    
+                    if (failedEmails > 0) {
+                        console.error(`Failed to send ${failedEmails} email notifications:`, 
+                            emailResults.filter(result => result.status === 'rejected').map(result => result.reason));
+                    }
+                    
+                    console.log(`Sent ${successfulEmails} email notifications for inactive applications`);
+                    
+                    // Use Promise.allSettled for log insertions - only for successfully updated applications
+                    const logResults = await Promise.allSettled(successfullyUpdatedApplications.map(async (app) => {
+                        this.logCollection.insert(UpdateApplicationStateEvent.createByApp(app._id, app.status, DELETED));
+                    }));
+                    
+                    const successfulLogs = logResults.filter(result => result.status === 'fulfilled').length;
+                    const failedLogs = logResults.filter(result => result.status === 'rejected').length;
+                    
+                    if (failedLogs > 0) {
+                        console.error(`Failed to log ${failedLogs} application deletions:`, 
+                            logResults.filter(result => result.status === 'rejected').map(result => result.reason));
+                    }
+                    
+                    console.log(`Logged ${successfulLogs} application deletions`);
+                }
+        } catch (error) {
+            console.error("Error in deleteInactiveApplications task:", error);
+            throw error; // Re-throw to be caught by cron job handler
         }
     }
 
@@ -1242,20 +1291,25 @@ const getCCEmails = (submitterEmail, application) => {
 
 const sendEmails = {
     inactiveApplications: async (notificationService, emailParams, email, applicantName, application, BCCEmails) => {
-        const CCEmails = getCCEmails(email, application);
-        const toBCCEmails = BCCEmails
-            ?.filter((BCCEmail) => !CCEmails.includes(BCCEmail) && BCCEmail !== email);
-        await notificationService.inactiveApplicationsNotification(email,
-            CCEmails,
-            toBCCEmails, {
-            firstName: applicantName},{
-            pi: `${applicantName}`,
-            study: setDefaultIfNoName(application?.studyAbbreviation),
-            officialEmail: `${emailParams.officialEmail}.`,
-            inactiveDays: emailParams.inactiveDays,
-            url: emailParams.url
-        });
-        logDaysDifference(emailParams.inactiveDays, application?.updatedAt, application?._id);
+        try {
+            const CCEmails = getCCEmails(email, application);
+            const toBCCEmails = BCCEmails
+                ?.filter((BCCEmail) => !CCEmails.includes(BCCEmail) && BCCEmail !== email);
+            await notificationService.inactiveApplicationsNotification(email,
+                CCEmails,
+                toBCCEmails, {
+                firstName: applicantName},{
+                pi: `${applicantName}`,
+                study: setDefaultIfNoName(application?.studyAbbreviation),
+                officialEmail: `${emailParams.officialEmail}.`,
+                inactiveDays: emailParams.inactiveDays,
+                url: emailParams.url
+            });
+            logDaysDifference(emailParams.inactiveDays, application?.updatedAt, application?._id);
+        } catch (error) {
+            console.error(`Failed to send inactive application notification email to ${email} for application ${application?._id}:`, error.message);
+            throw error; // Re-throw to be handled by Promise.allSettled
+        }
     },
     submitApplication: async (notificationService, userService, emailParams, userInfo, application) => {
         const applicantInfo = (await userService.userCollection.find(application?.applicant?.applicantID))?.pop();

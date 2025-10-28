@@ -126,9 +126,20 @@ class Submission {
     async createSubmission(params, context) {
         verifySession(context)
             .verifyInitialized();
+        // Check user permission to create submission
         const userScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE);
-        if (userScope.isNoneScope()) {
-            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        // User has ALL scope - can create submissions for any study
+        if (!userScope.isAllScope()) {
+            // User has OWN or STUDY scope - must be assigned to the study
+            if (userScope.isOwnScope() || userScope.isStudyScope()) {
+                const hasStudyAccess = validateStudyAccess(context?.userInfo?.studies, params.studyID);
+                if (!hasStudyAccess) {
+                    throw new Error(ERROR.INVALID_STUDY_ACCESS);
+                }
+            }
+            else {
+                throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+            }
         }
 
         const intention = [INTENTION.UPDATE, INTENTION.DELETE].find((i) => i.toLowerCase() === params?.intention.toLowerCase());
@@ -362,6 +373,10 @@ class Submission {
         const isNotPermitted = viewScope.isNoneScope();
         if (isNotPermitted) {
           throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+        }
+
+        if (!userHasValidScope(context?.userInfo?._id, viewScope, context?.userInfo?.studies, context?.userInfo?.dataCommons, aSubmission)) {
+            throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
         }
 
         await Promise.all([
@@ -1391,10 +1406,17 @@ class Submission {
                 [USER.ROLES.DATA_COMMONS_PERSONNEL],
                 aSubmission?.dataCommons
             ),
-            this.userService.findUsersByNotificationsAndRole(
-                [EN.DATA_SUBMISSION.CREATE],
-                [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD]
-            )
+            (async () => {
+                const users = await this.userService.findUsersByNotificationsAndRole(
+                    [EN.DATA_SUBMISSION.CREATE],
+                    [USER.ROLES.ADMIN, USER.ROLES.FEDERAL_LEAD]
+                );
+                return users?.filter(({ role, studies }) => (
+                    role === USER.ROLES.ADMIN ||
+                    (role === USER.ROLES.FEDERAL_LEAD &&
+                        (validateStudyAccess(studies, approvedStudy?.id)))
+                ));
+            })(),
         ]);
 
         if (dcpUsers?.length > 0) {
@@ -1628,7 +1650,7 @@ class Submission {
         if (!userScope.isAllScope()) {
             if (userScope.isOwnScope() || userScope.isStudyScope()) {
                 if (!validateStudyAccess(userInfo.studies, aSubmission?.studyID)) {
-                    throw new Error(ERROR.INVALID_ROLE_STUDY)
+                    throw new Error(ERROR.INVALID_STUDY_ACCESS)
                 }
             } 
         }
@@ -1772,7 +1794,7 @@ class Submission {
             throw new Error(msg);
         }
 
-        await this._notifyConfigurationChange(userInfo, aSubmission, version, prevSubmitter, newSubmitter);
+        await this._notifyConfigurationChange(aSubmission, version, prevSubmitter, newSubmitter);
 
         // Log for the modifying submission
         if (updatedSubmission) {
@@ -1797,38 +1819,89 @@ class Submission {
         return updatedSubmission;
     }
 
-    async _notifyConfigurationChange(userInfo, aSubmission, newModelVersion, prevSubmitter, newSubmitter) {
-        const users = await this.userDAO.getUsersByNotifications([EN.DATA_SUBMISSION.CHANGE_CONFIGURATION]);
+    /**
+     * Notifies users about configuration changes to a submission.
+     * Sends email notifications to the new submitter, CCs the previous submitter (if changed),
+     * and BCCs relevant administrators and data commons personnel.
+     * 
+     * @param {Object} aSubmission - The submission object containing submission details (required)
+     * @param {string|null} newModelVersion - The new model version for the submission (can be null)
+     * @param {Object} prevSubmitter - The previous submitter object (assumed to be valid, not null/undefined)
+     * @param {Object} newSubmitter - The new submitter object (assumed to be valid, not null/undefined)
+     * @throws {Error} If aSubmission, newSubmitter, or prevSubmitter are null/undefined
+     */
+    async _notifyConfigurationChange(aSubmission, newModelVersion, prevSubmitter, newSubmitter) {
+        // Validate required parameters
+        if (!aSubmission) {
+            console.error(`${ERROR.FAILED_NOTIFY_SUBMISSION_UPDATE}; aSubmission parameter is required and cannot be null or undefined`);
+            throw new Error(ERROR.FAILED_NOTIFY_SUBMISSION_UPDATE);
+        }
+        if (!newSubmitter) {
+            console.error(`${ERROR.FAILED_NOTIFY_SUBMISSION_UPDATE}; newSubmitter parameter is required and cannot be null or undefined`);
+            throw new Error(ERROR.FAILED_NOTIFY_SUBMISSION_UPDATE);
+        }
+        if (!prevSubmitter) {
+            console.error(`${ERROR.FAILED_NOTIFY_SUBMISSION_UPDATE}; prevSubmitter parameter is required and cannot be null or undefined`);
+            throw new Error(ERROR.FAILED_NOTIFY_SUBMISSION_UPDATE);
+        }
         const isSubmitterChanged = Boolean(newSubmitter && prevSubmitter?.id !== newSubmitter?.id);
-        const submitterID = isSubmitterChanged ? newSubmitter?.id : aSubmission?.submitterID;
-        const { submitterEmails, BCCEmails } = (users || []).reduce(
-            (acc, u) => {
-                if (u?.email) {
-                    if (u?.id === submitterID && u.role === USER.ROLES.SUBMITTER) {
-                        acc.submitterEmails.push(u?.email);
-                    }
-
-                    if ([USER.ROLES.FEDERAL_LEAD, USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.ADMIN].includes(u?.role)) {
-                        acc.BCCEmails.push(u?.email);
-                    }
-                }
-                return acc;
-            },
-            { submitterEmails: [], BCCEmails: [] }
+        // Check if the submitter has the required notification enabled
+        if (!newSubmitter?.notifications?.includes(EN.DATA_SUBMISSION.CHANGE_CONFIGURATION)) {
+            console.warn(`Submission updated; submitter does not have configuration change notifications enabled. submissionID: ${aSubmission?.id}, submitterID: ${newSubmitter?.id}`);
+            return;
+        }
+        // Initialize recipient variables
+        const submitterEmails = [newSubmitter?.email];
+        let CCEmails = [];
+        let BCCEmails = [];
+        // If there's a new submitter, check if the old submitter should be CC'd
+        if (isSubmitterChanged && prevSubmitter?.id) {
+            const prevSubmitterUser = await this.userDAO.findByIdAndStatus(prevSubmitter.id, USER.STATUSES.ACTIVE);
+            if (prevSubmitterUser?.email && 
+                prevSubmitterUser.notifications?.includes(EN.DATA_SUBMISSION.CHANGE_CONFIGURATION)){
+                CCEmails = [prevSubmitterUser.email];
+            }
+        }
+        // Lookup admins, federal leads, and data commons personnel with notification enabled to intialize BCC list
+        const otherUsers = await this.userDAO.getUsersByNotifications(
+            [EN.DATA_SUBMISSION.CHANGE_CONFIGURATION],
+            [USER.ROLES.DATA_COMMONS_PERSONNEL, USER.ROLES.FEDERAL_LEAD, USER.ROLES.ADMIN]
         );
-
+        const submissionDataCommons = aSubmission?.dataCommons;
+        const submissionStudyID = aSubmission?.studyID;
+        // filter the BCC list
+        BCCEmails = otherUsers.reduce((acc, u) => {
+            if (!u?.email) return acc;
+            if (u.role === USER.ROLES.DATA_COMMONS_PERSONNEL) {
+                // Data Commons Personnel: filter by matching data commons
+                if (validateDataCommonsAccess(u.dataCommons, submissionDataCommons)) {
+                    acc.push(u.email);
+                }
+            }
+            else if (u.role === USER.ROLES.FEDERAL_LEAD) {
+                // Federal Lead: filter by matching study or study "ALL"
+                if (validateStudyAccess(u.studies, submissionStudyID)) {
+                    acc.push(u.email);
+                }
+            }
+            else if (u.role === USER.ROLES.ADMIN) {
+                // Admin: no filtering required
+                acc.push(u.email);
+            }
+            return acc;
+        }, []);
+        
         if (submitterEmails?.length > 0) {
-            const originalSubmitterEmail = isSubmitterChanged ? [prevSubmitter?.email] : [];
-            const isVersionChanged = newModelVersion && newModelVersion !== aSubmission?.modelVersion;
-            const sent = await this.notificationService.updateSubmissionNotification(submitterEmails, originalSubmitterEmail, BCCEmails, {
-                firstName: getEmailUserName(userInfo),
+            const isVersionChanged = newModelVersion != null && newModelVersion !== aSubmission.modelVersion;
+            const sent = await this.notificationService.updateSubmissionNotification(submitterEmails, CCEmails, BCCEmails, {
+                firstName: getEmailUserName(newSubmitter),
                 portalURL: this.emailParams.url || NA,
                 studyName: aSubmission?.study?.studyName || NA,
                 // Changing the model version
                 ...(isVersionChanged ? {prevModelVersion: aSubmission?.modelVersion || NA} : {}),
                 ...(isVersionChanged ? {newModelVersion: newModelVersion || NA} : {}),
                 // Changing the submitter
-                ...(isSubmitterChanged ? { prevSubmitterName: getEmailUserName(prevSubmitter) || NA } : {}),
+                ...(isSubmitterChanged && prevSubmitter ? { prevSubmitterName: getEmailUserName(prevSubmitter) || NA } : {}),
                 ...(isSubmitterChanged ? { newSubmitterName: getEmailUserName(newSubmitter) || NA } : {})
             });
 
@@ -2817,6 +2890,40 @@ const isUserScope = (userID, userRole, userStudies, userDataCommons, aSubmission
     }
 }
 
+
+/**
+ * Determines if a user has valid access to a submission based on their scope.
+ *
+ * Validates the following scope types:
+ * - all: User has access to all submissions.
+ * - own: User has access to their own submissions.
+ * - study: User has access to submissions for assigned studies.
+ * - dataCommons: User has access to submissions for assigned data commons.
+ *
+ * @param {string} userID - The ID of the user.
+ * @param {Object} userScope - The scope object with methods to check scope type.
+ * @param {Array<Object>} userStudies - Array of study objects assigned to the user.
+ * @param {Array<string>} userDataCommons - Array of data commons IDs assigned to the user.
+ * @param {Object} aSubmission - The submission object to check access for.
+ * @returns {boolean} True if the user has valid access to the submission, false otherwise.
+ */
+const userHasValidScope = (userID, userScope, userStudies, userDataCommons, aSubmission) => {
+    if (!aSubmission)
+        return false;
+
+    if (userScope.isAllScope()) {
+        return true; // Admin has access to all data submissions.
+    } else if (userScope.isOwnScope()) {
+        return aSubmission.submitterID === userID // Access to own submissions.
+    } else if (userScope.isStudyScope()) {
+        const studies = Array.isArray(userStudies) && userStudies.length > 0 ? userStudies : [];
+        return isAllStudy(studies) || Boolean(studies.find(study => study._id === aSubmission.studyID));
+    } else if (userScope.isDCScope()) {
+        return userDataCommons.includes(aSubmission.dataCommons); // Access to assigned data commons.
+    }
+    return false;
+}
+
 function validateStudyAccess (userStudies, submissionStudy) {
     const studies = Array.isArray(userStudies) && userStudies.length > 0 ? userStudies : [];
     return Boolean(isAllStudy(studies) || studies.find(study => study._id === submissionStudy) || studies.find(study => study.id === submissionStudy));
@@ -3017,8 +3124,28 @@ class SubmissionAttributes {
     }
 }
 
+/**
+ * Formats user name for email display.
+ * 
+ * @param {Object} userInfo - User object containing firstName and lastName
+ * @returns {string} Formatted name string, or "user" if userInfo is null/undefined or results in empty string
+ * @note The fallback to "user" indicates an invalid use case that should be investigated
+ */
 const getEmailUserName = (userInfo) => {
-    return `${userInfo.firstName} ${userInfo?.lastName || ''}`;
+    if (!userInfo) {
+        console.warn('getEmailUserName: userInfo is null/undefined, falling back to "user"');
+        return 'user';
+    }
+    const formattedName = `${userInfo.firstName || ''} ${userInfo?.lastName || ''}`.trim();
+    if (!formattedName) {
+        console.warn('getEmailUserName: formatted name is empty, falling back to "user"', {
+            firstName: userInfo.firstName,
+            lastName: userInfo.lastName,
+            userId: userInfo.id
+        });
+        return 'user';
+    }
+    return formattedName;
 }
 
 
