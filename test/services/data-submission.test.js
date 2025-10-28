@@ -2130,7 +2130,7 @@ describe('Submission.updateSubmissionInfo', () => {
         await expect(submissionService.updateSubmissionInfo(mockParamsUpdateSubmitter, mockContext))
             .rejects
             .toThrow(replaceErrorString(ERROR.INVALID_SUBMISSION_NO_SUBMITTER, mockParamsUpdateSubmitter.submitterID));
-    
+
     });
 
     it('should throw error when submission not found', async () => {
