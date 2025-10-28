@@ -173,6 +173,7 @@ const ERROR = {
     MISSING_STUDY_NAME: "Study name is required.",
     INVALID_CONTROLLED_ACCESS: "Invalid controlled access value.",
     MISSING_DB_GAP_ID: "dbGaP ID is required when access is controlled.",
+    INVALID_DB_GAP_ID: "Invalid dbGaP ID format. Expected format: phs followed by 6 digits (e.g., phs123456). No spaces or commas allowed.",
     INVALID_ORCID: "Invalid ORCID format.",
     FAILED_APPROVED_STUDY_INSERTION: "Failed to create the approved study.",
     FAILED_APPROVED_STUDY_UPDATE: "Failed to update the approved study.",
