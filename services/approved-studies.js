@@ -287,7 +287,7 @@ class ApprovedStudiesService {
             updateStudy.openAccess = openAccess;
         }
         if (dbGaPID !== undefined) {
-            const trimedDbGaPID = String(dbGaPID || "").trim();
+            const trimedDbGaPID = String(dbGaPID || "").trim().toLowerCase();
             const re = /^phs\d{6}$/i;
             if (trimedDbGaPID === "") {
                 updateStudy.dbGaPID = null;
