@@ -11,7 +11,7 @@ on:
         type: environment
       branch:
         description: Branch to build
-        required: true
+        #required: true
       trivy_test_scan_be:
         description: "Run Trivy Test Scan"
         required: true
