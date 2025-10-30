@@ -44,6 +44,24 @@ const AuthorizationService = require('../../services/authorization-service');
 const { getDataCommonsDisplayNamesForSubmission } = require('../../utility/data-commons-remapper');
 const { verifySession } = require('../../verifier/user-info-verifier');
 
+// Helper function to create complete mock UserScope
+const createMockUserScope = (isNoneScope = false, isAllScope = false, isOwnScope = false, isStudyScope = false, isDCScope = false) => {
+    return {
+        isNoneScope: jest.fn().mockReturnValue(isNoneScope),
+        isAllScope: jest.fn().mockReturnValue(isAllScope),
+        isOwnScope: jest.fn().mockReturnValue(isOwnScope),
+        isStudyScope: jest.fn().mockReturnValue(isStudyScope),
+        isDCScope: jest.fn().mockReturnValue(isDCScope),
+        isRoleScope: jest.fn().mockReturnValue(false),
+        getRoleScope: jest.fn().mockReturnValue(null),
+        getStudyScope: jest.fn().mockReturnValue(null),
+        getDataCommonsScope: jest.fn().mockReturnValue(null),
+        hasStudyValue: jest.fn().mockReturnValue(false),
+        hasDCValue: jest.fn().mockReturnValue(false),
+        hasAccessToStudy: jest.fn().mockReturnValue(false)
+    };
+};
+
 describe('Submission Service - getSubmission', () => {
     let submissionService;
     let mockSubmissionDAO;
@@ -226,9 +244,7 @@ describe('Submission Service - getSubmission', () => {
                 dataFileSize: { size: 512, formatted: '512 B' } // Different size to trigger update
             };
             submissionService._findByID.mockResolvedValue(submissionWithDifferentSize);
-            submissionService._getUserScope.mockResolvedValue({
-                isNoneScope: () => false
-            });
+            submissionService._getUserScope.mockResolvedValue(createMockUserScope(false, true)); // isAllScope = true for admin users
             submissionService._getS3DirectorySize.mockResolvedValue({ size: 1024, formatted: '1 KB' });
             mockSubmissionDAO.update.mockResolvedValue(submissionWithDifferentSize);
             mockSubmissionDAO.findMany.mockResolvedValue([]);
@@ -285,9 +301,7 @@ describe('Submission Service - getSubmission', () => {
         it('should throw error when user lacks permission', async () => {
             // Setup mocks
             submissionService._findByID.mockResolvedValue(mockSubmission);
-            submissionService._getUserScope.mockResolvedValue({
-                isNoneScope: () => true
-            });
+            submissionService._getUserScope.mockResolvedValue(createMockUserScope(true)); // isNoneScope = true for no permission
 
             // Execute and verify
             await expect(submissionService.getSubmission(mockParams, mockContext))
@@ -301,9 +315,7 @@ describe('Submission Service - getSubmission', () => {
                 dataFileSize: { size: 512, formatted: '512 B' }
             };
             submissionService._findByID.mockResolvedValue(submissionWithDifferentSize);
-            submissionService._getUserScope.mockResolvedValue({
-                isNoneScope: () => false
-            });
+            submissionService._getUserScope.mockResolvedValue(createMockUserScope(false, true)); // isAllScope = true for admin users
             submissionService._getS3DirectorySize.mockResolvedValue({ size: 1024, formatted: '1 KB' });
             mockSubmissionDAO.update.mockResolvedValue(submissionWithDifferentSize);
             mockSubmissionDAO.findMany.mockResolvedValue([]);
@@ -332,9 +344,7 @@ describe('Submission Service - getSubmission', () => {
         it('should not update data file size when it has not changed', async () => {
             // Setup mocks
             submissionService._findByID.mockResolvedValue(mockSubmission);
-            submissionService._getUserScope.mockResolvedValue({
-                isNoneScope: () => false
-            });
+            submissionService._getUserScope.mockResolvedValue(createMockUserScope(false, true)); // isAllScope = true for admin users
             submissionService._getS3DirectorySize.mockResolvedValue({ size: 1024, formatted: '1 KB' });
             mockSubmissionDAO.findMany.mockResolvedValue([]);
             mockDataRecordService.countNodesBySubmissionID.mockResolvedValue(5);
@@ -368,9 +378,7 @@ describe('Submission Service - getSubmission', () => {
                 studyID: 'study-123'
             };
             submissionService._findByID.mockResolvedValue(submissionWithStudyID);
-            submissionService._getUserScope.mockResolvedValue({
-                isNoneScope: () => false
-            });
+            submissionService._getUserScope.mockResolvedValue(createMockUserScope(false, true)); // isAllScope = true for admin users
             submissionService._getS3DirectorySize.mockResolvedValue({ size: 1024, formatted: '1 KB' });
             mockSubmissionDAO.update.mockResolvedValue(submissionWithStudyID);
             mockSubmissionDAO.findMany.mockResolvedValue(otherSubmissions);
@@ -423,9 +431,7 @@ describe('Submission Service - getSubmission', () => {
                 nodeCount: 3
             };
             submissionService._findByID.mockResolvedValue(submissionWithDifferentNodeCount);
-            submissionService._getUserScope.mockResolvedValue({
-                isNoneScope: () => false
-            });
+            submissionService._getUserScope.mockResolvedValue(createMockUserScope(false, true)); // isAllScope = true for admin users
             submissionService._getS3DirectorySize.mockResolvedValue({ size: 1024, formatted: '1 KB' });
             mockSubmissionDAO.update.mockResolvedValue(submissionWithDifferentNodeCount);
             mockSubmissionDAO.findMany.mockResolvedValue([]);
@@ -458,9 +464,7 @@ describe('Submission Service - getSubmission', () => {
                 archived: true
             };
             submissionService._findByID.mockResolvedValue(archivedSubmission);
-            submissionService._getUserScope.mockResolvedValue({
-                isNoneScope: () => false
-            });
+            submissionService._getUserScope.mockResolvedValue(createMockUserScope(false, true)); // isAllScope = true for admin users
             submissionService._getS3DirectorySize.mockResolvedValue({ size: 1024, formatted: '1 KB' });
             mockSubmissionDAO.update.mockResolvedValue(archivedSubmission);
             mockSubmissionDAO.findMany.mockResolvedValue([]);
@@ -495,9 +499,7 @@ describe('Submission Service - getSubmission', () => {
                 ]
             };
             submissionService._findByID.mockResolvedValue(submissionWithHistory);
-            submissionService._getUserScope.mockResolvedValue({
-                isNoneScope: () => false
-            });
+            submissionService._getUserScope.mockResolvedValue(createMockUserScope(false, true)); // isAllScope = true for admin users
             submissionService._getS3DirectorySize.mockResolvedValue({ size: 1024, formatted: '1 KB' });
             mockSubmissionDAO.update.mockResolvedValue(submissionWithHistory);
             mockSubmissionDAO.findMany.mockResolvedValue([]);
@@ -548,9 +550,7 @@ describe('Submission Service - getSubmission', () => {
         it('should update accessedAt for submitter users', async () => {
             // Setup mocks
             submissionService._findByID.mockResolvedValue(mockSubmission);
-            submissionService._getUserScope.mockResolvedValue({
-                isNoneScope: () => false
-            });
+            submissionService._getUserScope.mockResolvedValue(createMockUserScope(false, true)); // isAllScope = true for admin users
             submissionService._getS3DirectorySize.mockResolvedValue({ size: 1024, formatted: '1 KB' });
             mockSubmissionDAO.update.mockResolvedValue(mockSubmission);
             mockSubmissionDAO.findMany.mockResolvedValue([]);
@@ -585,9 +585,7 @@ describe('Submission Service - getSubmission', () => {
                 }
             };
             submissionService._findByID.mockResolvedValue(mockSubmission);
-            submissionService._getUserScope.mockResolvedValue({
-                isNoneScope: () => false
-            });
+            submissionService._getUserScope.mockResolvedValue(createMockUserScope(false, true)); // isAllScope = true for admin users
             submissionService._getS3DirectorySize.mockResolvedValue({ size: 1024, formatted: '1 KB' });
             mockSubmissionDAO.update.mockResolvedValue(mockSubmission);
             mockSubmissionDAO.findMany.mockResolvedValue([]);
@@ -617,9 +615,7 @@ describe('Submission Service - getSubmission', () => {
                 organization: null
             };
             submissionService._findByID.mockResolvedValue(submissionWithoutOrg);
-            submissionService._getUserScope.mockResolvedValue({
-                isNoneScope: () => false
-            });
+            submissionService._getUserScope.mockResolvedValue(createMockUserScope(false, true)); // isAllScope = true for admin users
             submissionService._getS3DirectorySize.mockResolvedValue({ size: 1024, formatted: '1 KB' });
             mockSubmissionDAO.update.mockResolvedValue(submissionWithoutOrg);
             mockSubmissionDAO.findMany.mockResolvedValue([]);
@@ -691,7 +687,7 @@ describe('Submission Service - getSubmission', () => {
 
             // Setup mocks
             submissionService._findByID.mockResolvedValue(mockSubmission);
-            submissionService._getUserScope.mockResolvedValue({ isNoneScope: () => false });
+            submissionService._getUserScope.mockResolvedValue(createMockUserScope(false, true)); // isAllScope = true
             submissionService.dataRecordDAO.submissionCrossValidationResults.mockResolvedValue(mockCrossValidationResults);
 
             // Execute
@@ -737,7 +733,7 @@ describe('Submission Service - getSubmission', () => {
 
             // Setup mocks
             submissionService._findByID.mockResolvedValue(mockSubmission);
-            submissionService._getUserScope.mockResolvedValue({ isNoneScope: () => false });
+            submissionService._getUserScope.mockResolvedValue(createMockUserScope(false, true)); // isAllScope = true
             submissionService.dataRecordDAO.submissionCrossValidationResults.mockResolvedValue(mockCrossValidationResults);
 
             // Execute

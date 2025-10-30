@@ -300,6 +300,23 @@ jest.mock('../../verifier/user-info-verifier', () => ({
     }))
 }));
 
+// Helper function to create complete mock UserScope
+const createMockUserScope = (isNoneScope = false, isAllScope = false, isOwnScope = false, isStudyScope = false, isDCScope = false) => {
+    return {
+        isNoneScope: jest.fn().mockReturnValue(isNoneScope),
+        isAllScope: jest.fn().mockReturnValue(isAllScope),
+        isOwnScope: jest.fn().mockReturnValue(isOwnScope),
+        isStudyScope: jest.fn().mockReturnValue(isStudyScope),
+        isDCScope: jest.fn().mockReturnValue(isDCScope),
+        isRoleScope: jest.fn().mockReturnValue(false),
+        getRoleScope: jest.fn().mockReturnValue(null),
+        getStudyScope: jest.fn().mockReturnValue(null),
+        getDataCommonsScope: jest.fn().mockReturnValue(null),
+        hasStudyValue: jest.fn().mockReturnValue(false),
+        hasDCValue: jest.fn().mockReturnValue(false),
+        hasAccessToStudy: jest.fn().mockReturnValue(false)
+    };
+};
 
 describe('Submission.getSubmission', () => {
     let submission;
@@ -428,7 +445,7 @@ describe('Submission.getSubmission', () => {
 
     it('should successfully get submission with all updates', async () => {
         const params = { _id: 'sub1' };
-        const mockUserScope = { isNoneScope: () => false };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true since user is the submitter
         const mockDataFileSize = { size: 2000, formatted: '2KB' };
         const mockOtherSubmissions = [
             { _id: 'sub2', status: IN_PROGRESS },
@@ -493,7 +510,7 @@ describe('Submission.getSubmission', () => {
 
     it('should throw error when user has no permission', async () => {
         const params = { _id: 'sub1' };
-        const mockUserScope = { isNoneScope: () => true };
+        const mockUserScope = createMockUserScope(true);
 
         submission._findByID = jest.fn().mockResolvedValue(mockSubmission);
         submission._getUserScope = jest.fn().mockResolvedValue(mockUserScope);
@@ -506,7 +523,7 @@ describe('Submission.getSubmission', () => {
     it('should handle submission without study ID', async () => {
         const params = { _id: 'sub1' };
         const submissionWithoutStudy = { ...mockSubmission, studyID: null };
-        const mockUserScope = { isNoneScope: () => false };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true
 
         submission._findByID = jest.fn().mockResolvedValue(submissionWithoutStudy);
         submission._getUserScope = jest.fn().mockResolvedValue(mockUserScope);
@@ -529,7 +546,7 @@ describe('Submission.getSubmission', () => {
     it('should handle archived submission', async () => {
         const params = { _id: 'sub1' };
         const archivedSubmission = { ...mockSubmission, archived: true };
-        const mockUserScope = { isNoneScope: () => false };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true
 
         submission._findByID = jest.fn().mockResolvedValue(archivedSubmission);
         submission._getUserScope = jest.fn().mockResolvedValue(mockUserScope);
@@ -551,7 +568,7 @@ describe('Submission.getSubmission', () => {
     it('should handle submission without program ID', async () => {
         const params = { _id: 'sub1' };
         const submissionWithoutProgram = { ...mockSubmission, programID: null };
-        const mockUserScope = { isNoneScope: () => false };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true
 
         submission._findByID = jest.fn().mockResolvedValue(submissionWithoutProgram);
         submission._getUserScope = jest.fn().mockResolvedValue(mockUserScope);
@@ -573,7 +590,7 @@ describe('Submission.getSubmission', () => {
 
     it('should handle data file size update failure', async () => {
         const params = { _id: 'sub1' };
-        const mockUserScope = { isNoneScope: () => false };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true
         const mockDataFileSize = { size: 2000, formatted: '2KB' };
 
         submission._findByID = jest.fn().mockResolvedValue(mockSubmission);
@@ -591,7 +608,7 @@ describe('Submission.getSubmission', () => {
 
     it('should handle node count update failure', async () => {
         const params = { _id: 'sub1' };
-        const mockUserScope = { isNoneScope: () => false };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true
         const mockDataFileSize = { size: 1000, formatted: '1KB' };
 
         submission._findByID = jest.fn().mockResolvedValue(mockSubmission);
@@ -624,7 +641,7 @@ describe('Submission.getSubmission', () => {
                 { userID: 'user2', userName: 'Jane Smith', action: 'modified' } // Already has userName
             ]
         };
-        const mockUserScope = { isNoneScope: () => false };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true
 
         submission._findByID = jest.fn().mockResolvedValue(submissionWithHistory);
         submission._getUserScope = jest.fn().mockResolvedValue(mockUserScope);
@@ -647,7 +664,7 @@ describe('Submission.getSubmission', () => {
 
     it('should handle non-submitter user', async () => {
         const params = { _id: 'sub1' };
-        const mockUserScope = { isNoneScope: () => false };
+        const mockUserScope = createMockUserScope(false, true); // isAllScope = true for ADMIN user
         const nonSubmitterContext = {
             userInfo: {
                 _id: 'user2',
@@ -676,7 +693,7 @@ describe('Submission.getSubmission', () => {
 
     it('should handle submitter user with accessedAt update', async () => {
         const params = { _id: 'sub1' };
-        const mockUserScope = { isNoneScope: () => false };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true
 
         submission._findByID = jest.fn().mockResolvedValue(mockSubmission);
         submission._getUserScope = jest.fn().mockResolvedValue(mockUserScope);
@@ -701,7 +718,7 @@ describe('Submission.getSubmission', () => {
 
     it('should handle submission with no data file size change', async () => {
         const params = { _id: 'sub1' };
-        const mockUserScope = { isNoneScope: () => false };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true
         const mockDataFileSize = { size: 1000, formatted: '1KB' }; // Same as existing
 
         submission._findByID = jest.fn().mockResolvedValue(mockSubmission);
@@ -726,7 +743,7 @@ describe('Submission.getSubmission', () => {
 
     it('should handle submission with no node count change', async () => {
         const params = { _id: 'sub1' };
-        const mockUserScope = { isNoneScope: () => false };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true
 
         submission._findByID = jest.fn().mockResolvedValue(mockSubmission);
         submission._getUserScope = jest.fn().mockResolvedValue(mockUserScope);
@@ -754,7 +771,7 @@ describe('Submission.getSubmission', () => {
             ...mockSubmission,
             organization: { _id: 'org1', name: 'Test Organization' }
         };
-        const mockUserScope = { isNoneScope: () => false };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true
 
         submission._findByID = jest.fn().mockResolvedValue(submissionWithOrg);
         submission._getUserScope = jest.fn().mockResolvedValue(mockUserScope);
@@ -776,7 +793,7 @@ describe('Submission.getSubmission', () => {
     it('should handle empty history array', async () => {
         const params = { _id: 'sub1' };
         const submissionWithEmptyHistory = { ...mockSubmission, history: [] };
-        const mockUserScope = { isNoneScope: () => false };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true
 
         submission._findByID = jest.fn().mockResolvedValue(submissionWithEmptyHistory);
         submission._getUserScope = jest.fn().mockResolvedValue(mockUserScope);
@@ -797,7 +814,7 @@ describe('Submission.getSubmission', () => {
 
     it('should handle user service returning null for history user', async () => {
         const params = { _id: 'sub1' };
-        const mockUserScope = { isNoneScope: () => false };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true
 
         submission._findByID = jest.fn().mockResolvedValue(mockSubmission);
         submission._getUserScope = jest.fn().mockResolvedValue(mockUserScope);
@@ -2419,7 +2436,7 @@ describe('Submission.editSubmission', () => {
 
     it('should successfully update submission name if submitter id is equal to user info id and user info permission includes data_submission:create', async () => {
         const updatedSubmission = { ...mockSubmission, name: 'New Submission Name'};
-        const mockUserScope = { isNoneScope: () => false, isAllScope: () => true };
+        const mockUserScope = createMockUserScope(false, true);
         submissionService._findByID.mockResolvedValue(mockSubmission);
         submissionService._getUserScope.mockResolvedValue(mockUserScope);
         submissionService._validateEditSubmission = jest.fn();
@@ -2451,7 +2468,7 @@ describe('Submission.editSubmission', () => {
                 ],
             }
         };
-        const mockUserScope = { isNoneScope: () => false, isAllScope: () => true };
+        const mockUserScope = createMockUserScope(false, true);
         const updatedSubmission = { ...mockSubmission, name: 'New Submission Name'};
         submissionService._findByID.mockResolvedValue(mockSubmission);
         submissionService._getUserScope.mockResolvedValue(mockUserScope);
@@ -2473,7 +2490,7 @@ describe('Submission.editSubmission', () => {
                 ],
             }
         };
-        const mockUserScope = { isNoneScope: () => true, isAllScope: () => true };
+        const mockUserScope = createMockUserScope(true, true);
         const updatedSubmission = { ...mockSubmission, name: 'New Submission Name'};
         submissionService._findByID.mockResolvedValue(mockSubmission);
         submissionService._getUserScope.mockResolvedValue(mockUserScope);
