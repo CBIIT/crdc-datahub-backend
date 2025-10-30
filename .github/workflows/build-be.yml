@@ -66,7 +66,7 @@ jobs:
           # Determine branch name
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
           #good  BRANCH_NAME="${{ github.event.inputs.branch }}"
-            BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+            BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
           else
             BRANCH_NAME="${{ github.event.pull_request.base.ref }}"
           fi
