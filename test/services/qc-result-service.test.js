@@ -889,6 +889,32 @@ describe('QcResultService', () => {
             expect(result.results[0].count).toBe(2); // 2 distinct data records (by dataRecordID), not individual issue count
             expect(result.results[0].title).toBe("Missing required field");
         });
+
+        it('should convert total from null to 0 when qcResultCollection.aggregate returns null total', async () => {
+            // Mock the aggregate method to return a response with total: null
+            // This simulates the scenario where the count pipeline returns null
+            const mockCountResult = [{ total: null }]; // Count pipeline returns null total
+            const mockDataResult = []; // Empty results array
+            
+            mockQcResultCollection.aggregate
+                .mockResolvedValueOnce(mockCountResult) // First call for count pipeline
+                .mockResolvedValueOnce(mockDataResult); // Second call for pagination pipeline
+
+            const result = await qcResultService.qcResultDAO.aggregatedSubmissionQCResults(
+                "test_submission_id",
+                "error",
+                10,
+                0,
+                "count",
+                "desc"
+            );
+
+            // Verify that null total from aggregate is converted to 0
+            expect(result.total).toBe(0);
+            expect(result.total).not.toBeNull();
+            expect(result.results).toEqual([]);
+            expect(mockQcResultCollection.aggregate).toHaveBeenCalledTimes(2);
+        });
     });
 
     describe('_getUserScope', () => {
