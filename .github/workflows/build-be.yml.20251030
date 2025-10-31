@@ -11,7 +11,7 @@ on:
         type: environment
       branch:
         description: Branch to build
-        #required: true
+        required: true
       trivy_test_scan_be:
         description: "Run Trivy Test Scan"
         required: true
@@ -52,8 +52,7 @@ jobs:
         with:
 #          ref: ${{ env.CODE_BRANCH }}
 #          ref: ${{ github.ref_name }}
-#good          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.branch || github.event.pull_request.base.ref }}
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref_name || github.event.pull_request.base.ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.branch || github.event.pull_request.base.ref }}
 #          submodules: true
           submodules: recursive
           clean: true
@@ -65,8 +64,7 @@ jobs:
           #BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
           # Determine branch name
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          #good  BRANCH_NAME="${{ github.event.inputs.branch }}"
-            BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
+            BRANCH_NAME="${{ github.event.inputs.branch }}"
           else
             BRANCH_NAME="${{ github.event.pull_request.base.ref }}"
           fi
