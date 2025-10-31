@@ -48,6 +48,53 @@ describe('TooltipService', () => {
 
             expect(() => new TooltipService()).toThrow(/Failed to initialize TooltipService/);
         });
+
+        it('should throw error when constants file contains non-string value', () => {
+            const invalidConstants = {
+                ...mockConstants,
+                INVALID_KEY: 123
+            };
+            fs.readFileSync.mockReturnValue(JSON.stringify(invalidConstants));
+
+            expect(() => new TooltipService()).toThrow(/Constants file validation failed/);
+            expect(() => new TooltipService()).toThrow(/non-string values for keys: INVALID_KEY/);
+        });
+
+        it('should throw error when constants file contains multiple non-string values', () => {
+            const invalidConstants = {
+                ...mockConstants,
+                INVALID_KEY_1: 123,
+                INVALID_KEY_2: true,
+                INVALID_KEY_3: {}
+            };
+            fs.readFileSync.mockReturnValue(JSON.stringify(invalidConstants));
+
+            expect(() => new TooltipService()).toThrow(/Constants file validation failed/);
+            expect(() => new TooltipService()).toThrow(/non-string values for keys: INVALID_KEY_1, INVALID_KEY_2, INVALID_KEY_3/);
+        });
+
+        it('should throw error when constants file is not an object', () => {
+            fs.readFileSync.mockReturnValue(JSON.stringify([]));
+
+            expect(() => new TooltipService()).toThrow(/Constants file must contain a valid JSON object/);
+        });
+
+        it('should throw error when constants file is null', () => {
+            fs.readFileSync.mockReturnValue(JSON.stringify(null));
+
+            expect(() => new TooltipService()).toThrow(/Constants file must contain a valid JSON object/);
+        });
+
+        it('should throw error when constants file contains null values', () => {
+            const constantsWithNull = {
+                ...mockConstants,
+                NULL_KEY: null
+            };
+            fs.readFileSync.mockReturnValue(JSON.stringify(constantsWithNull));
+
+            expect(() => new TooltipService()).toThrow(/Constants file validation failed/);
+            expect(() => new TooltipService()).toThrow(/non-string values for keys: NULL_KEY/);
+        });
     });
 
     describe('getTooltips', () => {
@@ -171,25 +218,6 @@ describe('TooltipService', () => {
             ]);
         });
 
-        it('should handle keys with null values in constants file', () => {
-            // Setup service with constants containing null value
-            const constantsWithNull = {
-                ...mockConstants,
-                NULL_KEY: null
-            };
-            fs.readFileSync.mockReturnValue(JSON.stringify(constantsWithNull));
-            const serviceWithNull = new TooltipService();
-
-            const params = {
-                keys: ['NULL_KEY']
-            };
-
-            const result = serviceWithNull.getTooltips(params);
-
-            expect(result).toEqual([
-                { key: 'NULL_KEY', value: null }
-            ]);
-        });
 
         it('should return unique keys only once when duplicates are in request', () => {
             const params = {
@@ -216,6 +244,19 @@ describe('TooltipService', () => {
                 { key: 'WELCOME_MESSAGE', value: 'Welcome to the CRDC Data Hub' },
                 { key: 'SUBMIT_BUTTON', value: 'Submit your data submission' }
             ]);
+        });
+
+        it('should return single result when all keys are duplicates', () => {
+            const params = {
+                keys: ['WELCOME_MESSAGE', 'WELCOME_MESSAGE', 'WELCOME_MESSAGE']
+            };
+
+            const result = service.getTooltips(params);
+
+            expect(result).toEqual([
+                { key: 'WELCOME_MESSAGE', value: 'Welcome to the CRDC Data Hub' }
+            ]);
+            expect(result.length).toBe(1);
         });
     });
 });

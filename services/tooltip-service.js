@@ -13,10 +13,57 @@ class TooltipService {
         
         try {
             const fileContent = fs.readFileSync(constantsPath, "utf8");
-            this.constants = JSON.parse(fileContent);
+            const parsedConstants = JSON.parse(fileContent);
+            
+            // Validate that all keys and values are strings
+            this._validateConstants(parsedConstants);
+            
+            this.constants = parsedConstants;
         } catch (error) {
             console.error("Failed to load tooltip constants during initialization:", error);
             throw new Error(`Failed to initialize TooltipService: ${error.message}`);
+        }
+    }
+
+    /**
+     * Validates that all keys and values in the constants object are strings
+     * @param {Object} constants - The parsed constants object
+     * @throws {Error} If validation fails
+     * @private
+     */
+    _validateConstants(constants) {
+        if (typeof constants !== 'object' || constants === null || Array.isArray(constants)) {
+            const errorMsg = "Constants file must contain a valid JSON object.";
+            console.error(`Tooltip constants validation error: ${errorMsg}`);
+            throw new Error(errorMsg);
+        }
+
+        const invalidKeys = [];
+        const invalidValues = [];
+
+        for (const [key, value] of Object.entries(constants)) {
+            if (typeof key !== 'string') {
+                invalidKeys.push(key);
+            }
+            if (typeof value !== 'string' || value === null) {
+                invalidValues.push(key);
+            }
+        }
+
+        if (invalidKeys.length > 0 || invalidValues.length > 0) {
+            let errorMsg = "Constants file validation failed: ";
+            const errors = [];
+            
+            if (invalidKeys.length > 0) {
+                errors.push(`non-string keys: ${invalidKeys.join(', ')}`);
+            }
+            if (invalidValues.length > 0) {
+                errors.push(`non-string values for keys: ${invalidValues.join(', ')}`);
+            }
+            
+            errorMsg += errors.join('; ');
+            console.error(`Tooltip constants validation error: ${errorMsg}`);
+            throw new Error(errorMsg);
         }
     }
 
