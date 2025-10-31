@@ -711,6 +711,11 @@ type idType {
     _id: ID
 }
 
+type TooltipResult {
+    key: String!
+    value: String
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -901,6 +906,7 @@ type Query {
     getApplicationFormVersion: ApplicationFormVersion
     retrieveCLIUploaderVersion: String @public
     isMaintenanceMode: Boolean @public
+    getTooltips(keys: [String!]!): [TooltipResult!]! @public
     userIsPrimaryContact(userID: ID!): Boolean
     listReleasedStudies(
         name: String,
