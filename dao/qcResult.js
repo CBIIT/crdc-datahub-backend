@@ -114,7 +114,7 @@ class QCResultDAO extends GenericDAO {
         const totalRecords = countPipelineResult[0]?.total;
         const paginatedPipelineResult = await this.qcResultCollection.aggregate(paginationPipeline);
         return {
-            total: totalRecords,
+            total: totalRecords || 0,
             results: paginatedPipelineResult
         };
     }
