@@ -96,7 +96,6 @@ jobs:
         run: |
           echo "Running unit tests..."
           npm ci
-          rm -rf generated/prisma
           npx prisma generate
           npm test
         
