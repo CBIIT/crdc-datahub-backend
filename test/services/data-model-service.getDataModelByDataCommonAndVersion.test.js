@@ -3,6 +3,13 @@ const https = require('https');
 const { MDFReader } = require('mdf-reader');
 const path = require('path');
 
+// Mock Prisma to prevent initialization errors in CI
+jest.mock('../../prisma', () => ({
+    configuration: {
+        findFirst: jest.fn(),
+    },
+}));
+
 jest.mock('https');
 jest.mock('mdf-reader');
 
