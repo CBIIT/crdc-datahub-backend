@@ -9,8 +9,8 @@ on:
       environment:
         description: Choose the environment to build
         type: environment
-      branch:
-        description: Branch to build
+      #branch:
+        #description: Branch to build
         #required: true
       trivy_test_scan_be:
         description: "Run Trivy Test Scan"
@@ -92,7 +92,7 @@ jobs:
       
       - name: Run Unit Test
         id: unit-test
-        if: github.event_name == 'pull_request' && github.event.pull_request.merged == true || (github.event_name == 'workflow_dispatch' && inputs.unit_test == 'true')
+        if: (github.event_name == 'pull_request' && github.event.pull_request.merged == true) || (github.event_name == 'workflow_dispatch' && inputs.unit_test == true)
         run: |
           echo "Running unit tests..."
           npm ci
@@ -113,7 +113,7 @@ jobs:
 
       - name: Run Trivy test scan for BE Docker Image
         id: trivy-scan-be
-        if: github.event_name == 'pull_request' && github.event.pull_request.merged == true || (github.event_name == 'workflow_dispatch' && inputs.trivy_test_scan_be == 'true')
+        if: (github.event_name == 'pull_request' && github.event.pull_request.merged == true) || (github.event_name == 'workflow_dispatch' && inputs.trivy_test_scan_be == true)
         env:
           REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
           BE_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_BE }}:${{ env.IMAGE_TAG }}
