@@ -90,6 +90,16 @@ jobs:
             echo "IMAGE_TAG=$BRANCH_NAME.$build_num" >> $GITHUB_ENV
           fi
       
+      - name: Debug env
+        run: |
+          node -v
+          npm -v
+          echo "Runner: $RUNNER_NAME"
+          echo "OS Info:"
+          uname -a
+          cat /etc/os-release
+          echo "Directory contents:"
+          ls -latr
       - name: Run Unit Test
         id: unit-test
         if: (github.event_name == 'pull_request' && github.event.pull_request.merged == true) || (github.event_name == 'workflow_dispatch' && inputs.unit_test == true)
