@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const ERROR = require("../constants/error-constants");
 
 const MAX_KEYS_LIMIT = 100;
 
@@ -21,7 +22,7 @@ class TooltipService {
             this.constants = parsedConstants;
         } catch (error) {
             console.error("Failed to load tooltip constants during initialization:", error);
-            throw new Error(`Failed to initialize TooltipService: ${error.message}`);
+            throw new Error(`${ERROR.TOOLTIP_SERVICE.INITIALIZATION_FAILED}${error.message}`);
         }
     }
 
@@ -33,7 +34,7 @@ class TooltipService {
      */
     _validateConstants(constants) {
         if (typeof constants !== 'object' || constants === null || Array.isArray(constants)) {
-            const errorMsg = "Constants file must contain a valid JSON object.";
+            const errorMsg = ERROR.TOOLTIP_SERVICE.INVALID_JSON_OBJECT;
             console.error(`Tooltip constants validation error: ${errorMsg}`);
             throw new Error(errorMsg);
         }
@@ -51,14 +52,14 @@ class TooltipService {
         }
 
         if (invalidKeys.length > 0 || invalidValues.length > 0) {
-            let errorMsg = "Constants file validation failed: ";
+            let errorMsg = ERROR.TOOLTIP_SERVICE.VALIDATION_FAILED;
             const errors = [];
             
             if (invalidKeys.length > 0) {
-                errors.push(`non-string keys: ${invalidKeys.join(', ')}`);
+                errors.push(`${ERROR.TOOLTIP_SERVICE.NON_STRING_KEYS}${invalidKeys.join(', ')}`);
             }
             if (invalidValues.length > 0) {
-                errors.push(`non-string values for keys: ${invalidValues.join(', ')}`);
+                errors.push(`${ERROR.TOOLTIP_SERVICE.NON_STRING_VALUES}${invalidValues.join(', ')}`);
             }
             
             errorMsg += errors.join('; ');
@@ -75,11 +76,11 @@ class TooltipService {
      */
     getTooltips(params) {
         if (!params?.keys || !Array.isArray(params.keys) || params.keys.length === 0) {
-            throw new Error("The 'keys' parameter is required and must be a non-empty array of strings.");
+            throw new Error(ERROR.TOOLTIP_SERVICE.KEYS_PARAMETER_REQUIRED);
         }
         
         if (params.keys.length > MAX_KEYS_LIMIT) {
-            throw new Error(`The 'keys' array cannot exceed ${MAX_KEYS_LIMIT} items.`);
+            throw new Error(`${ERROR.TOOLTIP_SERVICE.KEYS_ARRAY_EXCEEDS_LIMIT}${MAX_KEYS_LIMIT} items.`);
         }
         
         // Remove duplicate keys while preserving order
