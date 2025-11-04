@@ -5,6 +5,7 @@ const {Application} = require("../services/application");
 const {Submission} = require("../services/submission");
 const {AWSService} = require("../services/aws-request");
 const {CDE} = require("../services/CDEService");
+const {TooltipService} = require("../services/tooltip-service");
 const {MongoQueries} = require("../crdc-datahub-database-drivers/mongo-queries");
 const {DATABASE_NAME, APPLICATION_COLLECTION, SUBMISSIONS_COLLECTION, USER_COLLECTION, ORGANIZATION_COLLECTION, LOG_COLLECTION,
     APPROVED_STUDIES_COLLECTION,
@@ -108,6 +109,7 @@ dbConnector.connect().then(async () => {
     const uploadingMonitor = UploadingMonitor.getInstance(batchService.batchDAO, configurationService);
 
     const cdeService = new CDE();
+    const tooltipService = new TooltipService();
     const dataModelService = new DataModelService(fetchDataModelInfo, config.model_url);
     const submissionService = new Submission(logCollection, submissionCollection, batchService, userService,
         organizationService, notificationsService, dataRecordService, fetchDataModelInfo, awsService, config.export_queue,
@@ -239,6 +241,7 @@ dbConnector.connect().then(async () => {
         getApplicationFormVersion: configurationService.getApplicationFormVersion.bind(configurationService),
         userIsPrimaryContact: userService.isUserPrimaryContact.bind(userService),
         isMaintenanceMode: configurationService.isMaintenanceMode.bind(configurationService),
+        getTooltips: tooltipService.getTooltips.bind(tooltipService),
         getSubmissionAttributes: submissionService.getSubmissionAttributes.bind(submissionService),
         listReleasedStudies: releaseService.listReleasedStudies.bind(releaseService),
         getReleaseNodeTypes: releaseService.getReleaseNodeTypes.bind(releaseService),

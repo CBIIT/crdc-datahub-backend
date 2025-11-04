@@ -261,6 +261,16 @@ const ERROR = {
     FAILED_DOWNLOAD_ALL_RELEASED_NODES: "Failed to download all released nodes",
     STUDY_NOT_EXIST: "The requested study does not exist.",
     INTERNAL_ERROR: "An internal error occurred, please ask the Admins to check the logs for more information",
+    // Tooltip Service
+    TOOLTIP_SERVICE: {
+        INITIALIZATION_FAILED: "Failed to initialize TooltipService: ",
+        INVALID_JSON_OBJECT: "Constants file must contain a valid JSON object.",
+        VALIDATION_FAILED: "Constants file validation failed: ",
+        NON_STRING_KEYS: "non-string keys: ",
+        NON_STRING_VALUES: "non-string values for keys: ",
+        KEYS_PARAMETER_REQUIRED: "The 'keys' parameter is required and must be a non-empty array of strings.",
+        KEYS_ARRAY_EXCEEDS_LIMIT: "The 'keys' array cannot exceed "
+    }
 }
 
 module.exports = ERROR;
