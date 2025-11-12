@@ -332,7 +332,7 @@ class ApprovedStudiesService {
             throw new Error(ERROR.FAILED_APPROVED_STUDY_UPDATE);
         }
         // set conciergeID 
-        const conciergeID = (useProgramPC ? program.conciergeID : primaryContact?._id) || "";
+        const conciergeID = (useProgramPC ? program?.conciergeID : primaryContact?._id) || "";
         
         const updatedSubmissions = await this.submissionDAO.updateMany({
             studyID: updateStudy._id,
