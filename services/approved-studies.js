@@ -312,7 +312,7 @@ class ApprovedStudiesService {
         if (pendingModelChange !== undefined) {
             updateStudy.pendingModelChange = isTrue(pendingModelChange);
         }
-        updateStudy.programID = program._id ?? null;
+        updateStudy.programID = program?._id ?? null;
         if (isTrue(updateStudy.controlledAccess)) {
             if (isPendingGPA != null) {
                 updateStudy.isPendingGPA = isPendingGPA;
