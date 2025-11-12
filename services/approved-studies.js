@@ -366,8 +366,9 @@ class ApprovedStudiesService {
                 updatedAt: getCurrentTime()
             });
 
+            // Logs an error when the updated count is not an integer or less than 0
             if (!(updatedSubmissionProgramIDs?.count >= 0)) {
-                console.log(ERROR.FAILED_PRIMARY_CONTACT_UPDATE, `StudyID: ${studyID} - Failed to update submission programIDs`);
+                console.log(ERROR.FAILED_UPDATE_SUBMISSION, `StudyID: ${studyID} - Failed to update submission programIDs`);
             }
         }
 

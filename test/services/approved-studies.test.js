@@ -734,7 +734,7 @@ describe('ApprovedStudiesService', () => {
                 
                 // Verify error was logged
                 expect(consoleSpy).toHaveBeenCalledWith(
-                    expect.stringContaining(ERROR.FAILED_PRIMARY_CONTACT_UPDATE),
+                    expect.stringContaining(ERROR.FAILED_UPDATE_SUBMISSION),
                     expect.stringContaining('StudyID: study-id')
                 );
                 
