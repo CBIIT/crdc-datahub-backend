@@ -25,34 +25,11 @@ on:
 
   pull_request:
     types:
-      - opened
       - closed
     branches:
       - "*.*.*"
 
 jobs:
-  pr-unit-test:
-    name: PR Unit Test
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.event.pull_request.action != 'closed'
-    steps:
-      - name: Checkout Code Repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          submodules: recursive
-          clean: true
-          fetch-depth: 0
-          
-      - name: Run Unit Test with new PR
-        id: unit-test-PR
-        run: |
-          echo "Running unit tests..."
-          npm ci
-          npx prisma generate
-          npm test
-
-      
   build-backend:
     name: Build backend image
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
