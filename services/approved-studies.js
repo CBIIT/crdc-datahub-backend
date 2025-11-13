@@ -251,6 +251,9 @@ class ApprovedStudiesService {
             throw new Error(ERROR.APPROVED_STUDY_NOT_FOUND);
         }
 
+        // Store the original programID before it gets modified to detect changes
+        const oldProgramID = updateStudy.programID;
+
         // study state verifications
         // if the name is changing, verify that the new name is unique
         if (name !== updateStudy.studyName)
@@ -309,7 +312,7 @@ class ApprovedStudiesService {
         if (pendingModelChange !== undefined) {
             updateStudy.pendingModelChange = isTrue(pendingModelChange);
         }
-        updateStudy.programID = program?._id;
+        updateStudy.programID = program?._id ?? null;
         if (isTrue(updateStudy.controlledAccess)) {
             if (isPendingGPA != null) {
                 updateStudy.isPendingGPA = isPendingGPA;
@@ -344,6 +347,29 @@ class ApprovedStudiesService {
         if (!(updatedSubmissions?.count >= 0)) {
             console.log(ERROR.FAILED_PRIMARY_CONTACT_UPDATE, `StudyID: ${studyID}`);
             throw new Error(ERROR.FAILED_PRIMARY_CONTACT_UPDATE);
+        }
+
+        // Update submission programID when study program changes
+        const newProgramID = program._id ?? null;
+        if (oldProgramID !== newProgramID) {
+            
+            const updatedSubmissionProgramIDs = await this.submissionDAO.updateMany({
+                studyID: updateStudy._id,
+                status: {
+                    // Submission status must be in the list below otherwise it will not be updated
+                    // Completed is the only excluded status right now
+                    in: [NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, CANCELED, DELETED, ARCHIVED],
+                },
+                programID: { not: newProgramID }
+            }, {
+                programID: newProgramID,
+                updatedAt: getCurrentTime()
+            });
+
+            // Logs an error when the updated count is not an integer or less than 0
+            if (!(updatedSubmissionProgramIDs?.count >= 0)) {
+                console.log(ERROR.FAILED_UPDATE_SUBMISSION, `StudyID: ${studyID} - Failed to update submission programIDs`);
+            }
         }
 
         // extract the current pending GPA and dbGaPID to variables
