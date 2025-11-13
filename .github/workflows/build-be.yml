@@ -34,12 +34,12 @@ jobs:
   pr-unit-test:
     name: PR Unit Test
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    if: github.event_name == 'pull_request' && github.event.pull_request.action != 'closed'
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ github.event.pull_request.head.sha }}
           submodules: recursive
           clean: true
           fetch-depth: 0
