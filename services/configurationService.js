@@ -32,6 +32,9 @@ class ConfigurationService {
         verifySession(context)
             .verifyInitialized();
 
+        const userInfo = context.userInfo;
+        console.log(`getPBACDefaults called by user: ${userInfo._id} (${userInfo.email}, ${userInfo.IDP})`);
+
         return await this.getPBACByRoles(params.roles);
     }
     /**
