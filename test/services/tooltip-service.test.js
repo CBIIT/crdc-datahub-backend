@@ -1,10 +1,12 @@
 const fs = require('fs');
 const path = require('path');
 const { TooltipService } = require('../../services/tooltip-service');
+const { verifySession } = require('../../verifier/user-info-verifier');
 const ERROR = require('../../constants/error-constants');
 
 jest.mock('fs');
 jest.mock('path');
+jest.mock('../../verifier/user-info-verifier');
 
 // Test constants - only valid tooltip keys
 const TOOLTIP_KEYS = {
@@ -19,9 +21,11 @@ const TOOLTIP_VALUES = {
     VALIDATE_BUTTON: 'Validate submission data'
 };
 
-describe('TooltipService', () => {
+    describe('TooltipService', () => {
     let mockConstantsPath;
     let mockConstants;
+    let mockContext;
+    let mockVerifySession;
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -32,6 +36,21 @@ describe('TooltipService', () => {
             [TOOLTIP_KEYS.SUBMIT_BUTTON]: TOOLTIP_VALUES.SUBMIT_BUTTON,
             [TOOLTIP_KEYS.VALIDATE_BUTTON]: TOOLTIP_VALUES.VALIDATE_BUTTON
         };
+
+        // Mock context with userInfo
+        mockContext = {
+            userInfo: {
+                _id: 'user123',
+                email: 'test@example.com',
+                IDP: 'NIH'
+            }
+        };
+
+        // Mock verifySession
+        mockVerifySession = {
+            verifyInitialized: jest.fn().mockReturnThis()
+        };
+        verifySession.mockReturnValue(mockVerifySession);
 
         // Mock path.join to return our test path
         path.join.mockImplementation((...args) => {
@@ -118,12 +137,35 @@ describe('TooltipService', () => {
             service = new TooltipService();
         });
 
-        it('should return tooltips for existing keys', () => {
+        it('should call verifySession and verifyInitialized', async () => {
+            const params = {
+                keys: [TOOLTIP_KEYS.WELCOME_MESSAGE]
+            };
+
+            await service.getTooltips(params, mockContext);
+
+            expect(verifySession).toHaveBeenCalledWith(mockContext);
+            expect(mockVerifySession.verifyInitialized).toHaveBeenCalled();
+        });
+
+        it('should log to stdout with user information', async () => {
+            const params = {
+                keys: [TOOLTIP_KEYS.WELCOME_MESSAGE]
+            };
+            const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+            await service.getTooltips(params, mockContext);
+
+            expect(consoleSpy).toHaveBeenCalledWith('getTooltips called by user: user123 (test@example.com, NIH)');
+            consoleSpy.mockRestore();
+        });
+
+        it('should return tooltips for existing keys', async () => {
             const params = {
                 keys: [TOOLTIP_KEYS.WELCOME_MESSAGE, TOOLTIP_KEYS.SUBMIT_BUTTON]
             };
 
-            const result = service.getTooltips(params);
+            const result = await service.getTooltips(params, mockContext);
 
             expect(result).toEqual([
                 { key: TOOLTIP_KEYS.WELCOME_MESSAGE, value: TOOLTIP_VALUES.WELCOME_MESSAGE },
@@ -131,24 +173,24 @@ describe('TooltipService', () => {
             ]);
         });
 
-        it('should return null for non-existent keys', () => {
+        it('should return null for non-existent keys', async () => {
             const params = {
                 keys: ['NON_EXISTENT_KEY']
             };
 
-            const result = service.getTooltips(params);
+            const result = await service.getTooltips(params, mockContext);
 
             expect(result).toEqual([
                 { key: 'NON_EXISTENT_KEY', value: null }
             ]);
         });
 
-        it('should handle mix of existing and non-existent keys', () => {
+        it('should handle mix of existing and non-existent keys', async () => {
             const params = {
                 keys: [TOOLTIP_KEYS.WELCOME_MESSAGE, 'NON_EXISTENT_KEY', TOOLTIP_KEYS.VALIDATE_BUTTON]
             };
 
-            const result = service.getTooltips(params);
+            const result = await service.getTooltips(params, mockContext);
 
             expect(result).toEqual([
                 { key: TOOLTIP_KEYS.WELCOME_MESSAGE, value: TOOLTIP_VALUES.WELCOME_MESSAGE },
@@ -157,24 +199,24 @@ describe('TooltipService', () => {
             ]);
         });
 
-        it('should handle single key request', () => {
+        it('should handle single key request', async () => {
             const params = {
                 keys: [TOOLTIP_KEYS.SUBMIT_BUTTON]
             };
 
-            const result = service.getTooltips(params);
+            const result = await service.getTooltips(params, mockContext);
 
             expect(result).toEqual([
                 { key: TOOLTIP_KEYS.SUBMIT_BUTTON, value: TOOLTIP_VALUES.SUBMIT_BUTTON }
             ]);
         });
 
-        it('should preserve order of requested keys', () => {
+        it('should preserve order of requested keys', async () => {
             const params = {
                 keys: [TOOLTIP_KEYS.VALIDATE_BUTTON, TOOLTIP_KEYS.WELCOME_MESSAGE, TOOLTIP_KEYS.SUBMIT_BUTTON]
             };
 
-            const result = service.getTooltips(params);
+            const result = await service.getTooltips(params, mockContext);
 
             expect(result).toEqual([
                 { key: TOOLTIP_KEYS.VALIDATE_BUTTON, value: TOOLTIP_VALUES.VALIDATE_BUTTON },
@@ -183,62 +225,67 @@ describe('TooltipService', () => {
             ]);
         });
 
-        it('should throw error when params is undefined', () => {
-            expect(() => service.getTooltips(undefined)).toThrow(
-                ERROR.TOOLTIP_SERVICE.KEYS_PARAMETER_REQUIRED
-            );
-        });
-
-        it('should throw error when params is null', () => {
-            expect(() => service.getTooltips(null)).toThrow(
-                ERROR.TOOLTIP_SERVICE.KEYS_PARAMETER_REQUIRED
-            );
-        });
-
-        it('should throw error when params.keys is undefined', () => {
-            expect(() => service.getTooltips({})).toThrow(
-                ERROR.TOOLTIP_SERVICE.KEYS_PARAMETER_REQUIRED
-            );
-        });
-
-        it('should throw error when params.keys is not an array', () => {
-            expect(() => service.getTooltips({ keys: 'not-an-array' })).toThrow(
-                ERROR.TOOLTIP_SERVICE.KEYS_PARAMETER_REQUIRED
-            );
-        });
-
-        it('should throw error when params.keys is an empty array', () => {
-            expect(() => service.getTooltips({ keys: [] })).toThrow(
-                ERROR.TOOLTIP_SERVICE.KEYS_PARAMETER_REQUIRED
-            );
-        });
-
-        it('should throw error when keys array exceeds maximum limit', () => {
-            const largeKeysArray = Array(101).fill(TOOLTIP_KEYS.WELCOME_MESSAGE);
+        it('should return all tooltips when params is undefined', async () => {
+            const result = await service.getTooltips(undefined, mockContext);
             
-            expect(() => service.getTooltips({ keys: largeKeysArray })).toThrow(
-                `${ERROR.TOOLTIP_SERVICE.KEYS_ARRAY_EXCEEDS_LIMIT}100 items.`
-            );
+            expect(result).toHaveLength(3);
+            expect(result).toEqual(expect.arrayContaining([
+                { key: TOOLTIP_KEYS.WELCOME_MESSAGE, value: TOOLTIP_VALUES.WELCOME_MESSAGE },
+                { key: TOOLTIP_KEYS.SUBMIT_BUTTON, value: TOOLTIP_VALUES.SUBMIT_BUTTON },
+                { key: TOOLTIP_KEYS.VALIDATE_BUTTON, value: TOOLTIP_VALUES.VALIDATE_BUTTON }
+            ]));
         });
 
-        it('should accept keys array at the maximum limit', () => {
-            const maxKeysArray = Array(100).fill(TOOLTIP_KEYS.WELCOME_MESSAGE);
+        it('should return all tooltips when params is null', async () => {
+            const result = await service.getTooltips(null, mockContext);
             
-            const result = service.getTooltips({ keys: maxKeysArray });
-            
-            // Should only return one unique key
-            expect(result).toEqual([
-                { key: TOOLTIP_KEYS.WELCOME_MESSAGE, value: TOOLTIP_VALUES.WELCOME_MESSAGE }
-            ]);
+            expect(result).toHaveLength(3);
+            expect(result).toEqual(expect.arrayContaining([
+                { key: TOOLTIP_KEYS.WELCOME_MESSAGE, value: TOOLTIP_VALUES.WELCOME_MESSAGE },
+                { key: TOOLTIP_KEYS.SUBMIT_BUTTON, value: TOOLTIP_VALUES.SUBMIT_BUTTON },
+                { key: TOOLTIP_KEYS.VALIDATE_BUTTON, value: TOOLTIP_VALUES.VALIDATE_BUTTON }
+            ]));
         });
 
+        it('should return all tooltips when params.keys is undefined', async () => {
+            const result = await service.getTooltips({}, mockContext);
+            
+            expect(result).toHaveLength(3);
+            expect(result).toEqual(expect.arrayContaining([
+                { key: TOOLTIP_KEYS.WELCOME_MESSAGE, value: TOOLTIP_VALUES.WELCOME_MESSAGE },
+                { key: TOOLTIP_KEYS.SUBMIT_BUTTON, value: TOOLTIP_VALUES.SUBMIT_BUTTON },
+                { key: TOOLTIP_KEYS.VALIDATE_BUTTON, value: TOOLTIP_VALUES.VALIDATE_BUTTON }
+            ]));
+        });
 
-        it('should return unique keys only once when duplicates are in request', () => {
+        it('should return all tooltips when params.keys is not an array', async () => {
+            const result = await service.getTooltips({ keys: 'not-an-array' }, mockContext);
+            
+            expect(result).toHaveLength(3);
+            expect(result).toEqual(expect.arrayContaining([
+                { key: TOOLTIP_KEYS.WELCOME_MESSAGE, value: TOOLTIP_VALUES.WELCOME_MESSAGE },
+                { key: TOOLTIP_KEYS.SUBMIT_BUTTON, value: TOOLTIP_VALUES.SUBMIT_BUTTON },
+                { key: TOOLTIP_KEYS.VALIDATE_BUTTON, value: TOOLTIP_VALUES.VALIDATE_BUTTON }
+            ]));
+        });
+
+        it('should return all tooltips when params.keys is an empty array', async () => {
+            const result = await service.getTooltips({ keys: [] }, mockContext);
+            
+            expect(result).toHaveLength(3);
+            expect(result).toEqual(expect.arrayContaining([
+                { key: TOOLTIP_KEYS.WELCOME_MESSAGE, value: TOOLTIP_VALUES.WELCOME_MESSAGE },
+                { key: TOOLTIP_KEYS.SUBMIT_BUTTON, value: TOOLTIP_VALUES.SUBMIT_BUTTON },
+                { key: TOOLTIP_KEYS.VALIDATE_BUTTON, value: TOOLTIP_VALUES.VALIDATE_BUTTON }
+            ]));
+        });
+
+        it('should return unique keys only once when duplicates are in request', async () => {
             const params = {
                 keys: [TOOLTIP_KEYS.WELCOME_MESSAGE, TOOLTIP_KEYS.WELCOME_MESSAGE, TOOLTIP_KEYS.SUBMIT_BUTTON]
             };
 
-            const result = service.getTooltips(params);
+            const result = await service.getTooltips(params, mockContext);
 
             expect(result).toEqual([
                 { key: TOOLTIP_KEYS.WELCOME_MESSAGE, value: TOOLTIP_VALUES.WELCOME_MESSAGE },
@@ -246,12 +293,12 @@ describe('TooltipService', () => {
             ]);
         });
 
-        it('should preserve order of first occurrence when removing duplicates', () => {
+        it('should preserve order of first occurrence when removing duplicates', async () => {
             const params = {
                 keys: [TOOLTIP_KEYS.VALIDATE_BUTTON, TOOLTIP_KEYS.WELCOME_MESSAGE, TOOLTIP_KEYS.VALIDATE_BUTTON, TOOLTIP_KEYS.SUBMIT_BUTTON, TOOLTIP_KEYS.WELCOME_MESSAGE]
             };
 
-            const result = service.getTooltips(params);
+            const result = await service.getTooltips(params, mockContext);
 
             expect(result).toEqual([
                 { key: TOOLTIP_KEYS.VALIDATE_BUTTON, value: TOOLTIP_VALUES.VALIDATE_BUTTON },
@@ -260,17 +307,41 @@ describe('TooltipService', () => {
             ]);
         });
 
-        it('should return single result when all keys are duplicates', () => {
+        it('should return single result when all keys are duplicates', async () => {
             const params = {
                 keys: [TOOLTIP_KEYS.WELCOME_MESSAGE, TOOLTIP_KEYS.WELCOME_MESSAGE, TOOLTIP_KEYS.WELCOME_MESSAGE]
             };
 
-            const result = service.getTooltips(params);
+            const result = await service.getTooltips(params, mockContext);
 
             expect(result).toEqual([
                 { key: TOOLTIP_KEYS.WELCOME_MESSAGE, value: TOOLTIP_VALUES.WELCOME_MESSAGE }
             ]);
             expect(result.length).toBe(1);
+        });
+
+        it('should throw error when context is missing', async () => {
+            const params = {
+                keys: [TOOLTIP_KEYS.WELCOME_MESSAGE]
+            };
+
+            verifySession.mockImplementation(() => {
+                throw new Error(ERROR.NOT_LOGGED_IN);
+            });
+
+            await expect(service.getTooltips(params, null)).rejects.toThrow(ERROR.NOT_LOGGED_IN);
+        });
+
+        it('should throw error when userInfo._id is missing', async () => {
+            const params = {
+                keys: [TOOLTIP_KEYS.WELCOME_MESSAGE]
+            };
+
+            mockVerifySession.verifyInitialized.mockImplementation(() => {
+                throw new Error(ERROR.SESSION_NOT_INITIALIZED);
+            });
+
+            await expect(service.getTooltips(params, mockContext)).rejects.toThrow(ERROR.SESSION_NOT_INITIALIZED);
         });
     });
 });
