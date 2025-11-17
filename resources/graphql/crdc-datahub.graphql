@@ -906,7 +906,7 @@ type Query {
     getApplicationFormVersion: ApplicationFormVersion
     retrieveCLIUploaderVersion: String @public
     isMaintenanceMode: Boolean @public
-    getTooltips(keys: [String!]!): [TooltipResult!]! @public
+    getTooltips(keys: [String!]): [TooltipResult!]!
     userIsPrimaryContact(userID: ID!): Boolean
     listReleasedStudies(
         name: String,

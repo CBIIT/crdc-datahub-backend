@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const {verifySession} = require("../verifier/user-info-verifier");
 const ERROR = require("../constants/error-constants");
 
 const MAX_KEYS_LIMIT = 100;
@@ -71,16 +72,33 @@ class TooltipService {
     /**
      * API: getTooltips
      * @param {Object} params - Query parameters
-     * @param {Array<String>} params.keys - Array of keys to lookup
+     * @param {Array<String>} params.keys - Optional array of keys to lookup. If not provided, undefined, null, or empty, returns all tooltips.
+     * @param {Object} context - Request context containing user information
      * @returns {Array<Object>} Array of objects with key and value properties
      */
-    getTooltips(params) {
+    async getTooltips(params, context) {
+        // Authentication check
+        verifySession(context)
+            .verifyInitialized();
+
+        // Logging
+        const userInfo = context.userInfo;
+        console.log(`getTooltips called by user: ${userInfo._id}`);
+
+        // If keys parameter is not provided, undefined, null, or is an empty array, return all tooltips
         if (!params?.keys || !Array.isArray(params.keys) || params.keys.length === 0) {
-            throw new Error(ERROR.TOOLTIP_SERVICE.KEYS_PARAMETER_REQUIRED);
+            // Return all tooltips
+            return Object.entries(this.constants).map(([key, value]) => {
+                return {
+                    key: key,
+                    value: value
+                };
+            });
         }
         
+        // Validate keys array length
         if (params.keys.length > MAX_KEYS_LIMIT) {
-            throw new Error(`${ERROR.TOOLTIP_SERVICE.KEYS_ARRAY_EXCEEDS_LIMIT}${MAX_KEYS_LIMIT} items.`);
+            throw new Error(`${ERROR.TOOLTIP_SERVICE.KEYS_ARRAY_EXCEEDS_LIMIT} ${MAX_KEYS_LIMIT} items.`);
         }
         
         // Remove duplicate keys while preserving order
