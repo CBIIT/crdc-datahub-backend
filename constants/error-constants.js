@@ -268,8 +268,7 @@ const ERROR = {
         VALIDATION_FAILED: "Constants file validation failed: ",
         NON_STRING_KEYS: "non-string keys: ",
         NON_STRING_VALUES: "non-string values for keys: ",
-        KEYS_PARAMETER_REQUIRED: "The 'keys' parameter is required and must be a non-empty array of strings.",
-        KEYS_ARRAY_EXCEEDS_LIMIT: "The 'keys' array cannot exceed "
+        KEYS_ARRAY_EXCEEDS_LIMIT: "The 'keys' array cannot exceed"
     }
 }
 
