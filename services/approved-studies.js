@@ -210,9 +210,9 @@ class ApprovedStudiesService {
         const pendingGPA = PendingGPA.create(GPAName, isPendingGPA);
         const program = await this._validateProgramID(programID);
         programID = program?._id;
-        const updateDbGaPID = dbGaPID?.toLowerCase();
+        dbGaPID = dbGaPID?.toLowerCase();
         // store the new study
-        let newStudy = await this.storeApprovedStudies(null, name, acronym, updateDbGaPID, null, controlledAccess, ORCID, PI, openAccess, useProgramPC, pendingModelChange, primaryContactID, pendingGPA, programID);
+        let newStudy = await this.storeApprovedStudies(null, name, acronym, dbGaPID, null, controlledAccess, ORCID, PI, openAccess, useProgramPC, pendingModelChange, primaryContactID, pendingGPA, programID);
         return {_id: newStudy?._id};
     }
     /**
