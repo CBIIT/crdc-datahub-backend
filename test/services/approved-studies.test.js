@@ -98,7 +98,7 @@ describe('ApprovedStudiesService', () => {
             acronym: 'NS',
             controlledAccess: true,
             openAccess: false,
-            dbGaPID: '1234-5678-9012-345',
+            dbGaPID: 'phs001234',
             ORCID: '0000-0002-1825-0097',
             PI: 'Dr. New',
             primaryContactID: 'contact-id',
@@ -142,7 +142,7 @@ describe('ApprovedStudiesService', () => {
             expect(service._validateStudyName).toHaveBeenCalledWith('New Study');
             expect(service._findUserByID).toHaveBeenCalledWith('contact-id');
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
-                null, 'New Study', 'NS', '1234-5678-9012-345', null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', mockGPA, 'org-id'            );
+                null, 'New Study', 'NS', 'phs001234', null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', mockGPA, 'org-id'            );
             expect(service.organizationService.getOrganizationByName).toHaveBeenCalledWith('NA');
             expect(result).toEqual({_id: 'new-study-id'});
         });
@@ -210,7 +210,7 @@ describe('ApprovedStudiesService', () => {
             };
             const result = await service.addApprovedStudyAPI(paramsWithoutGPAName, mockContext);
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
-                null, 'New Study', 'NS', '1234-5678-9012-345', null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: undefined, isPendingGPA: true }, "org-id"
+                null, 'New Study', 'NS', 'phs001234', null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: undefined, isPendingGPA: true }, "org-id"
             );
             expect(result).toEqual({_id: "new-study-id"});
         });
@@ -224,7 +224,7 @@ describe('ApprovedStudiesService', () => {
             };
             const result = await service.addApprovedStudyAPI(paramsWithEmptyGPAName, mockContext);
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
-                null, 'New Study', 'NS', '1234-5678-9012-345', null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: '', isPendingGPA: true }, "org-id"
+                null, 'New Study', 'NS', 'phs001234', null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: '', isPendingGPA: true }, "org-id"
             );
             expect(result).toEqual({_id: "new-study-id"});
         });
@@ -252,7 +252,7 @@ describe('ApprovedStudiesService', () => {
             };
             const result = await service.addApprovedStudyAPI(paramsWithoutGPAName, mockContext);
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
-                null, 'New Study', 'NS', '1234-5678-9012-345', null, false, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: undefined, isPendingGPA: false }, "org-id"
+                null, 'New Study', 'NS', 'phs001234', null, false, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: undefined, isPendingGPA: false }, "org-id"
             );
             expect(result).toEqual({_id: "new-study-id"});
         });
@@ -928,7 +928,7 @@ describe('ApprovedStudiesService', () => {
     describe('storeApprovedStudies', () => {
         const studyName = 'Study A';
         const studyAbbreviation = 'SA';
-        const dbGaPID = '1234-5678-9012-345';
+        const dbGaPID = 'phs001234';
         const organizationName = 'Org1';
         const controlledAccess = true;
         const ORCID = '0000-0002-1825-0097';

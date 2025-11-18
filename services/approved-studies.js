@@ -210,7 +210,9 @@ class ApprovedStudiesService {
         const pendingGPA = PendingGPA.create(GPAName, isPendingGPA);
         const program = await this._validateProgramID(programID);
         programID = program?._id;
-        dbGaPID = dbGaPID?.toLowerCase();
+        if (dbGaPID !== undefined) {
+            dbGaPID = this._validateDbGaPID(dbGaPID);
+        }
         // store the new study
         let newStudy = await this.storeApprovedStudies(null, name, acronym, dbGaPID, null, controlledAccess, ORCID, PI, openAccess, useProgramPC, pendingModelChange, primaryContactID, pendingGPA, programID);
         return {_id: newStudy?._id};
@@ -291,17 +293,7 @@ class ApprovedStudiesService {
             updateStudy.openAccess = openAccess;
         }
         if (dbGaPID !== undefined) {
-            const trimedDbGaPID = String(dbGaPID || "").trim().toLowerCase();
-            const re = /^phs\d{6}$/i;
-            if (trimedDbGaPID === "") {
-                updateStudy.dbGaPID = null;
-            }
-            else if (!re.test(trimedDbGaPID)) {
-                throw new Error(ERROR.INVALID_DB_GAP_ID);
-            }
-            else {
-                updateStudy.dbGaPID = trimedDbGaPID;
-        }
+            updateStudy.dbGaPID = this._validateDbGaPID(dbGaPID);
         }
         if (ORCID !== undefined) {
             updateStudy.ORCID = ORCID;
@@ -389,7 +381,20 @@ class ApprovedStudiesService {
         let approvedStudy = {...updateStudy, program: program, primaryContact: primaryContact};
         return getDataCommonsDisplayNamesForApprovedStudy(approvedStudy);
     }
-
+    _validateDbGaPID(dbGaPID) {
+        const trimedDbGaPID = String(dbGaPID || "").trim().toLowerCase();
+        const re = /^phs\d{6}$/i;
+        if (trimedDbGaPID === "") {
+            dbGaPID = null;
+        }
+        else if (!re.test(trimedDbGaPID)) {
+            throw new Error(ERROR.INVALID_DB_GAP_ID);
+        }
+        else {
+            dbGaPID = trimedDbGaPID;
+        }
+        return dbGaPID;
+    }
     _validatePendingGPA(GPAName, controlledAccess, isPendingGPA) {
         // verify that controlled access is true or isPendingGPA is false
         if (!isTrue(controlledAccess) && isTrue(isPendingGPA)) {
