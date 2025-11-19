@@ -137,6 +137,14 @@ class Submission {
                     throw new Error(ERROR.INVALID_STUDY_ACCESS);
                 }
             }
+            // User has DC scope - must have data commons access (no study assignment required)
+            else if (userScope.isDCScope()) {
+                const userDataCommons = context?.userInfo?.dataCommons || [];
+                const hasDataCommonsAccess = validateDataCommonsAccess(userDataCommons, params.dataCommons);
+                if (!hasDataCommonsAccess) {
+                    throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+                }
+            }
             else {
                 throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
             }

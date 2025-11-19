@@ -1069,7 +1069,7 @@ describe("Submission.createSubmission", () => {
             .toThrow(ERROR.INVALID_STUDY_ACCESS);
     });
 
-    it("should throw error for user with DC scope", async () => {
+    it("should allow submission creation for user with DC scope and matching data commons", async () => {
         submissionService._getUserScope.mockResolvedValueOnce({
             isNoneScope: () => false,
             isAllScope: () => false,
@@ -1077,6 +1077,148 @@ describe("Submission.createSubmission", () => {
             isStudyScope: () => false,
             isDCScope: () => true
         });
+        
+        // Mock user with matching data commons
+        mockContext.userInfo.dataCommons = ["commonsA"];
+        
+        const result = await submissionService.createSubmission(mockParams, mockContext);
+        expect(result).toBeDefined();
+        expect(mockSubmissionDAO.create).toHaveBeenCalled();
+    });
+
+    it("should throw error for user with DC scope but no matching data commons", async () => {
+        submissionService._getUserScope.mockResolvedValueOnce({
+            isNoneScope: () => false,
+            isAllScope: () => false,
+            isOwnScope: () => false,
+            isStudyScope: () => false,
+            isDCScope: () => true
+        });
+        
+        // Mock user with different data commons
+        mockContext.userInfo.dataCommons = ["differentCommons"];
+        
+        await expect(submissionService.createSubmission(mockParams, mockContext))
+            .rejects
+            .toThrow(ERROR.VERIFY.INVALID_PERMISSION);
+    });
+
+    it("should allow submission creation for user with DC scope and 'All' data commons", async () => {
+        submissionService._getUserScope.mockResolvedValueOnce({
+            isNoneScope: () => false,
+            isAllScope: () => false,
+            isOwnScope: () => false,
+            isStudyScope: () => false,
+            isDCScope: () => true
+        });
+        
+        // Mock user with "All" data commons
+        mockContext.userInfo.dataCommons = ["All"];
+        
+        const result = await submissionService.createSubmission(mockParams, mockContext);
+        expect(result).toBeDefined();
+        expect(mockSubmissionDAO.create).toHaveBeenCalled();
+    });
+
+    it("should allow submission creation for DC scope user with matching data commons and assigned study", async () => {
+        submissionService._getUserScope.mockResolvedValueOnce({
+            isNoneScope: () => false,
+            isAllScope: () => false,
+            isOwnScope: () => false,
+            isStudyScope: () => false,
+            isDCScope: () => true
+        });
+        
+        // Mock user with matching data commons AND assigned study
+        mockContext.userInfo.dataCommons = ["commonsA"];
+        mockContext.userInfo.studies = [{ _id: "study123" }];
+        
+        const result = await submissionService.createSubmission(mockParams, mockContext);
+        expect(result).toBeDefined();
+        expect(mockSubmissionDAO.create).toHaveBeenCalled();
+    });
+
+    it("should allow submission creation for DC scope user with matching data commons but no assigned study", async () => {
+        submissionService._getUserScope.mockResolvedValueOnce({
+            isNoneScope: () => false,
+            isAllScope: () => false,
+            isOwnScope: () => false,
+            isStudyScope: () => false,
+            isDCScope: () => true
+        });
+        
+        // Mock user with matching data commons but NO assigned study
+        mockContext.userInfo.dataCommons = ["commonsA"];
+        mockContext.userInfo.studies = [];
+        
+        const result = await submissionService.createSubmission(mockParams, mockContext);
+        expect(result).toBeDefined();
+        expect(mockSubmissionDAO.create).toHaveBeenCalled();
+    });
+
+    it("should allow submission creation for DC scope user with matching data commons and different assigned study", async () => {
+        submissionService._getUserScope.mockResolvedValueOnce({
+            isNoneScope: () => false,
+            isAllScope: () => false,
+            isOwnScope: () => false,
+            isStudyScope: () => false,
+            isDCScope: () => true
+        });
+        
+        // Mock user with matching data commons but different assigned study
+        mockContext.userInfo.dataCommons = ["commonsA"];
+        mockContext.userInfo.studies = [{ _id: "different-study" }];
+        
+        const result = await submissionService.createSubmission(mockParams, mockContext);
+        expect(result).toBeDefined();
+        expect(mockSubmissionDAO.create).toHaveBeenCalled();
+    });
+
+    it("should throw error for DC scope user with null dataCommons", async () => {
+        submissionService._getUserScope.mockResolvedValueOnce({
+            isNoneScope: () => false,
+            isAllScope: () => false,
+            isOwnScope: () => false,
+            isStudyScope: () => false,
+            isDCScope: () => true
+        });
+        
+        // Mock user with null dataCommons
+        mockContext.userInfo.dataCommons = null;
+        
+        await expect(submissionService.createSubmission(mockParams, mockContext))
+            .rejects
+            .toThrow(ERROR.VERIFY.INVALID_PERMISSION);
+    });
+
+    it("should throw error for DC scope user with undefined dataCommons", async () => {
+        submissionService._getUserScope.mockResolvedValueOnce({
+            isNoneScope: () => false,
+            isAllScope: () => false,
+            isOwnScope: () => false,
+            isStudyScope: () => false,
+            isDCScope: () => true
+        });
+        
+        // Mock user with undefined dataCommons
+        mockContext.userInfo.dataCommons = undefined;
+        
+        await expect(submissionService.createSubmission(mockParams, mockContext))
+            .rejects
+            .toThrow(ERROR.VERIFY.INVALID_PERMISSION);
+    });
+
+    it("should throw error for DC scope user with empty dataCommons array", async () => {
+        submissionService._getUserScope.mockResolvedValueOnce({
+            isNoneScope: () => false,
+            isAllScope: () => false,
+            isOwnScope: () => false,
+            isStudyScope: () => false,
+            isDCScope: () => true
+        });
+        
+        // Mock user with empty dataCommons array
+        mockContext.userInfo.dataCommons = [];
         
         await expect(submissionService.createSubmission(mockParams, mockContext))
             .rejects
