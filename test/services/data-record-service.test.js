@@ -558,4 +558,365 @@ describe('DataRecordService', () => {
       });
     });
   });
+
+  describe('getSubmissionNodes', () => {
+    beforeEach(() => {
+      // Reset aggregate mock before each test
+      mockDataRecordsCollection.aggregate.mockReset();
+    });
+
+    test('should call aggregate twice - once for count and once for results', async () => {
+      const mockCountResult = [{ total: 10 }];
+      const mockResults = [
+        { nodeID: 'node1', nodeType: 'participant', status: 'New' },
+        { nodeID: 'node2', nodeType: 'participant', status: 'Passed' }
+      ];
+
+      // Mock aggregate to return different results for count and results queries
+      mockDataRecordsCollection.aggregate
+        .mockResolvedValueOnce(mockCountResult) // First call for count
+        .mockResolvedValueOnce(mockResults); // Second call for results
+
+      const result = await dataRecordDAO.getSubmissionNodes(
+        'submission-123',
+        'participant',
+        10,
+        0,
+        'nodeID',
+        'ASC'
+      );
+
+      // Verify aggregate was called twice
+      expect(mockDataRecordsCollection.aggregate).toHaveBeenCalledTimes(2);
+
+      // Verify the result structure
+      expect(result).toEqual({
+        total: 10,
+        results: mockResults
+      });
+    });
+
+    test('should combine count and results correctly', async () => {
+      const mockCountResult = [{ total: 5 }];
+      const mockResults = [
+        { nodeID: 'node1', nodeType: 'sample' },
+        { nodeID: 'node2', nodeType: 'sample' }
+      ];
+
+      mockDataRecordsCollection.aggregate
+        .mockResolvedValueOnce(mockCountResult)
+        .mockResolvedValueOnce(mockResults);
+
+      const result = await dataRecordDAO.getSubmissionNodes(
+        'submission-123',
+        'sample',
+        10,
+        0,
+        'nodeID',
+        'ASC'
+      );
+
+      expect(result.total).toBe(5);
+      expect(result.results).toEqual(mockResults);
+      expect(result.results).toHaveLength(2);
+    });
+
+    test('should handle pagination with first and offset', async () => {
+      const mockCountResult = [{ total: 100 }];
+      const mockResults = [
+        { nodeID: 'node11', nodeType: 'file' },
+        { nodeID: 'node12', nodeType: 'file' }
+      ];
+
+      mockDataRecordsCollection.aggregate
+        .mockResolvedValueOnce(mockCountResult)
+        .mockResolvedValueOnce(mockResults);
+
+      const result = await dataRecordDAO.getSubmissionNodes(
+        'submission-123',
+        'file',
+        2, // first
+        10, // offset
+        'nodeID',
+        'ASC'
+      );
+
+      expect(result.total).toBe(100);
+      expect(result.results).toEqual(mockResults);
+
+      // Verify the results pipeline includes skip and limit
+      const resultsCall = mockDataRecordsCollection.aggregate.mock.calls[1][0];
+      const hasSkip = resultsCall.some(stage => stage.$skip === 10);
+      const hasLimit = resultsCall.some(stage => stage.$limit === 2);
+
+      expect(hasSkip).toBe(true);
+      expect(hasLimit).toBe(true);
+    });
+
+    test('should handle first === -1 to return all records without pagination', async () => {
+      const mockCountResult = [{ total: 50 }];
+      const mockResults = Array.from({ length: 50 }, (_, i) => ({
+        nodeID: `node${i}`,
+        nodeType: 'participant'
+      }));
+
+      mockDataRecordsCollection.aggregate
+        .mockResolvedValueOnce(mockCountResult)
+        .mockResolvedValueOnce(mockResults);
+
+      const result = await dataRecordDAO.getSubmissionNodes(
+        'submission-123',
+        'participant',
+        -1, // first === -1 means return all
+        0,
+        'nodeID',
+        'ASC'
+      );
+
+      expect(result.total).toBe(50);
+      expect(result.results).toHaveLength(50);
+
+      // Verify the results pipeline does NOT include skip and limit when first === -1
+      const resultsCall = mockDataRecordsCollection.aggregate.mock.calls[1][0];
+      const hasSkip = resultsCall.some(stage => stage.$skip !== undefined);
+      const hasLimit = resultsCall.some(stage => stage.$limit !== undefined);
+
+      expect(hasSkip).toBe(false);
+      expect(hasLimit).toBe(false);
+    });
+
+    test('should handle empty results', async () => {
+      const mockCountResult = [{ total: 0 }];
+      const mockResults = [];
+
+      mockDataRecordsCollection.aggregate
+        .mockResolvedValueOnce(mockCountResult)
+        .mockResolvedValueOnce(mockResults);
+
+      const result = await dataRecordDAO.getSubmissionNodes(
+        'submission-123',
+        'participant',
+        10,
+        0,
+        'nodeID',
+        'ASC'
+      );
+
+      expect(result.total).toBe(0);
+      expect(result.results).toEqual([]);
+    });
+
+    test('should handle null/undefined count result', async () => {
+      const mockCountResult = []; // Empty array means no count result
+      const mockResults = [
+        { nodeID: 'node1', nodeType: 'sample' }
+      ];
+
+      mockDataRecordsCollection.aggregate
+        .mockResolvedValueOnce(mockCountResult)
+        .mockResolvedValueOnce(mockResults);
+
+      const result = await dataRecordDAO.getSubmissionNodes(
+        'submission-123',
+        'sample',
+        10,
+        0,
+        'nodeID',
+        'ASC'
+      );
+
+      // Should default to 0 when count result is empty
+      expect(result.total).toBe(0);
+      expect(result.results).toEqual(mockResults);
+    });
+
+    test('should handle null/undefined results', async () => {
+      const mockCountResult = [{ total: 5 }];
+      const mockResults = null;
+
+      mockDataRecordsCollection.aggregate
+        .mockResolvedValueOnce(mockCountResult)
+        .mockResolvedValueOnce(mockResults);
+
+      const result = await dataRecordDAO.getSubmissionNodes(
+        'submission-123',
+        'file',
+        10,
+        0,
+        'nodeID',
+        'ASC'
+      );
+
+      // Should default to empty array when results is null
+      expect(result.total).toBe(5);
+      expect(result.results).toEqual([]);
+    });
+
+    test('should use custom query when provided', async () => {
+      const mockCountResult = [{ total: 3 }];
+      const mockResults = [
+        { nodeID: 'node1', nodeType: 'participant', status: 'Error' }
+      ];
+
+      const customQuery = {
+        submissionID: 'submission-123',
+        nodeType: 'participant',
+        status: 'Error'
+      };
+
+      mockDataRecordsCollection.aggregate
+        .mockResolvedValueOnce(mockCountResult)
+        .mockResolvedValueOnce(mockResults);
+
+      const result = await dataRecordDAO.getSubmissionNodes(
+        'submission-123',
+        'participant',
+        10,
+        0,
+        'nodeID',
+        'ASC',
+        customQuery
+      );
+
+      expect(result.total).toBe(3);
+      expect(result.results).toEqual(mockResults);
+
+      // Verify both pipelines use the custom query
+      const countCall = mockDataRecordsCollection.aggregate.mock.calls[0][0];
+      const resultsCall = mockDataRecordsCollection.aggregate.mock.calls[1][0];
+
+      const countMatch = countCall.find(stage => stage.$match);
+      const resultsMatch = resultsCall.find(stage => stage.$match);
+
+      expect(countMatch.$match).toEqual(customQuery);
+      expect(resultsMatch.$match).toEqual(customQuery);
+    });
+
+    test('should apply sorting correctly', async () => {
+      const mockCountResult = [{ total: 5 }];
+      const mockResults = [
+        { nodeID: 'node1', updatedAt: new Date('2023-01-01') },
+        { nodeID: 'node2', updatedAt: new Date('2023-01-02') }
+      ];
+
+      mockDataRecordsCollection.aggregate
+        .mockResolvedValueOnce(mockCountResult)
+        .mockResolvedValueOnce(mockResults);
+
+      const result = await dataRecordDAO.getSubmissionNodes(
+        'submission-123',
+        'participant',
+        10,
+        0,
+        'updatedAt',
+        'DESC'
+      );
+
+      expect(result.total).toBe(5);
+      expect(result.results).toEqual(mockResults);
+
+      // Verify sort is applied in results pipeline
+      const resultsCall = mockDataRecordsCollection.aggregate.mock.calls[1][0];
+      const sortStage = resultsCall.find(stage => stage.$sort);
+
+      expect(sortStage).toBeDefined();
+      expect(sortStage.$sort.updatedAt).toBe(-1); // DESC
+      expect(sortStage.$sort.nodeID).toBe(1); // Secondary sort
+    });
+
+    test('should handle nested field sorting (props.field)', async () => {
+      const mockCountResult = [{ total: 3 }];
+      const mockResults = [
+        { nodeID: 'node1', props: { age: 30 } }
+      ];
+
+      mockDataRecordsCollection.aggregate
+        .mockResolvedValueOnce(mockCountResult)
+        .mockResolvedValueOnce(mockResults);
+
+      const result = await dataRecordDAO.getSubmissionNodes(
+        'submission-123',
+        'participant',
+        10,
+        0,
+        'age',
+        'ASC'
+      );
+
+      expect(result.total).toBe(3);
+      expect(result.results).toEqual(mockResults);
+
+      // Verify sort uses props.age
+      const resultsCall = mockDataRecordsCollection.aggregate.mock.calls[1][0];
+      const sortStage = resultsCall.find(stage => stage.$sort);
+
+      expect(sortStage.$sort['props.age']).toBe(1); // ASC
+    });
+
+    test('should handle rawData field sorting', async () => {
+      const mockCountResult = [{ total: 2 }];
+      const mockResults = [
+        { nodeID: 'node1', rawData: { 'custom.field': 'value1' } }
+      ];
+
+      mockDataRecordsCollection.aggregate
+        .mockResolvedValueOnce(mockCountResult)
+        .mockResolvedValueOnce(mockResults);
+
+      const result = await dataRecordDAO.getSubmissionNodes(
+        'submission-123',
+        'participant',
+        10,
+        0,
+        'custom.field',
+        'ASC'
+      );
+
+      expect(result.total).toBe(2);
+      expect(result.results).toEqual(mockResults);
+
+      // Verify sort uses rawData.custom|field (dot replaced with pipe)
+      const resultsCall = mockDataRecordsCollection.aggregate.mock.calls[1][0];
+      const sortStage = resultsCall.find(stage => stage.$sort);
+
+      expect(sortStage.$sort['rawData.custom|field']).toBe(1);
+    });
+
+    test('should execute count and results queries in parallel', async () => {
+      const mockCountResult = [{ total: 10 }];
+      const mockResults = [{ nodeID: 'node1' }];
+
+      // Create promises that resolve after a delay to verify parallel execution
+      let countResolved = false;
+      let resultsResolved = false;
+
+      mockDataRecordsCollection.aggregate
+        .mockImplementationOnce(async () => {
+          await new Promise(resolve => setTimeout(resolve, 10));
+          countResolved = true;
+          return mockCountResult;
+        })
+        .mockImplementationOnce(async () => {
+          await new Promise(resolve => setTimeout(resolve, 10));
+          resultsResolved = true;
+          return mockResults;
+        });
+
+      const startTime = Date.now();
+      const result = await dataRecordDAO.getSubmissionNodes(
+        'submission-123',
+        'participant',
+        10,
+        0,
+        'nodeID',
+        'ASC'
+      );
+      const endTime = Date.now();
+
+      // If executed in parallel, total time should be ~10ms, not ~20ms
+      expect(endTime - startTime).toBeLessThan(20);
+      expect(result.total).toBe(10);
+      expect(result.results).toEqual(mockResults);
+    });
+  });
 });
