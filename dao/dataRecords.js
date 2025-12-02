@@ -37,17 +37,26 @@ class DataRecordDAO extends GenericDAO {
         if (!Object.keys(NODE_VIEW).includes(orderBy)) {
             sort = orderBy.indexOf(".") > 0 ? `rawData.${orderBy.replace(".", "|")}` : `props.${orderBy}`
         }
-        let pipeline = [];
-        pipeline.push({
+        // Base pipeline with match and project stages
+        let basePipeline = [];
+        basePipeline.push({
             $match: (!query)?{
                 submissionID: submissionID,
                 nodeType: nodeType
             }:query
         });
-        pipeline.push({
+        basePipeline.push({
             $project: NODE_VIEW
         });
-        let page_pipeline = [];
+
+        // Create count pipeline
+        let countPipeline = [...basePipeline];
+        countPipeline.push({
+            $count: "total"
+        });
+
+        // Create results pipeline with sorting and pagination
+        let resultsPipeline = [...basePipeline];
         const nodeID= "nodeID";
         let sortFields = {
             [sort]: getSortDirection(sortDirection),
@@ -55,38 +64,32 @@ class DataRecordDAO extends GenericDAO {
         if (sort !== nodeID){
             sortFields[nodeID] = 1
         }
-        page_pipeline.push({
+        resultsPipeline.push({
             $sort: sortFields
         });
         // if -1, returns all data of given node & ignore offset
         if (first !== -1) {
-            page_pipeline.push({
+            resultsPipeline.push({
                 $skip: offset
             });
-            page_pipeline.push({
+            resultsPipeline.push({
                 $limit: first
             });
         }
 
-        pipeline.push({
-            $facet: {
-                total: [{
-                    $count: "total"
-                }],
-                results: page_pipeline
-            }
-        });
-        pipeline.push({
-            $set: {
-                total: {
-                    $first: "$total.total",
-                }
-            }
-        });
-        let dataRecords = await this.dataRecordsCollection.aggregate(pipeline);
-        dataRecords = dataRecords.length > 0 ? dataRecords[0] : {}
-        return {total: dataRecords.total || 0,
-            results: dataRecords.results || []}
+        // Execute both queries in parallel
+        const [countPipelineResult, resultsPipelineResult] = await Promise.all([
+            this.dataRecordsCollection.aggregate(countPipeline),
+            this.dataRecordsCollection.aggregate(resultsPipeline)
+        ]);
+
+        const totalRecords = countPipelineResult[0]?.total || 0;
+        const dataRecords = resultsPipelineResult || [];
+
+        return {
+            total: totalRecords,
+            results: dataRecords
+        };
     }
 
     async getStats(submissionID, validNodeStatus) {
