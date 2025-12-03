@@ -2230,7 +2230,7 @@ class Submission {
         try {
             const userName = `${userInfo?.lastName ? userInfo?.lastName + ',' : ''} ${userInfo?.firstName || NA}`;
             // Handle both arrays and summary strings (for deleteAll operations)
-            const logNodeIDs = Array.isArray(nodeIDs) ? nodeIDs : (typeof nodeIDs === 'string' ? [nodeIDs] : nodeIDs);
+            const logNodeIDs = Array.isArray(nodeIDs) ? nodeIDs : (typeof nodeIDs === 'string' ? [nodeIDs] : []);
             const logEvent = DeleteRecordEvent.create(userInfo._id, userInfo.email, userName, submissionID, nodeType, logNodeIDs);
             
             // Create log entry using Prisma
