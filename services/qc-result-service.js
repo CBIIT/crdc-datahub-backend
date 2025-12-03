@@ -31,16 +31,37 @@ class QcResultService{
         return await this.qcResultDAO.submissionQCResults(params._id, params.nodeTypes, params.batchIDs, params.severities, params.issueCode, params.first, params.offset, params.orderBy, params.sortDirection);
     }
 
-    async deleteQCResultBySubmissionID(submissionID, dataType, fileNames) {
-        const res = await this.qcResultDAO.deleteMany({
+    async deleteQCResultBySubmissionID(submissionID, dataType, fileNames, deleteAll = false, exclusiveIDs = []) {
+        let query = {
             submissionID: submissionID,
-            validationType: dataType,
-            submittedID: {
-                in: fileNames
+            validationType: dataType
+        };
+        
+        if (deleteAll) {
+            // When deleteAll is true, delete all QC results for submissionID and type
+            // If exclusiveIDs are provided, exclude them from deletion
+            if (exclusiveIDs && exclusiveIDs.length > 0) {
+                query.submittedID = {
+                    notIn: exclusiveIDs
+                };
             }
-        });
+            // If no exclusiveIDs, query will delete all (no submittedID filter)
+        } else {
+            // Normal deletion: delete specific fileNames
+            if (fileNames && fileNames.length > 0) {
+                query.submittedID = {
+                    in: fileNames
+                };
+            } else {
+                // No fileNames provided, nothing to delete
+                return;
+            }
+        }
+        
+        const res = await this.qcResultDAO.deleteMany(query);
 
-        if (res.count === 0 || (fileNames.length !== res.count)) {
+        // Only validate count for non-deleteAll operations
+        if (!deleteAll && fileNames && fileNames.length > 0 && (res.count === 0 || (fileNames.length !== res.count))) {
             console.error("An error occurred while deleting the qcResult records", `submissionID: ${submissionID}`);
         }
     }

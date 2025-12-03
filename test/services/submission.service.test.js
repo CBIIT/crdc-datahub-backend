@@ -1,5 +1,5 @@
 const { Submission } = require('../../services/submission');
-const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, REJECTED, WITHDRAWN, CANCELED, DELETED } = require('../../constants/submission-constants');
+const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, REJECTED, WITHDRAWN, CANCELED, DELETED, VALIDATION } = require('../../constants/submission-constants');
 const USER_CONSTANTS = require('../../crdc-datahub-database-drivers/constants/user-constants');
 const ERROR = require('../../constants/error-constants');
 
@@ -23,11 +23,18 @@ jest.mock('../../services/aws-request');
 jest.mock('../../services/configurationService');
 jest.mock('../../services/data-model-service');
 jest.mock('../../services/authorization-service');
+jest.mock('../../services/qc-result-service');
 jest.mock('../../utility/data-commons-remapper');
+jest.mock('../../utility/validation-handler');
 jest.mock('../../verifier/user-info-verifier');
 jest.mock('../../verifier/submission-verifier');
 jest.mock('../../domain/history-event');
 jest.mock('../../domain/user-scope');
+jest.mock('../../prisma', () => ({
+    log: {
+        create: jest.fn()
+    }
+}));
 
 const SubmissionDAO = require('../../dao/submission');
 const ProgramDAO = require('../../dao/program');
@@ -41,7 +48,9 @@ const AWSService = require('../../services/aws-request');
 const ConfigurationService = require('../../services/configurationService');
 const DataModelService = require('../../services/data-model-service');
 const AuthorizationService = require('../../services/authorization-service');
+const QcResultService = require('../../services/qc-result-service');
 const { getDataCommonsDisplayNamesForSubmission } = require('../../utility/data-commons-remapper');
+const { ValidationHandler } = require('../../utility/validation-handler');
 const { verifySession } = require('../../verifier/user-info-verifier');
 
 describe('Submission Service - getSubmission', () => {
@@ -808,6 +817,997 @@ describe('Submission Service - getSubmission', () => {
                 null // dataCommons should be null
             );
             expect(result).toEqual(mockCrossValidationResults);
+        });
+    });
+
+    describe('deleteDataRecords', () => {
+        let mockQcResultsService;
+        const { VALIDATION } = require('../../constants/submission-constants');
+        const USER_PERMISSION_CONSTANTS = require('../../crdc-datahub-database-drivers/constants/user-permission-constants');
+
+        beforeEach(() => {
+            jest.clearAllMocks();
+
+            mockQcResultsService = {
+                deleteQCResultBySubmissionID: jest.fn()
+            };
+
+            // Update submissionService to include qcResultsService
+            submissionService.qcResultsService = mockQcResultsService;
+            submissionService.sqsLoaderQueue = 'test-queue';
+
+            // Mock additional methods needed for deleteDataRecords
+            submissionService._isCollaborator = jest.fn();
+            submissionService._getAllSubmissionDataFiles = jest.fn();
+            submissionService._getS3DirectorySize = jest.fn();
+            submissionService._logDataRecord = jest.fn();
+            submissionService._requestDeleteDataRecords = jest.fn();
+            submissionService._getExistingDataFiles = jest.fn();
+            submissionService._deleteDataFiles = jest.fn();
+            submissionService._prepareUpdateData = jest.fn((data) => data);
+
+            // Mock S3Service methods
+            mockS3Service.deleteFile = jest.fn();
+            mockS3Service.deleteDirectory = jest.fn();
+            mockS3Service.listFile = jest.fn();
+            mockS3Service.listFileInDir = jest.fn();
+            submissionService.s3Service = mockS3Service;
+
+            // Mock verifySession
+            verifySession.mockReturnValue({
+                verifyInitialized: jest.fn()
+            });
+        });
+
+        describe('validation and error cases', () => {
+            it('should throw error when submission does not exist', async () => {
+                submissionService._findByID.mockResolvedValue(null);
+
+                await expect(submissionService.deleteDataRecords(
+                    { submissionID: 'non-existent', nodeType: VALIDATION.TYPES.DATA_FILE },
+                    mockContext
+                )).rejects.toThrow(ERROR.SUBMISSION_NOT_EXIST);
+            });
+
+            it('should throw error when submission is released', async () => {
+                const mockSubmission = {
+                    _id: 'sub-123',
+                    status: RELEASED
+                };
+                submissionService._findByID.mockResolvedValue(mockSubmission);
+
+                await expect(submissionService.deleteDataRecords(
+                    { submissionID: 'sub-123', nodeType: VALIDATION.TYPES.DATA_FILE },
+                    mockContext
+                )).rejects.toThrow(ERROR.INVALID_DELETE_SUBMISSION_STATUS);
+            });
+
+            it('should throw error when nodeIDs array exceeds 2000 items', async () => {
+                const mockSubmission = {
+                    _id: 'sub-123',
+                    status: NEW,
+                    submitterID: 'user-123'
+                };
+                const largeArray = Array(2001).fill('file.txt');
+                submissionService._findByID.mockResolvedValue(mockSubmission);
+                submissionService._getUserScope.mockResolvedValue({
+                    isOwnScope: () => true,
+                    isStudyScope: () => false,
+                    isDCScope: () => false,
+                    isAllScope: () => false
+                });
+
+                await expect(submissionService.deleteDataRecords(
+                    { submissionID: 'sub-123', nodeType: VALIDATION.TYPES.DATA_FILE, nodeIDs: largeArray },
+                    mockContext
+                )).rejects.toThrow(ERROR.INVALID_DELETE_DATA_RECORDS_ARRAY_LENGTH);
+            });
+
+            it('should throw error when exclusiveIDs array exceeds 2000 items', async () => {
+                const mockSubmission = {
+                    _id: 'sub-123',
+                    status: NEW,
+                    submitterID: 'user-123'
+                };
+                const largeArray = Array(2001).fill('file.txt');
+                submissionService._findByID.mockResolvedValue(mockSubmission);
+                submissionService._getUserScope.mockResolvedValue({
+                    isOwnScope: () => true,
+                    isStudyScope: () => false,
+                    isDCScope: () => false,
+                    isAllScope: () => false
+                });
+
+                await expect(submissionService.deleteDataRecords(
+                    { submissionID: 'sub-123', nodeType: VALIDATION.TYPES.DATA_FILE, deleteAll: true, exclusiveIDs: largeArray },
+                    mockContext
+                )).rejects.toThrow(ERROR.INVALID_DELETE_DATA_RECORDS_ARRAY_LENGTH);
+            });
+
+            it('should throw error when user lacks permission', async () => {
+                const mockSubmission = {
+                    _id: 'sub-123',
+                    status: NEW,
+                    submitterID: 'other-user'
+                };
+                submissionService._findByID.mockResolvedValue(mockSubmission);
+                submissionService._getUserScope.mockResolvedValue({
+                    isOwnScope: () => false,
+                    isStudyScope: () => false,
+                    isDCScope: () => false,
+                    isAllScope: () => false
+                });
+                submissionService._isCollaborator.mockReturnValue(false);
+
+                await expect(submissionService.deleteDataRecords(
+                    { submissionID: 'sub-123', nodeType: VALIDATION.TYPES.DATA_FILE },
+                    mockContext
+                )).rejects.toThrow(ERROR.INVALID_DELETE_DATA_RECORDS_PERMISSION);
+            });
+        });
+
+        describe('collaborator permission path', () => {
+            it('should allow collaborator with study scope and study access to delete data records', async () => {
+                const mockSubmission = {
+                    _id: 'sub-123',
+                    status: NEW,
+                    submitterID: 'other-user',
+                    studyID: 'study-123',
+                    bucketName: 'test-bucket',
+                    rootPath: 'test/path',
+                    fileErrors: []
+                };
+                const existingFilesMap = new Map([
+                    ['file1.txt', 'test/path/file/file1.txt']
+                ]);
+                const deletedFiles = ['file1.txt'];
+                const collaboratorContext = {
+                    userInfo: {
+                        _id: 'collaborator-123',
+                        role: ROLES.SUBMITTER,
+                        email: 'collaborator@example.com',
+                        studies: [{ _id: 'study-123' }]
+                    }
+                };
+
+                submissionService._findByID.mockResolvedValue(mockSubmission);
+                submissionService._getUserScope.mockResolvedValue({
+                    isOwnScope: () => false,
+                    isStudyScope: () => true,
+                    isDCScope: () => false,
+                    isAllScope: () => false,
+                    isNoneScope: () => false
+                });
+                submissionService._isCollaborator.mockReturnValue(true);
+                submissionService._getExistingDataFiles.mockResolvedValue(existingFilesMap);
+                submissionService._deleteDataFiles.mockResolvedValue(deletedFiles);
+                submissionService._getAllSubmissionDataFiles.mockResolvedValue([]);
+                submissionService._getS3DirectorySize.mockResolvedValue({ size: 0 });
+                mockSubmissionDAO.update.mockResolvedValue(mockSubmission);
+                ValidationHandler.success = jest.fn((msg) => ({ success: true, message: msg }));
+
+                const result = await submissionService.deleteDataRecords(
+                    {
+                        submissionID: 'sub-123',
+                        nodeType: VALIDATION.TYPES.DATA_FILE,
+                        nodeIDs: ['file1.txt']
+                    },
+                    collaboratorContext
+                );
+
+                expect(submissionService._isCollaborator).toHaveBeenCalledWith(
+                    collaboratorContext.userInfo,
+                    mockSubmission
+                );
+                expect(submissionService._deleteDataFiles).toHaveBeenCalled();
+                expect(result.message).toContain('1 nodes deleted');
+            });
+
+            it('should throw error when collaborator has study scope but no study access', async () => {
+                const mockSubmission = {
+                    _id: 'sub-123',
+                    status: NEW,
+                    submitterID: 'other-user',
+                    studyID: 'study-123'
+                };
+                const collaboratorContext = {
+                    userInfo: {
+                        _id: 'collaborator-123',
+                        role: ROLES.SUBMITTER,
+                        email: 'collaborator@example.com',
+                        studies: [{ _id: 'different-study' }] // Different study
+                    }
+                };
+
+                submissionService._findByID.mockResolvedValue(mockSubmission);
+                submissionService._getUserScope.mockResolvedValue({
+                    isOwnScope: () => false,
+                    isStudyScope: () => true,
+                    isDCScope: () => false,
+                    isAllScope: () => false,
+                    isNoneScope: () => false
+                });
+                submissionService._isCollaborator.mockReturnValue(true);
+
+                await expect(submissionService.deleteDataRecords(
+                    { submissionID: 'sub-123', nodeType: VALIDATION.TYPES.DATA_FILE },
+                    collaboratorContext
+                )).rejects.toThrow(ERROR.INVALID_DELETE_DATA_RECORDS_PERMISSION);
+            });
+
+            it('should throw error when user is collaborator but has none scope', async () => {
+                const mockSubmission = {
+                    _id: 'sub-123',
+                    status: NEW,
+                    submitterID: 'other-user',
+                    studyID: 'study-123'
+                };
+                const collaboratorContext = {
+                    userInfo: {
+                        _id: 'collaborator-123',
+                        role: ROLES.SUBMITTER,
+                        email: 'collaborator@example.com',
+                        studies: [{ _id: 'study-123' }]
+                    }
+                };
+
+                submissionService._findByID.mockResolvedValue(mockSubmission);
+                submissionService._getUserScope.mockResolvedValue({
+                    isOwnScope: () => false,
+                    isStudyScope: () => false,
+                    isDCScope: () => false,
+                    isAllScope: () => false,
+                    isNoneScope: () => true // None scope
+                });
+                submissionService._isCollaborator.mockReturnValue(true);
+
+                await expect(submissionService.deleteDataRecords(
+                    { submissionID: 'sub-123', nodeType: VALIDATION.TYPES.DATA_FILE },
+                    collaboratorContext
+                )).rejects.toThrow(ERROR.INVALID_DELETE_DATA_RECORDS_PERMISSION);
+            });
+
+            it('should allow collaborator with OWN scope and study access to delete data records', async () => {
+                const mockSubmission = {
+                    _id: 'sub-123',
+                    status: NEW,
+                    submitterID: 'other-user',
+                    studyID: 'study-123',
+                    bucketName: 'test-bucket',
+                    rootPath: 'test/path',
+                    fileErrors: []
+                };
+                const existingFilesMap = new Map([
+                    ['file1.txt', 'test/path/file/file1.txt']
+                ]);
+                const deletedFiles = ['file1.txt'];
+                const collaboratorContext = {
+                    userInfo: {
+                        _id: 'collaborator-123',
+                        role: ROLES.SUBMITTER,
+                        email: 'collaborator@example.com',
+                        studies: [{ _id: 'study-123' }]
+                    }
+                };
+
+                submissionService._findByID.mockResolvedValue(mockSubmission);
+                submissionService._getUserScope.mockResolvedValue({
+                    isOwnScope: () => true, // OWN scope
+                    isStudyScope: () => false,
+                    isDCScope: () => false,
+                    isAllScope: () => false,
+                    isNoneScope: () => false
+                });
+                submissionService._isCollaborator.mockReturnValue(true);
+                submissionService._getExistingDataFiles.mockResolvedValue(existingFilesMap);
+                submissionService._deleteDataFiles.mockResolvedValue(deletedFiles);
+                submissionService._getAllSubmissionDataFiles.mockResolvedValue([]);
+                submissionService._getS3DirectorySize.mockResolvedValue({ size: 0 });
+                mockSubmissionDAO.update.mockResolvedValue(mockSubmission);
+                ValidationHandler.success = jest.fn((msg) => ({ success: true, message: msg }));
+
+                const result = await submissionService.deleteDataRecords(
+                    {
+                        submissionID: 'sub-123',
+                        nodeType: VALIDATION.TYPES.DATA_FILE,
+                        nodeIDs: ['file1.txt']
+                    },
+                    collaboratorContext
+                );
+
+                expect(submissionService._deleteDataFiles).toHaveBeenCalled();
+                expect(result.message).toContain('1 nodes deleted');
+            });
+
+            it('should allow collaborator with DC scope and study access to delete data records', async () => {
+                const mockSubmission = {
+                    _id: 'sub-123',
+                    status: NEW,
+                    submitterID: 'other-user',
+                    studyID: 'study-123',
+                    bucketName: 'test-bucket',
+                    rootPath: 'test/path',
+                    fileErrors: []
+                };
+                const existingFilesMap = new Map([
+                    ['file1.txt', 'test/path/file/file1.txt']
+                ]);
+                const deletedFiles = ['file1.txt'];
+                const collaboratorContext = {
+                    userInfo: {
+                        _id: 'collaborator-123',
+                        role: ROLES.SUBMITTER,
+                        email: 'collaborator@example.com',
+                        studies: [{ _id: 'study-123' }]
+                    }
+                };
+
+                submissionService._findByID.mockResolvedValue(mockSubmission);
+                submissionService._getUserScope.mockResolvedValue({
+                    isOwnScope: () => false,
+                    isStudyScope: () => false,
+                    isDCScope: () => true, // DC scope
+                    isAllScope: () => false,
+                    isNoneScope: () => false
+                });
+                submissionService._isCollaborator.mockReturnValue(true);
+                submissionService._getExistingDataFiles.mockResolvedValue(existingFilesMap);
+                submissionService._deleteDataFiles.mockResolvedValue(deletedFiles);
+                submissionService._getAllSubmissionDataFiles.mockResolvedValue([]);
+                submissionService._getS3DirectorySize.mockResolvedValue({ size: 0 });
+                mockSubmissionDAO.update.mockResolvedValue(mockSubmission);
+                ValidationHandler.success = jest.fn((msg) => ({ success: true, message: msg }));
+
+                const result = await submissionService.deleteDataRecords(
+                    {
+                        submissionID: 'sub-123',
+                        nodeType: VALIDATION.TYPES.DATA_FILE,
+                        nodeIDs: ['file1.txt']
+                    },
+                    collaboratorContext
+                );
+
+                expect(submissionService._deleteDataFiles).toHaveBeenCalled();
+                expect(result.message).toContain('1 nodes deleted');
+            });
+
+            it('should allow collaborator with ALL scope and study access to delete data records', async () => {
+                const mockSubmission = {
+                    _id: 'sub-123',
+                    status: NEW,
+                    submitterID: 'other-user',
+                    studyID: 'study-123',
+                    bucketName: 'test-bucket',
+                    rootPath: 'test/path',
+                    fileErrors: []
+                };
+                const existingFilesMap = new Map([
+                    ['file1.txt', 'test/path/file/file1.txt']
+                ]);
+                const deletedFiles = ['file1.txt'];
+                const collaboratorContext = {
+                    userInfo: {
+                        _id: 'collaborator-123',
+                        role: ROLES.SUBMITTER,
+                        email: 'collaborator@example.com',
+                        studies: [{ _id: 'study-123' }]
+                    }
+                };
+
+                submissionService._findByID.mockResolvedValue(mockSubmission);
+                submissionService._getUserScope.mockResolvedValue({
+                    isOwnScope: () => false,
+                    isStudyScope: () => false,
+                    isDCScope: () => false,
+                    isAllScope: () => true, // ALL scope
+                    isNoneScope: () => false
+                });
+                submissionService._isCollaborator.mockReturnValue(true);
+                submissionService._getExistingDataFiles.mockResolvedValue(existingFilesMap);
+                submissionService._deleteDataFiles.mockResolvedValue(deletedFiles);
+                submissionService._getAllSubmissionDataFiles.mockResolvedValue([]);
+                submissionService._getS3DirectorySize.mockResolvedValue({ size: 0 });
+                mockSubmissionDAO.update.mockResolvedValue(mockSubmission);
+                ValidationHandler.success = jest.fn((msg) => ({ success: true, message: msg }));
+
+                const result = await submissionService.deleteDataRecords(
+                    {
+                        submissionID: 'sub-123',
+                        nodeType: VALIDATION.TYPES.DATA_FILE,
+                        nodeIDs: ['file1.txt']
+                    },
+                    collaboratorContext
+                );
+
+                expect(submissionService._deleteDataFiles).toHaveBeenCalled();
+                expect(result.message).toContain('1 nodes deleted');
+            });
+
+            it('should allow collaborator with "All" study access to delete data records', async () => {
+                const mockSubmission = {
+                    _id: 'sub-123',
+                    status: NEW,
+                    submitterID: 'other-user',
+                    studyID: 'study-123',
+                    bucketName: 'test-bucket',
+                    rootPath: 'test/path',
+                    fileErrors: []
+                };
+                const existingFilesMap = new Map([
+                    ['file1.txt', 'test/path/file/file1.txt']
+                ]);
+                const deletedFiles = ['file1.txt'];
+                const collaboratorContext = {
+                    userInfo: {
+                        _id: 'collaborator-123',
+                        role: ROLES.SUBMITTER,
+                        email: 'collaborator@example.com',
+                        studies: [{ _id: 'All' }] // All studies access
+                    }
+                };
+
+                submissionService._findByID.mockResolvedValue(mockSubmission);
+                submissionService._getUserScope.mockResolvedValue({
+                    isOwnScope: () => false,
+                    isStudyScope: () => true,
+                    isDCScope: () => false,
+                    isAllScope: () => false,
+                    isNoneScope: () => false
+                });
+                submissionService._isCollaborator.mockReturnValue(true);
+                submissionService._getExistingDataFiles.mockResolvedValue(existingFilesMap);
+                submissionService._deleteDataFiles.mockResolvedValue(deletedFiles);
+                submissionService._getAllSubmissionDataFiles.mockResolvedValue([]);
+                submissionService._getS3DirectorySize.mockResolvedValue({ size: 0 });
+                mockSubmissionDAO.update.mockResolvedValue(mockSubmission);
+                ValidationHandler.success = jest.fn((msg) => ({ success: true, message: msg }));
+
+                const result = await submissionService.deleteDataRecords(
+                    {
+                        submissionID: 'sub-123',
+                        nodeType: VALIDATION.TYPES.DATA_FILE,
+                        nodeIDs: ['file1.txt']
+                    },
+                    collaboratorContext
+                );
+
+                expect(submissionService._deleteDataFiles).toHaveBeenCalled();
+                expect(result.message).toContain('1 nodes deleted');
+            });
+        });
+
+        describe('normal deletion path (deleteAll=false)', () => {
+            it('should delete data files successfully', async () => {
+                const mockSubmission = {
+                    _id: 'sub-123',
+                    status: NEW,
+                    submitterID: 'user-123',
+                    bucketName: 'test-bucket',
+                    rootPath: 'test/path',
+                    fileErrors: []
+                };
+                const existingFilesMap = new Map([
+                    ['file1.txt', 'test/path/file/file1.txt'],
+                    ['file2.txt', 'test/path/file/file2.txt']
+                ]);
+                const deletedFiles = ['file1.txt', 'file2.txt'];
+
+                submissionService._findByID.mockResolvedValue(mockSubmission);
+                submissionService._getUserScope.mockResolvedValue({
+                    isOwnScope: () => true,
+                    isStudyScope: () => false,
+                    isDCScope: () => false,
+                    isAllScope: () => false
+                });
+                submissionService._getExistingDataFiles.mockResolvedValue(existingFilesMap);
+                submissionService._deleteDataFiles.mockResolvedValue(deletedFiles);
+                submissionService._getAllSubmissionDataFiles.mockResolvedValue([]);
+                submissionService._getS3DirectorySize.mockResolvedValue({ size: 0 });
+                mockSubmissionDAO.update.mockResolvedValue(mockSubmission);
+                ValidationHandler.success = jest.fn((msg) => ({ success: true, message: msg }));
+
+                const result = await submissionService.deleteDataRecords(
+                    {
+                        submissionID: 'sub-123',
+                        nodeType: VALIDATION.TYPES.DATA_FILE,
+                        nodeIDs: ['file1.txt', 'file2.txt']
+                    },
+                    mockContext
+                );
+
+                expect(submissionService._getExistingDataFiles).toHaveBeenCalledWith(
+                    ['file1.txt', 'file2.txt'],
+                    mockSubmission,
+                    false,
+                    []
+                );
+                expect(submissionService._deleteDataFiles).toHaveBeenCalledWith(
+                    existingFilesMap,
+                    mockSubmission,
+                    false,
+                    []
+                );
+                expect(mockQcResultsService.deleteQCResultBySubmissionID).toHaveBeenCalled();
+                expect(result.message).toContain('2 nodes deleted');
+            });
+
+            it('should return error when no files exist', async () => {
+                const mockSubmission = {
+                    _id: 'sub-123',
+                    status: NEW,
+                    submitterID: 'user-123'
+                };
+                const emptyFilesMap = new Map();
+
+                submissionService._findByID.mockResolvedValue(mockSubmission);
+                submissionService._getUserScope.mockResolvedValue({
+                    isOwnScope: () => true,
+                    isStudyScope: () => false,
+                    isDCScope: () => false,
+                    isAllScope: () => false
+                });
+                submissionService._getExistingDataFiles.mockResolvedValue(emptyFilesMap);
+                ValidationHandler.handle = jest.fn((error) => ({ success: false, error }));
+
+                const result = await submissionService.deleteDataRecords(
+                    {
+                        submissionID: 'sub-123',
+                        nodeType: VALIDATION.TYPES.DATA_FILE,
+                        nodeIDs: ['file1.txt']
+                    },
+                    mockContext
+                );
+
+                expect(result.success).toBe(false);
+                expect(submissionService._deleteDataFiles).not.toHaveBeenCalled();
+            });
+        });
+
+        describe('deleteAll=true without exclusiveIDs', () => {
+            it('should delete all data files', async () => {
+                const mockSubmission = {
+                    _id: 'sub-123',
+                    status: NEW,
+                    submitterID: 'user-123',
+                    bucketName: 'test-bucket',
+                    rootPath: 'test/path',
+                    fileErrors: []
+                };
+                const deleteResult = { deleteAll: true, count: -1 };
+
+                submissionService._findByID.mockResolvedValue(mockSubmission);
+                submissionService._getUserScope.mockResolvedValue({
+                    isOwnScope: () => true,
+                    isStudyScope: () => false,
+                    isDCScope: () => false,
+                    isAllScope: () => false
+                });
+                submissionService._deleteDataFiles.mockResolvedValue(deleteResult);
+                submissionService._getS3DirectorySize.mockResolvedValue({ size: 0 });
+                mockSubmissionDAO.update.mockResolvedValue(mockSubmission);
+                ValidationHandler.success = jest.fn((msg) => ({ success: true, message: msg }));
+
+                const result = await submissionService.deleteDataRecords(
+                    {
+                        submissionID: 'sub-123',
+                        nodeType: VALIDATION.TYPES.DATA_FILE,
+                        deleteAll: true,
+                        exclusiveIDs: []
+                    },
+                    mockContext
+                );
+
+                expect(mockQcResultsService.deleteQCResultBySubmissionID).toHaveBeenCalledWith(
+                    'sub-123',
+                    VALIDATION.TYPES.DATA_FILE,
+                    [],
+                    true,
+                    []
+                );
+                expect(submissionService._deleteDataFiles).toHaveBeenCalledWith(
+                    expect.any(Map),
+                    mockSubmission,
+                    true,
+                    []
+                );
+                expect(result.message).toBe('All nodes deleted');
+            });
+        });
+
+        describe('deleteAll=true with exclusiveIDs', () => {
+            it('should delete all files except exclusiveIDs', async () => {
+                const mockSubmission = {
+                    _id: 'sub-123',
+                    status: NEW,
+                    submitterID: 'user-123',
+                    bucketName: 'test-bucket',
+                    rootPath: 'test/path',
+                    fileErrors: []
+                };
+                const allFiles = ['file1.txt', 'file2.txt', 'file3.txt', 'file4.txt'];
+                const exclusiveIDs = ['file3.txt', 'file4.txt'];
+                const filesToDelete = ['file1.txt', 'file2.txt'];
+                const existingFilesMap = new Map([
+                    ['file1.txt', 'test/path/file/file1.txt'],
+                    ['file2.txt', 'test/path/file/file2.txt']
+                ]);
+                const deleteResult = { deleteAll: true, count: 2, excludedCount: 2 };
+
+                submissionService._findByID.mockResolvedValue(mockSubmission);
+                submissionService._getUserScope.mockResolvedValue({
+                    isOwnScope: () => true,
+                    isStudyScope: () => false,
+                    isDCScope: () => false,
+                    isAllScope: () => false
+                });
+                submissionService._getAllSubmissionDataFiles.mockResolvedValue(allFiles);
+                submissionService._getExistingDataFiles.mockResolvedValue(existingFilesMap);
+                submissionService._deleteDataFiles.mockResolvedValue(deleteResult);
+                submissionService._getS3DirectorySize.mockResolvedValue({ size: 0 });
+                mockSubmissionDAO.update.mockResolvedValue(mockSubmission);
+                ValidationHandler.success = jest.fn((msg) => ({ success: true, message: msg }));
+
+                const result = await submissionService.deleteDataRecords(
+                    {
+                        submissionID: 'sub-123',
+                        nodeType: VALIDATION.TYPES.DATA_FILE,
+                        deleteAll: true,
+                        exclusiveIDs: exclusiveIDs
+                    },
+                    mockContext
+                );
+
+                expect(mockQcResultsService.deleteQCResultBySubmissionID).toHaveBeenCalledWith(
+                    'sub-123',
+                    VALIDATION.TYPES.DATA_FILE,
+                    [],
+                    true,
+                    exclusiveIDs
+                );
+                expect(submissionService._getAllSubmissionDataFiles).toHaveBeenCalled();
+                expect(submissionService._getExistingDataFiles).toHaveBeenCalledWith(
+                    filesToDelete,
+                    mockSubmission,
+                    true,
+                    exclusiveIDs
+                );
+                expect(result.message).toContain('2 nodes deleted');
+                expect(result.message).toContain('excluding 2 nodes');
+            });
+        });
+
+        describe('non-DATA_FILE nodeType', () => {
+            it('should send SQS message for metadata deletion', async () => {
+                const mockSubmission = {
+                    _id: 'sub-123',
+                    status: NEW,
+                    submitterID: 'user-123'
+                };
+
+                submissionService._findByID.mockResolvedValue(mockSubmission);
+                submissionService._getUserScope.mockResolvedValue({
+                    isOwnScope: () => true,
+                    isStudyScope: () => false,
+                    isDCScope: () => false,
+                    isAllScope: () => false
+                });
+                submissionService._requestDeleteDataRecords.mockResolvedValue({ success: true });
+                mockSubmissionDAO.update.mockResolvedValue(mockSubmission);
+
+                await submissionService.deleteDataRecords(
+                    {
+                        submissionID: 'sub-123',
+                        nodeType: 'Subject',
+                        nodeIDs: ['node1', 'node2']
+                    },
+                    mockContext
+                );
+
+                expect(submissionService._requestDeleteDataRecords).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        type: expect.stringContaining('Delete Metadata'),
+                        submissionID: 'sub-123',
+                        nodeType: 'Subject',
+                        deleteAll: false,
+                        nodeIDs: ['node1', 'node2']
+                    }),
+                    'test-queue',
+                    'sub-123',
+                    'sub-123'
+                );
+            });
+
+            it('should send SQS message with deleteAll for metadata', async () => {
+                const mockSubmission = {
+                    _id: 'sub-123',
+                    status: NEW,
+                    submitterID: 'user-123'
+                };
+
+                submissionService._findByID.mockResolvedValue(mockSubmission);
+                submissionService._getUserScope.mockResolvedValue({
+                    isOwnScope: () => true,
+                    isStudyScope: () => false,
+                    isDCScope: () => false,
+                    isAllScope: () => false
+                });
+                submissionService._requestDeleteDataRecords.mockResolvedValue({ success: true });
+                mockSubmissionDAO.update.mockResolvedValue(mockSubmission);
+
+                await submissionService.deleteDataRecords(
+                    {
+                        submissionID: 'sub-123',
+                        nodeType: 'Subject',
+                        deleteAll: true,
+                        exclusiveIDs: ['node1']
+                    },
+                    mockContext
+                );
+
+                expect(submissionService._requestDeleteDataRecords).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        type: expect.stringContaining('Delete Metadata'),
+                        submissionID: 'sub-123',
+                        nodeType: 'Subject',
+                        deleteAll: true,
+                        exclusiveIDs: ['node1']
+                    }),
+                    'test-queue',
+                    'sub-123',
+                    'sub-123'
+                );
+            });
+        });
+    });
+
+    describe('_deleteDataFiles', () => {
+        beforeEach(() => {
+            jest.clearAllMocks();
+            // Add missing S3Service methods
+            mockS3Service.deleteFile = jest.fn();
+            mockS3Service.deleteDirectory = jest.fn();
+            mockS3Service.listFile = jest.fn();
+            mockS3Service.listFileInDir = jest.fn();
+            submissionService.s3Service = mockS3Service;
+            submissionService.submissionDAO = mockSubmissionDAO;
+            submissionService._prepareUpdateData = jest.fn((data) => data);
+            submissionService._DELETE_ALL_FILES_COUNT = -1;
+        });
+
+        it('should delete directory when deleteAll=true and no exclusiveIDs', async () => {
+            const mockSubmission = {
+                _id: 'sub-123',
+                bucketName: 'test-bucket',
+                rootPath: 'test/path',
+                fileErrors: []
+            };
+            mockS3Service.deleteDirectory.mockResolvedValue(true);
+            mockSubmissionDAO.update.mockResolvedValue(mockSubmission);
+
+            const result = await submissionService._deleteDataFiles(
+                new Map(),
+                mockSubmission,
+                true,
+                []
+            );
+
+            expect(mockS3Service.deleteDirectory).toHaveBeenCalledWith(
+                'test-bucket',
+                'test/path/file/'
+            );
+            expect(result).toEqual({ deleteAll: true, count: -1 });
+        });
+
+        it('should delete files in batches when deleteAll=true with exclusiveIDs', async () => {
+            const mockSubmission = {
+                _id: 'sub-123',
+                bucketName: 'test-bucket',
+                rootPath: 'test/path',
+                fileErrors: []
+            };
+            const exclusiveIDs = ['file3.txt'];
+            // existingFilesMap already contains only non-exclusive files (filtering happens in caller)
+            const existingFilesMap = new Map([
+                ['file1.txt', 'test/path/file/file1.txt'],
+                ['file2.txt', 'test/path/file/file2.txt']
+            ]);
+
+            mockS3Service.deleteFile.mockResolvedValue({});
+            mockSubmissionDAO.update.mockResolvedValue(mockSubmission);
+
+            const result = await submissionService._deleteDataFiles(
+                existingFilesMap,
+                mockSubmission,
+                true,
+                exclusiveIDs
+            );
+
+            // _getAllSubmissionDataFiles is no longer called - existingFiles Map is used directly
+            expect(mockS3Service.deleteFile).toHaveBeenCalledTimes(2);
+            expect(result.deleteAll).toBe(true);
+            expect(result.excludedCount).toBe(1);
+        });
+
+        it('should handle normal deletion path', async () => {
+            const mockSubmission = {
+                _id: 'sub-123',
+                bucketName: 'test-bucket',
+                rootPath: 'test/path',
+                fileErrors: []
+            };
+            const existingFilesMap = new Map([
+                ['file1.txt', 'test/path/file/file1.txt'],
+                ['file2.txt', 'test/path/file/file2.txt']
+            ]);
+            mockS3Service.deleteFile.mockResolvedValue({});
+            mockSubmissionDAO.update.mockResolvedValue(mockSubmission);
+
+            const result = await submissionService._deleteDataFiles(
+                existingFilesMap,
+                mockSubmission,
+                false,
+                []
+            );
+
+            expect(mockS3Service.deleteFile).toHaveBeenCalledTimes(2);
+            expect(Array.isArray(result)).toBe(true);
+            expect(result.length).toBe(2);
+        });
+
+        it('should reset deletingData flag in finally block even on error', async () => {
+            const mockSubmission = {
+                _id: 'sub-123',
+                bucketName: 'test-bucket',
+                rootPath: 'test/path',
+                fileErrors: []
+            };
+            mockS3Service.deleteDirectory.mockRejectedValue(new Error('S3 error'));
+            mockSubmissionDAO.update.mockResolvedValue(mockSubmission);
+
+            await expect(submissionService._deleteDataFiles(
+                new Map(),
+                mockSubmission,
+                true,
+                []
+            )).rejects.toThrow('S3 error');
+
+            // Verify deletingData was reset
+            expect(mockSubmissionDAO.update).toHaveBeenCalledWith(
+                'sub-123',
+                expect.objectContaining({ deletingData: false })
+            );
+        });
+    });
+
+    describe('_getExistingDataFiles', () => {
+        beforeEach(() => {
+            jest.clearAllMocks();
+            // Add missing S3Service methods
+            mockS3Service.deleteFile = jest.fn();
+            mockS3Service.deleteDirectory = jest.fn();
+            mockS3Service.listFile = jest.fn();
+            mockS3Service.listFileInDir = jest.fn();
+            submissionService.s3Service = mockS3Service;
+        });
+
+        it('should return empty Map when deleteAll=true and no exclusiveIDs', async () => {
+            const mockSubmission = {
+                bucketName: 'test-bucket',
+                rootPath: 'test/path'
+            };
+
+            const result = await submissionService._getExistingDataFiles(
+                ['file1.txt'],
+                mockSubmission,
+                true,
+                []
+            );
+
+            expect(result).toEqual(new Map());
+            expect(mockS3Service.listFile).not.toHaveBeenCalled();
+        });
+
+        it('should filter exclusiveIDs when deleteAll=true with exclusiveIDs', async () => {
+            const mockSubmission = {
+                bucketName: 'test-bucket',
+                rootPath: 'test/path'
+            };
+            // fileNames should already be filtered by caller (exclusiveIDs filtering moved to caller)
+            const fileNames = ['file1.txt', 'file2.txt'];
+            const exclusiveIDs = ['file3.txt'];
+            mockS3Service.listFile.mockResolvedValue({
+                Contents: [
+                    { Key: 'test/path/file/file1.txt' },
+                    { Key: 'test/path/file/file2.txt' }
+                ]
+            });
+
+            const result = await submissionService._getExistingDataFiles(
+                fileNames,
+                mockSubmission,
+                true,
+                exclusiveIDs
+            );
+
+            expect(mockS3Service.listFile).toHaveBeenCalledTimes(2);
+            expect(result.size).toBe(2);
+            expect(result.has('file1.txt')).toBe(true);
+            expect(result.has('file2.txt')).toBe(true);
+            expect(result.has('file3.txt')).toBe(false);
+        });
+
+        it('should return empty Map when no files to check', async () => {
+            const mockSubmission = {
+                bucketName: 'test-bucket',
+                rootPath: 'test/path'
+            };
+
+            const result = await submissionService._getExistingDataFiles(
+                [],
+                mockSubmission,
+                false,
+                []
+            );
+
+            expect(result).toEqual(new Map());
+        });
+    });
+
+    describe('_logDataRecord', () => {
+        let prisma;
+        
+        beforeEach(() => {
+            jest.clearAllMocks();
+            prisma = require('../../prisma');
+            // Use the existing mock from jest.mock, just reset and configure it
+            prisma.log.create.mockClear();
+            prisma.log.create.mockResolvedValue({ id: 'log-123' });
+        });
+
+        it('should handle array input', async () => {
+            const mockUserInfo = {
+                _id: 'user-123',
+                email: 'test@example.com',
+                firstName: 'Test',
+                lastName: 'User'
+            };
+            const nodeIDs = ['file1.txt', 'file2.txt'];
+
+            await submissionService._logDataRecord(
+                mockUserInfo,
+                'sub-123',
+                'data file',
+                nodeIDs
+            );
+
+            expect(prisma.log.create).toHaveBeenCalled();
+            const callArgs = prisma.log.create.mock.calls[0][0];
+            // Verify the call structure: prisma.log.create({ data: logData })
+            // The callArgs should be { data: { userID, userEmail, userName, eventType, submissionID, ... } }
+            expect(callArgs).toBeDefined();
+            expect(callArgs).toHaveProperty('data');
+            expect(callArgs.data).toBeDefined();
+            expect(callArgs.data.submissionID).toBe('sub-123');
+            expect(callArgs.data.userID).toBe('user-123');
+            expect(callArgs.data.eventType).toBe('Delete_Data');
+        });
+
+        it('should handle string input (deleteAll summary)', async () => {
+            const mockUserInfo = {
+                _id: 'user-123',
+                email: 'test@example.com',
+                firstName: 'Test',
+                lastName: 'User'
+            };
+
+            await submissionService._logDataRecord(
+                mockUserInfo,
+                'sub-123',
+                'data file',
+                'deleteAll'
+            );
+
+            expect(prisma.log.create).toHaveBeenCalled();
         });
     });
 }); 

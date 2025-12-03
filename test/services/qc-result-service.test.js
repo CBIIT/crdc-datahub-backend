@@ -340,7 +340,9 @@ describe('QcResultService', () => {
             await qcResultService.deleteQCResultBySubmissionID(
                 "test_submission_id",
                 "data_file",
-                ["file1.txt", "file2.txt", "file3.txt"]
+                ["file1.txt", "file2.txt", "file3.txt"],
+                false,
+                []
             );
 
             expect(qcResultService.qcResultDAO.deleteMany).toHaveBeenCalledWith({
@@ -358,7 +360,9 @@ describe('QcResultService', () => {
             await qcResultService.deleteQCResultBySubmissionID(
                 "test_submission_id",
                 "data_file",
-                ["file1.txt", "file2.txt", "file3.txt"]
+                ["file1.txt", "file2.txt", "file3.txt"],
+                false,
+                []
             );
 
             expect(consoleSpy).toHaveBeenCalledWith(
@@ -376,13 +380,100 @@ describe('QcResultService', () => {
             await qcResultService.deleteQCResultBySubmissionID(
                 "test_submission_id",
                 "data_file",
-                ["file1.txt"]
+                ["file1.txt"],
+                false,
+                []
             );
 
             expect(consoleSpy).toHaveBeenCalledWith(
                 "An error occurred while deleting the qcResult records",
                 "submissionID: test_submission_id"
             );
+            consoleSpy.mockRestore();
+        });
+
+        it('should return early when deleteAll is false and fileNames is empty', async () => {
+            await qcResultService.deleteQCResultBySubmissionID(
+                "test_submission_id",
+                "data_file",
+                [],
+                false,
+                []
+            );
+
+            expect(qcResultService.qcResultDAO.deleteMany).not.toHaveBeenCalled();
+        });
+
+        it('should delete all QC results when deleteAll is true and no exclusiveIDs', async () => {
+            const mockDeleteResult = { count: 10 };
+            qcResultService.qcResultDAO.deleteMany.mockResolvedValue(mockDeleteResult);
+
+            await qcResultService.deleteQCResultBySubmissionID(
+                "test_submission_id",
+                "data_file",
+                [],
+                true,
+                []
+            );
+
+            expect(qcResultService.qcResultDAO.deleteMany).toHaveBeenCalledWith({
+                submissionID: "test_submission_id",
+                validationType: "data_file"
+            });
+        });
+
+        it('should delete all QC results except exclusiveIDs when deleteAll is true with exclusiveIDs', async () => {
+            const mockDeleteResult = { count: 5 };
+            qcResultService.qcResultDAO.deleteMany.mockResolvedValue(mockDeleteResult);
+
+            await qcResultService.deleteQCResultBySubmissionID(
+                "test_submission_id",
+                "data_file",
+                [],
+                true,
+                ["file1.txt", "file2.txt"]
+            );
+
+            expect(qcResultService.qcResultDAO.deleteMany).toHaveBeenCalledWith({
+                submissionID: "test_submission_id",
+                validationType: "data_file",
+                submittedID: { notIn: ["file1.txt", "file2.txt"] }
+            });
+        });
+
+        it('should skip count validation when deleteAll is true', async () => {
+            const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+            const mockDeleteResult = { count: 0 };
+            qcResultService.qcResultDAO.deleteMany.mockResolvedValue(mockDeleteResult);
+
+            await qcResultService.deleteQCResultBySubmissionID(
+                "test_submission_id",
+                "data_file",
+                [],
+                true,
+                []
+            );
+
+            // Should not log error for deleteAll operations
+            expect(consoleSpy).not.toHaveBeenCalled();
+            consoleSpy.mockRestore();
+        });
+
+        it('should skip count validation when deleteAll is true with exclusiveIDs', async () => {
+            const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+            const mockDeleteResult = { count: 0 };
+            qcResultService.qcResultDAO.deleteMany.mockResolvedValue(mockDeleteResult);
+
+            await qcResultService.deleteQCResultBySubmissionID(
+                "test_submission_id",
+                "data_file",
+                [],
+                true,
+                ["file1.txt"]
+            );
+
+            // Should not log error for deleteAll operations
+            expect(consoleSpy).not.toHaveBeenCalled();
             consoleSpy.mockRestore();
         });
     });
