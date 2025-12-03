@@ -1273,10 +1273,9 @@ class Submission {
         }
         
         // Create a Map for lookup: S3 key path -> fileName
-        const s3KeyToFileNameMap = new Map();
-        filesToCheck.forEach(fileName => {
-            s3KeyToFileNameMap.set(`${aSubmission.rootPath}/${FILE}/${fileName}`, fileName);
-        });
+        const s3KeyToFileNameMap = new Map(
+            filesToCheck.map(fileName => [`${aSubmission.rootPath}/${FILE}/${fileName}`, fileName])
+        );
         
         const filePromises = filesToCheck
             .map(fileName =>
