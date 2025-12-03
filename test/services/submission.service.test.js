@@ -822,7 +822,6 @@ describe('Submission Service - getSubmission', () => {
 
     describe('deleteDataRecords', () => {
         let mockQcResultsService;
-        const { VALIDATION } = require('../../constants/submission-constants');
         const USER_PERMISSION_CONSTANTS = require('../../crdc-datahub-database-drivers/constants/user-permission-constants');
 
         beforeEach(() => {
