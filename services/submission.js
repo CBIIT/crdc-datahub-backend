@@ -1726,7 +1726,7 @@ class Submission {
             
             // return success message
             if (deleteAll && exclusiveIDs.length === 0) {
-                return ValidationHandler.success('All nodes deleted');
+                return ValidationHandler.success(`${deletedCount} nodes deleted`);
             } else if (deleteAll && exclusiveIDs.length > 0) {
                 const count = typeof deletedResult === 'object' && deletedResult.count ? deletedResult.count : 0;
                 return ValidationHandler.success(`${count} nodes deleted (excluding ${exclusiveIDs.length} nodes)`);
@@ -1743,7 +1743,8 @@ class Submission {
             submissionID: params.submissionID, 
             nodeType: params.nodeType, 
             deleteAll: deleteAll,
-            ...(deleteAll ? { exclusiveIDs: exclusiveIDs } : { nodeIDs: nodeIDs })
+            nodeIDs: deleteAll ? [] : nodeIDs,
+            exclusiveIDs: deleteAll ? exclusiveIDs : []
         };
         // request delete data records
         const success = await this._requestDeleteDataRecords(msg, this.sqsLoaderQueue, params.submissionID, params.submissionID);

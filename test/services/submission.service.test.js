@@ -1373,7 +1373,7 @@ describe('Submission Service - getSubmission', () => {
                     rootPath: 'test/path',
                     fileErrors: []
                 };
-                const deleteResult = { deleteAll: true, count: -1 };
+                const deleteResult = { deleteAll: true, count: 5 };
 
                 submissionService._findByID.mockResolvedValue(mockSubmission);
                 submissionService._getUserScope.mockResolvedValue({
@@ -1410,7 +1410,7 @@ describe('Submission Service - getSubmission', () => {
                     true,
                     []
                 );
-                expect(result.message).toBe('All nodes deleted');
+                expect(result.message).toBe('5 nodes deleted');
             });
         });
 
@@ -1509,7 +1509,8 @@ describe('Submission Service - getSubmission', () => {
                         submissionID: 'sub-123',
                         nodeType: 'Subject',
                         deleteAll: false,
-                        nodeIDs: ['node1', 'node2']
+                        nodeIDs: ['node1', 'node2'],
+                        exclusiveIDs: []
                     }),
                     'test-queue',
                     'sub-123',
@@ -1517,7 +1518,49 @@ describe('Submission Service - getSubmission', () => {
                 );
             });
 
-            it('should send SQS message with deleteAll for metadata', async () => {
+            it('should send SQS message with deleteAll for metadata (no exclusives)', async () => {
+                const mockSubmission = {
+                    _id: 'sub-123',
+                    status: NEW,
+                    submitterID: 'user-123'
+                };
+
+                submissionService._findByID.mockResolvedValue(mockSubmission);
+                submissionService._getUserScope.mockResolvedValue({
+                    isOwnScope: () => true,
+                    isStudyScope: () => false,
+                    isDCScope: () => false,
+                    isAllScope: () => false
+                });
+                submissionService._requestDeleteDataRecords.mockResolvedValue({ success: true });
+                mockSubmissionDAO.update.mockResolvedValue(mockSubmission);
+
+                await submissionService.deleteDataRecords(
+                    {
+                        submissionID: 'sub-123',
+                        nodeType: 'Subject',
+                        deleteAll: true,
+                        exclusiveIDs: []
+                    },
+                    mockContext
+                );
+
+                expect(submissionService._requestDeleteDataRecords).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        type: expect.stringContaining('Delete Metadata'),
+                        submissionID: 'sub-123',
+                        nodeType: 'Subject',
+                        deleteAll: true,
+                        nodeIDs: [],
+                        exclusiveIDs: []
+                    }),
+                    'test-queue',
+                    'sub-123',
+                    'sub-123'
+                );
+            });
+
+            it('should send SQS message with deleteAll for metadata (with exclusives)', async () => {
                 const mockSubmission = {
                     _id: 'sub-123',
                     status: NEW,
@@ -1550,6 +1593,7 @@ describe('Submission Service - getSubmission', () => {
                         submissionID: 'sub-123',
                         nodeType: 'Subject',
                         deleteAll: true,
+                        nodeIDs: [],
                         exclusiveIDs: ['node1']
                     }),
                     'test-queue',
@@ -1571,7 +1615,6 @@ describe('Submission Service - getSubmission', () => {
             submissionService.s3Service = mockS3Service;
             submissionService.submissionDAO = mockSubmissionDAO;
             submissionService._prepareUpdateData = jest.fn((data) => data);
-            submissionService._DELETE_ALL_FILES_COUNT = -1;
         });
 
         it('should delete directory when deleteAll=true and no exclusiveIDs', async () => {
@@ -1581,6 +1624,13 @@ describe('Submission Service - getSubmission', () => {
                 rootPath: 'test/path',
                 fileErrors: []
             };
+            // Mock listFileInDir to return some files for counting
+            const mockFiles = [
+                { Key: 'test/path/file/file1.txt' },
+                { Key: 'test/path/file/file2.txt' },
+                { Key: 'test/path/file/file3.txt' }
+            ];
+            mockS3Service.listFileInDir.mockResolvedValue(mockFiles);
             mockS3Service.deleteDirectory.mockResolvedValue(true);
             mockSubmissionDAO.update.mockResolvedValue(mockSubmission);
 
@@ -1591,11 +1641,15 @@ describe('Submission Service - getSubmission', () => {
                 []
             );
 
+            expect(mockS3Service.listFileInDir).toHaveBeenCalledWith(
+                'test-bucket',
+                'test/path/file/'
+            );
             expect(mockS3Service.deleteDirectory).toHaveBeenCalledWith(
                 'test-bucket',
                 'test/path/file/'
             );
-            expect(result).toEqual({ deleteAll: true, count: -1 });
+            expect(result).toEqual({ deleteAll: true, count: 3 });
         });
 
         it('should delete files in batches when deleteAll=true with exclusiveIDs', async () => {
