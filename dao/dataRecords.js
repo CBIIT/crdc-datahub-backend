@@ -18,8 +18,7 @@ const NODE_VIEW = {
     orginalFileName:  "$orginalFileName",
     lineNumber: "$lineNumber",
     props: "$props",
-    parents: "$parents",
-    rawData: "$rawData"
+    parents: "$parents"
 }
 
 const ERROR = "Error";
@@ -30,14 +29,20 @@ class DataRecordDAO extends GenericDAO {
         this.dataRecordsCollection = dataRecordsCollection;
     }
 
-    // note: prisma can’t sort by nested JSON paths like rawData.some|field
+    // note: prisma can't sort by nested JSON paths like rawData.some|field
     async getSubmissionNodes(submissionID, nodeType, first, offset, orderBy, sortDirection, query=null) {
+        // Determine if rawData is needed for sorting
+        // rawData is only needed when sorting by a nested field path (orderBy contains ".")
+        const isOrderByInNodeView = Object.keys(NODE_VIEW).includes(orderBy);
+        const needsRawDataForSorting = !isOrderByInNodeView && orderBy.includes(".");
+        
         // set orderBy
         let sort = orderBy;
-        if (!Object.keys(NODE_VIEW).includes(orderBy)) {
-            sort = orderBy.indexOf(".") > 0 ? `rawData.${orderBy.replace(".", "|")}` : `props.${orderBy}`
+        if (!isOrderByInNodeView) {
+            sort = orderBy.includes(".") ? `rawData.${orderBy.replace(".", "|")}` : `props.${orderBy}`
         }
-        // Base pipeline with match and project stages
+        
+        // Base pipeline with match stage
         let basePipeline = [];
         basePipeline.push({
             $match: (!query)?{
@@ -45,18 +50,22 @@ class DataRecordDAO extends GenericDAO {
                 nodeType: nodeType
             }:query
         });
-        basePipeline.push({
-            $project: NODE_VIEW
-        });
 
-        // Create count pipeline
+        // Create count pipeline - never needs rawData or projection (count doesn't need field data)
         let countPipeline = [...basePipeline];
         countPipeline.push({
             $count: "total"
         });
 
-        // Create results pipeline with sorting and pagination
+        // Create results pipeline with conditional projection, sorting and pagination
         let resultsPipeline = [...basePipeline];
+        const resultsProjection = { ...NODE_VIEW };
+        if (needsRawDataForSorting) {
+            resultsProjection.rawData = "$rawData";
+        }
+        resultsPipeline.push({
+            $project: resultsProjection
+        });
         const nodeID= "nodeID";
         let sortFields = {
             [sort]: getSortDirection(sortDirection),
