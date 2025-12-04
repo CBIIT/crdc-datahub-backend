@@ -31,7 +31,15 @@ class QcResultService{
         return await this.qcResultDAO.submissionQCResults(params._id, params.nodeTypes, params.batchIDs, params.severities, params.issueCode, params.first, params.offset, params.orderBy, params.sortDirection);
     }
 
-    async deleteQCResultBySubmissionID(submissionID, dataType, fileNames, deleteAll = false, exclusiveIDs = []) {
+    /**
+     * Delete QC results by submission ID
+     * @param {string} submissionID - The submission ID
+     * @param {string} dataType - The validation type (e.g., "file", "metadata")
+     * @param {string[]} submittedIDs - Array of submitted identifiers. Can be file names (for file validation) or node IDs (for metadata validation)
+     * @param {boolean} deleteAll - If true, delete all QC results for the submission and type
+     * @param {string[]} exclusiveIDs - IDs to exclude from deletion when deleteAll is true
+     */
+    async deleteQCResultBySubmissionID(submissionID, dataType, submittedIDs, deleteAll = false, exclusiveIDs = []) {
         let query = {
             submissionID: submissionID,
             validationType: dataType
@@ -47,13 +55,13 @@ class QcResultService{
             }
             // If no exclusiveIDs, query will delete all (no submittedID filter)
         } else {
-            // Normal deletion: delete specific fileNames
-            if (fileNames && fileNames.length > 0) {
+            // Normal deletion: delete specific submittedIDs
+            if (submittedIDs && submittedIDs.length > 0) {
                 query.submittedID = {
-                    in: fileNames
+                    in: submittedIDs
                 };
             } else {
-                // No fileNames provided, nothing to delete
+                // No submittedIDs provided, nothing to delete
                 return;
             }
         }
@@ -61,7 +69,7 @@ class QcResultService{
         const res = await this.qcResultDAO.deleteMany(query);
 
         // Only validate count for non-deleteAll operations
-        if (!deleteAll && fileNames && fileNames.length > 0 && (res.count === 0 || (fileNames.length !== res.count))) {
+        if (!deleteAll && submittedIDs && submittedIDs.length > 0 && (res.count === 0 || (submittedIDs.length !== res.count))) {
             console.error("An error occurred while deleting the qcResult records", `submissionID: ${submissionID}`);
         }
     }
