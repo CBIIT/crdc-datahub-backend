@@ -2240,7 +2240,7 @@ class Submission {
                 userIDP: logEvent.userIDP,
                 userName: logEvent.userName,
                 eventType: logEvent.eventType,
-                submissionID: logEvent.eventDetail.submissionID,
+                submissionID: logEvent.eventDetail?.submissionID,
                 timestamp: Date.now() / 1000,
                 localtime: new Date()
             };
