@@ -39,7 +39,7 @@ class DataRecordDAO extends GenericDAO {
         // set orderBy
         let sort = orderBy;
         if (!isOrderByInNodeView) {
-            sort = orderBy.includes(".") ? `rawData.${orderBy.replace(".", "|")}` : `props.${orderBy}`
+            sort = orderBy.includes(".") ? `rawData.${orderBy.replaceAll(".", "|")}` : `props.${orderBy}`
         }
         
         // Base pipeline with match stage
