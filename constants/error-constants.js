@@ -140,6 +140,7 @@ const ERROR = {
     INVALID_EXPORT_METADATA: "You do not have permission to export submission data",
     INVALID_DATA_MODEL_VERSION: "An error occurred while trying to retrieve the data model version from the given URL",
     INVALID_DELETE_DATA_RECORDS_PERMISSION: "You do not have the correct permissions to delete data records",
+    INVALID_DELETE_DATA_RECORDS_ARRAY_LENGTH: "The nodeIDs and exclusiveIDs arrays cannot exceed 2000 items each",
     FAILED_REQUEST_DELETE_RECORDS: "Failed to send a delete data record message",
     FAILED_UPDATE_DELETE_STATUS: "Failed to update the status of data record deletion",
     // delete submission error file list

@@ -962,7 +962,7 @@ type Mutation {
         comment: String
     ): Submission
 
-    deleteDataRecords(submissionID: String!, nodeType: String!, nodeIDs: [String!]): DataValidation
+    deleteDataRecords(submissionID: String!, nodeType: String!, nodeIDs: [String!] = [], deleteAll: Boolean = false, exclusiveIDs: [String!] = []): DataValidation
     createBatch (submissionID: ID!, type: String, files: [String!]!): NewBatch
     updateBatch (batchID: ID!, files: [UploadResult], uploading: Boolean): Batch #uploading param is for CLI heartbeat.
     createTempCredentials (submissionID: ID!): TempCredentials  
