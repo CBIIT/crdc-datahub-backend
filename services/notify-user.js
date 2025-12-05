@@ -9,7 +9,8 @@ const DATA_COMMONS = "Data Commons";
 const STUDIES = "Studies";
 const INSTITUTION = "Institution";
 const CRDC_PORTAL_USER = "CRDC Submission Portal User";
-const CRDC_SUBMISSION_PORTAL ="CRDC Submission Portal";
+// Todo: either all use this variable or all hard code in template, currently it's a mix
+const CRDC_SUBMISSION_PORTAL ="CRDC Submission Portal Team"; 
 const USER_NAME = "User Name"
 const ACCOUNT_TYPE = "Account Type";
 const ACCOUNT_EMAIL = "Account Email";
