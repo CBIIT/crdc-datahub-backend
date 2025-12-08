@@ -1822,7 +1822,7 @@ class Submission {
         }
         // only when changing model will reset validation
         if (version !== undefined && aSubmission?.modelVersion !== version) {
-            await this._resetValidation(aSubmission?._id, aSubmission?.fileValidationStatus);
+            await this._resetValidation(aSubmission);
         }
         return updatedSubmission;
     }
@@ -1923,7 +1923,9 @@ class Submission {
         }
     }
 
-    async _resetValidation(aSubmissionID, aSubmissionFileValidationStatus) {
+    async _resetValidation(aSubmission) {
+        const aSubmissionID = aSubmission?._id;
+        const aSubmissionFileValidationStatus = aSubmission?.fileValidationStatus;
         let fileValidationStatusValue = null;
         let validationStatusList = [VALIDATION_STATUS.NEW, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING, VALIDATION_STATUS.ERROR];
         if (validationStatusList.includes(aSubmissionFileValidationStatus)){

@@ -2370,7 +2370,7 @@ describe('Submission.updateSubmissionInfo', () => {
             modelVersion: 'v2',
             updatedAt: expect.any(Date)
         });
-        expect(submissionService._resetValidation).toHaveBeenCalledWith('sub1', fileValidationStatusValue);
+        expect(submissionService._resetValidation).toHaveBeenCalledWith(mockSubmissionVersionUpdate);
         expect(submissionService.logCollection.insert).toHaveBeenCalled(); // Ensure log is called
         expect(submissionService._notifyConfigurationChange).toHaveBeenCalled(); // Ensure notification is called
         expect(result).toEqual(updatedSubmission);
@@ -2398,7 +2398,7 @@ describe('Submission.updateSubmissionInfo', () => {
             modelVersion: 'v2',
             updatedAt: expect.any(Date)
         });
-        expect(submissionService._resetValidation).toHaveBeenCalledWith('sub1', fileValidationStatusValue);
+        expect(submissionService._resetValidation).toHaveBeenCalledWith(mockSubmissionVersionUpdate);
         expect(submissionService.logCollection.insert).toHaveBeenCalled(); // Ensure log is called
         expect(submissionService._notifyConfigurationChange).toHaveBeenCalled(); // Ensure notification is called
         expect(result).toEqual(updatedSubmission);
