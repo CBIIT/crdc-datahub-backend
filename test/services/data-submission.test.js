@@ -2348,12 +2348,14 @@ describe('Submission.updateSubmissionInfo', () => {
         };
     });
 
-    it('should successfully update submission model version', async () => {
+    it('should successfully update submission model version and reset the fileValidationStatus to New if fileValidationStatus value was in VALIDATION_STATUS', async () => {
         const mockDataModels = [{ version: 'v1' }, { version: 'v2' }];
         const validVersions = ['v1', 'v2'];
-        const updatedSubmission = { ...mockSubmission, modelVersion: 'v2' };
+        const fileValidationStatusValue = 'Passed';
+        const mockSubmissionVersionUpdate = { ...mockSubmission, fileValidationStatus: fileValidationStatusValue };
+        const updatedSubmission = { ...mockSubmission, modelVersion: 'v2', fileValidationStatus: "New" };
 
-        submissionService._findByID.mockResolvedValue(mockSubmission);
+        submissionService._findByID.mockResolvedValue(mockSubmissionVersionUpdate);
         submissionService.fetchDataModelInfo.mockResolvedValue(mockDataModels);
         submissionService._getAllModelVersions.mockReturnValue(validVersions);
         mockSubmissionDAO.update.mockResolvedValue(updatedSubmission);
@@ -2368,7 +2370,35 @@ describe('Submission.updateSubmissionInfo', () => {
             modelVersion: 'v2',
             updatedAt: expect.any(Date)
         });
-        expect(submissionService._resetValidation).toHaveBeenCalledWith('sub1');
+        expect(submissionService._resetValidation).toHaveBeenCalledWith('sub1', fileValidationStatusValue);
+        expect(submissionService.logCollection.insert).toHaveBeenCalled(); // Ensure log is called
+        expect(submissionService._notifyConfigurationChange).toHaveBeenCalled(); // Ensure notification is called
+        expect(result).toEqual(updatedSubmission);
+    });
+
+    it('should successfully update submission model version and reset the fileValidationStatus to null if fileValidationStatus was null', async () => {
+        const mockDataModels = [{ version: 'v1' }, { version: 'v2' }];
+        const validVersions = ['v1', 'v2'];
+        const fileValidationStatusValue = null;
+        const mockSubmissionVersionUpdate = { ...mockSubmission, fileValidationStatus: fileValidationStatusValue };
+        const updatedSubmission = { ...mockSubmission, modelVersion: 'v2', fileValidationStatus: null };
+
+        submissionService._findByID.mockResolvedValue(mockSubmissionVersionUpdate);
+        submissionService.fetchDataModelInfo.mockResolvedValue(mockDataModels);
+        submissionService._getAllModelVersions.mockReturnValue(validVersions);
+        mockSubmissionDAO.update.mockResolvedValue(updatedSubmission);
+        submissionService._resetValidation.mockResolvedValue();
+
+        const result = await submissionService.updateSubmissionInfo(mockParams, mockContext);
+
+        expect(submissionService._findByID).toHaveBeenCalledWith('sub1');
+        expect(submissionService.fetchDataModelInfo).toHaveBeenCalled();
+        expect(submissionService._getAllModelVersions).toHaveBeenCalledWith(mockDataModels, 'commonsA');
+        expect(mockSubmissionDAO.update).toHaveBeenCalledWith('sub1', {
+            modelVersion: 'v2',
+            updatedAt: expect.any(Date)
+        });
+        expect(submissionService._resetValidation).toHaveBeenCalledWith('sub1', fileValidationStatusValue);
         expect(submissionService.logCollection.insert).toHaveBeenCalled(); // Ensure log is called
         expect(submissionService._notifyConfigurationChange).toHaveBeenCalled(); // Ensure notification is called
         expect(result).toEqual(updatedSubmission);

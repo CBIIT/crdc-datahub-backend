@@ -1822,7 +1822,7 @@ class Submission {
         }
         // only when changing model will reset validation
         if (version !== undefined && aSubmission?.modelVersion !== version) {
-            await this._resetValidation(aSubmission?._id);
+            await this._resetValidation(aSubmission?._id, aSubmission?.fileValidationStatus);
         }
         return updatedSubmission;
     }
@@ -1923,14 +1923,19 @@ class Submission {
         }
     }
 
-    async _resetValidation(aSubmissionID){
+    async _resetValidation(aSubmissionID, aSubmissionFileValidationStatus) {
+        let fileValidationStatusValue = null;
+        let validationStatusList = [VALIDATION_STATUS.NEW, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING, VALIDATION_STATUS.ERROR]
+        if (validationStatusList.includes(aSubmissionFileValidationStatus)){
+            fileValidationStatusValue = VALIDATION_STATUS.NEW;
+        };
         const [resetSubmission, resetDataRecords, resetQCResult] = await Promise.all([
             this.submissionDAO.update(
                 aSubmissionID, { // update condition
                     // Update documents
                     updatedAt: getCurrentTime(),
                     metadataValidationStatus: VALIDATION_STATUS.NEW,
-                    fileValidationStatus: VALIDATION_STATUS.NEW,
+                    fileValidationStatus: fileValidationStatusValue,
                     crossSubmissionStatus: VALIDATION_STATUS.NEW}
             ),
             this.dataRecordService.resetDataRecords(aSubmissionID, VALIDATION_STATUS.NEW),
