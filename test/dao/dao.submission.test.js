@@ -399,12 +399,10 @@ describe('SubmissionDAO', () => {
         describe('Filter Priority and Behavior', () => {
             beforeEach(() => {
                 // Setup mock responses for aggregation methods
+                // Note: dataCommons are now from config, organizations from program table, statuses are constant
                 prisma.submission.findMany
                     .mockResolvedValueOnce(mockSubmissions) // Main query
-                    .mockResolvedValueOnce([{ dataCommons: 'test-commons' }]) // Data commons aggregation
-                    .mockResolvedValueOnce([{ submitterName: 'Test User' }]) // Submitter names aggregation
-                    .mockResolvedValueOnce([{ studyID: 'study-1' }]) // Organizations aggregation
-                    .mockResolvedValueOnce([{ status: NEW }]); // Statuses aggregation
+                    .mockResolvedValueOnce([{ submitter: { fullName: 'Test User' } }]); // Submitter names aggregation
                 
                 prisma.submission.count.mockResolvedValue(1);
             });
