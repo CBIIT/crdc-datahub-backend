@@ -402,7 +402,7 @@ describe('SubmissionDAO', () => {
                 prisma.submission.findMany
                     .mockResolvedValueOnce(mockSubmissions) // Main query
                     .mockResolvedValueOnce([{ dataCommons: 'test-commons' }]) // Data commons aggregation
-                    .mockResolvedValueOnce([{ submitterName: 'Test User' }]) // Submitter names aggregation
+                    .mockResolvedValueOnce([{ submitter: { fullName: 'Test User' } }]) // Submitter names aggregation
                     .mockResolvedValueOnce([{ studyID: 'study-1' }]) // Organizations aggregation
                     .mockResolvedValueOnce([{ status: NEW }]); // Statuses aggregation
                 
