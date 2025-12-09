@@ -1013,6 +1013,7 @@ describe('SubmissionDAO', () => {
                 expect(result.submitterNames).toBeDefined();
                 expect(prisma.submission.findMany).toHaveBeenCalledWith(
                     expect.objectContaining({
+                        where: expect.any(Object),
                         include: {
                             submitter: {
                                 select: { fullName: true }
