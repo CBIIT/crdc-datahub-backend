@@ -1807,4 +1807,140 @@ describe('Submission Service - getSubmission', () => {
             expect(prisma.log.create).toHaveBeenCalled();
         });
     });
-}); 
+});
+
+describe('Submission Service - listSubmissions', () => {
+    let submissionService;
+    let mockSubmissionDAO;
+    let mockContext;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+
+        // Create mock SubmissionDAO
+        mockSubmissionDAO = {
+            listSubmissions: jest.fn().mockResolvedValue({
+                submissions: [],
+                total: 0,
+                dataCommons: [],
+                submitterNames: [],
+                organizations: [],
+                statuses: () => []
+            })
+        };
+
+        // Mock verifySession
+        verifySession.mockReturnValue({
+            verifyInitialized: jest.fn().mockReturnValue(true)
+        });
+
+        // Create submission service with dataCommonsList and hiddenDataCommonsList
+        const dataCommonsList = ['CDS', 'ICDC', 'CTDC', 'Hidden Model'];
+        const hiddenDataCommonsList = ['Hidden Model'];
+
+        submissionService = new Submission(
+            {}, // logCollection
+            {}, // submissionCollection
+            {}, // batchService
+            {}, // userService
+            {}, // organizationService
+            {}, // notificationService
+            {}, // dataRecordService
+            jest.fn(), // fetchDataModelInfo
+            {}, // awsService
+            'metadata-queue', // metadataQueueName
+            {}, // s3Service
+            {}, // emailParams
+            dataCommonsList,
+            hiddenDataCommonsList,
+            {}, // validationCollection
+            'sqs-loader-queue', // sqsLoaderQueue
+            {}, // qcResultsService
+            {}, // uploaderCLIConfigs
+            'submission-bucket', // submissionBucketName
+            {}, // configurationService
+            {}, // uploadingMonitor
+            {}, // dataCommonsBucketMap
+            {}, // authorizationService
+            {}, // dataModelService
+            {} // dataRecordsCollection
+        );
+
+        // Override the submissionDAO with our mock
+        submissionService.submissionDAO = mockSubmissionDAO;
+
+        // Mock _getUserScope to return ALL scope
+        submissionService._getUserScope = jest.fn().mockResolvedValue(
+            createMockUserScope(false, true, false, false, false)
+        );
+
+        mockContext = {
+            userInfo: {
+                _id: 'user-123',
+                email: 'test@example.com',
+                role: 'Admin'
+            }
+        };
+    });
+
+    it('should not return hidden data commons in the dataCommons list', async () => {
+        await submissionService.listSubmissions({}, mockContext);
+
+        // Verify listSubmissions was called with filtered data commons (excluding hidden)
+        expect(mockSubmissionDAO.listSubmissions).toHaveBeenCalledWith(
+            mockContext.userInfo,
+            expect.anything(), // userScope
+            {}, // params
+            expect.arrayContaining(['CDS', 'ICDC', 'CTDC'])
+        );
+
+        // Verify hidden model is NOT in the data commons list
+        const calledDataCommons = mockSubmissionDAO.listSubmissions.mock.calls[0][3];
+        expect(calledDataCommons).not.toContain('Hidden Model');
+        expect(calledDataCommons).toHaveLength(3);
+    });
+
+    it('should pass all non-hidden data commons when none are hidden', async () => {
+        // Create service with no hidden data commons
+        const dataCommonsListNoHidden = ['CDS', 'ICDC', 'CTDC'];
+        const emptyHiddenList = [];
+
+        const serviceNoHidden = new Submission(
+            {}, {}, {}, {}, {}, {}, {}, jest.fn(), {}, 'queue', {}, {},
+            dataCommonsListNoHidden, emptyHiddenList,
+            {}, 'sqs', {}, {}, 'bucket', {}, {}, {}, {}, {}, {}
+        );
+        serviceNoHidden.submissionDAO = mockSubmissionDAO;
+        serviceNoHidden._getUserScope = jest.fn().mockResolvedValue(
+            createMockUserScope(false, true, false, false, false)
+        );
+
+        await serviceNoHidden.listSubmissions({}, mockContext);
+
+        const calledDataCommons = mockSubmissionDAO.listSubmissions.mock.calls[0][3];
+        expect(calledDataCommons).toEqual(['CDS', 'ICDC', 'CTDC']);
+        expect(calledDataCommons).toHaveLength(3);
+    });
+
+    it('should return empty data commons list when all are hidden', async () => {
+        // Create service where all data commons are hidden
+        const allDataCommons = ['CDS', 'ICDC'];
+        const allHidden = ['CDS', 'ICDC'];
+
+        const serviceAllHidden = new Submission(
+            {}, {}, {}, {}, {}, {}, {}, jest.fn(), {}, 'queue', {}, {},
+            allDataCommons, allHidden,
+            {}, 'sqs', {}, {}, 'bucket', {}, {}, {}, {}, {}, {}
+        );
+        serviceAllHidden.submissionDAO = mockSubmissionDAO;
+        serviceAllHidden._getUserScope = jest.fn().mockResolvedValue(
+            createMockUserScope(false, true, false, false, false)
+        );
+
+        await serviceAllHidden.listSubmissions({}, mockContext);
+
+        const calledDataCommons = mockSubmissionDAO.listSubmissions.mock.calls[0][3];
+        expect(calledDataCommons).toEqual([]);
+        expect(calledDataCommons).toHaveLength(0);
+    });
+});

@@ -11,6 +11,7 @@ const {formatNestedOrganization, formatNestedOrganizations} = require("../utilit
 const prisma = require("../prisma");
 const { isAllStudy } = require("../utility/study-utility");
 const {subtractDaysFromNow} = require("../crdc-datahub-database-drivers/utility/time-utility");
+const {ORGANIZATION} = require("../crdc-datahub-database-drivers/constants/organization-constants");
 const ALL_FILTER = "All";
 const NA = "NA"
 class SubmissionDAO extends GenericDAO {
@@ -81,16 +82,17 @@ class SubmissionDAO extends GenericDAO {
      * @param {number} [params.first] - Number of results to return (pagination)
      * @param {number} [params.offset] - Number of results to skip (pagination)
      * @param {string} [params.sortDirection] - Sort direction ('asc' or 'desc')
+     * @param {Array<string>} dataCommonsList - Array of all non-hidden data commons from configuration
      * @returns {Object} Object containing submissions, total count, and aggregation data
      * @returns {Array<Object>} returns.submissions - Array of submission objects
      * @returns {number} returns.total - Total count of submissions matching filters
-     * @returns {Array<string>} returns.dataCommons - Distinct data commons values
-     * @returns {Array<string>} returns.submitterNames - Distinct submitter names
-     * @returns {Array<string>} returns.organizations - Distinct organization names
+     * @returns {Array<string>} returns.dataCommons - Array of all non-hidden data commons from configuration
+     * @returns {Array<string>} returns.submitterNames - Distinct names of users who have submissions in the submissions array
+     * @returns {Array<string>} returns.organizations - All organization (program) names
      * @returns {Function} returns.statuses - Function returning sorted distinct statuses
      * @throws {Error} When database query fails or validation errors occur
      */
-    async listSubmissions(userInfo, userScope, params) {
+    async listSubmissions(userInfo, userScope, params, dataCommonsList = []) {
         validateListSubmissionsParams(params);
 
         // Filter by user scope only
@@ -166,13 +168,14 @@ class SubmissionDAO extends GenericDAO {
                 where: filterConditions
             });
 
-            // Get distinct values for aggregations
-            const [dataCommons, submitterNames, organizations, statuses] = await Promise.all([
-                this._getDistinctDataCommons(filterConditions),
+            // Get submitter names filtered by current search criteria
+            // Get all organizations (programs)
+            const [submitterNames, organizations] = await Promise.all([
                 this._getDistinctSubmitterNames(filterConditions),
-                this._getDistinctOrganizations(filterConditions),
-                this._getDistinctStatuses(filterConditions)
+                this._getDistinctOrganizations()
             ]);
+            // Get all possible submission statuses
+            const statuses = this._getDistinctStatuses();
 
             // Transform submissions to match expected format
             const transformedSubmissions = submissions.map(submission => ({
@@ -191,14 +194,10 @@ class SubmissionDAO extends GenericDAO {
             return {
                 submissions: transformedSubmissions,
                 total: total,
-                dataCommons: dataCommons,
+                dataCommons: dataCommonsList || [],
                 submitterNames: submitterNames,
                 organizations: organizations,
-                statuses: () => {
-                    const statusOrder = [NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, COMPLETED, CANCELED, DELETED];
-                    return statuses
-                        .sort((a, b) => statusOrder.indexOf(a) - statusOrder.indexOf(b));
-                }
+                statuses: () => statuses
             };
         } catch (error) {
             console.error('Error in listSubmissions:', error);
@@ -353,28 +352,6 @@ class SubmissionDAO extends GenericDAO {
     }
 
     /**
-     * Retrieves distinct data commons values from submissions based on filter conditions.
-     * This method is used for aggregation queries and should typically receive base conditions
-     * (user scope only) rather than full filter conditions to ensure accurate aggregation results.
-     * 
-     * @param {Object} filterConditions - Prisma query conditions for filtering submissions
-     * @returns {Promise<Array<string>>} Array of distinct data commons identifiers
-     */
-    async _getDistinctDataCommons(filterConditions) {
-        try {
-            const dataCommons = await prisma.submission.findMany({
-                where: filterConditions,
-                select: { dataCommons: true },
-                distinct: ['dataCommons']
-            });
-            return dataCommons.map(item => item.dataCommons).filter(Boolean);
-        } catch (error) {
-            console.error('Error getting distinct dataCommons:', error);
-            return [];
-        }
-    }
-
-    /**
      * Retrieves distinct submitter names from submissions based on filter conditions.
      * This method is used for aggregation queries and should typically receive base conditions
      * (user scope only) rather than full filter conditions to ensure accurate aggregation results.
@@ -386,7 +363,13 @@ class SubmissionDAO extends GenericDAO {
         try {
             const submissions = await prisma.submission.findMany({
                 where: filterConditions,
-                select: { submitter: true },
+                include: {
+                    submitter: {
+                        select: {
+                            fullName: true
+                        }
+                    }
+                },
                 distinct: ['submitterID']
             });
             const submitterNames = submissions
@@ -403,32 +386,17 @@ class SubmissionDAO extends GenericDAO {
     }
 
     /**
-     * Retrieves distinct organizations from submissions based on filter conditions.
-     * This method performs a two-step query: first gets distinct study IDs from submissions,
-     * then retrieves the organizations that have those studies. It's used for aggregation
-     * queries and should typically receive base conditions (user scope only).
+     * Retrieves all organizations (programs) from the database.
      * 
-     * @param {Object} filterConditions - Prisma query conditions for filtering submissions
      * @returns {Promise<Array<Object>>} Array of organization objects with id, name, and abbreviation
      */
-    async _getDistinctOrganizations(filterConditions) {
+    async _getDistinctOrganizations() {
         try {
-            // Get study IDs from submissions
-            const studyIDs = await prisma.submission.findMany({
-                where: filterConditions,
-                select: { studyID: true },
-                distinct: ['studyID']
-            });
-
-            const studyIDList = studyIDs.map(item => item.studyID);
-
-            // Get organizations that have these studies
+            // The filter is included in case we need to filter by status in the future
             const organizations = await prisma.program.findMany({
                 where: {
-                    studies: {
-                        some: {
-                            id: { in: studyIDList }
-                        }
+                    status: {
+                        in: [ORGANIZATION.STATUSES.ACTIVE, ORGANIZATION.STATUSES.INACTIVE]
                     }
                 },
                 select: {
@@ -447,25 +415,13 @@ class SubmissionDAO extends GenericDAO {
     }
 
     /**
-     * Retrieves distinct submission statuses based on filter conditions.
-     * This method is used for aggregation queries and should typically receive base conditions
-     * (user scope only) rather than full filter conditions to ensure accurate aggregation results.
+     * Returns all possible submission statuses as a predefined list.
+     * This ensures filter options remain constant regardless of applied filters.
      * 
-     * @param {Object} filterConditions - Prisma query conditions for filtering submissions
-     * @returns {Promise<Array<string>>} Array of distinct submission statuses
+     * @returns {Array<string>} Array of all submission statuses in display order
      */
-    async _getDistinctStatuses(filterConditions) {
-        try {
-            const statuses = await prisma.submission.findMany({
-                where: filterConditions,
-                select: { status: true },
-                distinct: ['status']
-            });
-            return statuses.map(item => item.status).filter(Boolean);
-        } catch (error) {
-            console.error('Error getting distinct statuses:', error);
-            return [];
-        }
+    _getDistinctStatuses() {
+        return [NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, COMPLETED, CANCELED, DELETED];
     }
 
     /**

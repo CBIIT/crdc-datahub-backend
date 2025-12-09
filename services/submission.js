@@ -233,7 +233,8 @@ class Submission {
             console.warn("Failed permission verification for listSubmissions, returning empty list");
             return {submissions: [], total: 0};
         }
-        const res = await this.submissionDAO.listSubmissions(context?.userInfo, userScope, params);
+        const dataCommonsList = Array.from(this.allowedDataCommons).filter(dc => !this.hiddenDataCommons.has(dc));
+        const res = await this.submissionDAO.listSubmissions(context?.userInfo, userScope, params, dataCommonsList);
         return getDataCommonsDisplayNamesForListSubmissions(res);
     }
 
