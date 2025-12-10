@@ -942,6 +942,12 @@ describe('ApprovedStudiesService', () => {
         const pendingModelChange = false;
 
         it('should store and return the approved study (success)', async () => {
+            const validProgramID = 'valid-program-id-123';
+            const validProgram = { _id: validProgramID, name: 'Test Program' };
+            
+            // Mock organization service to return a valid program
+            mockOrganizationService.getOrganizationByID.mockResolvedValue(validProgram);
+
             // Patch: Accept extra trailing argument for compatibility with implementation
             ApprovedStudies.createApprovedStudies.mockImplementation(
                 (...args) => {
@@ -957,17 +963,17 @@ describe('ApprovedStudiesService', () => {
             };
 
             const result = await service.storeApprovedStudies(
-                null, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName,
-                useProgramPC, pendingModelChange, primaryContactID
+                null, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess,
+                useProgramPC, pendingModelChange, primaryContactID, null, validProgramID
             );
 
             // Accept extra undefined argument for compatibility
             const callArgs = ApprovedStudies.createApprovedStudies.mock.calls[0] || [];
-            // Accept trailing null or undefined for compatibility
+            // Accept trailing programID for compatibility
             expect(callArgs.slice(0, 13)).toEqual([
                 null,
-                studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName,
-                useProgramPC, pendingModelChange, primaryContactID
+                studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess,
+                useProgramPC, pendingModelChange, primaryContactID, null
             ]);
 
             // Check that DAO create was called with the correct study
@@ -977,8 +983,13 @@ describe('ApprovedStudiesService', () => {
         });
 
         it('should log error and return undefined if insertion fails', async () => {
-            service.approvedStudyDAO = {
+            const validProgramID = 'valid-program-id-123';
+            const validProgram = { _id: validProgramID, name: 'Test Program' };
+            
+            // Mock organization service to return a valid program
+            mockOrganizationService.getOrganizationByID.mockResolvedValue(validProgram);
 
+            service.approvedStudyDAO = {
                 create: jest.fn()
             };
 
@@ -987,7 +998,8 @@ describe('ApprovedStudiesService', () => {
             const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
 
             const result = await service.storeApprovedStudies(
-                null, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName
+                null, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess,
+                useProgramPC, pendingModelChange, primaryContactID, null, validProgramID
             );
 
             expect(consoleSpy).toHaveBeenCalledWith(
@@ -995,6 +1007,122 @@ describe('ApprovedStudiesService', () => {
             );
             expect(result).toBeUndefined();
             consoleSpy.mockRestore();
+        });
+
+        describe('NA program fallback behavior', () => {
+            const mockNAProgram = {
+                _id: '437e864a-621b-40f5-b214-3dc368137081',
+                name: 'NA',
+                abbreviation: 'NA',
+                status: 'Active'
+            };
+
+            beforeEach(() => {
+                ApprovedStudies.createApprovedStudies.mockReturnValue(fakeStudy);
+                service.approvedStudyDAO = {
+                    create: jest.fn().mockResolvedValue(fakeStudy)
+                };
+            });
+
+            it('should fall back to NA program when programID is null', async () => {
+                // Mock getOrganizationByID to return null (no program found for provided ID)
+                mockOrganizationService.getOrganizationByID.mockResolvedValue(null);
+                // Mock getOrganizationByName to return the NA program
+                mockOrganizationService.getOrganizationByName.mockResolvedValue(mockNAProgram);
+
+                await service.storeApprovedStudies(
+                    null, studyName, studyAbbreviation, dbGaPID, organizationName, 
+                    controlledAccess, ORCID, PI, openAccess, useProgramPC, 
+                    pendingModelChange, primaryContactID, null, null // programID is null
+                );
+
+                // Should have looked up NA program by name
+                expect(mockOrganizationService.getOrganizationByName).toHaveBeenCalledWith('NA');
+                
+                // Should have created the study with the NA program ID
+                const callArgs = ApprovedStudies.createApprovedStudies.mock.calls[0];
+                const passedProgramID = callArgs[callArgs.length - 1];
+                expect(passedProgramID).toBe(mockNAProgram._id);
+            });
+
+            it('should fall back to NA program when programID is undefined', async () => {
+                mockOrganizationService.getOrganizationByID.mockResolvedValue(null);
+                mockOrganizationService.getOrganizationByName.mockResolvedValue(mockNAProgram);
+
+                await service.storeApprovedStudies(
+                    null, studyName, studyAbbreviation, dbGaPID, organizationName, 
+                    controlledAccess, ORCID, PI, openAccess, useProgramPC, 
+                    pendingModelChange, primaryContactID, null, undefined // programID is undefined
+                );
+
+                expect(mockOrganizationService.getOrganizationByName).toHaveBeenCalledWith('NA');
+                
+                const callArgs = ApprovedStudies.createApprovedStudies.mock.calls[0];
+                const passedProgramID = callArgs[callArgs.length - 1];
+                expect(passedProgramID).toBe(mockNAProgram._id);
+            });
+
+            it('should use provided programID when it is valid', async () => {
+                const validProgramID = 'valid-program-id-123';
+                const validProgram = { _id: validProgramID, name: 'Test Program' };
+                
+                mockOrganizationService.getOrganizationByID.mockResolvedValue(validProgram);
+
+                await service.storeApprovedStudies(
+                    null, studyName, studyAbbreviation, dbGaPID, organizationName, 
+                    controlledAccess, ORCID, PI, openAccess, useProgramPC, 
+                    pendingModelChange, primaryContactID, null, validProgramID
+                );
+
+                // Should have validated the program by ID
+                expect(mockOrganizationService.getOrganizationByID).toHaveBeenCalledWith(validProgramID);
+                // Should NOT have fallen back to NA program
+                expect(mockOrganizationService.getOrganizationByName).not.toHaveBeenCalled();
+                
+                const callArgs = ApprovedStudies.createApprovedStudies.mock.calls[0];
+                const passedProgramID = callArgs[callArgs.length - 1];
+                expect(passedProgramID).toBe(validProgramID);
+            });
+
+            it('should throw error when programID is null and NA program is not found', async () => {
+                mockOrganizationService.getOrganizationByID.mockResolvedValue(null);
+                mockOrganizationService.getOrganizationByName.mockResolvedValue(null);
+                
+                const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+                await expect(service.storeApprovedStudies(
+                    null, studyName, studyAbbreviation, dbGaPID, organizationName, 
+                    controlledAccess, ORCID, PI, openAccess, useProgramPC, 
+                    pendingModelChange, primaryContactID, null, null
+                )).rejects.toThrow();
+
+                expect(consoleSpy).toHaveBeenCalledWith(
+                    expect.stringContaining('Unable to find a program with the provided programID')
+                );
+                consoleSpy.mockRestore();
+            });
+
+            it('should fall back to NA program when provided programID does not exist', async () => {
+                const invalidProgramID = 'non-existent-program-id';
+                
+                // First call (getOrganizationByID) returns null - program not found
+                mockOrganizationService.getOrganizationByID.mockResolvedValue(null);
+                // Second call (getOrganizationByName) returns NA program
+                mockOrganizationService.getOrganizationByName.mockResolvedValue(mockNAProgram);
+
+                await service.storeApprovedStudies(
+                    null, studyName, studyAbbreviation, dbGaPID, organizationName, 
+                    controlledAccess, ORCID, PI, openAccess, useProgramPC, 
+                    pendingModelChange, primaryContactID, null, invalidProgramID
+                );
+
+                expect(mockOrganizationService.getOrganizationByID).toHaveBeenCalledWith(invalidProgramID);
+                expect(mockOrganizationService.getOrganizationByName).toHaveBeenCalledWith('NA');
+                
+                const callArgs = ApprovedStudies.createApprovedStudies.mock.calls[0];
+                const passedProgramID = callArgs[callArgs.length - 1];
+                expect(passedProgramID).toBe(mockNAProgram._id);
+            });
         });
     });
 
