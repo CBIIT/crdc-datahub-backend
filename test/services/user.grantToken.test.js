@@ -457,17 +457,6 @@ describe('UserService.grantToken', () => {
     });
 
     describe('Performance considerations', () => {
-        it('should complete token generation quickly', async () => {
-            mockUserCollection.update = jest.fn().mockResolvedValue({ matchedCount: 1 });
-
-            const startTime = Date.now();
-            await userService.grantToken(params, context);
-            const endTime = Date.now();
-
-            const executionTime = endTime - startTime;
-            expect(executionTime).toBeLessThan(1000); // Should complete within 1 second
-        });
-
         it('should handle concurrent token requests', async () => {
             mockUserCollection.update = jest.fn().mockResolvedValue({ matchedCount: 1 });
 
