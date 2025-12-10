@@ -914,7 +914,9 @@ describe('DataRecordService', () => {
 
       // Verify parallel execution: both queries started before either ended
       expect(callOrder.indexOf('count-start')).toBeLessThan(callOrder.indexOf('count-end'));
+      expect(callOrder.indexOf('count-start')).toBeLessThan(callOrder.indexOf('results-end'));
       expect(callOrder.indexOf('results-start')).toBeLessThan(callOrder.indexOf('count-end'));
+      expect(callOrder.indexOf('results-start')).toBeLessThan(callOrder.indexOf('results-end'));
       expect(result.total).toBe(10);
       expect(result.results).toEqual(mockResults);
     });

@@ -243,7 +243,9 @@ describe('UserService.isUserPrimaryContact', () => {
 
             // Verify parallel execution: both queries started before either ended
             expect(callOrder.indexOf('org-start')).toBeLessThan(callOrder.indexOf('org-end'));
+            expect(callOrder.indexOf('org-start')).toBeLessThan(callOrder.indexOf('studies-end'));
             expect(callOrder.indexOf('studies-start')).toBeLessThan(callOrder.indexOf('org-end'));
+            expect(callOrder.indexOf('studies-start')).toBeLessThan(callOrder.indexOf('studies-end'));
         });
     });
 
@@ -436,7 +438,9 @@ describe('UserService.isUserPrimaryContact', () => {
 
             // Verify parallel execution: both queries started before either ended
             expect(callOrder.indexOf('org-start')).toBeLessThan(callOrder.indexOf('org-end'));
+            expect(callOrder.indexOf('org-start')).toBeLessThan(callOrder.indexOf('studies-end'));
             expect(callOrder.indexOf('studies-start')).toBeLessThan(callOrder.indexOf('org-end'));
+            expect(callOrder.indexOf('studies-start')).toBeLessThan(callOrder.indexOf('studies-end'));
         });
     });
 
