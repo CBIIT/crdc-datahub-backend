@@ -45,7 +45,11 @@ class ApprovedStudiesService {
     }
 
     async storeApprovedStudies(applicationID, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, useProgramPC, pendingModelChange, primaryContactID, pendingGPA, programID) {
-        const approvedStudies = ApprovedStudies.createApprovedStudies(applicationID, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, useProgramPC, pendingModelChange, primaryContactID, pendingGPA, programID);
+        // Validate programID and fall back to NA program if needed
+        const program = await this._validateProgramID(programID);
+        const validatedProgramID = program?._id;
+
+        const approvedStudies = ApprovedStudies.createApprovedStudies(applicationID, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, useProgramPC, pendingModelChange, primaryContactID, pendingGPA, validatedProgramID);
         const res = await this.approvedStudyDAO.create(approvedStudies);
 
         if (!res) {
