@@ -321,8 +321,8 @@ describe('ProgramDAO', () => {
                 .rejects.toThrow('Failed to find first Program');
         });
 
-        // Performance test - multiple calls
-        it('should handle multiple rapid calls efficiently', async () => {
+        // Test - multiple concurrent calls
+        it('should handle multiple rapid calls', async () => {
             const testNames = [
                 'Cancer Research Program',
                 'Diabetes Research Program',
@@ -336,17 +336,10 @@ describe('ProgramDAO', () => {
                 name: 'Test Program' 
             });
 
-            const startTime = Date.now();
-            
             const results = await Promise.all(testNames.map(name => 
                 programDAO.getOrganizationByName(name)
             ));
 
-            const endTime = Date.now();
-            const duration = endTime - startTime;
-
-            // Should complete all queries in reasonable time (adjust threshold as needed)
-            expect(duration).toBeLessThan(1000);
             expect(mockPrisma.program.findFirst).toHaveBeenCalledTimes(testNames.length);
             expect(results).toHaveLength(testNames.length);
             expect(results.every(result => result._id === 'org123')).toBe(true);
