@@ -87,7 +87,7 @@ class SubmissionDAO extends GenericDAO {
      * @returns {Array<Object>} returns.submissions - Array of submission objects
      * @returns {number} returns.total - Total count of submissions matching filters
      * @returns {Array<string>} returns.dataCommons - Array of all non-hidden data commons from configuration
-     * @returns {Array<string>} returns.submitterNames - Distinct names of users who have submissions in the submissions array
+     * @returns {Array<string>} returns.submitterNames - Distinct names of submitters filtered by all criteria except submitterName filter
      * @returns {Array<string>} returns.organizations - All organization (program) names
      * @returns {Function} returns.statuses - Function returning sorted distinct statuses
      * @throws {Error} When database query fails or validation errors occur
@@ -112,6 +112,9 @@ class SubmissionDAO extends GenericDAO {
         
         // filter by user scope and search filters
         const filterConditions = this._addFiltersToBaseConditions(userInfo, { ...baseConditions }, params.organization, params.status, params.name, params.dbGaPID, params.dataCommons, params?.submitterName);
+        // Build filter conditions WITHOUT submitterName for the submitterNames aggregation
+        // This ensures the dropdown shows all available options based on other filters, not filtered by itself
+        const submitterNamesFilterConditions = this._addFiltersToBaseConditions(userInfo, { ...baseConditions }, params.organization, params.status, params.name, params.dbGaPID, params.dataCommons, undefined);
         // Map orderBy to proper Prisma field names
         const mappedOrderBy = params?.orderBy ? SUBMISSION_ORDER_BY_MAP[params.orderBy] || params.orderBy : undefined;
         // Create Prisma pagination with mapped orderBy
@@ -168,10 +171,11 @@ class SubmissionDAO extends GenericDAO {
                 where: filterConditions
             });
 
-            // Get submitter names filtered by current search criteria
+            // Get submitter names filtered by all search criteria EXCEPT submitterName
+            // This ensures the dropdown shows all available options based on other filters
             // Get all organizations (programs)
             const [submitterNames, organizations] = await Promise.all([
-                this._getDistinctSubmitterNames(filterConditions),
+                this._getDistinctSubmitterNames(submitterNamesFilterConditions),
                 this._getDistinctOrganizations()
             ]);
             // Get all possible submission statuses
