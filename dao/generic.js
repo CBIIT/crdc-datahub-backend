@@ -3,6 +3,33 @@ const {convertMongoFilterToPrismaFilter,
     handleDotNotation,
     mongoSortToPrismaOrderBy} = require('./utils/orm-converter');
 const {SORT} = require('../constants/db-constants');
+const ERROR = require('../constants/error-constants');
+
+/**
+ * Recursively validates filter objects for undefined/null values.
+ * Prisma silently ignores undefined values in filters, which can lead to
+ * unintended queries returning wrong data.
+ * 
+ * @param {Object} filter - The filter object to validate
+ * @throws {Error} If any value in the filter is undefined or null
+ */
+function validateFilterValues(filter) {
+    if (filter === null || filter === undefined) {
+        return;
+    }
+    if (typeof filter !== 'object' || filter instanceof Date) {
+        return;
+    }
+    for (const key of Object.keys(filter)) {
+        const value = filter[key];
+        if (value === undefined || value === null) {
+            throw new Error(ERROR.INVALID_FILTER_VALUE);
+        }
+        if (typeof value === 'object' && !(value instanceof Date) && !Array.isArray(value)) {
+            validateFilterValues(value);
+        }
+    }
+}
 
 class GenericDAO {
     constructor(modelName) {
@@ -40,6 +67,7 @@ class GenericDAO {
     }
 
     async findById(id) {
+        validateFilterValues({ id });
         try {
             const result = await this.model.findUnique({ where: { id } });
             if (!result) {
@@ -70,8 +98,9 @@ class GenericDAO {
     }
 
     async findFirst(where, option = {}) {
+        where = convertMongoFilterToPrismaFilter(where);
+        validateFilterValues(where);
         try {
-            where = convertMongoFilterToPrismaFilter(where);
             const result = await this.model.findFirst({
                 where,
                 ...option
@@ -92,8 +121,9 @@ class GenericDAO {
     }
 
     async findMany(filter, option = {}) {
+        filter = convertMongoFilterToPrismaFilter(filter);
+        validateFilterValues(filter);
         try {
-            filter = convertMongoFilterToPrismaFilter(filter);
             const result = await this.model.findMany({ where: filter, ...option });
             return result.map(item => ({
                 ...item,
@@ -111,11 +141,12 @@ class GenericDAO {
     }
 
     async update(id, data) {
+        // Patch: If id is not provided, try to extract from data._id or data.id
+        if (!id) {
+            id = data._id || data.id;
+        }
+        validateFilterValues({ id });
         try {
-            // Patch: If id is not provided, try to extract from data._id or data.id
-            if (!id) {
-                id = data._id || data.id;
-            }
             // Accidental _id or id fields should be excluded.
             const { _id, id: dataId, ...updateData } = data;
             const res = await this.model.update({ where: { id }, data: updateData });
@@ -132,6 +163,7 @@ class GenericDAO {
     }
 
     async updateMany(condition, data){
+        validateFilterValues(condition);
         try {
             return await this.model.updateMany({ where: { ...condition }, data: { ...data }});
         } catch (error) {
@@ -146,6 +178,7 @@ class GenericDAO {
     }
 
     async deleteMany(where) {
+        validateFilterValues(where);
         try {
             return await this.model.deleteMany({ where});
         } catch (error) {
@@ -159,6 +192,7 @@ class GenericDAO {
     }
 
     async delete(id) {
+        validateFilterValues({ id });
         try {
             return await this.model.delete({ where: { id } });
         } catch (error) {
@@ -178,6 +212,7 @@ class GenericDAO {
      * @returns {Promise<number>} - The count of matching documents.
      */
     async count(where) {
+        validateFilterValues(where);
         try {
             return await this.model.count({ where });
         } catch (error) {
@@ -199,6 +234,7 @@ class GenericDAO {
      */
     async distinct(field, filter = {}) {
         filter = convertMongoFilterToPrismaFilter(filter);
+        validateFilterValues(filter);
         handleDotNotation(filter);
         // Handle dot notation for nested fields (e.g., "applicant.applicantName")
         let select = {};
@@ -241,6 +277,7 @@ class GenericDAO {
             if (stage.$skip) skip = stage.$skip;
         }
         query = convertMongoFilterToPrismaFilter(query);
+        validateFilterValues(query);
 
         // Flatten dot notation for nested fields (e.g., "applicant.applicantID")
         // Prisma expects: { applicant: { is: { applicantID: ... } } }
