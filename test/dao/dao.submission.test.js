@@ -1074,6 +1074,62 @@ describe('SubmissionDAO', () => {
                 expect(result.submitterNames).toHaveLength(2);
             });
 
+            it('should NOT filter submitterNames by the submitterName filter itself', async () => {
+                // This test verifies that when a submitterName filter is applied,
+                // the submitterNames dropdown list shows all available options based on OTHER filters,
+                // NOT filtered by the submitterName filter itself
+
+                const submitterA = { id: 'user-a', fullName: 'User A' };
+                const submitterB = { id: 'user-b', fullName: 'User B' };
+                const submitterC = { id: 'user-c', fullName: 'User C' };
+                
+                let submitterNamesQueryWhere = null;
+                
+                // Mock findMany to capture the where clause for the submitterNames query
+                prisma.submission.findMany.mockImplementation((query) => {
+                    if (query.include?.submitter && !query.distinct) {
+                        // Main query - should include submitterName filter
+                        return Promise.resolve([
+                            { id: 'sub-1', submitter: submitterA, status: NEW, dataCommons: 'GDC' }
+                        ]);
+                    }
+                    if (query.distinct?.includes('submitterID')) {
+                        // Submitter names aggregation - capture the where clause
+                        submitterNamesQueryWhere = query.where;
+                        // Return all submitters (since the query should NOT filter by submitterName)
+                        return Promise.resolve([
+                            { submitter: submitterA },
+                            { submitter: submitterB },
+                            { submitter: submitterC }
+                        ]);
+                    }
+                    return Promise.resolve([]);
+                });
+
+                const paramsWithSubmitterNameFilter = {
+                    ...mockParams,
+                    submitterName: 'User A',
+                    status: [NEW],
+                    dataCommons: 'GDC'
+                };
+
+                const result = await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithSubmitterNameFilter);
+
+                // Verify the submitterNames aggregation query does NOT include the submitterName filter
+                expect(submitterNamesQueryWhere).toBeDefined();
+                expect(submitterNamesQueryWhere).not.toHaveProperty('submitter');
+                
+                // But should still include other filters
+                expect(submitterNamesQueryWhere).toHaveProperty('status');
+                expect(submitterNamesQueryWhere).toHaveProperty('dataCommons');
+
+                // Verify that all submitters are returned (not filtered by submitterName)
+                expect(result.submitterNames).toContain('User A');
+                expect(result.submitterNames).toContain('User B');
+                expect(result.submitterNames).toContain('User C');
+                expect(result.submitterNames).toHaveLength(3);
+            });
+
             it('should return same organizations regardless of applied filters', async () => {
                 const allOrganizations = [
                     { id: 'org-1', name: 'Organization 1', abbreviation: 'O1' },
