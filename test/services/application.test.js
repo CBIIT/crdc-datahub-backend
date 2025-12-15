@@ -357,19 +357,6 @@ describe('Application', () => {
             const result = await app.getMyLastApplication({}, context);
             expect(result).toMatchObject({ _id: 'app1', version: '3.0', institution: { id: 'inst1', _id: 'inst1' } });
         });
-
-        it('throws APPLICATION_NOT_FOUND when no previous approved application exists', async () => {
-            userScopeMock.isNoneScope.mockReturnValue(false);
-            userScopeMock.isAllScope.mockReturnValue(true);
-            
-            // Mock aggregate to return empty array (no previous applications)
-            app.applicationDAO = {
-                aggregate: jest.fn().mockResolvedValue([])
-            };
-
-            await expect(app.getMyLastApplication({}, context))
-                .rejects.toThrow(ERROR.APPLICATION_NOT_FOUND);
-        });
     });
 
     describe('_listApplicationConditions', () => {

@@ -3,7 +3,6 @@ const ERROR = {
     DISABLED_USER: "User is inactive, please contact admin to be reactivated.",
     SESSION_NOT_INITIALIZED: "Internal error, a user is logged in but user data has not been initialized in the session",
     DATABASE_OPERATION_FAILED: "Database operation failed, please see logs for more information",
-    INVALID_FILTER_VALUE: "Invalid query: filter values cannot be undefined or null",
     // Application
     APPLICATION_NOT_FOUND: "The provided application ID was not found in the database. Provided _id: ",
     FAILED_DELETE_APPLICATION: "An error occurred while delete an application",

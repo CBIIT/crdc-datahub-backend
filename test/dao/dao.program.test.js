@@ -1,5 +1,4 @@
 const ProgramDAO = require('../../dao/program');
-const ERROR = require('../../constants/error-constants');
 
 // Mock Prisma
 jest.mock('../../prisma', () => ({
@@ -290,17 +289,27 @@ describe('ProgramDAO', () => {
             });
         });
 
-        // Edge case: null/undefined input should throw INVALID_FILTER_VALUE
-        it('should throw INVALID_FILTER_VALUE for null input', async () => {
-            await expect(programDAO.getOrganizationByName(null))
-                .rejects.toThrow(ERROR.INVALID_FILTER_VALUE);
-            expect(mockPrisma.program.findFirst).not.toHaveBeenCalled();
+        // Edge case: null/undefined input
+        it('should handle null input', async () => {
+            mockPrisma.program.findFirst.mockResolvedValue(null);
+            
+            const result = await programDAO.getOrganizationByName(null);
+            
+            expect(mockPrisma.program.findFirst).toHaveBeenCalledWith({
+                where: { name: undefined }
+            });
+            expect(result).toBeNull();
         });
 
-        it('should throw INVALID_FILTER_VALUE for undefined input', async () => {
-            await expect(programDAO.getOrganizationByName(undefined))
-                .rejects.toThrow(ERROR.INVALID_FILTER_VALUE);
-            expect(mockPrisma.program.findFirst).not.toHaveBeenCalled();
+        it('should handle undefined input', async () => {
+            mockPrisma.program.findFirst.mockResolvedValue(null);
+            
+            const result = await programDAO.getOrganizationByName(undefined);
+            
+            expect(mockPrisma.program.findFirst).toHaveBeenCalledWith({
+                where: { name: undefined }
+            });
+            expect(result).toBeNull();
         });
 
         // Error handling
