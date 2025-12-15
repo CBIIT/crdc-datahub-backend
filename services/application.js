@@ -289,8 +289,12 @@ class Application {
         ];
         const result = await this.applicationDAO.aggregate(pipeline);
         const application = result.length > 0 ? result[0] : null;
+        // Add this check - throw same error as getApplicationById for invalid ID
+        if (!application) {
+            throw new Error(ERROR.APPLICATION_NOT_FOUND + null);
+        }
         // auto upgrade version
-        const res = await this.getApplicationById(application?._id);
+        const res = await this.getApplicationById(application._id);
         res.version = await this._getApplicationVersionByStatus(IN_PROGRESS);
         return res;
     }
