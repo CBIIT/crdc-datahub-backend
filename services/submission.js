@@ -2813,7 +2813,7 @@ class Submission {
 const updateSubmissionStatus = async (submissionDAO, aSubmission, userInfo, newStatus) => {
     const newHistory = HistoryEventBuilder.createEvent(userInfo?._id, newStatus, null);
     aSubmission.history = [...(aSubmission.history || []), newHistory];
-    const updated = await submissionDAO.update(aSubmission._id, {status: newStatus, updatedAt: getCurrentTime()});
+    const updated = await submissionDAO.update(aSubmission._id, {status: newStatus, history: aSubmission.history, updatedAt: getCurrentTime()});
     if (!updated) {
         console.error(ERROR.UPDATE_SUBMISSION_ERROR, aSubmission?._id);
         throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);
