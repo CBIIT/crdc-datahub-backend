@@ -223,21 +223,29 @@ describe('UserService.isUserPrimaryContact', () => {
         });
 
         it('should execute both queries in parallel', async () => {
-            const startTime = Date.now();
-            mockOrganizationCollection.aggregate = jest.fn().mockImplementation(() => 
-                new Promise(resolve => setTimeout(() => resolve([]), 100))
-            );
-            mockApprovedStudiesService.approvedStudiesCollection.aggregate = jest.fn().mockImplementation(() => 
-                new Promise(resolve => setTimeout(() => resolve([]), 100))
-            );
+            // Track call order to verify parallel execution structurally
+            const callOrder = [];
+
+            mockOrganizationCollection.aggregate = jest.fn().mockImplementation(async () => {
+                callOrder.push('org-start');
+                await new Promise(resolve => setImmediate(resolve));
+                callOrder.push('org-end');
+                return [];
+            });
+            mockApprovedStudiesService.approvedStudiesCollection.aggregate = jest.fn().mockImplementation(async () => {
+                callOrder.push('studies-start');
+                await new Promise(resolve => setImmediate(resolve));
+                callOrder.push('studies-end');
+                return [];
+            });
 
             await userService.isUserPrimaryContact(params, context);
 
-            const endTime = Date.now();
-            const executionTime = endTime - startTime;
-
-            // Both queries should execute in parallel, so total time should be ~100ms, not ~200ms
-            expect(executionTime).toBeLessThan(150);
+            // Verify parallel execution: both queries started before either ended
+            expect(callOrder.indexOf('org-start')).toBeLessThan(callOrder.indexOf('org-end'));
+            expect(callOrder.indexOf('org-start')).toBeLessThan(callOrder.indexOf('studies-end'));
+            expect(callOrder.indexOf('studies-start')).toBeLessThan(callOrder.indexOf('org-end'));
+            expect(callOrder.indexOf('studies-start')).toBeLessThan(callOrder.indexOf('studies-end'));
         });
     });
 
@@ -410,21 +418,29 @@ describe('UserService.isUserPrimaryContact', () => {
         });
 
         it('should execute queries in parallel for better performance', async () => {
-            const startTime = Date.now();
-            mockOrganizationCollection.aggregate = jest.fn().mockImplementation(() => 
-                new Promise(resolve => setTimeout(() => resolve([]), 50))
-            );
-            mockApprovedStudiesService.approvedStudiesCollection.aggregate = jest.fn().mockImplementation(() => 
-                new Promise(resolve => setTimeout(() => resolve([]), 50))
-            );
+            // Track call order to verify parallel execution structurally
+            const callOrder = [];
+
+            mockOrganizationCollection.aggregate = jest.fn().mockImplementation(async () => {
+                callOrder.push('org-start');
+                await new Promise(resolve => setImmediate(resolve));
+                callOrder.push('org-end');
+                return [];
+            });
+            mockApprovedStudiesService.approvedStudiesCollection.aggregate = jest.fn().mockImplementation(async () => {
+                callOrder.push('studies-start');
+                await new Promise(resolve => setImmediate(resolve));
+                callOrder.push('studies-end');
+                return [];
+            });
 
             await userService.isUserPrimaryContact(params, context);
 
-            const endTime = Date.now();
-            const executionTime = endTime - startTime;
-
-            // Both queries should execute in parallel, so total time should be ~50ms, not ~100ms
-            expect(executionTime).toBeLessThan(80);
+            // Verify parallel execution: both queries started before either ended
+            expect(callOrder.indexOf('org-start')).toBeLessThan(callOrder.indexOf('org-end'));
+            expect(callOrder.indexOf('org-start')).toBeLessThan(callOrder.indexOf('studies-end'));
+            expect(callOrder.indexOf('studies-start')).toBeLessThan(callOrder.indexOf('org-end'));
+            expect(callOrder.indexOf('studies-start')).toBeLessThan(callOrder.indexOf('studies-end'));
         });
     });
 

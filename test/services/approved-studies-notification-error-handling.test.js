@@ -44,6 +44,9 @@ describe('ApprovedStudiesService - Notification Error Handling', () => {
         };
         mockOrganizationService = {
             findByStudyID: jest.fn(),
+            findOneByStudyID: jest.fn(),
+            getOrganizationByID: jest.fn(),
+            getOrganizationByName: jest.fn(),
             organizationCollection: {
                 aggregate: jest.fn()
             }
@@ -107,7 +110,7 @@ describe('ApprovedStudiesService - Notification Error Handling', () => {
             acronym: 'US',
             controlledAccess: true,
             openAccess: true,
-            dbGaPID: '1234-5678-9012-345',
+            dbGaPID: 'phs000000',
             ORCID: '0000-0002-1825-0097',
             PI: 'Dr. Updated',
             primaryContactID: 'contact-id',
@@ -187,6 +190,7 @@ describe('ApprovedStudiesService - Notification Error Handling', () => {
             service._getUserScope = jest.fn().mockResolvedValue(mockUserScope);
             service._validateStudyName = jest.fn().mockResolvedValue(true);
             service._findUserByID = jest.fn().mockResolvedValue(mockPrimaryContact);
+            service._validateProgramID = jest.fn().mockResolvedValue(mockPrograms[0]);
             service.approvedStudyDAO.findFirst = jest.fn().mockResolvedValue({ ...mockStudy });
             service.approvedStudyDAO.update = jest.fn().mockResolvedValue(true);
             service._findOrganizationByStudyID = jest.fn().mockResolvedValue(mockPrograms);
@@ -251,10 +255,10 @@ describe('ApprovedStudiesService - Notification Error Handling', () => {
                     {
                         studyID: 'study-id',
                         status: { in: expect.any(Array) },
-                        conciergeID: { not: 'concierge-id' }
+                        conciergeID: { not: 'contact-id' }
                     },
                     {
-                        conciergeID: 'concierge-id',
+                        conciergeID: 'contact-id',
                         updatedAt: expect.any(Date)
                     }
                 );

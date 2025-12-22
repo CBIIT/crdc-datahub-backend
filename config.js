@@ -145,7 +145,7 @@ let config = {
             model_url: modelURLConf || getModelUrl(tierConf?.keys?.tier),
             //uploader configuration file template
             uploaderCLIConfigs: readUploaderCLIConfigTemplate(),
-            dataCommonsList: dataCommonsListConf?.key || (process.env.DATA_COMMONS_LIST ? JSON.parse(process.env.DATA_COMMONS_LIST) : ["CDS", "ICDC", "CTDC", "CCDI", "Test MDF", "Hidden Model"]),
+            dataCommonsList: dataCommonsListConf?.key || (process.env.DATA_COMMONS_LIST ? JSON.parse(process.env.DATA_COMMONS_LIST) : ["CDS", "ICDC", "CTDC", "CCDI", "PSDC", "Test MDF", "Hidden Model"]),
             hiddenModels: hiddenModelsConf?.key || (process.env.HIDDEN_MODELS ? parseHiddenModels(process.env.HIDDEN_MODELS) : []),
             inactive_submission_days: inactiveSubmissionDaysConf || (process.env.INACTIVE_SUBMISSION_DAYS_DELETE || 120),
             completed_submission_days: completedSubmissionDaysConf || (process.env.COMPLETED_RETENTION_DAYS || 30),

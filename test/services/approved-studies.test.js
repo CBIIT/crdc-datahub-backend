@@ -6,6 +6,7 @@ const { getDataCommonsDisplayNamesForApprovedStudy, getDataCommonsDisplayNamesFo
 const TEST_CONSTANTS = require('../test-constants');
 const USER = require('../../crdc-datahub-database-drivers/constants/user-constants');
 const {ApprovedStudies} = require("../../crdc-datahub-database-drivers/domain/approved-studies");
+const { NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, CANCELED, DELETED, ARCHIVED } = require('../../constants/submission-constants');
 
 // Mock dependencies
 jest.mock('../../verifier/user-info-verifier');
@@ -50,6 +51,9 @@ describe('ApprovedStudiesService', () => {
         };
         mockOrganizationService = {
             findByStudyID: jest.fn(),
+            findOneByStudyID: jest.fn(),
+            getOrganizationByID: jest.fn(),
+            getOrganizationByName: jest.fn(),
             organizationCollection: {
                 aggregate: jest.fn()
             }
@@ -61,9 +65,10 @@ describe('ApprovedStudiesService', () => {
             getPermissionScope: jest.fn()
         };
 
-        // Mock the DAO with getApprovedStudyByID
+        // Mock the DAO with getApprovedStudyByID and findFirst
         mockApprovedStudyDAO = {
-            getApprovedStudyByID: jest.fn()
+            getApprovedStudyByID: jest.fn(),
+            findFirst: jest.fn()
         };
 
         service = new ApprovedStudiesService(
@@ -93,7 +98,7 @@ describe('ApprovedStudiesService', () => {
             acronym: 'NS',
             controlledAccess: true,
             openAccess: false,
-            dbGaPID: '1234-5678-9012-345',
+            dbGaPID: 'phs001234',
             ORCID: '0000-0002-1825-0097',
             PI: 'Dr. New',
             primaryContactID: 'contact-id',
@@ -123,7 +128,7 @@ describe('ApprovedStudiesService', () => {
             service._getUserScope = jest.fn().mockResolvedValue(mockUserScope);
             service._validateStudyName = jest.fn().mockResolvedValue(true);
             service._findUserByID = jest.fn().mockResolvedValue(mockPrimaryContact);
-            service.storeApprovedStudies = jest.fn().mockResolvedValue(mockNewStudy);
+            service.storeApprovedStudies = jest.fn().mockResolvedValue({_id: 'new-study-id'});
             service.organizationService.getOrganizationByName = jest.fn().mockResolvedValue(mockOrg);
             service.organizationService.storeApprovedStudies = jest.fn().mockResolvedValue();
             getDataCommonsDisplayNamesForApprovedStudy.mockReturnValue(mockDisplayStudy);
@@ -137,12 +142,9 @@ describe('ApprovedStudiesService', () => {
             expect(service._validateStudyName).toHaveBeenCalledWith('New Study');
             expect(service._findUserByID).toHaveBeenCalledWith('contact-id');
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
-                null, 'New Study', 'NS', '1234-5678-9012-345', null, true, '0000-0002-1825-0097', 'Dr. New', false, null, false, false, 'contact-id', mockGPA            );
+                null, 'New Study', 'NS', 'phs001234', null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', mockGPA, 'org-id'            );
             expect(service.organizationService.getOrganizationByName).toHaveBeenCalledWith('NA');
-            expect(service.organizationService.storeApprovedStudies).toHaveBeenCalledWith('org-id', 'new-study-id');
-            expect(getDataCommonsDisplayNamesForApprovedStudy).toHaveBeenCalledWith(mockNewStudy);
-            expect(getDataCommonsDisplayNamesForUser).toHaveBeenCalledWith(mockPrimaryContact);
-            expect(result).toEqual({ ...mockDisplayStudy, primaryContact: mockDisplayUser });
+            expect(result).toEqual({_id: 'new-study-id'});
         });
 
         it('should throw error if user does not have permission', async () => {
@@ -173,9 +175,9 @@ describe('ApprovedStudiesService', () => {
             };
             const result = await service.addApprovedStudyAPI(paramsWithoutDbGaPID, mockContext);
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
-                null, 'New Study', 'NS', undefined, null, true, '0000-0002-1825-0097', 'Dr. New', false, null, false, false, 'contact-id', mockGPA
+                null, 'New Study', 'NS', undefined, null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', mockGPA, 'org-id'
             );
-            expect(result).toEqual({ ...mockDisplayStudy, primaryContact: mockDisplayUser });
+            expect(result).toEqual({_id: "new-study-id"});
         });
 
         it('should throw error when creating controlled access study without GPAName and isPendingGPA false', async () => {
@@ -208,9 +210,9 @@ describe('ApprovedStudiesService', () => {
             };
             const result = await service.addApprovedStudyAPI(paramsWithoutGPAName, mockContext);
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
-                null, 'New Study', 'NS', '1234-5678-9012-345', null, true, '0000-0002-1825-0097', 'Dr. New', false, null, false, false, 'contact-id', { GPAName: undefined, isPendingGPA: true }
+                null, 'New Study', 'NS', 'phs001234', null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: undefined, isPendingGPA: true }, "org-id"
             );
-            expect(result).toEqual({ ...mockDisplayStudy, primaryContact: mockDisplayUser });
+            expect(result).toEqual({_id: "new-study-id"});
         });
 
         it('should successfully create a controlled access study with empty GPAName when isPendingGPA is true', async () => {
@@ -222,9 +224,9 @@ describe('ApprovedStudiesService', () => {
             };
             const result = await service.addApprovedStudyAPI(paramsWithEmptyGPAName, mockContext);
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
-                null, 'New Study', 'NS', '1234-5678-9012-345', null, true, '0000-0002-1825-0097', 'Dr. New', false, null, false, false, 'contact-id', { GPAName: '', isPendingGPA: true }
+                null, 'New Study', 'NS', 'phs001234', null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: '', isPendingGPA: true }, "org-id"
             );
-            expect(result).toEqual({ ...mockDisplayStudy, primaryContact: mockDisplayUser });
+            expect(result).toEqual({_id: "new-study-id"});
         });
 
         it('should successfully create a non-controlled access study without dbGaPID', async () => {
@@ -236,9 +238,9 @@ describe('ApprovedStudiesService', () => {
             };
             const result = await service.addApprovedStudyAPI(paramsWithoutDbGaPID, mockContext);
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
-                null, 'New Study', 'NS', undefined, null, false, '0000-0002-1825-0097', 'Dr. New', false, null, false, false, 'contact-id', { GPAName: "GPA name", isPendingGPA: false }
+                null, 'New Study', 'NS', undefined, null, false, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: "GPA name", isPendingGPA: false }, "org-id"
             );
-            expect(result).toEqual({ ...mockDisplayStudy, primaryContact: mockDisplayUser });
+            expect(result).toEqual({_id: "new-study-id"});
         });
 
         it('should successfully create a non-controlled access study without GPAName', async () => {
@@ -250,9 +252,9 @@ describe('ApprovedStudiesService', () => {
             };
             const result = await service.addApprovedStudyAPI(paramsWithoutGPAName, mockContext);
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
-                null, 'New Study', 'NS', '1234-5678-9012-345', null, false, '0000-0002-1825-0097', 'Dr. New', false, null, false, false, 'contact-id', { GPAName: undefined, isPendingGPA: false }
+                null, 'New Study', 'NS', 'phs001234', null, false, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: undefined, isPendingGPA: false }, "org-id"
             );
-            expect(result).toEqual({ ...mockDisplayStudy, primaryContact: mockDisplayUser });
+            expect(result).toEqual({_id: "new-study-id"});
         });
     });
 
@@ -264,7 +266,7 @@ describe('ApprovedStudiesService', () => {
             acronym: 'US',
             controlledAccess: true,
             openAccess: true,
-            dbGaPID: '1234-5678-9012-345',
+            dbGaPID: 'phs000001',
             ORCID: '0000-0002-1825-0097',
             PI: 'Dr. Updated',
             primaryContactID: 'contact-id',
@@ -283,12 +285,13 @@ describe('ApprovedStudiesService', () => {
             studyAbbreviation: 'OS',
             controlledAccess: false,
             openAccess: false,
-            dbGaPID: 'old-gap',
+            dbGaPID: 'phs000001',
             ORCID: 'old-orcid',
             PI: 'Dr. Old',
             primaryContactID: null,
             useProgramPC: false,
-            pendingModelChange: false
+            pendingModelChange: false,
+            programID: 'program-id'  // New field in relationships model
         };
         const mockPrimaryContact = {
             _id: 'contact-id',
@@ -315,7 +318,10 @@ describe('ApprovedStudiesService', () => {
             service._findUserByID = jest.fn().mockResolvedValue(mockPrimaryContact);
             service.approvedStudyDAO.findFirst = jest.fn().mockResolvedValue({ ...mockStudy });
             service.approvedStudyDAO.update = jest.fn().mockResolvedValue(true);
-            service._findOrganizationByStudyID = jest.fn().mockResolvedValue(mockPrograms);
+            // Mock the organization service to return programs when finding by study ID
+            service.organizationService.findOneByStudyID = jest.fn().mockResolvedValue(mockPrograms[0]);
+            service.organizationService.getOrganizationByID = jest.fn().mockResolvedValue(mockPrograms[0]);
+            service.organizationService.getOrganizationByName = jest.fn().mockResolvedValue({_id: 'org-id', name: 'NA'});
             service.submissionDAO.updateMany = jest.fn().mockResolvedValue({ count: 0 });
             service._getConcierge = jest.fn().mockReturnValue(['Concierge Name', 'concierge@email.com']);
             getDataCommonsDisplayNamesForApprovedStudy.mockReturnValue(mockDisplayStudy);
@@ -475,6 +481,311 @@ describe('ApprovedStudiesService', () => {
             expect(service.approvedStudyDAO.update).toHaveBeenCalled();
             expect(result).toEqual(mockDisplayStudy);
         });
+
+        it('should throw error if dbGaPID in wrong format when updating the study', async () => {
+            const mockParamsUpdateStudy = {
+                ...mockParams,
+                dbGaPID: 'phs000001.v1.p1' // invalid format
+            };
+            await expect(service.editApprovedStudyAPI(mockParamsUpdateStudy, mockContext))
+                .rejects.toThrow(ERROR.INVALID_DB_GAP_ID);
+        });
+
+        it('should update the study successfully if dbGaPID in correct format when updating the study', async () => {
+            const mockParamsUpdateStudy = {
+                ...mockParams,
+                dbGaPID: 'phs000002' // invalid format
+            };
+            const result = await service.editApprovedStudyAPI(mockParamsUpdateStudy, mockContext);
+            expect(result).toEqual(mockDisplayStudy);
+        });
+
+        it('should update the study successfully if dbGaPID in correct format but with upper-case when updating the study', async () => {
+            const mockParamsUpdateStudy = {
+                ...mockParams,
+                dbGaPID: 'Phs000002' // invalid format
+            };
+            const result = await service.editApprovedStudyAPI(mockParamsUpdateStudy, mockContext);
+            expect(result).toEqual(mockDisplayStudy);
+        });
+
+        describe('programID assignment fixes', () => {
+            it('should set programID to null when program._id is undefined', async () => {
+                const programWithUndefinedId = { _id: undefined, conciergeID: 'concierge-id' };
+                service._validateProgramID = jest.fn().mockResolvedValue(programWithUndefinedId);
+                
+                await service.editApprovedStudyAPI({ ...mockParams, programID: 'some-id' }, mockContext);
+                
+                const updateCall = service.approvedStudyDAO.update.mock.calls[0];
+                expect(updateCall[1].programID).toBeNull();
+            });
+
+            it('should set programID to program._id when program._id exists', async () => {
+                const programWithValidId = { _id: 'valid-program-id', conciergeID: 'concierge-id' };
+                service._validateProgramID = jest.fn().mockResolvedValue(programWithValidId);
+                
+                await service.editApprovedStudyAPI({ ...mockParams, programID: 'valid-program-id' }, mockContext);
+                
+                const updateCall = service.approvedStudyDAO.update.mock.calls[0];
+                expect(updateCall[1].programID).toBe('valid-program-id');
+            });
+        });
+
+        describe('conciergeID assignment fix', () => {
+            it('should use program.conciergeID without optional chaining when useProgramPC is true', async () => {
+                const programWithConcierge = { _id: 'program-id', conciergeID: 'concierge-id-123' };
+                service._validateProgramID = jest.fn().mockResolvedValue(programWithConcierge);
+                
+                await service.editApprovedStudyAPI({ ...mockParams, useProgramPC: true, primaryContactID: null }, mockContext);
+                
+                // Verify submission update was called with correct conciergeID
+                const submissionUpdateCalls = service.submissionDAO.updateMany.mock.calls;
+                const conciergeUpdateCall = submissionUpdateCalls.find(call => 
+                    call[0].conciergeID && call[1].conciergeID === 'concierge-id-123'
+                );
+                expect(conciergeUpdateCall).toBeDefined();
+            });
+
+            it('should handle program.conciergeID being undefined when useProgramPC is true', async () => {
+                const programWithoutConcierge = { _id: 'program-id', conciergeID: undefined };
+                service._validateProgramID = jest.fn().mockResolvedValue(programWithoutConcierge);
+                
+                await service.editApprovedStudyAPI({ ...mockParams, useProgramPC: true, primaryContactID: null }, mockContext);
+                
+                // Verify conciergeID falls back to empty string
+                const submissionUpdateCalls = service.submissionDAO.updateMany.mock.calls;
+                const conciergeUpdateCall = submissionUpdateCalls.find(call => 
+                    call[0].conciergeID && call[1].conciergeID === ''
+                );
+                expect(conciergeUpdateCall).toBeDefined();
+            });
+        });
+
+        describe('submission programID update when study program changes', () => {
+
+            it('should update submission programID when study programID changes', async () => {
+                const oldProgramID = 'old-program-id';
+                const newProgramID = 'new-program-id';
+                const studyWithOldProgram = { ...mockStudy, programID: oldProgramID };
+                const programWithNewId = { _id: newProgramID, conciergeID: 'concierge-id' };
+                
+                service.approvedStudyDAO.findFirst = jest.fn().mockResolvedValue(studyWithOldProgram);
+                service._validateProgramID = jest.fn().mockResolvedValue(programWithNewId);
+                service.submissionDAO.updateMany = jest.fn()
+                    .mockResolvedValueOnce({ count: 0 }) // First call for conciergeID
+                    .mockResolvedValueOnce({ count: 5 }); // Second call for programID
+                
+                await service.editApprovedStudyAPI({ ...mockParams, programID: newProgramID }, mockContext);
+                
+                // Verify submissionDAO.updateMany was called twice: once for conciergeID, once for programID
+                expect(service.submissionDAO.updateMany).toHaveBeenCalledTimes(2);
+                
+                // Verify the programID update call
+                const programIDUpdateCall = service.submissionDAO.updateMany.mock.calls[1];
+                expect(programIDUpdateCall[0]).toEqual({
+                    studyID: 'study-id',
+                    status: {
+                        in: [NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, CANCELED, DELETED, ARCHIVED]
+                    },
+                    programID: { not: newProgramID }
+                });
+                expect(programIDUpdateCall[1]).toEqual({
+                    programID: newProgramID,
+                    updatedAt: expect.any(Date)
+                });
+            });
+
+            it('should not update submission programID when study programID does not change', async () => {
+                const sameProgramID = 'same-program-id';
+                const studyWithProgram = { ...mockStudy, programID: sameProgramID };
+                const programWithSameId = { _id: sameProgramID, conciergeID: 'concierge-id' };
+                
+                service.approvedStudyDAO.findFirst = jest.fn().mockResolvedValue(studyWithProgram);
+                service._validateProgramID = jest.fn().mockResolvedValue(programWithSameId);
+                service.submissionDAO.updateMany = jest.fn().mockResolvedValue({ count: 0 }); // Only conciergeID update
+                
+                await service.editApprovedStudyAPI({ ...mockParams, programID: sameProgramID }, mockContext);
+                
+                // Verify submissionDAO.updateMany was called only once (for conciergeID)
+                expect(service.submissionDAO.updateMany).toHaveBeenCalledTimes(1);
+                
+                // Verify the call was only for conciergeID, not programID
+                const updateCall = service.submissionDAO.updateMany.mock.calls[0];
+                expect(updateCall[0].conciergeID).toBeDefined();
+                expect(updateCall[1].conciergeID).toBeDefined();
+            });
+
+            it('should not update submission programID when oldProgramID is null and newProgramID is null', async () => {
+                const studyWithNullProgram = { ...mockStudy, programID: null };
+                const naProgram = { _id: null, conciergeID: 'concierge-id' };
+                
+                service.approvedStudyDAO.findFirst = jest.fn().mockResolvedValue(studyWithNullProgram);
+                service._validateProgramID = jest.fn().mockResolvedValue(naProgram);
+                service.submissionDAO.updateMany = jest.fn().mockResolvedValue({ count: 0 }); // Only conciergeID update
+                
+                await service.editApprovedStudyAPI({ ...mockParams, programID: null }, mockContext);
+                
+                // Verify submissionDAO.updateMany was called only once (for conciergeID)
+                expect(service.submissionDAO.updateMany).toHaveBeenCalledTimes(1);
+            });
+
+            it('should use correct status filter excluding COMPLETED', async () => {
+                const oldProgramID = 'old-program-id';
+                const newProgramID = 'new-program-id';
+                const studyWithOldProgram = { ...mockStudy, programID: oldProgramID };
+                const programWithNewId = { _id: newProgramID, conciergeID: 'concierge-id' };
+                
+                service.approvedStudyDAO.findFirst = jest.fn().mockResolvedValue(studyWithOldProgram);
+                service._validateProgramID = jest.fn().mockResolvedValue(programWithNewId);
+                service.submissionDAO.updateMany = jest.fn()
+                    .mockResolvedValueOnce({ count: 0 }) // conciergeID update
+                    .mockResolvedValueOnce({ count: 3 }); // programID update
+                
+                await service.editApprovedStudyAPI({ ...mockParams, programID: newProgramID }, mockContext);
+                
+                // Verify status filter includes all valid statuses except COMPLETED
+                const programIDUpdateCall = service.submissionDAO.updateMany.mock.calls[1];
+                const statusList = programIDUpdateCall[0].status.in;
+                expect(statusList).toContain(NEW);
+                expect(statusList).toContain(IN_PROGRESS);
+                expect(statusList).toContain(SUBMITTED);
+                expect(statusList).toContain(WITHDRAWN);
+                expect(statusList).toContain(RELEASED);
+                expect(statusList).toContain(REJECTED);
+                expect(statusList).toContain(CANCELED);
+                expect(statusList).toContain(DELETED);
+                expect(statusList).toContain(ARCHIVED);
+                expect(statusList).not.toContain('Completed');
+            });
+
+            it('should only update submissions that do not already have the correct programID', async () => {
+                const oldProgramID = 'old-program-id';
+                const newProgramID = 'new-program-id';
+                const studyWithOldProgram = { ...mockStudy, programID: oldProgramID };
+                const programWithNewId = { _id: newProgramID, conciergeID: 'concierge-id' };
+                
+                service.approvedStudyDAO.findFirst = jest.fn().mockResolvedValue(studyWithOldProgram);
+                service._validateProgramID = jest.fn().mockResolvedValue(programWithNewId);
+                service.submissionDAO.updateMany = jest.fn()
+                    .mockResolvedValueOnce({ count: 0 }) // conciergeID update
+                    .mockResolvedValueOnce({ count: 2 }); // programID update
+                
+                await service.editApprovedStudyAPI({ ...mockParams, programID: newProgramID }, mockContext);
+                
+                // Verify filter includes programID: { not: newProgramID }
+                const programIDUpdateCall = service.submissionDAO.updateMany.mock.calls[1];
+                expect(programIDUpdateCall[0].programID).toEqual({ not: newProgramID });
+            });
+
+            it('should handle programID change from null to valid programID', async () => {
+                const newProgramID = 'new-program-id';
+                const studyWithNullProgram = { ...mockStudy, programID: null };
+                const programWithNewId = { _id: newProgramID, conciergeID: 'concierge-id' };
+                
+                service.approvedStudyDAO.findFirst = jest.fn().mockResolvedValue(studyWithNullProgram);
+                service._validateProgramID = jest.fn().mockResolvedValue(programWithNewId);
+                service.submissionDAO.updateMany = jest.fn()
+                    .mockResolvedValueOnce({ count: 0 }) // conciergeID update
+                    .mockResolvedValueOnce({ count: 3 }); // programID update
+                
+                await service.editApprovedStudyAPI({ ...mockParams, programID: newProgramID }, mockContext);
+                
+                // Verify programID update was called
+                expect(service.submissionDAO.updateMany).toHaveBeenCalledTimes(2);
+                const programIDUpdateCall = service.submissionDAO.updateMany.mock.calls[1];
+                expect(programIDUpdateCall[1].programID).toBe(newProgramID);
+            });
+
+            it('should handle programID change from valid programID to null', async () => {
+                const oldProgramID = 'old-program-id';
+                const studyWithProgram = { ...mockStudy, programID: oldProgramID };
+                const naProgram = { _id: null, conciergeID: 'concierge-id' };
+                
+                service.approvedStudyDAO.findFirst = jest.fn().mockResolvedValue(studyWithProgram);
+                service._validateProgramID = jest.fn().mockResolvedValue(naProgram);
+                service.submissionDAO.updateMany = jest.fn()
+                    .mockResolvedValueOnce({ count: 0 }) // conciergeID update
+                    .mockResolvedValueOnce({ count: 2 }); // programID update
+                
+                await service.editApprovedStudyAPI({ ...mockParams, programID: null }, mockContext);
+                
+                // Verify programID update was called with null
+                expect(service.submissionDAO.updateMany).toHaveBeenCalledTimes(2);
+                const programIDUpdateCall = service.submissionDAO.updateMany.mock.calls[1];
+                expect(programIDUpdateCall[1].programID).toBeNull();
+            });
+
+            it('should handle submission update failure gracefully without throwing', async () => {
+                const oldProgramID = 'old-program-id';
+                const newProgramID = 'new-program-id';
+                const studyWithOldProgram = { ...mockStudy, programID: oldProgramID };
+                const programWithNewId = { _id: newProgramID, conciergeID: 'concierge-id' };
+                const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+                
+                service.approvedStudyDAO.findFirst = jest.fn().mockResolvedValue(studyWithOldProgram);
+                service._validateProgramID = jest.fn().mockResolvedValue(programWithNewId);
+                service.submissionDAO.updateMany = jest.fn()
+                    .mockResolvedValueOnce({ count: 0 }) // conciergeID update succeeds
+                    .mockResolvedValueOnce(null); // programID update fails
+                
+                // Should not throw error
+                await expect(service.editApprovedStudyAPI({ ...mockParams, programID: newProgramID }, mockContext))
+                    .resolves.toBeDefined();
+                
+                // Verify error was logged
+                expect(consoleSpy).toHaveBeenCalledWith(
+                    expect.stringContaining(ERROR.FAILED_UPDATE_SUBMISSION),
+                    expect.stringContaining('StudyID: study-id')
+                );
+                
+                consoleSpy.mockRestore();
+            });
+
+            it('should handle submission update returning count of 0', async () => {
+                const oldProgramID = 'old-program-id';
+                const newProgramID = 'new-program-id';
+                const studyWithOldProgram = { ...mockStudy, programID: oldProgramID };
+                const programWithNewId = { _id: newProgramID, conciergeID: 'concierge-id' };
+                
+                service.approvedStudyDAO.findFirst = jest.fn().mockResolvedValue(studyWithOldProgram);
+                service._validateProgramID = jest.fn().mockResolvedValue(programWithNewId);
+                service.submissionDAO.updateMany = jest.fn()
+                    .mockResolvedValueOnce({ count: 0 }) // conciergeID update
+                    .mockResolvedValueOnce({ count: 0 }); // programID update (no submissions to update)
+                
+                // Should not throw error
+                await expect(service.editApprovedStudyAPI({ ...mockParams, programID: newProgramID }, mockContext))
+                    .resolves.toBeDefined();
+                
+                expect(service.submissionDAO.updateMany).toHaveBeenCalledTimes(2);
+            });
+
+            it('should update both conciergeID and programID when both change', async () => {
+                const oldProgramID = 'old-program-id';
+                const newProgramID = 'new-program-id';
+                const studyWithOldProgram = { ...mockStudy, programID: oldProgramID };
+                const programWithNewId = { _id: newProgramID, conciergeID: 'new-concierge-id' };
+                
+                service.approvedStudyDAO.findFirst = jest.fn().mockResolvedValue(studyWithOldProgram);
+                service._validateProgramID = jest.fn().mockResolvedValue(programWithNewId);
+                service.submissionDAO.updateMany = jest.fn()
+                    .mockResolvedValueOnce({ count: 2 }) // conciergeID update
+                    .mockResolvedValueOnce({ count: 3 }); // programID update
+                
+                await service.editApprovedStudyAPI({ ...mockParams, programID: newProgramID, useProgramPC: true, primaryContactID: null }, mockContext);
+                
+                // Verify both updates were called
+                expect(service.submissionDAO.updateMany).toHaveBeenCalledTimes(2);
+                
+                // Verify conciergeID update
+                const conciergeUpdateCall = service.submissionDAO.updateMany.mock.calls[0];
+                expect(conciergeUpdateCall[1].conciergeID).toBe('new-concierge-id');
+                
+                // Verify programID update
+                const programIDUpdateCall = service.submissionDAO.updateMany.mock.calls[1];
+                expect(programIDUpdateCall[1].programID).toBe(newProgramID);
+            });
+        });
     });
 
     describe('listApprovedStudiesAPI', () => {
@@ -555,7 +866,7 @@ describe('ApprovedStudiesService', () => {
             studyName: 'Test Study',
             studyAbbreviation: 'TS',
             primaryContactID: 'user-id',
-            programs: [{ _id: 'org-id', name: 'Org' }],
+            program: { _id: 'org-id', name: 'Org' },
         };
         const mockDisplayStudy = { ...mockApprovedStudy, dataCommonsDisplayName: 'Test Study Display' };
 
@@ -617,7 +928,7 @@ describe('ApprovedStudiesService', () => {
     describe('storeApprovedStudies', () => {
         const studyName = 'Study A';
         const studyAbbreviation = 'SA';
-        const dbGaPID = '1234-5678-9012-345';
+        const dbGaPID = 'phs001234';
         const organizationName = 'Org1';
         const controlledAccess = true;
         const ORCID = '0000-0002-1825-0097';
@@ -631,6 +942,12 @@ describe('ApprovedStudiesService', () => {
         const pendingModelChange = false;
 
         it('should store and return the approved study (success)', async () => {
+            const validProgramID = 'valid-program-id-123';
+            const validProgram = { _id: validProgramID, name: 'Test Program' };
+            
+            // Mock organization service to return a valid program
+            mockOrganizationService.getOrganizationByID.mockResolvedValue(validProgram);
+
             // Patch: Accept extra trailing argument for compatibility with implementation
             ApprovedStudies.createApprovedStudies.mockImplementation(
                 (...args) => {
@@ -646,17 +963,17 @@ describe('ApprovedStudiesService', () => {
             };
 
             const result = await service.storeApprovedStudies(
-                null, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName,
-                useProgramPC, pendingModelChange, primaryContactID
+                null, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess,
+                useProgramPC, pendingModelChange, primaryContactID, null, validProgramID
             );
 
             // Accept extra undefined argument for compatibility
             const callArgs = ApprovedStudies.createApprovedStudies.mock.calls[0] || [];
-            // Accept trailing null or undefined for compatibility
+            // Accept trailing programID for compatibility
             expect(callArgs.slice(0, 13)).toEqual([
                 null,
-                studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName,
-                useProgramPC, pendingModelChange, primaryContactID
+                studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess,
+                useProgramPC, pendingModelChange, primaryContactID, null
             ]);
 
             // Check that DAO create was called with the correct study
@@ -666,8 +983,13 @@ describe('ApprovedStudiesService', () => {
         });
 
         it('should log error and return undefined if insertion fails', async () => {
-            service.approvedStudyDAO = {
+            const validProgramID = 'valid-program-id-123';
+            const validProgram = { _id: validProgramID, name: 'Test Program' };
+            
+            // Mock organization service to return a valid program
+            mockOrganizationService.getOrganizationByID.mockResolvedValue(validProgram);
 
+            service.approvedStudyDAO = {
                 create: jest.fn()
             };
 
@@ -676,7 +998,8 @@ describe('ApprovedStudiesService', () => {
             const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
 
             const result = await service.storeApprovedStudies(
-                null, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess, programName
+                null, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess,
+                useProgramPC, pendingModelChange, primaryContactID, null, validProgramID
             );
 
             expect(consoleSpy).toHaveBeenCalledWith(
@@ -684,6 +1007,122 @@ describe('ApprovedStudiesService', () => {
             );
             expect(result).toBeUndefined();
             consoleSpy.mockRestore();
+        });
+
+        describe('NA program fallback behavior', () => {
+            const mockNAProgram = {
+                _id: '437e864a-621b-40f5-b214-3dc368137081',
+                name: 'NA',
+                abbreviation: 'NA',
+                status: 'Active'
+            };
+
+            beforeEach(() => {
+                ApprovedStudies.createApprovedStudies.mockReturnValue(fakeStudy);
+                service.approvedStudyDAO = {
+                    create: jest.fn().mockResolvedValue(fakeStudy)
+                };
+            });
+
+            it('should fall back to NA program when programID is null', async () => {
+                // Mock getOrganizationByID to return null (no program found for provided ID)
+                mockOrganizationService.getOrganizationByID.mockResolvedValue(null);
+                // Mock getOrganizationByName to return the NA program
+                mockOrganizationService.getOrganizationByName.mockResolvedValue(mockNAProgram);
+
+                await service.storeApprovedStudies(
+                    null, studyName, studyAbbreviation, dbGaPID, organizationName, 
+                    controlledAccess, ORCID, PI, openAccess, useProgramPC, 
+                    pendingModelChange, primaryContactID, null, null // programID is null
+                );
+
+                // Should have looked up NA program by name
+                expect(mockOrganizationService.getOrganizationByName).toHaveBeenCalledWith('NA');
+                
+                // Should have created the study with the NA program ID
+                const callArgs = ApprovedStudies.createApprovedStudies.mock.calls[0];
+                const passedProgramID = callArgs[callArgs.length - 1];
+                expect(passedProgramID).toBe(mockNAProgram._id);
+            });
+
+            it('should fall back to NA program when programID is undefined', async () => {
+                mockOrganizationService.getOrganizationByID.mockResolvedValue(null);
+                mockOrganizationService.getOrganizationByName.mockResolvedValue(mockNAProgram);
+
+                await service.storeApprovedStudies(
+                    null, studyName, studyAbbreviation, dbGaPID, organizationName, 
+                    controlledAccess, ORCID, PI, openAccess, useProgramPC, 
+                    pendingModelChange, primaryContactID, null, undefined // programID is undefined
+                );
+
+                expect(mockOrganizationService.getOrganizationByName).toHaveBeenCalledWith('NA');
+                
+                const callArgs = ApprovedStudies.createApprovedStudies.mock.calls[0];
+                const passedProgramID = callArgs[callArgs.length - 1];
+                expect(passedProgramID).toBe(mockNAProgram._id);
+            });
+
+            it('should use provided programID when it is valid', async () => {
+                const validProgramID = 'valid-program-id-123';
+                const validProgram = { _id: validProgramID, name: 'Test Program' };
+                
+                mockOrganizationService.getOrganizationByID.mockResolvedValue(validProgram);
+
+                await service.storeApprovedStudies(
+                    null, studyName, studyAbbreviation, dbGaPID, organizationName, 
+                    controlledAccess, ORCID, PI, openAccess, useProgramPC, 
+                    pendingModelChange, primaryContactID, null, validProgramID
+                );
+
+                // Should have validated the program by ID
+                expect(mockOrganizationService.getOrganizationByID).toHaveBeenCalledWith(validProgramID);
+                // Should NOT have fallen back to NA program
+                expect(mockOrganizationService.getOrganizationByName).not.toHaveBeenCalled();
+                
+                const callArgs = ApprovedStudies.createApprovedStudies.mock.calls[0];
+                const passedProgramID = callArgs[callArgs.length - 1];
+                expect(passedProgramID).toBe(validProgramID);
+            });
+
+            it('should throw error when programID is null and NA program is not found', async () => {
+                mockOrganizationService.getOrganizationByID.mockResolvedValue(null);
+                mockOrganizationService.getOrganizationByName.mockResolvedValue(null);
+                
+                const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+                await expect(service.storeApprovedStudies(
+                    null, studyName, studyAbbreviation, dbGaPID, organizationName, 
+                    controlledAccess, ORCID, PI, openAccess, useProgramPC, 
+                    pendingModelChange, primaryContactID, null, null
+                )).rejects.toThrow();
+
+                expect(consoleSpy).toHaveBeenCalledWith(
+                    expect.stringContaining('Unable to find a program with the provided programID')
+                );
+                consoleSpy.mockRestore();
+            });
+
+            it('should fall back to NA program when provided programID does not exist', async () => {
+                const invalidProgramID = 'non-existent-program-id';
+                
+                // First call (getOrganizationByID) returns null - program not found
+                mockOrganizationService.getOrganizationByID.mockResolvedValue(null);
+                // Second call (getOrganizationByName) returns NA program
+                mockOrganizationService.getOrganizationByName.mockResolvedValue(mockNAProgram);
+
+                await service.storeApprovedStudies(
+                    null, studyName, studyAbbreviation, dbGaPID, organizationName, 
+                    controlledAccess, ORCID, PI, openAccess, useProgramPC, 
+                    pendingModelChange, primaryContactID, null, invalidProgramID
+                );
+
+                expect(mockOrganizationService.getOrganizationByID).toHaveBeenCalledWith(invalidProgramID);
+                expect(mockOrganizationService.getOrganizationByName).toHaveBeenCalledWith('NA');
+                
+                const callArgs = ApprovedStudies.createApprovedStudies.mock.calls[0];
+                const passedProgramID = callArgs[callArgs.length - 1];
+                expect(passedProgramID).toBe(mockNAProgram._id);
+            });
         });
     });
 
@@ -782,59 +1221,5 @@ describe('ApprovedStudiesService', () => {
             });
         });
 
-        describe('_setPendingGPA', () => {
-            let mockUpdateStudy;
-
-            beforeEach(() => {
-                mockUpdateStudy = {
-                    controlledAccess: true,
-                    isPendingGPA: false,
-                    GPAName: 'Old GPA Name'
-                };
-            });
-
-            it('should throw error when GPAName is undefined for controlled access study with isPendingGPA false', () => {
-                expect(() => service._setPendingGPA(mockUpdateStudy, true, false, undefined)).toThrow(ERROR.INVALID_PENDING_GPA);
-            });
-
-            it('should throw error when GPAName is null for controlled access study with isPendingGPA false', () => {
-                expect(() => service._setPendingGPA(mockUpdateStudy, true, false, null)).toThrow(ERROR.INVALID_PENDING_GPA);
-            });
-
-            it('should throw error when GPAName is empty string for controlled access study with isPendingGPA false', () => {
-                expect(() => service._setPendingGPA(mockUpdateStudy, true, false, '')).toThrow(ERROR.INVALID_PENDING_GPA);
-            });
-
-            it('should not throw error when GPAName is undefined for controlled access study with isPendingGPA true', () => {
-                expect(() => service._setPendingGPA(mockUpdateStudy, true, true, undefined)).not.toThrow();
-                expect(mockUpdateStudy.GPAName).toBe('Old GPA Name'); // Should remain unchanged when undefined
-            });
-
-            it('should not throw error when GPAName is null for controlled access study with isPendingGPA true', () => {
-                expect(() => service._setPendingGPA(mockUpdateStudy, true, true, null)).not.toThrow();
-                expect(mockUpdateStudy.GPAName).toBe('');
-            });
-
-            it('should not throw error when GPAName is empty string for controlled access study with isPendingGPA true', () => {
-                expect(() => service._setPendingGPA(mockUpdateStudy, true, true, '')).not.toThrow();
-                expect(mockUpdateStudy.GPAName).toBe('');
-            });
-
-            it('should update GPAName when provided for controlled access study', () => {
-                service._setPendingGPA(mockUpdateStudy, true, false, 'New GPA Name');
-                expect(mockUpdateStudy.GPAName).toBe('New GPA Name');
-            });
-
-            it('should set isPendingGPA to false for non-controlled access study', () => {
-                mockUpdateStudy.controlledAccess = false;
-                service._setPendingGPA(mockUpdateStudy, false, false, 'GPA Name');
-                expect(mockUpdateStudy.isPendingGPA).toBe(false);
-            });
-
-            it('should update isPendingGPA when provided for controlled access study', () => {
-                service._setPendingGPA(mockUpdateStudy, true, true, 'GPA Name');
-                expect(mockUpdateStudy.isPendingGPA).toBe(true);
-            });
-        });
     });
 });

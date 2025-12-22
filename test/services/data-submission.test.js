@@ -300,6 +300,23 @@ jest.mock('../../verifier/user-info-verifier', () => ({
     }))
 }));
 
+// Helper function to create complete mock UserScope
+const createMockUserScope = (isNoneScope = false, isAllScope = false, isOwnScope = false, isStudyScope = false, isDCScope = false) => {
+    return {
+        isNoneScope: jest.fn().mockReturnValue(isNoneScope),
+        isAllScope: jest.fn().mockReturnValue(isAllScope),
+        isOwnScope: jest.fn().mockReturnValue(isOwnScope),
+        isStudyScope: jest.fn().mockReturnValue(isStudyScope),
+        isDCScope: jest.fn().mockReturnValue(isDCScope),
+        isRoleScope: jest.fn().mockReturnValue(false),
+        getRoleScope: jest.fn().mockReturnValue(null),
+        getStudyScope: jest.fn().mockReturnValue(null),
+        getDataCommonsScope: jest.fn().mockReturnValue(null),
+        hasStudyValue: jest.fn().mockReturnValue(false),
+        hasDCValue: jest.fn().mockReturnValue(false),
+        hasAccessToStudy: jest.fn().mockReturnValue(false)
+    };
+};
 
 describe('Submission.getSubmission', () => {
     let submission;
@@ -428,13 +445,7 @@ describe('Submission.getSubmission', () => {
 
     it('should successfully get submission with all updates', async () => {
         const params = { _id: 'sub1' };
-        const mockUserScope = { 
-            isNoneScope: () => false,
-            isAllScope: () => false,
-            isOwnScope: () => true,
-            isStudyScope: () => false,
-            isDCScope: () => false
-        };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true since user is the submitter
         const mockDataFileSize = { size: 2000, formatted: '2KB' };
         const mockOtherSubmissions = [
             { _id: 'sub2', status: IN_PROGRESS },
@@ -499,13 +510,7 @@ describe('Submission.getSubmission', () => {
 
     it('should throw error when user has no permission', async () => {
         const params = { _id: 'sub1' };
-        const mockUserScope = { 
-            isNoneScope: () => true,
-            isAllScope: () => false,
-            isOwnScope: () => false,
-            isStudyScope: () => false,
-            isDCScope: () => false
-        };
+        const mockUserScope = createMockUserScope(true);
 
         submission._findByID = jest.fn().mockResolvedValue(mockSubmission);
         submission._getUserScope = jest.fn().mockResolvedValue(mockUserScope);
@@ -518,13 +523,7 @@ describe('Submission.getSubmission', () => {
     it('should handle submission without study ID', async () => {
         const params = { _id: 'sub1' };
         const submissionWithoutStudy = { ...mockSubmission, studyID: null };
-        const mockUserScope = { 
-            isNoneScope: () => false,
-            isAllScope: () => false,
-            isOwnScope: () => true,
-            isStudyScope: () => false,
-            isDCScope: () => false
-        };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true
 
         submission._findByID = jest.fn().mockResolvedValue(submissionWithoutStudy);
         submission._getUserScope = jest.fn().mockResolvedValue(mockUserScope);
@@ -547,13 +546,7 @@ describe('Submission.getSubmission', () => {
     it('should handle archived submission', async () => {
         const params = { _id: 'sub1' };
         const archivedSubmission = { ...mockSubmission, archived: true };
-        const mockUserScope = { 
-            isNoneScope: () => false,
-            isAllScope: () => false,
-            isOwnScope: () => true,
-            isStudyScope: () => false,
-            isDCScope: () => false
-        };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true
 
         submission._findByID = jest.fn().mockResolvedValue(archivedSubmission);
         submission._getUserScope = jest.fn().mockResolvedValue(mockUserScope);
@@ -575,13 +568,7 @@ describe('Submission.getSubmission', () => {
     it('should handle submission without program ID', async () => {
         const params = { _id: 'sub1' };
         const submissionWithoutProgram = { ...mockSubmission, programID: null };
-        const mockUserScope = { 
-            isNoneScope: () => false,
-            isAllScope: () => false,
-            isOwnScope: () => true,
-            isStudyScope: () => false,
-            isDCScope: () => false
-        };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true
 
         submission._findByID = jest.fn().mockResolvedValue(submissionWithoutProgram);
         submission._getUserScope = jest.fn().mockResolvedValue(mockUserScope);
@@ -603,13 +590,7 @@ describe('Submission.getSubmission', () => {
 
     it('should handle data file size update failure', async () => {
         const params = { _id: 'sub1' };
-        const mockUserScope = { 
-            isNoneScope: () => false,
-            isAllScope: () => false,
-            isOwnScope: () => true,
-            isStudyScope: () => false,
-            isDCScope: () => false
-        };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true
         const mockDataFileSize = { size: 2000, formatted: '2KB' };
 
         submission._findByID = jest.fn().mockResolvedValue(mockSubmission);
@@ -627,13 +608,7 @@ describe('Submission.getSubmission', () => {
 
     it('should handle node count update failure', async () => {
         const params = { _id: 'sub1' };
-        const mockUserScope = { 
-            isNoneScope: () => false,
-            isAllScope: () => false,
-            isOwnScope: () => true,
-            isStudyScope: () => false,
-            isDCScope: () => false
-        };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true
         const mockDataFileSize = { size: 1000, formatted: '1KB' };
 
         submission._findByID = jest.fn().mockResolvedValue(mockSubmission);
@@ -666,13 +641,7 @@ describe('Submission.getSubmission', () => {
                 { userID: 'user2', userName: 'Jane Smith', action: 'modified' } // Already has userName
             ]
         };
-        const mockUserScope = { 
-            isNoneScope: () => false,
-            isAllScope: () => false,
-            isOwnScope: () => true,
-            isStudyScope: () => false,
-            isDCScope: () => false
-        };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true
 
         submission._findByID = jest.fn().mockResolvedValue(submissionWithHistory);
         submission._getUserScope = jest.fn().mockResolvedValue(mockUserScope);
@@ -695,13 +664,7 @@ describe('Submission.getSubmission', () => {
 
     it('should handle non-submitter user', async () => {
         const params = { _id: 'sub1' };
-        const mockUserScope = { 
-            isNoneScope: () => false,
-            isAllScope: () => true,
-            isOwnScope: () => false,
-            isStudyScope: () => false,
-            isDCScope: () => false
-        };
+        const mockUserScope = createMockUserScope(false, true); // isAllScope = true for ADMIN user
         const nonSubmitterContext = {
             userInfo: {
                 _id: 'user2',
@@ -730,13 +693,7 @@ describe('Submission.getSubmission', () => {
 
     it('should handle submitter user with accessedAt update', async () => {
         const params = { _id: 'sub1' };
-        const mockUserScope = { 
-            isNoneScope: () => false,
-            isAllScope: () => false,
-            isOwnScope: () => true,
-            isStudyScope: () => false,
-            isDCScope: () => false
-        };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true
 
         submission._findByID = jest.fn().mockResolvedValue(mockSubmission);
         submission._getUserScope = jest.fn().mockResolvedValue(mockUserScope);
@@ -761,13 +718,7 @@ describe('Submission.getSubmission', () => {
 
     it('should handle submission with no data file size change', async () => {
         const params = { _id: 'sub1' };
-        const mockUserScope = { 
-            isNoneScope: () => false,
-            isAllScope: () => false,
-            isOwnScope: () => true,
-            isStudyScope: () => false,
-            isDCScope: () => false
-        };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true
         const mockDataFileSize = { size: 1000, formatted: '1KB' }; // Same as existing
 
         submission._findByID = jest.fn().mockResolvedValue(mockSubmission);
@@ -792,13 +743,7 @@ describe('Submission.getSubmission', () => {
 
     it('should handle submission with no node count change', async () => {
         const params = { _id: 'sub1' };
-        const mockUserScope = { 
-            isNoneScope: () => false,
-            isAllScope: () => false,
-            isOwnScope: () => true,
-            isStudyScope: () => false,
-            isDCScope: () => false
-        };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true
 
         submission._findByID = jest.fn().mockResolvedValue(mockSubmission);
         submission._getUserScope = jest.fn().mockResolvedValue(mockUserScope);
@@ -826,13 +771,7 @@ describe('Submission.getSubmission', () => {
             ...mockSubmission,
             organization: { _id: 'org1', name: 'Test Organization' }
         };
-        const mockUserScope = { 
-            isNoneScope: () => false,
-            isAllScope: () => false,
-            isOwnScope: () => true,
-            isStudyScope: () => false,
-            isDCScope: () => false
-        };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true
 
         submission._findByID = jest.fn().mockResolvedValue(submissionWithOrg);
         submission._getUserScope = jest.fn().mockResolvedValue(mockUserScope);
@@ -854,13 +793,7 @@ describe('Submission.getSubmission', () => {
     it('should handle empty history array', async () => {
         const params = { _id: 'sub1' };
         const submissionWithEmptyHistory = { ...mockSubmission, history: [] };
-        const mockUserScope = { 
-            isNoneScope: () => false,
-            isAllScope: () => false,
-            isOwnScope: () => true,
-            isStudyScope: () => false,
-            isDCScope: () => false
-        };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true
 
         submission._findByID = jest.fn().mockResolvedValue(submissionWithEmptyHistory);
         submission._getUserScope = jest.fn().mockResolvedValue(mockUserScope);
@@ -881,13 +814,7 @@ describe('Submission.getSubmission', () => {
 
     it('should handle user service returning null for history user', async () => {
         const params = { _id: 'sub1' };
-        const mockUserScope = { 
-            isNoneScope: () => false,
-            isAllScope: () => false,
-            isOwnScope: () => true,
-            isStudyScope: () => false,
-            isDCScope: () => false
-        };
+        const mockUserScope = createMockUserScope(false, false, true); // isOwnScope = true
 
         submission._findByID = jest.fn().mockResolvedValue(mockSubmission);
         submission._getUserScope = jest.fn().mockResolvedValue(mockUserScope);
@@ -1142,7 +1069,7 @@ describe("Submission.createSubmission", () => {
             .toThrow(ERROR.INVALID_STUDY_ACCESS);
     });
 
-    it("should throw error for user with DC scope", async () => {
+    it("should allow submission creation for user with DC scope and matching data commons", async () => {
         submissionService._getUserScope.mockResolvedValueOnce({
             isNoneScope: () => false,
             isAllScope: () => false,
@@ -1150,6 +1077,148 @@ describe("Submission.createSubmission", () => {
             isStudyScope: () => false,
             isDCScope: () => true
         });
+        
+        // Mock user with matching data commons
+        mockContext.userInfo.dataCommons = ["commonsA"];
+        
+        const result = await submissionService.createSubmission(mockParams, mockContext);
+        expect(result).toBeDefined();
+        expect(mockSubmissionDAO.create).toHaveBeenCalled();
+    });
+
+    it("should throw error for user with DC scope but no matching data commons", async () => {
+        submissionService._getUserScope.mockResolvedValueOnce({
+            isNoneScope: () => false,
+            isAllScope: () => false,
+            isOwnScope: () => false,
+            isStudyScope: () => false,
+            isDCScope: () => true
+        });
+        
+        // Mock user with different data commons
+        mockContext.userInfo.dataCommons = ["differentCommons"];
+        
+        await expect(submissionService.createSubmission(mockParams, mockContext))
+            .rejects
+            .toThrow(ERROR.VERIFY.INVALID_PERMISSION);
+    });
+
+    it("should allow submission creation for user with DC scope and 'All' data commons", async () => {
+        submissionService._getUserScope.mockResolvedValueOnce({
+            isNoneScope: () => false,
+            isAllScope: () => false,
+            isOwnScope: () => false,
+            isStudyScope: () => false,
+            isDCScope: () => true
+        });
+        
+        // Mock user with "All" data commons
+        mockContext.userInfo.dataCommons = ["All"];
+        
+        const result = await submissionService.createSubmission(mockParams, mockContext);
+        expect(result).toBeDefined();
+        expect(mockSubmissionDAO.create).toHaveBeenCalled();
+    });
+
+    it("should allow submission creation for DC scope user with matching data commons and assigned study", async () => {
+        submissionService._getUserScope.mockResolvedValueOnce({
+            isNoneScope: () => false,
+            isAllScope: () => false,
+            isOwnScope: () => false,
+            isStudyScope: () => false,
+            isDCScope: () => true
+        });
+        
+        // Mock user with matching data commons AND assigned study
+        mockContext.userInfo.dataCommons = ["commonsA"];
+        mockContext.userInfo.studies = [{ _id: "study123" }];
+        
+        const result = await submissionService.createSubmission(mockParams, mockContext);
+        expect(result).toBeDefined();
+        expect(mockSubmissionDAO.create).toHaveBeenCalled();
+    });
+
+    it("should allow submission creation for DC scope user with matching data commons but no assigned study", async () => {
+        submissionService._getUserScope.mockResolvedValueOnce({
+            isNoneScope: () => false,
+            isAllScope: () => false,
+            isOwnScope: () => false,
+            isStudyScope: () => false,
+            isDCScope: () => true
+        });
+        
+        // Mock user with matching data commons but NO assigned study
+        mockContext.userInfo.dataCommons = ["commonsA"];
+        mockContext.userInfo.studies = [];
+        
+        const result = await submissionService.createSubmission(mockParams, mockContext);
+        expect(result).toBeDefined();
+        expect(mockSubmissionDAO.create).toHaveBeenCalled();
+    });
+
+    it("should allow submission creation for DC scope user with matching data commons and different assigned study", async () => {
+        submissionService._getUserScope.mockResolvedValueOnce({
+            isNoneScope: () => false,
+            isAllScope: () => false,
+            isOwnScope: () => false,
+            isStudyScope: () => false,
+            isDCScope: () => true
+        });
+        
+        // Mock user with matching data commons but different assigned study
+        mockContext.userInfo.dataCommons = ["commonsA"];
+        mockContext.userInfo.studies = [{ _id: "different-study" }];
+        
+        const result = await submissionService.createSubmission(mockParams, mockContext);
+        expect(result).toBeDefined();
+        expect(mockSubmissionDAO.create).toHaveBeenCalled();
+    });
+
+    it("should throw error for DC scope user with null dataCommons", async () => {
+        submissionService._getUserScope.mockResolvedValueOnce({
+            isNoneScope: () => false,
+            isAllScope: () => false,
+            isOwnScope: () => false,
+            isStudyScope: () => false,
+            isDCScope: () => true
+        });
+        
+        // Mock user with null dataCommons
+        mockContext.userInfo.dataCommons = null;
+        
+        await expect(submissionService.createSubmission(mockParams, mockContext))
+            .rejects
+            .toThrow(ERROR.VERIFY.INVALID_PERMISSION);
+    });
+
+    it("should throw error for DC scope user with undefined dataCommons", async () => {
+        submissionService._getUserScope.mockResolvedValueOnce({
+            isNoneScope: () => false,
+            isAllScope: () => false,
+            isOwnScope: () => false,
+            isStudyScope: () => false,
+            isDCScope: () => true
+        });
+        
+        // Mock user with undefined dataCommons
+        mockContext.userInfo.dataCommons = undefined;
+        
+        await expect(submissionService.createSubmission(mockParams, mockContext))
+            .rejects
+            .toThrow(ERROR.VERIFY.INVALID_PERMISSION);
+    });
+
+    it("should throw error for DC scope user with empty dataCommons array", async () => {
+        submissionService._getUserScope.mockResolvedValueOnce({
+            isNoneScope: () => false,
+            isAllScope: () => false,
+            isOwnScope: () => false,
+            isStudyScope: () => false,
+            isDCScope: () => true
+        });
+        
+        // Mock user with empty dataCommons array
+        mockContext.userInfo.dataCommons = [];
         
         await expect(submissionService.createSubmission(mockParams, mockContext))
             .rejects
@@ -2279,12 +2348,14 @@ describe('Submission.updateSubmissionInfo', () => {
         };
     });
 
-    it('should successfully update submission model version', async () => {
+    it('should successfully update submission model version and reset the fileValidationStatus to New if fileValidationStatus value was in VALIDATION_STATUS', async () => {
         const mockDataModels = [{ version: 'v1' }, { version: 'v2' }];
         const validVersions = ['v1', 'v2'];
-        const updatedSubmission = { ...mockSubmission, modelVersion: 'v2' };
+        const fileValidationStatusValue = 'Passed';
+        const mockSubmissionVersionUpdate = { ...mockSubmission, fileValidationStatus: fileValidationStatusValue };
+        const updatedSubmission = { ...mockSubmission, modelVersion: 'v2', fileValidationStatus: "New" };
 
-        submissionService._findByID.mockResolvedValue(mockSubmission);
+        submissionService._findByID.mockResolvedValue(mockSubmissionVersionUpdate);
         submissionService.fetchDataModelInfo.mockResolvedValue(mockDataModels);
         submissionService._getAllModelVersions.mockReturnValue(validVersions);
         mockSubmissionDAO.update.mockResolvedValue(updatedSubmission);
@@ -2299,7 +2370,35 @@ describe('Submission.updateSubmissionInfo', () => {
             modelVersion: 'v2',
             updatedAt: expect.any(Date)
         });
-        expect(submissionService._resetValidation).toHaveBeenCalledWith('sub1');
+        expect(submissionService._resetValidation).toHaveBeenCalledWith(mockSubmissionVersionUpdate);
+        expect(submissionService.logCollection.insert).toHaveBeenCalled(); // Ensure log is called
+        expect(submissionService._notifyConfigurationChange).toHaveBeenCalled(); // Ensure notification is called
+        expect(result).toEqual(updatedSubmission);
+    });
+
+    it('should successfully update submission model version and reset the fileValidationStatus to null if fileValidationStatus was null', async () => {
+        const mockDataModels = [{ version: 'v1' }, { version: 'v2' }];
+        const validVersions = ['v1', 'v2'];
+        const fileValidationStatusValue = null;
+        const mockSubmissionVersionUpdate = { ...mockSubmission, fileValidationStatus: fileValidationStatusValue };
+        const updatedSubmission = { ...mockSubmission, modelVersion: 'v2', fileValidationStatus: null };
+
+        submissionService._findByID.mockResolvedValue(mockSubmissionVersionUpdate);
+        submissionService.fetchDataModelInfo.mockResolvedValue(mockDataModels);
+        submissionService._getAllModelVersions.mockReturnValue(validVersions);
+        mockSubmissionDAO.update.mockResolvedValue(updatedSubmission);
+        submissionService._resetValidation.mockResolvedValue();
+
+        const result = await submissionService.updateSubmissionInfo(mockParams, mockContext);
+
+        expect(submissionService._findByID).toHaveBeenCalledWith('sub1');
+        expect(submissionService.fetchDataModelInfo).toHaveBeenCalled();
+        expect(submissionService._getAllModelVersions).toHaveBeenCalledWith(mockDataModels, 'commonsA');
+        expect(mockSubmissionDAO.update).toHaveBeenCalledWith('sub1', {
+            modelVersion: 'v2',
+            updatedAt: expect.any(Date)
+        });
+        expect(submissionService._resetValidation).toHaveBeenCalledWith(mockSubmissionVersionUpdate);
         expect(submissionService.logCollection.insert).toHaveBeenCalled(); // Ensure log is called
         expect(submissionService._notifyConfigurationChange).toHaveBeenCalled(); // Ensure notification is called
         expect(result).toEqual(updatedSubmission);
@@ -2509,13 +2608,7 @@ describe('Submission.editSubmission', () => {
 
     it('should successfully update submission name if submitter id is equal to user info id and user info permission includes data_submission:create', async () => {
         const updatedSubmission = { ...mockSubmission, name: 'New Submission Name'};
-        const mockUserScope = { 
-            isNoneScope: () => false,
-            isAllScope: () => true,
-            isOwnScope: () => false,
-            isStudyScope: () => false,
-            isDCScope: () => false
-        };
+        const mockUserScope = createMockUserScope(false, true);
         submissionService._findByID.mockResolvedValue(mockSubmission);
         submissionService._getUserScope.mockResolvedValue(mockUserScope);
         submissionService._validateEditSubmission = jest.fn();
@@ -2547,13 +2640,7 @@ describe('Submission.editSubmission', () => {
                 ],
             }
         };
-        const mockUserScope = { 
-            isNoneScope: () => false,
-            isAllScope: () => true,
-            isOwnScope: () => false,
-            isStudyScope: () => false,
-            isDCScope: () => false
-        };
+        const mockUserScope = createMockUserScope(false, true);
         const updatedSubmission = { ...mockSubmission, name: 'New Submission Name'};
         submissionService._findByID.mockResolvedValue(mockSubmission);
         submissionService._getUserScope.mockResolvedValue(mockUserScope);
@@ -2575,13 +2662,7 @@ describe('Submission.editSubmission', () => {
                 ],
             }
         };
-        const mockUserScope = { 
-            isNoneScope: () => true,
-            isAllScope: () => true,
-            isOwnScope: () => false,
-            isStudyScope: () => false,
-            isDCScope: () => false
-        };
+        const mockUserScope = createMockUserScope(true, true);
         const updatedSubmission = { ...mockSubmission, name: 'New Submission Name'};
         submissionService._findByID.mockResolvedValue(mockSubmission);
         submissionService._getUserScope.mockResolvedValue(mockUserScope);

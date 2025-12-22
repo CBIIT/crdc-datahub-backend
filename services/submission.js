@@ -137,6 +137,14 @@ class Submission {
                     throw new Error(ERROR.INVALID_STUDY_ACCESS);
                 }
             }
+            // User has DC scope - must have data commons access (no study assignment required)
+            else if (userScope.isDCScope()) {
+                const userDataCommons = context?.userInfo?.dataCommons || [];
+                const hasDataCommonsAccess = validateDataCommonsAccess(userDataCommons, params.dataCommons);
+                if (!hasDataCommonsAccess) {
+                    throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
+                }
+            }
             else {
                 throw new Error(ERROR.VERIFY.INVALID_PERMISSION);
             }
@@ -225,7 +233,8 @@ class Submission {
             console.warn("Failed permission verification for listSubmissions, returning empty list");
             return {submissions: [], total: 0};
         }
-        const res = await this.submissionDAO.listSubmissions(context?.userInfo, userScope, params);
+        const dataCommonsList = Array.from(this.allowedDataCommons).filter(dc => !this.hiddenDataCommons.has(dc));
+        const res = await this.submissionDAO.listSubmissions(context?.userInfo, userScope, params, dataCommonsList);
         return getDataCommonsDisplayNamesForListSubmissions(res);
     }
 
@@ -1258,8 +1267,26 @@ class Submission {
         return configString.format({token: tokenDict.tokens[0]})
     }
 
-    async _getExistingDataFiles(fileNames, aSubmission) {
-        const filePromises = fileNames
+    async _getExistingDataFiles(fileNames, aSubmission, deleteAll = false, exclusiveIDs = []) {
+        // When deleteAll is true and no exclusiveIDs, skip file checking (all files will be deleted via directory operation)
+        if (deleteAll && exclusiveIDs.length === 0) {
+            return new Map();
+        }
+        
+        // When deleteAll is true with exclusiveIDs, fileNames is already filtered by the caller
+        let filesToCheck = fileNames;
+        
+        // If no files to check, return empty Map
+        if (filesToCheck.length === 0) {
+            return new Map();
+        }
+        
+        // Create a Map for lookup: S3 key path -> fileName
+        const s3KeyToFileNameMap = new Map(
+            filesToCheck.map(fileName => [`${aSubmission.rootPath}/${FILE}/${fileName}`, fileName])
+        );
+        
+        const filePromises = filesToCheck
             .map(fileName =>
                 this.s3Service.listFile(aSubmission.bucketName, `${aSubmission.rootPath}/${FILE}/${fileName}`)
             );
@@ -1267,7 +1294,7 @@ class Submission {
         const existingFiles = new Map();
         fileResults.forEach((file) => {
             const aFileContent = (file?.Contents)?.pop();
-            const fileName = fileNames.find(fileName => `${aSubmission.rootPath}/${FILE}/${fileName}` === aFileContent?.Key);
+            const fileName = s3KeyToFileNameMap.get(aFileContent?.Key);
             if (fileName) {
                 // store file name and path {file name: aws storage path}
                 existingFiles.set(fileName, aFileContent?.Key);
@@ -1283,37 +1310,111 @@ class Submission {
             ?.map((f)=> f.Key.replace(`${rootPath}/${FILE}/`, ''));
     }
 
-    async _deleteDataFiles(existingFiles, aSubmission) {
+    async _deleteDataFiles(existingFiles, aSubmission, deleteAll = false, exclusiveIDs = []) {
         // Set a flag when initiating the deletion of S3 files.
         await this.submissionDAO.update(aSubmission._id, this._prepareUpdateData({deletingData: true}));
-        const existingFilesArr = Array.from(existingFiles.values());
-        const promises = existingFilesArr.map(fileKey => this.s3Service.deleteFile(aSubmission?.bucketName, fileKey));
-        const res = await Promise.allSettled(promises);
-        const notDeletedErrorFiles = [];
-        const deletedFiles = [];
+        
+        let fileKeysToDelete = [];
+        let deletedCount = 0;
+        let notDeletedErrorFiles = [];
+        
+        try {
+            if (deleteAll && exclusiveIDs.length === 0) {
+                // Get actual file count before deletion (requires extra S3 call)
+                const allDataFiles = await this.s3Service.listFileInDir(aSubmission?.bucketName, `${aSubmission.rootPath}/${FILE}/`);
+                deletedCount = allDataFiles?.filter((f) => f.Key !== `${aSubmission.rootPath}/${FILE}/`).length || 0;
+                // Use directory deletion for deleteAll without exclusives
+                await this.s3Service.deleteDirectory(aSubmission?.bucketName, `${aSubmission.rootPath}/${FILE}/`);
+            } else if (deleteAll && exclusiveIDs.length > 0) {
+                // Use existingFiles Map which already contains only files to delete (non-exclusive files)
+                // existingFiles Map structure: Map<fileName, s3KeyPath>
+                const fileNames = Array.from(existingFiles.keys());
+                const s3KeyPaths = Array.from(existingFiles.values());
+                
+                // Process deletions in batches to avoid memory issues
+                const BATCH_SIZE = 1000;
+                for (let i = 0; i < s3KeyPaths.length; i += BATCH_SIZE) {
+                    const batchPaths = s3KeyPaths.slice(i, i + BATCH_SIZE);
+                    const batchFileNames = fileNames.slice(i, i + BATCH_SIZE);
+                    const promises = batchPaths.map(fileKey => this.s3Service.deleteFile(aSubmission?.bucketName, fileKey));
+                    const res = await Promise.allSettled(promises);
+                    
+                    res.forEach((result, index) => {
+                        if (result.status === 'rejected') {
+                            const fileName = batchFileNames[index];
+                            console.error(`Failed to delete; submission ID: ${aSubmission?._id} file name: ${fileName} error: ${result?.reason}`);
+                            notDeletedErrorFiles.push(fileName);
+                        } else if (result.status === 'fulfilled') {
+                            deletedCount++;
+                        }
+                    });
+                }
+            } else {
+                // Normal deletion path (existing logic)
+                const existingFilesArr = Array.from(existingFiles.values());
+                const promises = existingFilesArr.map(fileKey => this.s3Service.deleteFile(aSubmission?.bucketName, fileKey));
+                const res = await Promise.allSettled(promises);
+                const deletedFiles = [];
 
-        res.forEach((result, index) => {
-            if (result.status === 'rejected') {
-                const fileKey = Array.from(existingFiles.values())[index];
-                console.error(`Failed to delete; submission ID: ${aSubmission?._id} file name: ${fileKey} error: ${result?.reason}`);
-                const fileName = Array.from(existingFiles.keys())[index];
-                notDeletedErrorFiles.push(fileName);
+                res.forEach((result, index) => {
+                    if (result.status === 'rejected') {
+                        const fileKey = Array.from(existingFiles.values())[index];
+                        console.error(`Failed to delete; submission ID: ${aSubmission?._id} file name: ${fileKey} error: ${result?.reason}`);
+                        const fileName = Array.from(existingFiles.keys())[index];
+                        notDeletedErrorFiles.push(fileName);
+                    }
+                    // AWS API does not return the name of the deleted file.
+                    if (result.status === 'fulfilled' && existingFilesArr[index]) {
+                        const pathFileName = existingFilesArr[index];
+                        const fileName = pathFileName.substring(existingFilesArr[index].lastIndexOf('/') + 1);
+                        deletedFiles.push(fileName);
+                    }
+                });
+                
+                deletedCount = deletedFiles.length;
+                fileKeysToDelete = deletedFiles;
             }
-            // AWS API does not return the name of the deleted file.
-            if (result.status === 'fulfilled' && existingFilesArr[index]) {
-                const pathFileName = existingFilesArr[index];
-                const fileName = pathFileName.substring(existingFilesArr[index].lastIndexOf('/') + 1);
-                deletedFiles.push(fileName);
-            }
-        });
 
-        // remove the deleted s3 file in the submission's file error
-        const errors = aSubmission?.fileErrors?.filter((fileError) => {
-            const deletedFile = existingFiles.get(fileError?.submittedID);
-            return notDeletedErrorFiles.includes(fileError.submittedID) || !deletedFile;
-        }) || [];
-        await this.submissionDAO.update(aSubmission._id, this._prepareUpdateData({fileErrors : errors, deletingData: false}));
-        return deletedFiles;
+            // remove the deleted s3 file in the submission's file error
+            const errors = aSubmission?.fileErrors?.filter((fileError) => {
+                if (deleteAll && exclusiveIDs.length === 0) {
+                    // All files deleted, remove all errors
+                    return false;
+                } else if (deleteAll && exclusiveIDs.length > 0) {
+                    // For deleteAll with exclusives, keep errors only for excluded files
+                    const exclusiveSet = new Set(exclusiveIDs);
+                    return exclusiveSet.has(fileError?.submittedID) || notDeletedErrorFiles.includes(fileError.submittedID);
+                } else {
+                    // Normal deletion: keep errors for files that weren't deleted or failed to delete
+                    const deletedFile = existingFiles.get(fileError?.submittedID);
+                    return notDeletedErrorFiles.includes(fileError.submittedID) || !deletedFile;
+                }
+            }) || [];
+            // Update fileErrors (deletingData flag will be reset in finally block)
+            await this.submissionDAO.update(aSubmission._id, this._prepareUpdateData({fileErrors : errors}));
+        } catch (error) {
+            // Log error and ensure deletingData flag is reset in finally block
+            console.error(`Failed to delete files; submission ID: ${aSubmission?._id} error: ${error}`);
+            throw error;
+        } finally {
+            // Always reset deletingData flag, even if an error occurred
+            try {
+                await this.submissionDAO.update(aSubmission._id, this._prepareUpdateData({deletingData: false}));
+            } catch (updateError) {
+                // Log error but don't throw - we've already handled the main error
+                // This prevents leaving the submission in a "deleting" state if the reset update fails
+                console.error(`Failed to reset deletingData flag; submission ID: ${aSubmission?._id} error: ${updateError}`);
+            }
+        }
+        
+        // Return summary for deleteAll, or array for normal deletion
+        if (deleteAll && exclusiveIDs.length === 0) {
+            return { deleteAll: true, count: deletedCount };
+        } else if (deleteAll && exclusiveIDs.length > 0) {
+            return { deleteAll: true, count: deletedCount, excludedCount: exclusiveIDs.length };
+        } else {
+            return fileKeysToDelete;
+        }
     }
 
     /**
@@ -1483,65 +1584,195 @@ class Submission {
         }
     }
     async deleteDataRecords(params, context) {
+        // verify user is logged in and initialized
         verifySession(context)
             .verifyInitialized();
+        
+        // fetch the submission and verify it exists
         const aSubmission = await this._findByID(params.submissionID);
         if (!aSubmission) {
             throw new Error(ERROR.SUBMISSION_NOT_EXIST);
         }
 
+        // verify submission is not released
         if (aSubmission.status === RELEASED) {
             throw new Error(ERROR.INVALID_DELETE_SUBMISSION_STATUS);
         }
 
-        const createScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, aSubmission);
-        const isNotPermitted = !this._isCollaborator(context?.userInfo, aSubmission) && createScope.isNoneScope();
-        if (isNotPermitted) {
-            throw new Error(ERROR.INVALID_DELETE_DATA_RECORDS_PERMISSION)
+        // verify permission to delete data records
+        const dataSubmissionCreateScope = await this._getUserScope(context?.userInfo, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, aSubmission);
+        let permission = false;
+        // submitter with own permission
+        permission = permission || (dataSubmissionCreateScope.isOwnScope() && aSubmission?.submitterID === context?.userInfo?._id);
+        // collaborator with any create scope (other than none) and study access
+        permission = permission || (this._isCollaborator(context?.userInfo, aSubmission) && !dataSubmissionCreateScope.isNoneScope() && validateStudyAccess(context?.userInfo?.studies, aSubmission?.studyID));
+        // has study permission
+        permission = permission || (dataSubmissionCreateScope.isStudyScope() && validateStudyAccess(context?.userInfo?.studies, aSubmission?.studyID));
+        // has data commons permission
+        permission = permission || (dataSubmissionCreateScope.isDCScope() && validateDataCommonsAccess(context?.userInfo?.dataCommons, aSubmission?.dataCommons));
+        // has all permission
+        permission = permission || dataSubmissionCreateScope.isAllScope();
+        // if no permission, throw error
+        if (!permission) {
+            throw new Error(ERROR.INVALID_DELETE_DATA_RECORDS_PERMISSION);
         }
 
+        // create parameter variables
+        const nodeIDs = params.nodeIDs || [];
+        const exclusiveIDs = params.exclusiveIDs || [];
+        const deleteAll = params.deleteAll || false;
+
+        // validate arrays are within the limits
+        if (nodeIDs.length > 2000 || exclusiveIDs.length > 2000) {
+            throw new Error(ERROR.INVALID_DELETE_DATA_RECORDS_ARRAY_LENGTH);
+        }
+
+        // if node type is data file 
         if (params?.nodeType === VALIDATION.TYPES.DATA_FILE) {
-            const existingFiles = await this._getExistingDataFiles(params.nodeIDs, aSubmission);
-            // note: file not existing in the s3 bucket should be deleted
-            const notExistingFileNames = params.nodeIDs.filter(item => !existingFiles.has(item));
-            await this.qcResultsService.deleteQCResultBySubmissionID(aSubmission._id, VALIDATION.TYPES.DATA_FILE, notExistingFileNames);
-            if (existingFiles.size === 0) {
-                return ValidationHandler.handle(ERROR.DELETE_NO_DATA_FILE_EXISTS);
+            let existingFiles;
+            let deletedResult;
+            let nodeIDsForLogging;
+            
+            if (deleteAll) {
+                // Delete QC results
+                await this.qcResultsService.deleteQCResultBySubmissionID(aSubmission._id, VALIDATION.TYPES.DATA_FILE, [], deleteAll, exclusiveIDs);
+                
+                // skip file existence check if there are no exclusives
+                if (exclusiveIDs.length === 0) {
+                    // Delete entire directory
+                    deletedResult = await this._deleteDataFiles(new Map(), aSubmission, deleteAll, exclusiveIDs);
+                    nodeIDsForLogging = 'deleteAll';
+                } 
+                else {
+                    // get all files and filter out exclusives
+                    const allFiles = await this._getAllSubmissionDataFiles(aSubmission?.bucketName, aSubmission?.rootPath) || [];
+                    const exclusiveSet = new Set(exclusiveIDs);
+                    const filesToDelete = allFiles.filter(fileName => !exclusiveSet.has(fileName));
+                    
+                    // if no files to delete, throw error
+                    if (filesToDelete.length === 0) {
+                        return ValidationHandler.handle(ERROR.DELETE_NO_DATA_FILE_EXISTS);
+                    }
+                    
+                    // query existing files in filesToDelete list
+                    existingFiles = await this._getExistingDataFiles(filesToDelete, aSubmission, deleteAll, exclusiveIDs);
+                    
+                    // if no existing files, throw error
+                    if (existingFiles.size === 0) {
+                        return ValidationHandler.handle(ERROR.DELETE_NO_DATA_FILE_EXISTS);
+                    }
+                    
+                    // delete data files
+                    deletedResult = await this._deleteDataFiles(existingFiles, aSubmission, deleteAll, exclusiveIDs);
+                    nodeIDsForLogging = exclusiveIDs.length > 0 ? `deleteAll excluding ${exclusiveIDs.length} nodes` : 'deleteAll';
+                }
+            } 
+            else {
+                // delete data files by nodeIDs
+                // query existing data files
+                existingFiles = await this._getExistingDataFiles(nodeIDs, aSubmission, false, []);
+                // filter out files that do not exist in the s3 bucket
+                const notExistingFileNames = nodeIDs.filter(item => !existingFiles.has(item));
+                // delete QC results for files that do not exist in the s3 bucket (not existing in the s3 bucket)
+                await this.qcResultsService.deleteQCResultBySubmissionID(aSubmission._id, VALIDATION.TYPES.DATA_FILE, notExistingFileNames, false, []);
+                // if no existing files, throw error
+                if (existingFiles.size === 0) {
+                    return ValidationHandler.handle(ERROR.DELETE_NO_DATA_FILE_EXISTS);
+                }
+                // delete data files by nodeIDs
+                deletedResult = await this._deleteDataFiles(existingFiles, aSubmission, false, []);
+                nodeIDsForLogging = deletedResult;
             }
-            const deletedFiles = await this._deleteDataFiles(existingFiles, aSubmission);
-            if (deletedFiles.length > 0) {
-                const [submissionDataFiles, dataFileSize] = await Promise.all([
-                    // note: file deleted in s3 bucket should be deleted
-                    this._getAllSubmissionDataFiles(aSubmission?.bucketName, aSubmission?.rootPath),
-                    this._getS3DirectorySize(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/`),
-                    // note: file deleted in s3 bucket should be deleted
-                    this.qcResultsService.deleteQCResultBySubmissionID(aSubmission._id, VALIDATION.TYPES.DATA_FILE, deletedFiles),
-                    this._logDataRecord(context?.userInfo, aSubmission._id, VALIDATION.TYPES.DATA_FILE, deletedFiles),
-                ]);
-                // note: reset fileValidationStatus if the number of data files changed. No data files exists if null
+            
+            // if deleted files, update submission data file info
+            // deletedCount is always a number: positive count or 0
+            const deletedCount = typeof deletedResult === 'object' && deletedResult.deleteAll 
+                ? deletedResult.count
+                : (Array.isArray(deletedResult) ? deletedResult.length : 0);
+            
+            const hasDeletedFiles = deletedCount > 0;
+            if (hasDeletedFiles) {
+                // query submission data files (only if not deleteAll without exclusives, to avoid loading all files)
+                const promises = [];
+                if (deleteAll && exclusiveIDs.length === 0) {
+                    // For deleteAll without exclusives, directory is empty, so skip file listing
+                    promises.push(Promise.resolve([]));
+                } else {
+                    promises.push(this._getAllSubmissionDataFiles(aSubmission?.bucketName, aSubmission?.rootPath));
+                }
+                promises.push(this._getS3DirectorySize(aSubmission?.bucketName, `${aSubmission?.rootPath}/${FILE}/`));
+                
+                // Delete QC results for deleted files (only if not already done in deleteAll path)
+                if (deleteAll) {
+                    // QC results already deleted in deleteAll path above, skip
+                    promises.push(Promise.resolve());
+                } else {
+                    // Normal deletion: delete QC results for deleted files
+                    const filesToDeleteQC = Array.isArray(deletedResult) ? deletedResult : [];
+                    promises.push(this.qcResultsService.deleteQCResultBySubmissionID(aSubmission._id, VALIDATION.TYPES.DATA_FILE, filesToDeleteQC, false, []));
+                }
+                
+                // log data record
+                promises.push(this._logDataRecord(context?.userInfo, aSubmission._id, VALIDATION.TYPES.DATA_FILE, nodeIDsForLogging));
+                
+                // Await all promises to ensure errors are properly caught and handled
+                // Note: qcDeletionResult and logResult are available but not used
+                const [submissionDataFiles, dataFileSize, qcDeletionResult, logResult] = await Promise.all(promises);
+                
+                // reset fileValidationStatus if the number of data files changed. No data files exists if null
                 const fileValidationStatus = submissionDataFiles?.length > 0 ? VALIDATION_STATUS.NEW : null;
+                // update submission data file info
                 const res = await this.submissionDAO.update(aSubmission?._id, this._prepareUpdateData({
                     fileValidationStatus,
                     dataFileSize
                 }));
+                // if failed to update submission data file info, throw error
                 if (!res) {
                     console.error(`failed to update submission data file info; submissionID: ${aSubmission?._id}`);
                 }
             }
-            return ValidationHandler.success(`${deletedFiles.length} extra files deleted`)
+            
+            // return success message
+            if (deleteAll && exclusiveIDs.length === 0) {
+                return ValidationHandler.success(`${deletedCount} nodes deleted`);
+            } else if (deleteAll && exclusiveIDs.length > 0) {
+                const count = typeof deletedResult === 'object' && deletedResult.count ? deletedResult.count : 0;
+                return ValidationHandler.success(`${count} nodes deleted (excluding ${exclusiveIDs.length} nodes)`);
+            } else {
+                const count = Array.isArray(deletedResult) ? deletedResult.length : 0;
+                return ValidationHandler.success(`${count} nodes deleted`);
+            }
         }
 
-        const msg = {type: DELETE_METADATA, submissionID: params.submissionID, nodeType: params.nodeType, nodeIDs: params.nodeIDs}
+        // if node type is not data file
+        // create SQS message
+        const msg = {
+            type: DELETE_METADATA, 
+            submissionID: params.submissionID, 
+            nodeType: params.nodeType, 
+            deleteAll: deleteAll,
+            nodeIDs: deleteAll ? [] : nodeIDs,
+            exclusiveIDs: deleteAll ? exclusiveIDs : []
+        };
+        // request delete data records
         const success = await this._requestDeleteDataRecords(msg, this.sqsLoaderQueue, params.submissionID, params.submissionID);
+        // update submission deleting data info
         const updated = await this.submissionDAO.update(aSubmission?._id, this._prepareUpdateData({deletingData: isTrue(success?.success)}));
+        // if failed to update submission deleting data info, throw error
         if (!updated) {
             console.error(ERROR.FAILED_UPDATE_DELETE_STATUS, aSubmission?._id);
             throw new Error(ERROR.FAILED_UPDATE_DELETE_STATUS);
         }
 
+        // if successful, log data record
         if (isTrue(success?.success)) {
-            await this._logDataRecord(context?.userInfo, aSubmission._id, params.nodeType, params.nodeIDs);
+            // Use summary message for deleteAll, full array for normal deletion
+            const nodeIDsForLogging = deleteAll 
+                ? (exclusiveIDs.length > 0 ? `deleteAll excluding ${exclusiveIDs.length} nodes` : 'deleteAll')
+                : nodeIDs;
+            await this._logDataRecord(context?.userInfo, aSubmission._id, params.nodeType, nodeIDsForLogging);
         }
+        // return success message
         return success;
     }
 
@@ -1814,7 +2045,7 @@ class Submission {
         }
         // only when changing model will reset validation
         if (version !== undefined && aSubmission?.modelVersion !== version) {
-            await this._resetValidation(aSubmission?._id);
+            await this._resetValidation(aSubmission);
         }
         return updatedSubmission;
     }
@@ -1915,14 +2146,21 @@ class Submission {
         }
     }
 
-    async _resetValidation(aSubmissionID){
+    async _resetValidation(aSubmission) {
+        const aSubmissionID = aSubmission?._id;
+        const aSubmissionFileValidationStatus = aSubmission?.fileValidationStatus;
+        let fileValidationStatusValue = null;
+        let validationStatusList = [VALIDATION_STATUS.NEW, VALIDATION_STATUS.VALIDATING, VALIDATION_STATUS.PASSED, VALIDATION_STATUS.WARNING, VALIDATION_STATUS.ERROR];
+        if (validationStatusList.includes(aSubmissionFileValidationStatus)){
+            fileValidationStatusValue = VALIDATION_STATUS.NEW;
+        }
         const [resetSubmission, resetDataRecords, resetQCResult] = await Promise.all([
             this.submissionDAO.update(
                 aSubmissionID, { // update condition
                     // Update documents
                     updatedAt: getCurrentTime(),
                     metadataValidationStatus: VALIDATION_STATUS.NEW,
-                    fileValidationStatus: VALIDATION_STATUS.NEW,
+                    fileValidationStatus: fileValidationStatusValue,
                     crossSubmissionStatus: VALIDATION_STATUS.NEW}
             ),
             this.dataRecordService.resetDataRecords(aSubmissionID, VALIDATION_STATUS.NEW),
@@ -2007,7 +2245,9 @@ class Submission {
     async _logDataRecord(userInfo, submissionID, nodeType, nodeIDs) {
         try {
             const userName = `${userInfo?.lastName ? userInfo?.lastName + ',' : ''} ${userInfo?.firstName || NA}`;
-            const logEvent = DeleteRecordEvent.create(userInfo._id, userInfo.email, userName, submissionID, nodeType, nodeIDs);
+            // Handle both arrays and summary strings (for deleteAll operations)
+            const logNodeIDs = Array.isArray(nodeIDs) ? nodeIDs : (typeof nodeIDs === 'string' ? [nodeIDs] : []);
+            const logEvent = DeleteRecordEvent.create(userInfo._id, userInfo.email, userName, submissionID, nodeType, logNodeIDs);
             
             // Create log entry using Prisma
             const logData = {
@@ -2016,7 +2256,7 @@ class Submission {
                 userIDP: logEvent.userIDP,
                 userName: logEvent.userName,
                 eventType: logEvent.eventType,
-                submissionID: logEvent.submissionID,
+                submissionID: logEvent.eventDetail?.submissionID,
                 timestamp: Date.now() / 1000,
                 localtime: new Date()
             };
@@ -2573,7 +2813,7 @@ class Submission {
 const updateSubmissionStatus = async (submissionDAO, aSubmission, userInfo, newStatus) => {
     const newHistory = HistoryEventBuilder.createEvent(userInfo?._id, newStatus, null);
     aSubmission.history = [...(aSubmission.history || []), newHistory];
-    const updated = await submissionDAO.update(aSubmission._id, {status: newStatus, updatedAt: getCurrentTime()});
+    const updated = await submissionDAO.update(aSubmission._id, {status: newStatus, history: aSubmission.history, updatedAt: getCurrentTime()});
     if (!updated) {
         console.error(ERROR.UPDATE_SUBMISSION_ERROR, aSubmission?._id);
         throw new Error(ERROR.UPDATE_SUBMISSION_ERROR);

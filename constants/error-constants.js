@@ -60,6 +60,7 @@ const ERROR = {
     FAILED_STORE_APPROVED_STUDIES: "The approved studies are not being stored because the questionnaire data string is not correctly parsed",
     DUPLICATE_APPROVED_STUDY_NAME: "This is a duplicate study name. The $item$ study already exists in the system.",
     DUPLICATE_PROGRAM_NAME: "This is a duplicate program name. The $item$ program already exists in the system.",
+    STUDY_CREATION_FAILED: "An internal error occured while initializing a new study. Please alert the admins.",
     // Submission Permission
     INVALID_SUBMISSION_STATUS: "The batch creation is aborted because the current submission is not in the valid state to be created.",
     // Create Submission
@@ -69,7 +70,7 @@ const ERROR = {
     CREATE_SUBMISSION_INVALID_INTENTION: "submission intention is invalid",
     CREATE_SUBMISSION_INVALID_DATA_TYPE: "submission data type is invalid",
     CREATE_SUBMISSION_INVALID_DELETE_INTENTION: "when intention is Delete, only 'Metadata Only' is allowed",
-    UPDATE_SUBMISSION_ERROR:"An error occurred while attempting to update the submission in the database",
+    UPDATE_SUBMISSION_ERROR: "An error occurred while attempting to update the submission in the database",
     CREATE_SUBMISSION_INVALID_DATA_COMMONS: "Requested data commons $item$ is not supported",
     CREATE_SUBMISSION_NO_MATCHING_STUDY: "The study provided does not match an approved study within the user's studies",
     CREATE_SUBMISSION_NO_ASSOCIATED_PROGRAM: "The study is not associated with any program. Please contact your data concierge to resolve this issue.",
@@ -139,19 +140,20 @@ const ERROR = {
     INVALID_EXPORT_METADATA: "You do not have permission to export submission data",
     INVALID_DATA_MODEL_VERSION: "An error occurred while trying to retrieve the data model version from the given URL",
     INVALID_DELETE_DATA_RECORDS_PERMISSION: "You do not have the correct permissions to delete data records",
+    INVALID_DELETE_DATA_RECORDS_ARRAY_LENGTH: "The nodeIDs and exclusiveIDs arrays cannot exceed 2000 items each",
     FAILED_REQUEST_DELETE_RECORDS: "Failed to send a delete data record message",
     FAILED_UPDATE_DELETE_STATUS: "Failed to update the status of data record deletion",
     // delete submission error file list
     DELETE_NO_FILE_SUBMISSION: "No extra file found",
     DELETE_NO_DATA_FILE_EXISTS: "No data files found for deletion in the bucket",
-    INVALID_DELETE_SUBMISSION_STATUS : "Data Submissions that have been released cannot be deleted.",
+    INVALID_DELETE_SUBMISSION_STATUS: "Data Submissions that have been released cannot be deleted.",
     NO_UPLOADER_CLI_CONFIG_TEMPLATE: "Data file uploader CLI config template is not found.",
     INVALID_DATA_MODEL: "No file node properties in the data model.",
     NO_SUBMISSION_BUCKET: "Unable to create a batch, no submission bucket is stored",
     FAILED_LIST_DATA_FILES: "Unable to list data files in the bucket",
     INVALID_NODE_RELATIONSHIP: "Invalid node relationship",
     INVALID_NO_PARENTS_FOUND: "No parents found for the node type",
-    INVALID_NO_CHILDREN_FOUND: "No children found for the node type", 
+    INVALID_NO_CHILDREN_FOUND: "No children found for the node type",
     INVALID_NODE_STATUS_NOT_FOUND: "Invalid node status",
     MISSING_DATA_NODE_FILE_TITLE: "Orphaned file found",
     MISSING_DATA_NODE_FILE_DESC: "Data file $item$: associated metadata not found. Please upload associated metadata (aka. manifest) file.",
@@ -172,6 +174,7 @@ const ERROR = {
     MISSING_STUDY_NAME: "Study name is required.",
     INVALID_CONTROLLED_ACCESS: "Invalid controlled access value.",
     MISSING_DB_GAP_ID: "dbGaP ID is required when access is controlled.",
+    INVALID_DB_GAP_ID: "Invalid dbGaPID format.",
     INVALID_ORCID: "Invalid ORCID format.",
     FAILED_APPROVED_STUDY_INSERTION: "Failed to create the approved study.",
     FAILED_APPROVED_STUDY_UPDATE: "Failed to update the approved study.",
@@ -259,6 +262,15 @@ const ERROR = {
     FAILED_DOWNLOAD_ALL_RELEASED_NODES: "Failed to download all released nodes",
     STUDY_NOT_EXIST: "The requested study does not exist.",
     INTERNAL_ERROR: "An internal error occurred, please ask the Admins to check the logs for more information",
+    // Tooltip Service
+    TOOLTIP_SERVICE: {
+        INITIALIZATION_FAILED: "Failed to initialize TooltipService: ",
+        INVALID_JSON_OBJECT: "Constants file must contain a valid JSON object.",
+        VALIDATION_FAILED: "Constants file validation failed: ",
+        NON_STRING_KEYS: "non-string keys: ",
+        NON_STRING_VALUES: "non-string values for keys: ",
+        KEYS_ARRAY_EXCEEDS_LIMIT: "The 'keys' array cannot exceed"
+    }
 }
 
 module.exports = ERROR;

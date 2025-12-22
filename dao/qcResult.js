@@ -58,10 +58,12 @@ class QCResultDAO extends GenericDAO {
                 _id: {
                     title: "$issues.title",
                     severity: "$issues.severity",
-                    code: "$issues.code"
+                    code: "$issues.code",
+                    property: "$issues.offendingProperty",
+                    value: "$issues.offendingValue"
                 },
                 distinctRecords: {
-                    $addToSet: "$dataRecordID"  // Collect unique dataRecordID values for this specific issue type (title, severity, code combination)
+                    $addToSet: "$dataRecordID"  // Collect unique dataRecordID values for this specific issue type (title, severity, code, property, value combination)
                 }
             }
         });
@@ -78,7 +80,9 @@ class QCResultDAO extends GenericDAO {
                 title: "$_id.title",
                 severity: "$_id.severity",
                 code: "$_id.code",
-                count: "$count"
+                count: "$count",
+                property: { $ifNull: ["$_id.property", "N/A"] },
+                value: { $ifNull: ["$_id.value", "N/A"] }
             }
         });
         // Create count pipeline
@@ -110,7 +114,7 @@ class QCResultDAO extends GenericDAO {
         const totalRecords = countPipelineResult[0]?.total;
         const paginatedPipelineResult = await this.qcResultCollection.aggregate(paginationPipeline);
         return {
-            total: totalRecords,
+            total: totalRecords || 0,
             results: paginatedPipelineResult
         };
     }

@@ -1,6 +1,8 @@
-const {Application} = require('../../services/application'); // Adjust if needed
+const { Application } = require('../../services/application'); // Adjust if needed
 const ApplicationDAO = require('../../dao/application');
 const USER_PERMISSION_CONSTANTS = require("../../crdc-datahub-database-drivers/constants/user-permission-constants");
+const ERROR = require('../../constants/error-constants');
+const { NEW, APPROVED, IN_PROGRESS, INQUIRED, CANCELED, REJECTED, DELETED, SUBMITTED, IN_REVIEW } = require('../../constants/application-constants');
 
 // Mock ApplicationDAO
 jest.mock('../../dao/application');
@@ -35,7 +37,7 @@ const mockNotificationsService = {
 };
 const mockEmailParams = { inactiveDays: 180, inactiveApplicationNotifyDays: [7, 30, 60], conditionalSubmissionContact: 'contact@email', url: 'http://test', submissionGuideURL: 'http://guide' };
 const mockOrganizationService = {
-    findOneByProgramName: jest.fn(),
+    findOneByProgramName: jest.fn().mockResolvedValue(null),
     upsertByProgramName: jest.fn(),
     getOrganizationByID: jest.fn(),
     organizationCollection: { update: jest.fn() }
@@ -45,33 +47,7 @@ const mockConfigurationService = { findByType: jest.fn() };
 const mockAuthorizationService = { getPermissionScope: jest.fn() };
 
 // Mocked constants and helpers
-global.NEW = 'New';
-global.IN_PROGRESS = 'In Progress';
-global.SUBMITTED = 'Submitted';
-global.IN_REVIEW = 'In Review';
-global.APPROVED = 'Approved';
-global.INQUIRED = 'Inquired';
-global.CANCELED = 'Canceled';
-global.REJECTED = 'Rejected';
-global.DELETED = 'Deleted';
 global.APPLICATION = 'Application';
-global.ERROR = {
-    VERIFY: { 
-        INVALID_PERMISSION: 'You do not have permission to perform this action.', 
-        INVALID_STATE_APPLICATION: 'Invalid state', 
-        INVALID_USER_SCOPE: 'Invalid user scope' 
-    },
-    APPLICATION_NOT_FOUND: 'The provided application ID was not found in the database. Provided _id: ',
-    DUPLICATE_APPROVED_STUDY_NAME: 'Duplicate: ',
-    CONTROLLED_STUDY_NO_DBGAPID: 'dbGaP ID must be provided before data submissions can begin.',
-    PENDING_APPROVED_STUDY: 'The Data Commons team is reviewing this study for potential data model changes. Data submissions cannot be created until any required model updates are released.',
-    UPDATE_FAILED: 'Update failed',
-    FAILED_DELETE_APPLICATION: 'Failed delete',
-    FAILED_RESTORE_APPLICATION: 'Failed restore',
-    INVALID_APPLICATION_RESTORE_STATE: 'Invalid restore state',
-    APPLICATION_CONTROLLED_ACCESS_NOT_FOUND: 'Controlled access not found',
-    APPLICATION_INVALID_STATUES: 'Invalid statuses'
-};
 global.USER_PERMISSION_CONSTANTS = {
     SUBMISSION_REQUEST: {
         VIEW: 'VIEW',
@@ -171,19 +147,23 @@ describe('Application', () => {
             mockAuthorizationService
         );
 
-        context = { userInfo: { _id: 'user1', firstName: 'John', lastName: 'Doe', email: 'john@doe.com', organization: { orgID: 'org1', orgName: 'Org' }, 
-        role: ROLES.ADMIN, notifications: [EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW], permissions: [ "dashboard:view",
-                "user:manage:all",
-                "submission_request:view",
-                "submission_request:review",
-                "submission_request:create",
-                "submission_request:submit",
-                "program:manage:all",
-                "study:manage:all",
-                "data_submission:view",
-                "data_submission:create",
-                "data_submission:confirm",
-                "access:request"] } };
+        context = {
+            userInfo: {
+                _id: 'user1', firstName: 'John', lastName: 'Doe', email: 'john@doe.com', organization: { orgID: 'org1', orgName: 'Org' },
+                role: ROLES.ADMIN, notifications: [USER_PERMISSION_CONSTANTS.EMAIL_NOTIFICATIONS.SUBMISSION_REQUEST.REQUEST_REVIEW], permissions: ["dashboard:view",
+                    "user:manage:all",
+                    "submission_request:view",
+                    "submission_request:review",
+                    "submission_request:create",
+                    "submission_request:submit",
+                    "program:manage:all",
+                    "study:manage:all",
+                    "data_submission:view",
+                    "data_submission:create",
+                    "data_submission:confirm",
+                    "access:request"]
+            }
+        };
     });
 
     describe('getApplication', () => {
@@ -231,13 +211,11 @@ describe('Application', () => {
     describe('_checkConditionalApproval', () => {
         it('sets conditional and pendingConditions if needed', async () => {
             mockApprovedStudiesService.findByStudyName.mockResolvedValue([{ controlledAccess: true, dbGaPID: null, pendingModelChange: true }]);
-            global.ERROR.CONTROLLED_STUDY_NO_DBGAPID = 'dbGaP ID must be provided before data submissions can begin.';
-            global.ERROR.PENDING_APPROVED_STUDY = 'The Data Commons team is reviewing this study for potential data model changes. Data submissions cannot be created until any required model updates are released.';
             const application = { studyName: 'study1' };
             await app._checkConditionalApproval(application);
             expect(application.conditional).toBe(true);
-            expect(application.pendingConditions).toContain(global.ERROR.CONTROLLED_STUDY_NO_DBGAPID);
-            expect(application.pendingConditions).toContain(global.ERROR.PENDING_APPROVED_STUDY);
+            expect(application.pendingConditions).toContain(ERROR.CONTROLLED_STUDY_NO_DBGAPID);
+            expect(application.pendingConditions).toContain(ERROR.PENDING_APPROVED_STUDY);
         });
 
         it('does nothing if no studies found', async () => {
@@ -306,7 +284,7 @@ describe('Application', () => {
             mockConfigurationService.findByType.mockResolvedValue({ current: '2.0', new: '3.0' });
             const application = { controlledAccess: true };
             const userInfo = context.userInfo;
-            await expect(app.createApplication(application, userInfo)).resolves.toMatchObject({ controlledAccess: true});
+            await expect(app.createApplication(application, userInfo)).resolves.toMatchObject({ controlledAccess: true });
             expect(app.applicationDAO.insert).toHaveBeenCalled();
             expect(mockLogCollection.insert).toHaveBeenCalled();
         });
@@ -321,15 +299,36 @@ describe('Application', () => {
             await expect(app.saveApplication(params, context)).resolves.toEqual({ _id: 'app2' });
         });
 
-        it('updates existing application', async () => {
+        it("should throw an error when the application does not exist", async () => {
             userScopeMock.isNoneScope.mockReturnValue(false);
             userScopeMock.isAllScope.mockReturnValue(false);
             userScopeMock.isOwnScope.mockReturnValue(true);
-            const params = { application: { _id: 'app1' } };
-            // Mock ApplicationDAO.findFirst to return null (application not found)
-            ApplicationDAO.prototype.findFirst = jest.fn().mockResolvedValue(null);
-            mockConfigurationService.findByType.mockResolvedValue({ current: '2.0', new: '3.0' });
+
+            const params = { application: { _id: 'a-app-that-does-not-exist' } };
+
             await expect(app.saveApplication(params, context)).rejects.toThrow(ERROR.APPLICATION_NOT_FOUND);
+        });
+
+        it.each([CANCELED, REJECTED, DELETED, SUBMITTED, IN_REVIEW, APPROVED])('should throw error when trying to set the status to %s', async (status) => {
+            userScopeMock.isNoneScope.mockReturnValue(false);
+            userScopeMock.isAllScope.mockReturnValue(false);
+            userScopeMock.isOwnScope.mockReturnValue(true);
+
+            jest.spyOn(app, 'getApplicationById').mockResolvedValue({ _id: 'invalid-status-provided', applicant: { applicantID: 'user1' }, status: NEW });
+
+            const params = { application: { _id: 'invalid-status-provided' }, status };
+            await expect(app.saveApplication(params, context)).rejects.toThrow(ERROR.VERIFY.INVALID_STATE_APPLICATION);
+        });
+
+        it("should throw an error if no status is provided", async () => {
+            userScopeMock.isNoneScope.mockReturnValue(false);
+            userScopeMock.isAllScope.mockReturnValue(false);
+            userScopeMock.isOwnScope.mockReturnValue(true);
+
+            jest.spyOn(app, 'getApplicationById').mockResolvedValue({ _id: 'no-status-provided', applicant: { applicantID: 'user1' }, status: NEW });
+
+            const params = { application: { _id: 'no-status-provided' } }; // NOTE: We're omitting status param
+            await expect(app.saveApplication(params, context)).rejects.toThrow(ERROR.VERIFY.INVALID_STATE_APPLICATION);
         });
 
         it('throws if not owner', async () => {
@@ -357,6 +356,19 @@ describe('Application', () => {
 
             const result = await app.getMyLastApplication({}, context);
             expect(result).toMatchObject({ _id: 'app1', version: '3.0', institution: { id: 'inst1', _id: 'inst1' } });
+        });
+
+        it('returns null when no previous approved application exists', async () => {
+            userScopeMock.isNoneScope.mockReturnValue(false);
+            userScopeMock.isAllScope.mockReturnValue(true);
+            
+            // Mock aggregate to return empty array (no previous applications)
+            app.applicationDAO = {
+                aggregate: jest.fn().mockResolvedValue([])
+            };
+
+            const result = await app.getMyLastApplication({}, context);
+            expect(result).toBeNull();
         });
     });
 
@@ -409,6 +421,218 @@ describe('Application', () => {
             // Patch: Accept any error message containing "duplicate" (case-insensitive)
             await expect(app.approveApplication({ _id: 'app1', comment: 'Approved' }, context))
                 .rejects.toThrow(/duplicate/i);
+        });
+
+        it('should create program before creating study when no existing program', async () => {
+            const mockApplication = { 
+                _id: 'app1', 
+                status: IN_REVIEW, 
+                studyName: 'study1',
+                programName: 'Program One',
+                programAbbreviation: 'PO',
+                programDescription: 'Program Description',
+                questionnaireData: JSON.stringify({ program: { _id: null } })
+            };
+            const mockQuestionnaire = { program: { _id: null } };
+            const mockNewProgram = { _id: 'new-program-1', name: 'Program One' };
+            
+            app.getApplicationById = jest.fn().mockResolvedValue(mockApplication);
+            mockApprovedStudiesService.findByStudyName.mockResolvedValue([]);
+            mockOrganizationService.getOrganizationByID.mockResolvedValue(null);
+            mockOrganizationService.findOneByProgramName.mockResolvedValue(null);
+            mockOrganizationService.upsertByProgramName.mockResolvedValue(mockNewProgram);
+            app.applicationDAO.update = jest.fn().mockResolvedValue(true);
+            app.getApplicationById = jest.fn().mockResolvedValue(mockApplication);
+            app._saveApprovedStudies = jest.fn().mockResolvedValue({ _id: 'study1' });
+            app._findUsersByApplicantIDs = jest.fn().mockResolvedValue([]);
+            mockLogCollection.insert.mockResolvedValue();
+            global.getApplicationQuestionnaire = jest.fn().mockReturnValue(mockQuestionnaire);
+
+            await app.approveApplication({ _id: 'app1', comment: 'Approved' }, context);
+
+            expect(mockOrganizationService.upsertByProgramName).toHaveBeenCalledWith(
+                'Program One', 'PO', 'Program Description'
+            );
+            expect(app._saveApprovedStudies).toHaveBeenCalledWith(
+                true, mockQuestionnaire, undefined, undefined, mockNewProgram
+            );
+        });
+
+        it('should use existing program when program exists', async () => {
+            const mockApplication = { 
+                _id: 'app1', 
+                status: IN_REVIEW, 
+                studyName: 'study1',
+                programName: 'Existing Program',
+                questionnaireData: JSON.stringify({ program: { _id: 'program1' } })
+            };
+            const mockQuestionnaire = { program: { _id: 'program1' } };
+            const mockExistingProgram = { _id: 'program1', name: 'Existing Program' };
+            
+            app.getApplicationById = jest.fn().mockResolvedValue(mockApplication);
+            mockApprovedStudiesService.findByStudyName.mockResolvedValue([]);
+            mockOrganizationService.getOrganizationByID.mockResolvedValue(mockExistingProgram);
+            mockOrganizationService.findOneByProgramName.mockResolvedValue(null);
+            app.applicationDAO.update = jest.fn().mockResolvedValue(true);
+            app.getApplicationById = jest.fn().mockResolvedValue(mockApplication);
+            app._saveApprovedStudies = jest.fn().mockResolvedValue({ _id: 'study1' });
+            app._findUsersByApplicantIDs = jest.fn().mockResolvedValue([]);
+            mockLogCollection.insert.mockResolvedValue();
+            global.getApplicationQuestionnaire = jest.fn().mockReturnValue(mockQuestionnaire);
+
+            await app.approveApplication({ _id: 'app1', comment: 'Approved' }, context);
+
+            expect(mockOrganizationService.upsertByProgramName).not.toHaveBeenCalled();
+            expect(app._saveApprovedStudies).toHaveBeenCalledWith(
+                true, mockQuestionnaire, undefined, undefined, mockExistingProgram
+            );
+        });
+
+        it('should throw error for duplicate program when no existing program', async () => {
+            const mockApplication = { 
+                _id: 'app1', 
+                status: IN_REVIEW, 
+                studyName: 'study1',
+                programName: 'Duplicate Program',
+                questionnaireData: JSON.stringify({ program: { _id: null } })
+            };
+            const mockQuestionnaire = { program: { _id: null } };
+            const mockDuplicateProgram = { _id: 'duplicate1', name: 'Duplicate Program' };
+            
+            app.getApplicationById = jest.fn().mockResolvedValue(mockApplication);
+            mockApprovedStudiesService.findByStudyName.mockResolvedValue([]);
+            mockOrganizationService.getOrganizationByID.mockResolvedValue(null);
+            mockOrganizationService.findOneByProgramName.mockResolvedValue(mockDuplicateProgram);
+            global.getApplicationQuestionnaire = jest.fn().mockReturnValue(mockQuestionnaire);
+
+            await expect(app.approveApplication({ _id: 'app1', comment: 'Approved' }, context))
+                .rejects.toThrow(/duplicate/i);
+        });
+
+        it('should not throw error for duplicate program when existing program exists', async () => {
+            const mockApplication = { 
+                _id: 'app1', 
+                status: IN_REVIEW, 
+                studyName: 'study1',
+                programName: 'Existing Program',
+                questionnaireData: JSON.stringify({ program: { _id: 'program1' } })
+            };
+            const mockQuestionnaire = { program: { _id: 'program1' } };
+            const mockExistingProgram = { _id: 'program1', name: 'Existing Program' };
+            const mockDuplicateProgram = { _id: 'duplicate1', name: 'Existing Program' };
+            
+            app.getApplicationById = jest.fn().mockResolvedValue(mockApplication);
+            mockApprovedStudiesService.findByStudyName.mockResolvedValue([]);
+            mockOrganizationService.getOrganizationByID.mockResolvedValue(mockExistingProgram);
+            mockOrganizationService.findOneByProgramName.mockResolvedValue(mockDuplicateProgram);
+            app.applicationDAO.update = jest.fn().mockResolvedValue(true);
+            app.getApplicationById = jest.fn().mockResolvedValue(mockApplication);
+            app._saveApprovedStudies = jest.fn().mockResolvedValue({ _id: 'study1' });
+            app._findUsersByApplicantIDs = jest.fn().mockResolvedValue([]);
+            mockLogCollection.insert.mockResolvedValue();
+            global.getApplicationQuestionnaire = jest.fn().mockReturnValue(mockQuestionnaire);
+
+            await app.approveApplication({ _id: 'app1', comment: 'Approved' }, context);
+
+            expect(app._saveApprovedStudies).toHaveBeenCalledWith(
+                true, mockQuestionnaire, undefined, undefined, mockExistingProgram
+            );
+        });
+    });
+
+    describe("_saveApprovedStudies", () => {
+        it.each([
+            ["phs001234", "phs001234"],
+            ["phs001234.v5", "phs001234"],
+            ["phs001234.p3", "phs001234"],
+            ["phs001234.v5.p2", "phs001234"],
+            ["phs001234.v5.p2 ", "phs001234"],
+        ])(
+            "should store only the base phs prefix and 6 digits when dbGaPPPHSNumber is %s",
+            async (phsInput, expectedBase) => {
+                const aApplication = {
+                    _id: 'app1',
+                    studyName: 'Study One',
+                    studyAbbreviation: 'STUDY1',
+                    organization: { name: 'Org One' },
+                    controlledAccess: true,
+                    ORCID: '0000-0001',
+                    PI: 'PI Name',
+                    openAccess: false,
+                    programName: 'Program One',
+                };
+                const questionnaire = {
+                    study: { name: 'Study One Name', dbGaPPPHSNumber: phsInput },
+                };
+                mockApprovedStudiesService.storeApprovedStudies.mockResolvedValue({ _id: 'approvedStudy1' });
+
+                await app._saveApprovedStudies(aApplication, questionnaire, false, false, null);
+
+                expect(mockApprovedStudiesService.storeApprovedStudies).toHaveBeenCalled();
+                const args = mockApprovedStudiesService.storeApprovedStudies.mock.calls[0];
+                expect(args[3]).toBe(expectedBase);
+            }
+        );
+
+        it.each([
+            ['', null],
+            [' ', null],
+            ['phs', null],
+            ['phs1234', null],
+            ['phs00123', null],
+            ['001234', null],
+            ['phs-001234', null],
+            ['abc', null],
+            ['.v5', null],
+        ])(
+            "should default to null when it doesn't start with phs prefix and 6 digits: %s",
+            async (phsInput) => {
+                const aApplication = {
+                    _id: 'app1',
+                    studyName: 'Study One',
+                    studyAbbreviation: 'STUDY1',
+                    organization: { name: 'Org One' },
+                    controlledAccess: true,
+                    ORCID: '0000-0001',
+                    PI: 'PI Name',
+                    openAccess: false,
+                    programName: 'Program One',
+                };
+                const questionnaire = {
+                    study: { name: 'Study One Name', dbGaPPPHSNumber: phsInput },
+                };
+                mockApprovedStudiesService.storeApprovedStudies.mockResolvedValue({ _id: 'approvedStudy1' });
+
+                await app._saveApprovedStudies(aApplication, questionnaire, false, false, null);
+
+                expect(mockApprovedStudiesService.storeApprovedStudies).toHaveBeenCalled();
+                const args = mockApprovedStudiesService.storeApprovedStudies.mock.calls[0];
+                expect(args[3]).toBeNull();
+            }
+        );
+
+        it('should handle null dbGaPPPHSNumber value', async () => {
+            const aApplication = {
+                _id: 'app1',
+                studyName: 'Study One',
+                studyAbbreviation: 'STUDY1',
+                organization: { name: 'Org One' },
+                controlledAccess: true,
+                ORCID: '0000-0001',
+                PI: 'PI Name',
+                openAccess: false,
+                programName: 'Program One',
+            };
+            const questionnaire = {
+                study: { name: 'Study One Name', dbGaPPPHSNumber: null },
+            };
+            mockApprovedStudiesService.storeApprovedStudies.mockResolvedValue({ _id: 'approvedStudy1' });
+
+            await app._saveApprovedStudies(aApplication, questionnaire, false, false, null);
+
+            expect(mockApprovedStudiesService.storeApprovedStudies).toHaveBeenCalled();
+            const args = mockApprovedStudiesService.storeApprovedStudies.mock.calls[0];
+            expect(args[3]).toBeNull();
         });
     });
 

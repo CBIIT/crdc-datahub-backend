@@ -63,80 +63,81 @@ class ApprovedStudyDAO extends GenericDAO  {
         }
 
         if (programID && programID !== this._ALL) {
-            matches["programs._id"] = programID;
+            matches["programID"] = programID;
         }
 
         let pipelines = [
-            // Join with the program
-            // The studies._id should be array in otder to use prisma.
+            // Join with the program using the programID as the foreign field
             {"$lookup": {
                     from: ORGANIZATION_COLLECTION,
-                    localField: "_id",
-                    foreignField: "studies._id",
-                    as: "programs"}},
+                    localField: "programID",
+                    foreignField: "_id",
+                    as: "program"}},
             {"$lookup": {
                     from: USER_COLLECTION,
                     localField: "primaryContactID",
                     foreignField: "_id",
                     as: "primaryContact"}},
-            {"$replaceRoot": {
-                    newRoot: {
-                        $mergeObjects: [
-                            "$$ROOT",
-                            {
-                                primaryContact: {
-                                    _id: {
-                                        $cond: [
-                                            "$useProgramPC",
-                                            { $arrayElemAt: ["$programs.conciergeID", 0] },
-                                            { $arrayElemAt: ["$primaryContact._id", 0] }
-                                        ]
-                                    },
-                                    firstName: {
-                                        $cond: [
-                                            "$useProgramPC",
-                                            {
-                                                $ifNull: [
-                                                    { $arrayElemAt: [
-                                                            { $split: [
-                                                                    { $arrayElemAt: ["$programs.conciergeName", 0] },
-                                                                    " "
-                                                                ] },
-                                                            0 // first element → firstName
-                                                        ] },
-                                                    ""
-                                                ]
-                                            },
-                                            { $arrayElemAt: ["$primaryContact.firstName", 0] }
-                                        ]
-                                    },
-                                    lastName: {
-                                        $cond: [
-                                            "$useProgramPC",
-                                            {
-                                                $ifNull: [
-                                                    { $arrayElemAt: [
-                                                            { $split: [
-                                                                    { $arrayElemAt: ["$programs.conciergeName", 0] },
-                                                                    " "
-                                                                ] },
-                                                            1 // second element → lastName
-                                                        ] },
-                                                    ""
-                                                ]
-                                            },
-                                            { $arrayElemAt: ["$primaryContact.lastName", 0] }
-                                        ]
-                                    }
-                                }
-                            }
-                        ]
+            {"$addFields": {
+                    program: { $arrayElemAt: ["$program", 0] },
+                    primaryContact: { $arrayElemAt: ["$primaryContact", 0] }
+                }},
+            {"$addFields": {
+                    primaryContact: {
+                        _id: {
+                            $cond: [
+                                "$useProgramPC",
+                                "$program.conciergeID",
+                                "$primaryContact._id"
+                            ]
+                        },
+                        firstName: {
+                            $cond: [
+                                "$useProgramPC",
+                                {
+                                    $ifNull: [
+                                        { $arrayElemAt: [
+                                                { $split: ["$program.conciergeName", " "] },
+                                                0 // first element → firstName
+                                            ] },
+                                        ""
+                                    ]
+                                },
+                                "$primaryContact.firstName"
+                            ]
+                        },
+                        lastName: {
+                            $cond: [
+                                "$useProgramPC",
+                                {
+                                    $ifNull: [
+                                        { $arrayElemAt: [
+                                                { $split: ["$program.conciergeName", " "] },
+                                                1 // second element → lastName
+                                            ] },
+                                        ""
+                                    ]
+                                },
+                                "$primaryContact.lastName"
+                            ]
+                        }
                     }
                 }}
         ];
 
         pipelines.push({$match: matches});
-        const pagination = new MongoPagination(first, offset, orderBy, sortDirection);
+        let sortField = orderBy;
+        if (sortField === "program.name") {
+            pipelines.push({
+                $set: {
+                    programSort: {
+                        $toLower: "$program.name"
+                    }
+                }
+            });
+            sortField = "programSort";
+        }
+        const pagination = new MongoPagination(first, offset, sortField, sortDirection);
         const paginationPipe = pagination.getPaginationPipeline()
         // Added the custom sort
         const isNotStudyName = orderBy !== "studyName";
@@ -144,49 +145,12 @@ class ApprovedStudyDAO extends GenericDAO  {
             Object.keys(pagination)?.includes("$sort") && isNotStudyName ? {...pagination, $sort: {...pagination.$sort, studyName: DIRECTION.ASC}} : pagination
         );
 
-        const programSort = "programs.name";
-        const isProgramSort = orderBy === programSort;
-        const programPipeLine = paginationPipe?.map(pagination =>
-            Object.keys(pagination)?.includes("$sort") && pagination.$sort === programSort ? {...pagination, $sort: {...pagination.$sort, [programSort]: sortDirection?.toLowerCase() === SORT.DESC ? DIRECTION.DESC : DIRECTION.ASC}} : pagination
-        );
-
-        // Always sort programs array inside each document by name DESC
-        pipelines.push({
-            $addFields: {
-                programs: {
-                    $cond: [
-                        { $isArray: "$programs" },
-                        { $sortArray: {
-                                input: "$programs",
-                                sortBy: { name: DIRECTION.DESC }
-                            }},
-                        []
-                    ]
-                }
-            }
-        });
-        // This is the program’s custom sort order; the program name in the first element should be sorted.
-        if (isProgramSort) {
-            pipelines.push(
-                { $unwind: { path: "$programs", preserveNullAndEmptyArrays: true } },
-                { $sort: { "programs.name": sortDirection === SORT.DESC ? DIRECTION.DESC : DIRECTION.ASC } },
-                { $group: {
-                        _id: "$_id",
-                        doc: { $first: "$$ROOT" },
-                        programs: { $push: "$programs" }
-                    }},
-                { $replaceRoot: {
-                        newRoot: { $mergeObjects: ["$doc", { programs: "$programs" }] }
-                    }}
-            );
-        }
-
         pipelines.push({
             $facet: {
                 total: [{
                     $count: "total"
                 }],
-                results: isProgramSort ? programPipeLine : customPaginationPipeline
+                results: customPaginationPipeline
             }
         });
         pipelines.push({

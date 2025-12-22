@@ -886,23 +886,23 @@ describe('DataRecordService', () => {
       const mockCountResult = [{ total: 10 }];
       const mockResults = [{ nodeID: 'node1' }];
 
-      // Create promises that resolve after a delay to verify parallel execution
-      let countResolved = false;
-      let resultsResolved = false;
+      // Track call order to verify parallel execution structurally
+      const callOrder = [];
 
       mockDataRecordsCollection.aggregate
         .mockImplementationOnce(async () => {
-          await new Promise(resolve => setTimeout(resolve, 10));
-          countResolved = true;
+          callOrder.push('count-start');
+          await new Promise(resolve => setImmediate(resolve));
+          callOrder.push('count-end');
           return mockCountResult;
         })
         .mockImplementationOnce(async () => {
-          await new Promise(resolve => setTimeout(resolve, 10));
-          resultsResolved = true;
+          callOrder.push('results-start');
+          await new Promise(resolve => setImmediate(resolve));
+          callOrder.push('results-end');
           return mockResults;
         });
 
-      const startTime = Date.now();
       const result = await dataRecordDAO.getSubmissionNodes(
         'submission-123',
         'participant',
@@ -911,10 +911,12 @@ describe('DataRecordService', () => {
         'nodeID',
         'ASC'
       );
-      const endTime = Date.now();
 
-      // If executed in parallel, total time should be ~10ms, not ~20ms
-      expect(endTime - startTime).toBeLessThan(20);
+      // Verify parallel execution: both queries started before either ended
+      expect(callOrder.indexOf('count-start')).toBeLessThan(callOrder.indexOf('count-end'));
+      expect(callOrder.indexOf('count-start')).toBeLessThan(callOrder.indexOf('results-end'));
+      expect(callOrder.indexOf('results-start')).toBeLessThan(callOrder.indexOf('count-end'));
+      expect(callOrder.indexOf('results-start')).toBeLessThan(callOrder.indexOf('results-end'));
       expect(result.total).toBe(10);
       expect(result.results).toEqual(mockResults);
     });

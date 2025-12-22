@@ -85,7 +85,6 @@ describe('SubmissionDAO', () => {
                 name: 'Test Submission 1',
                 status: NEW,
                 dataCommons: 'test-commons',
-                submitterName: 'Test User',
                 studyID: 'study-1',
                 dataFileSize: { size: 1024, formatted: '1 KB' },
                 study: {
@@ -97,13 +96,44 @@ describe('SubmissionDAO', () => {
                     id: 'org-1',
                     name: 'Test Organization',
                     abbreviation: 'TO'
+                },
+                submitter: {
+                    id: 'submitter-1',
+                    firstName: 'Test',
+                    lastName: 'User',
+                    fullName: 'Test User',
+                    email: 'test@example.com'
+                },
+                concierge: {
+                    id: 'concierge-1',
+                    firstName: 'Concierge',
+                    lastName: 'User',
+                    fullName: 'Concierge User',
+                    email: 'concierge@example.com'
                 }
             }
         ];
 
         beforeEach(() => {
+            // Reset mocks to ensure clean state between tests
+            prisma.submission.findMany.mockReset();
+            prisma.submission.count.mockReset();
+            prisma.program.findMany.mockReset();
+            
             // Setup default Prisma mocks
-            prisma.submission.findMany.mockResolvedValue(mockSubmissions);
+            // findMany is called twice: main query and submitter names (statuses are now a constant)
+            prisma.submission.findMany.mockImplementation((query) => {
+                // Main query with includes
+                if (query.include) {
+                    return Promise.resolve(mockSubmissions);
+                }
+                // Submitter names aggregation
+                if (query.select?.submitter) {
+                    return Promise.resolve([{ submitter: mockSubmissions[0].submitter }]);
+                }
+                // Default fallback
+                return Promise.resolve(mockSubmissions);
+            });
             prisma.submission.count.mockResolvedValue(1);
             prisma.program.findMany.mockResolvedValue([
                 { id: 'org-1', name: 'Test Organization', abbreviation: 'TO' }
@@ -361,33 +391,18 @@ describe('SubmissionDAO', () => {
                     })
                 );
 
-                // Aggregation queries should also include search filters (same as main query)
-                expect(prisma.submission.findMany).toHaveBeenCalledWith(
-                    expect.objectContaining({
-                        where: expect.objectContaining({
-                            name: {
-                                contains: 'Test Submission',
-                                mode: 'insensitive'
-                            },
-                            status: { in: ['New'] },
-                            dataCommons: 'GDC'
-                        }),
-                        select: { dataCommons: true },
-                        distinct: ['dataCommons']
-                    })
-                );
+                // Data commons aggregation no longer queries submissions - it uses dataCommonsList parameter
+                // The dataCommons are now returned from the configuration, not filtered by submissions
             });
         });
 
         describe('Filter Priority and Behavior', () => {
             beforeEach(() => {
                 // Setup mock responses for aggregation methods
+                // Note: dataCommons are now from config, organizations from program table, statuses are constant
                 prisma.submission.findMany
                     .mockResolvedValueOnce(mockSubmissions) // Main query
-                    .mockResolvedValueOnce([{ dataCommons: 'test-commons' }]) // Data commons aggregation
-                    .mockResolvedValueOnce([{ submitterName: 'Test User' }]) // Submitter names aggregation
-                    .mockResolvedValueOnce([{ studyID: 'study-1' }]) // Organizations aggregation
-                    .mockResolvedValueOnce([{ status: NEW }]); // Statuses aggregation
+                    .mockResolvedValueOnce([{ submitter: { fullName: 'Test User' } }]); // Submitter names aggregation
                 
                 prisma.submission.count.mockResolvedValue(1);
             });
@@ -729,7 +744,7 @@ describe('SubmissionDAO', () => {
                 );
             });
 
-            it('should apply aggregations with full filter conditions (including search filters)', async () => {
+            it('should apply search filters to main query and submitterNames aggregation', async () => {
                 // Override the default user studies for this test
                 const testUserInfo = {
                     ...mockUserInfo,
@@ -745,7 +760,7 @@ describe('SubmissionDAO', () => {
 
                 await dao.listSubmissions(testUserInfo, mockUserScope, paramsWithFilters);
 
-                // Verify aggregation queries use the same filter conditions as main query
+                // Verify main query applies search filters
                 expect(prisma.submission.findMany).toHaveBeenCalledWith(
                     expect.objectContaining({
                         where: expect.objectContaining({
@@ -770,6 +785,8 @@ describe('SubmissionDAO', () => {
                         })
                     })
                 );
+                // Note: submitterNames aggregation also uses filterConditions (responds to search filters)
+                // dataCommons are from configuration, organizations query all programs, statuses are a predefined list
             });
         });
 
@@ -841,6 +858,45 @@ describe('SubmissionDAO', () => {
 
         describe('Data Transformation', () => {
             it('should transform submissions with _id and study info', async () => {
+                const testSubmission = {
+                    id: 'sub-1',
+                    name: 'Test Submission 1',
+                    status: NEW,
+                    dataCommons: 'test-commons',
+                    studyID: 'study-1',
+                    dataFileSize: { size: 1024, formatted: '1 KB' },
+                    study: {
+                        id: 'study-1',
+                        studyName: 'Test Study',
+                        studyAbbreviation: 'TS'
+                    },
+                    organization: {
+                        id: 'org-1',
+                        name: 'Test Organization',
+                        abbreviation: 'TO'
+                    },
+                    submitter: {
+                        id: 'submitter-1',
+                        firstName: 'Test',
+                        lastName: 'User',
+                        fullName: 'Test User',
+                        email: 'test@example.com'
+                    },
+                    concierge: null
+                };
+                // findMany is called twice: main query and submitter names (statuses are now a constant)
+                prisma.submission.findMany.mockImplementation((query) => {
+                    // Main query with includes
+                    if (query.include) {
+                        return Promise.resolve([testSubmission]);
+                    }
+                    // Submitter names aggregation
+                    if (query.select?.submitter) {
+                        return Promise.resolve([{ submitter: testSubmission.submitter }]);
+                    }
+                    return Promise.resolve([testSubmission]);
+                });
+
                 const result = await dao.listSubmissions(mockUserInfo, mockUserScope, mockParams);
 
                 expect(result.submissions[0]).toHaveProperty('_id', 'sub-1');
@@ -850,11 +906,43 @@ describe('SubmissionDAO', () => {
 
             it('should transform dataFileSize for deleted/canceled submissions', async () => {
                 const deletedSubmission = {
-                    ...mockSubmissions[0],
+                    id: 'sub-1',
+                    name: 'Test Submission 1',
                     status: DELETED,
-                    dataFileSize: { size: 2048, formatted: '2 KB' }
+                    dataCommons: 'test-commons',
+                    studyID: 'study-1',
+                    dataFileSize: { size: 2048, formatted: '2 KB' },
+                    study: {
+                        id: 'study-1',
+                        studyName: 'Test Study',
+                        studyAbbreviation: 'TS'
+                    },
+                    organization: {
+                        id: 'org-1',
+                        name: 'Test Organization',
+                        abbreviation: 'TO'
+                    },
+                    submitter: {
+                        id: 'submitter-1',
+                        firstName: 'Test',
+                        lastName: 'User',
+                        fullName: 'Test User',
+                        email: 'test@example.com'
+                    },
+                    concierge: null
                 };
-                prisma.submission.findMany.mockResolvedValue([deletedSubmission]);
+                // findMany is called twice: main query and submitter names (statuses are now a constant)
+                prisma.submission.findMany.mockImplementation((query) => {
+                    // Main query with includes
+                    if (query.include) {
+                        return Promise.resolve([deletedSubmission]);
+                    }
+                    // Submitter names aggregation
+                    if (query.select?.submitter) {
+                        return Promise.resolve([{ submitter: deletedSubmission.submitter }]);
+                    }
+                    return Promise.resolve([deletedSubmission]);
+                });
 
                 const result = await dao.listSubmissions(mockUserInfo, mockUserScope, mockParams);
 
@@ -863,11 +951,43 @@ describe('SubmissionDAO', () => {
 
             it('should preserve dataFileSize for active submissions', async () => {
                 const activeSubmission = {
-                    ...mockSubmissions[0],
+                    id: 'sub-1',
+                    name: 'Test Submission 1',
                     status: NEW,
-                    dataFileSize: { size: 1024, formatted: '1 KB' }
+                    dataCommons: 'test-commons',
+                    studyID: 'study-1',
+                    dataFileSize: { size: 1024, formatted: '1 KB' },
+                    study: {
+                        id: 'study-1',
+                        studyName: 'Test Study',
+                        studyAbbreviation: 'TS'
+                    },
+                    organization: {
+                        id: 'org-1',
+                        name: 'Test Organization',
+                        abbreviation: 'TO'
+                    },
+                    submitter: {
+                        id: 'submitter-1',
+                        firstName: 'Test',
+                        lastName: 'User',
+                        fullName: 'Test User',
+                        email: 'test@example.com'
+                    },
+                    concierge: null
                 };
-                prisma.submission.findMany.mockResolvedValue([activeSubmission]);
+                // findMany is called twice: main query and submitter names (statuses are now a constant)
+                prisma.submission.findMany.mockImplementation((query) => {
+                    // Main query with includes
+                    if (query.include) {
+                        return Promise.resolve([activeSubmission]);
+                    }
+                    // Submitter names aggregation
+                    if (query.select?.submitter) {
+                        return Promise.resolve([{ submitter: activeSubmission.submitter }]);
+                    }
+                    return Promise.resolve([activeSubmission]);
+                });
 
                 const result = await dao.listSubmissions(mockUserInfo, mockUserScope, mockParams);
 
@@ -877,15 +997,12 @@ describe('SubmissionDAO', () => {
 
         describe('Aggregations', () => {
             it('should get distinct data commons', async () => {
-                const result = await dao.listSubmissions(mockUserInfo, mockUserScope, mockParams);
+                const mockDataCommonsList = ['test-commons', 'GDC'];
+                const result = await dao.listSubmissions(mockUserInfo, mockUserScope, mockParams, mockDataCommonsList);
 
                 expect(result.dataCommons).toBeDefined();
-                expect(prisma.submission.findMany).toHaveBeenCalledWith(
-                    expect.objectContaining({
-                        select: { dataCommons: true },
-                        distinct: ['dataCommons']
-                    })
-                );
+                expect(result.dataCommons).toEqual(mockDataCommonsList);
+                // Data commons are now returned from configuration, not queried from submissions
             });
 
             it('should get distinct submitter names', async () => {
@@ -894,7 +1011,11 @@ describe('SubmissionDAO', () => {
                 expect(result.submitterNames).toBeDefined();
                 expect(prisma.submission.findMany).toHaveBeenCalledWith(
                     expect.objectContaining({
-                        select: { submitter: true },
+                        include: {
+                            submitter: {
+                                select: { fullName: true }
+                            }
+                        },
                         distinct: ['submitterID']
                     })
                 );
@@ -904,13 +1025,12 @@ describe('SubmissionDAO', () => {
                 const result = await dao.listSubmissions(mockUserInfo, mockUserScope, mockParams);
 
                 expect(result.organizations).toBeDefined();
+                // Organizations are now returned from all programs with Active/Inactive status, not filtered by submissions
                 expect(prisma.program.findMany).toHaveBeenCalledWith(
                     expect.objectContaining({
                         where: {
-                            studies: {
-                                some: {
-                                    id: { in: ['study-1'] }
-                                }
+                            status: {
+                                in: ['Active', 'Inactive']
                             }
                         },
                         select: {
@@ -918,6 +1038,136 @@ describe('SubmissionDAO', () => {
                             name: true,
                             abbreviation: true
                         }
+                    })
+                );
+            });
+
+            it('should return only submitters from filtered submissions', async () => {
+                // Setup: Mock submissions with specific submitters
+                const submitterA = { id: 'user-a', fullName: 'User A' };
+                const submitterB = { id: 'user-b', fullName: 'User B' };
+                
+                // Mock findMany to return different results based on query type
+                prisma.submission.findMany.mockImplementation((query) => {
+                    if (query.include?.submitter) {
+                        // Main query returns submissions with both submitters
+                        return Promise.resolve([
+                            { id: 'sub-1', submitter: submitterA },
+                            { id: 'sub-2', submitter: submitterB }
+                        ]);
+                    }
+                    if (query.distinct?.includes('submitterID')) {
+                        // Submitter aggregation - should use filterConditions
+                        return Promise.resolve([
+                            { submitter: submitterA },
+                            { submitter: submitterB }
+                        ]);
+                    }
+                    return Promise.resolve([]);
+                });
+
+                const result = await dao.listSubmissions(mockUserInfo, mockUserScope, mockParams);
+
+                // Verify submitterNames contains only submitters from the filtered results
+                expect(result.submitterNames).toContain('User A');
+                expect(result.submitterNames).toContain('User B');
+                expect(result.submitterNames).toHaveLength(2);
+            });
+
+            it('should NOT filter submitterNames by the submitterName filter itself', async () => {
+                // This test verifies that when a submitterName filter is applied,
+                // the submitterNames dropdown list shows all available options based on OTHER filters,
+                // NOT filtered by the submitterName filter itself
+
+                const submitterA = { id: 'user-a', fullName: 'User A' };
+                const submitterB = { id: 'user-b', fullName: 'User B' };
+                const submitterC = { id: 'user-c', fullName: 'User C' };
+                
+                let submitterNamesQueryWhere = null;
+                
+                // Mock findMany to capture the where clause for the submitterNames query
+                prisma.submission.findMany.mockImplementation((query) => {
+                    if (query.include?.submitter && !query.distinct) {
+                        // Main query - should include submitterName filter
+                        return Promise.resolve([
+                            { id: 'sub-1', submitter: submitterA, status: NEW, dataCommons: 'GDC' }
+                        ]);
+                    }
+                    if (query.distinct?.includes('submitterID')) {
+                        // Submitter names aggregation - capture the where clause
+                        submitterNamesQueryWhere = query.where;
+                        // Return all submitters (since the query should NOT filter by submitterName)
+                        return Promise.resolve([
+                            { submitter: submitterA },
+                            { submitter: submitterB },
+                            { submitter: submitterC }
+                        ]);
+                    }
+                    return Promise.resolve([]);
+                });
+
+                const paramsWithSubmitterNameFilter = {
+                    ...mockParams,
+                    submitterName: 'User A',
+                    status: [NEW],
+                    dataCommons: 'GDC'
+                };
+
+                const result = await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithSubmitterNameFilter);
+
+                // Verify the submitterNames aggregation query does NOT include the submitterName filter
+                expect(submitterNamesQueryWhere).toBeDefined();
+                expect(submitterNamesQueryWhere).not.toHaveProperty('submitter');
+                
+                // But should still include other filters
+                expect(submitterNamesQueryWhere).toHaveProperty('status');
+                expect(submitterNamesQueryWhere).toHaveProperty('dataCommons');
+
+                // Verify that all submitters are returned (not filtered by submitterName)
+                expect(result.submitterNames).toContain('User A');
+                expect(result.submitterNames).toContain('User B');
+                expect(result.submitterNames).toContain('User C');
+                expect(result.submitterNames).toHaveLength(3);
+            });
+
+            it('should return same organizations regardless of applied filters', async () => {
+                const allOrganizations = [
+                    { id: 'org-1', name: 'Organization 1', abbreviation: 'O1' },
+                    { id: 'org-2', name: 'Organization 2', abbreviation: 'O2' },
+                    { id: 'org-3', name: 'Organization 3', abbreviation: 'O3' }
+                ];
+                
+                prisma.program.findMany.mockResolvedValue(allOrganizations);
+
+                // Test with different filter parameters
+                const paramsWithFilters = {
+                    ...mockParams,
+                    status: [NEW],
+                    dataCommons: 'GDC',
+                    organization: 'Organization 1'
+                };
+
+                const resultWithFilters = await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithFilters);
+                const resultWithoutFilters = await dao.listSubmissions(mockUserInfo, mockUserScope, mockParams);
+
+                // Organizations should be the same regardless of filters
+                expect(resultWithFilters.organizations).toHaveLength(3);
+                expect(resultWithoutFilters.organizations).toHaveLength(3);
+                
+                // Verify organizations query does NOT include submission filters
+                expect(prisma.program.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: {
+                            status: { in: ['Active', 'Inactive'] }
+                        }
+                    })
+                );
+                // Should NOT contain submission-specific filters
+                expect(prisma.program.findMany).not.toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            dataCommons: expect.anything()
+                        })
                     })
                 );
             });
@@ -930,18 +1180,16 @@ describe('SubmissionDAO', () => {
                 
                 const sortedStatuses = result.statuses();
                 expect(sortedStatuses).toBeDefined();
-                expect(prisma.submission.findMany).toHaveBeenCalledWith(
-                    expect.objectContaining({
-                        select: { status: true },
-                        distinct: ['status']
-                    })
-                );
+                // Statuses are now returned as a predefined constant list, not queried from database
+                expect(sortedStatuses).toEqual([NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, COMPLETED, CANCELED, DELETED]);
             });
         });
 
         describe('Error Handling', () => {
             it('should handle Prisma errors gracefully', async () => {
                 const error = new Error('Database connection failed');
+                // Reset mock and set up rejection
+                prisma.submission.findMany.mockReset();
                 prisma.submission.findMany.mockRejectedValue(error);
 
                 await expect(dao.listSubmissions(mockUserInfo, mockUserScope, mockParams))
