@@ -211,7 +211,7 @@ model ApprovedStudy {
   pendingModelChange Boolean?
   createdAt         DateTime @default(now()) @db.Date
   updatedAt         DateTime @updatedAt @db.Date
-  pendingApplicationID String?
+  applicationID String?
   submission Submission[]
   isPendingGPA      Boolean?
   GPAName           String?

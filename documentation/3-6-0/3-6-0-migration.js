@@ -6,7 +6,7 @@
  *         (or directly: node documentation/3-6-0/3-6-0-migration.js)
  * 
  * Migration files:
- * - (Add migration files here as they are created)
+ * - rename-application-id.js: Rename pendingApplicationID to applicationID in ApprovedStudies
  */
 
 const { MongoClient } = require('mongodb');
@@ -72,6 +72,36 @@ async function closeDatabaseConnection(client) {
 
 
 // ============================================================================
+// MIGRATION FUNCTIONS
+// ============================================================================
+
+/**
+ * Execute applicationID migration
+ */
+async function executeApplicationIDMigration(db) {
+    console.log('🔄 Executing applicationID migration...');
+    
+    try {
+        const applicationIDMigration = require('./rename-application-id');
+        
+        // Call the migration function with database connection
+        const result = await applicationIDMigration.migrateApplicationID(db);
+
+        if (result.success) {
+            console.log('✅ applicationID migration completed successfully');
+        } else {
+            console.log('❌ applicationID migration failed');
+        }
+        
+        return result;
+        
+    } catch (error) {
+        console.error('❌ Error executing applicationID migration:', error.message);
+        return { success: false, error: error.message };
+    }
+}
+
+// ============================================================================
 // MIGRATION ORCHESTRATOR
 // ============================================================================
 
@@ -99,7 +129,11 @@ async function orchestrateMigration() {
         //     execute: () => executeMigrationFunction(db)
         // }
         const availableMigrations = [
-            // Add migrations here
+            {
+                name: "Rename pendingApplicationID to applicationID",
+                file: "rename-application-id.js",
+                execute: () => executeApplicationIDMigration(db)
+            }
         ];
         
         // Check if there are any migrations to run
