@@ -375,31 +375,39 @@ describe('Application', () => {
     describe('_listApplicationConditions', () => {
         it('returns correct filter for all scope', () => {
             userScopeMock.isAllScope.mockReturnValue(true);
-            const cond = app._listApplicationConditions('user1', userScopeMock, 'prog', 'study', [NEW], 'John');
+            userScopeMock.isOwnScope.mockReturnValue(false);
+            const cond = app._listApplicationConditions('user1', userScopeMock, 'prog', 'study', 'abbr', [NEW], 'John');
             expect(cond).toHaveProperty('status');
             expect(cond).toHaveProperty('programName');
             expect(cond).toHaveProperty('studyName');
+            expect(cond).toHaveProperty('studyAbbreviation');
             // With the new implementation, applicant name filter uses fullName instead of OR array
             expect(cond).toHaveProperty('applicant');
             expect(cond.applicant).toHaveProperty('is');
             expect(cond.applicant.is).toHaveProperty('fullName');
             expect(cond.applicant.is.fullName).toHaveProperty('contains', 'John');
             expect(cond.applicant.is.fullName).toHaveProperty('mode', 'insensitive');
+            // For all scope, should NOT have applicantID
+            expect(cond).not.toHaveProperty('applicantID');
         });
 
         it('returns correct filter for own scope', () => {
             userScopeMock.isAllScope.mockReturnValue(false);
             userScopeMock.isOwnScope.mockReturnValue(true);
-            const cond = app._listApplicationConditions('user1', userScopeMock, 'prog', 'study', [NEW], 'John');
+            const cond = app._listApplicationConditions('user1', userScopeMock, 'prog', 'study', 'abbr', [NEW], 'John');
             // For own scope, the filter should include applicantID at the root
             expect(cond).toHaveProperty('applicantID', 'user1');
+            expect(cond).toHaveProperty('status');
+            expect(cond).toHaveProperty('programName');
+            expect(cond).toHaveProperty('studyName');
+            expect(cond).toHaveProperty('studyAbbreviation');
         });
 
         it('throws for invalid scope', () => {
             userScopeMock.isAllScope.mockReturnValue(false);
             userScopeMock.isOwnScope.mockReturnValue(false);
             // Accept any error message containing "permission"
-            expect(() => app._listApplicationConditions('user1', userScopeMock, 'prog', 'study', [NEW], 'John'))
+            expect(() => app._listApplicationConditions('user1', userScopeMock, 'prog', 'study', 'abbr', [NEW], 'John'))
                 .toThrow(/permission/i);
         });
     });

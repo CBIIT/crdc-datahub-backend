@@ -84,6 +84,7 @@ type ListApplications {
     applications: [Application]
     programs: [String],
     studies: [String]
+    studyAbbreviations: [String]
     status: [String],
     submitterNames: [String]
 }
@@ -725,6 +726,7 @@ type Query {
     listApplications(
         programName: String,
         studyName: String,
+        studyAbbreviation: String,
         statuses: [String],
         submitterName: String,
         first: Int = -1,

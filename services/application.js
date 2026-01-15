@@ -310,7 +310,7 @@ class Application {
         return {};
     }
 
-    _listApplicationConditions(userID, userScope, programName, studyName, statues, submitterName) {
+    _listApplicationConditions(userID, userScope, programName, studyName, studyAbbreviation, statues, submitterName) {
         const validApplicationStatus = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, CANCELED, REJECTED, DELETED];
         const statusCondition = statues && !statues?.includes(this._ALL_FILTER) ?
             { status: { in: statues || [] } } : { status: { in: validApplicationStatus } };
@@ -321,7 +321,9 @@ class Application {
         const studyQuery = studyName?.trim().length > 0 ? {contains: studyName?.trim().replace(/\\/g, "\\\\"), mode: "insensitive"} : studyName;
         const studyNameCondition = (studyName != null && studyName !== this._ALL_FILTER) ? {studyName: studyQuery} : {};
 
-        const baseConditions = {...statusCondition, ...programNameCondition, ...studyNameCondition, ...submitterNameCondition};
+        const studyAbbreviationCondition = (studyAbbreviation != null && studyAbbreviation !== this._ALL_FILTER) ? {studyAbbreviation: studyAbbreviation} : {};
+
+        const baseConditions = {...statusCondition, ...programNameCondition, ...studyNameCondition, ...studyAbbreviationCondition, ...submitterNameCondition};
         if (userScope.isAllScope()) {
             return baseConditions;
         } else if (userScope.isOwnScope()) {
@@ -351,17 +353,19 @@ class Application {
 
         const filterConditions = [
             // default filter for listing submissions
-            this._listApplicationConditions(userInfo?._id, userScope, params.programName, params.studyName, params.statuses, params?.submitterName),
+            this._listApplicationConditions(userInfo?._id, userScope, params.programName, params.studyName, params.studyAbbreviation, params.statuses, params?.submitterName),
             // note: Aggregation of Program name should not be filtered by its name
-            this._listApplicationConditions(userInfo?._id, userScope, this._ALL_FILTER, params.studyName, params.statuses, params?.submitterName),
+            this._listApplicationConditions(userInfo?._id, userScope, this._ALL_FILTER, params.studyName, params.studyAbbreviation, params.statuses, params?.submitterName),
             // note: Aggregation of Study name should not be filtered by its name
-            this._listApplicationConditions(userInfo?._id, userScope, params.programName, this._ALL_FILTER, params.statuses, params?.submitterName),
+            this._listApplicationConditions(userInfo?._id, userScope, params.programName, this._ALL_FILTER, params.studyAbbreviation, params.statuses, params?.submitterName),
+            //
+            this._listApplicationConditions(userInfo?._id, userScope, params.programName, params.studyName, this._ALL_FILTER, params.statuses, params?.submitterName),
             // note: Aggregation of Statues name should not be filtered by its name
-            this._listApplicationConditions(userInfo?._id, userScope, params.programName, params.studyName, this._ALL_FILTER, params?.submitterName),
+            this._listApplicationConditions(userInfo?._id, userScope, params.programName, params.studyName, params.studyAbbreviation, this._ALL_FILTER, params?.submitterName),
             // note: Aggregation of Submitter name should not be filtered by its name
-            this._listApplicationConditions(userInfo?._id, userScope, params.programName, params.studyName, params.statuses, this._ALL_FILTER),
+            this._listApplicationConditions(userInfo?._id, userScope, params.programName, params.studyName, params.studyAbbreviation, params.statuses, this._ALL_FILTER),
         ];
-        const [listConditions, programCondition, studyNameCondition, statuesCondition, submitterNameCondition] = filterConditions;
+        const [listConditions, programCondition, studyNameCondition, studyAbbreviationCondition, statuesCondition, submitterNameCondition] = filterConditions;
         // convert params.orderBy from orderBy in ["Submitter Name", "Organization", "Study", "Program", "Status", "Submitted Date"] to Application in prisma schema
         let orderBy = params?.orderBy ? params.orderBy : "";
 
@@ -392,6 +396,8 @@ class Application {
             this._getDistinctPrograms(programCondition),
             // note: Study name filter is omitted
             this._getDistinctStudies(studyNameCondition),
+            // note: Study abbreviation filter is omitted
+            this._getDistinctStudyAbbreviations(studyAbbreviationCondition),
             // note: Statues filter is omitted
             this._getDistinctStatus(statuesCondition),
             // note: Submitter name filter is omitted
@@ -417,11 +423,12 @@ class Application {
             total: results[1]?.length,
             programs: results[2] || [],
             studies: results[3] || [],
+            studyAbbreviations: results[4] || [],
             status: () => {
                 const statusOrder = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, INQUIRED, APPROVED, REJECTED, CANCELED, DELETED];
-                return (results[4] || []).sort((a, b) => statusOrder.indexOf(a) - statusOrder.indexOf(b));
+                return (results[5] || []).sort((a, b) => statusOrder.indexOf(a) - statusOrder.indexOf(b));
             },
-            submitterNames: results[5]
+            submitterNames: results[6]
         }
     }
 
@@ -458,6 +465,24 @@ class Application {
             return applications.map(item => item.studyName).filter(Boolean);
         } catch (error) {
             console.error('Error getting distinct submission request _getDistinctStudies:', error);
+            return [];
+        }
+    }
+
+    async _getDistinctStudyAbbreviations(filterConditions) {
+        try {
+            const applications = await this.applicationDAO.findMany(filterConditions, {
+                    ...{include: {
+                            applicant: true,
+                        }},
+                    ...{
+                        distinct: ['studyAbbreviation']
+                    }
+                }
+            );
+            return applications.map(item => item.studyAbbreviation).filter(Boolean);
+        } catch (error) {
+            console.error('Error getting distinct submission request _getDistinctStudyAbbreviations:', error);
             return [];
         }
     }
