@@ -1009,6 +1009,54 @@ describe('ApprovedStudiesService', () => {
             consoleSpy.mockRestore();
         });
 
+        it('should pass applicationID to createApprovedStudies when provided', async () => {
+            const validProgramID = 'valid-program-id-123';
+            const validProgram = { _id: validProgramID, name: 'Test Program' };
+            const applicationID = 'app-789';
+            const studyWithAppID = { ...fakeStudy, applicationID };
+
+            mockOrganizationService.getOrganizationByID.mockResolvedValue(validProgram);
+
+            ApprovedStudies.createApprovedStudies.mockReturnValue(studyWithAppID);
+
+            service.approvedStudyDAO = {
+                create: jest.fn().mockResolvedValue(studyWithAppID)
+            };
+
+            const result = await service.storeApprovedStudies(
+                applicationID, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess,
+                useProgramPC, pendingModelChange, primaryContactID, null, validProgramID
+            );
+
+            // Verify applicationID is passed as first argument
+            const callArgs = ApprovedStudies.createApprovedStudies.mock.calls[0];
+            expect(callArgs[0]).toBe(applicationID);
+
+            expect(result).toBe(studyWithAppID);
+        });
+
+        it('should pass null applicationID to createApprovedStudies when not provided', async () => {
+            const validProgramID = 'valid-program-id-123';
+            const validProgram = { _id: validProgramID, name: 'Test Program' };
+
+            mockOrganizationService.getOrganizationByID.mockResolvedValue(validProgram);
+
+            ApprovedStudies.createApprovedStudies.mockReturnValue(fakeStudy);
+
+            service.approvedStudyDAO = {
+                create: jest.fn().mockResolvedValue(fakeStudy)
+            };
+
+            await service.storeApprovedStudies(
+                null, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess,
+                useProgramPC, pendingModelChange, primaryContactID, null, validProgramID
+            );
+
+            // Verify applicationID is null as first argument
+            const callArgs = ApprovedStudies.createApprovedStudies.mock.calls[0];
+            expect(callArgs[0]).toBeNull();
+        });
+
         describe('NA program fallback behavior', () => {
             const mockNAProgram = {
                 _id: '437e864a-621b-40f5-b214-3dc368137081',

@@ -642,6 +642,53 @@ describe('Application', () => {
             const args = mockApprovedStudiesService.storeApprovedStudies.mock.calls[0];
             expect(args[3]).toBeNull();
         });
+
+        it('should pass application ID as first argument to storeApprovedStudies', async () => {
+            const aApplication = {
+                _id: 'app-123',
+                studyName: 'Study One',
+                studyAbbreviation: 'STUDY1',
+                organization: { name: 'Org One' },
+                controlledAccess: true,
+                ORCID: '0000-0001',
+                PI: 'PI Name',
+                openAccess: false,
+                programName: 'Program One',
+            };
+            const questionnaire = {
+                study: { name: 'Study One Name', dbGaPPPHSNumber: 'phs001234' },
+            };
+            mockApprovedStudiesService.storeApprovedStudies.mockResolvedValue({ _id: 'approvedStudy1' });
+
+            await app._saveApprovedStudies(aApplication, questionnaire, false, false, null);
+
+            expect(mockApprovedStudiesService.storeApprovedStudies).toHaveBeenCalled();
+            const args = mockApprovedStudiesService.storeApprovedStudies.mock.calls[0];
+            expect(args[0]).toBe('app-123'); // applicationID should be first argument
+        });
+
+        it('should pass undefined applicationID when application has no _id', async () => {
+            const aApplication = {
+                studyName: 'Study One',
+                studyAbbreviation: 'STUDY1',
+                organization: { name: 'Org One' },
+                controlledAccess: true,
+                ORCID: '0000-0001',
+                PI: 'PI Name',
+                openAccess: false,
+                programName: 'Program One',
+            };
+            const questionnaire = {
+                study: { name: 'Study One Name', dbGaPPPHSNumber: 'phs001234' },
+            };
+            mockApprovedStudiesService.storeApprovedStudies.mockResolvedValue({ _id: 'approvedStudy1' });
+
+            await app._saveApprovedStudies(aApplication, questionnaire, false, false, null);
+
+            expect(mockApprovedStudiesService.storeApprovedStudies).toHaveBeenCalled();
+            const args = mockApprovedStudiesService.storeApprovedStudies.mock.calls[0];
+            expect(args[0]).toBeUndefined(); // applicationID should be undefined when no _id
+        });
     });
 
     // The file already contains comprehensive unit tests for the Application service.
