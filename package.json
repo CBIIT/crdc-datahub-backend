@@ -32,7 +32,7 @@
     "mongodb": "^5.5.0",
     "morgan": "^1.10.0",
     "node-cron": "^3.0.2",
-    "nodemailer": "^6.9.3",
+    "nodemailer": "^7.0.12",
     "prisma-pagination": "^0.2.3",
     "sanitize-html": "^2.13.1",
     "semver": "^7.5.4",
