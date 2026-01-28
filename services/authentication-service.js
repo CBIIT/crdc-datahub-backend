@@ -20,7 +20,8 @@ class AuthenticationService {
         if (isTokenInRequest){
             token = token.split(' ')[1];
             const tokenUserInfo = decodeToken(token, config.token_secret);
-            const userID = tokenUserInfo?._id;
+            // Support both new format (sub) and legacy format (_id) for backwards compatibility
+            const userID = tokenUserInfo?.sub || tokenUserInfo?._id;
             if (!userID) {
                 // token does not contain a user id
                 throw new Error(ERROR.INVALID_TOKEN_NO_USER_ID);
