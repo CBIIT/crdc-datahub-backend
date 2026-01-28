@@ -378,7 +378,7 @@ class ApprovedStudiesService {
         const allPendingsCleared = !isTrue(updateStudy?.pendingModelChange) && !pendingGPA && !pendingDbGaPID;
         const wasPendingDbGaPID = isTrue(updateStudy.controlledAccess) ? !Boolean(currDbGaPID) : false;
         const hadPendingsConditions = isTrue(currPendingModelChange) || isTrue(currPendingGPA) || wasPendingDbGaPID;
-        if (allPendingsCleared && hadPendingsConditions && updateStudy?.pendingApplicationID) {
+        if (allPendingsCleared && hadPendingsConditions && updateStudy?.applicationID) {
             await this._notifyClearPendingState(updateStudy);
         }
 
@@ -413,10 +413,10 @@ class ApprovedStudiesService {
     async _notifyClearPendingState(updateStudy) {
         const errorMsg = replaceErrorString(ERROR.FAILED_TO_NOTIFY_CLEAR_PENDING_STATE, `studyID: ${updateStudy?._id}`);
         try{
-            const application = await this.applicationDAO.findFirst({id: updateStudy.pendingApplicationID});
+            const application = await this.applicationDAO.findFirst({id: updateStudy.applicationID});
             if (!application || !application?._id) {
                 // internal error for the logs, this will not be displayed to the user
-                throw new Error("Unable to find application with ID: " + updateStudy.pendingApplicationID);
+                throw new Error("Unable to find application with ID: " + updateStudy.applicationID);
             }
 
             const aSubmitter = await this.userDAO.findFirst({id: application?.applicantID});

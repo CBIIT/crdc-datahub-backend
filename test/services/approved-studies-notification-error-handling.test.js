@@ -140,7 +140,7 @@ describe('ApprovedStudiesService - Notification Error Handling', () => {
             useProgramPC: false,
             pendingModelChange: true, // Was pending, now cleared
             isPendingGPA: true, // Was pending, now cleared
-            pendingApplicationID: 'app-id'
+            applicationID: 'app-id'
         };
 
         const mockPrimaryContact = {
@@ -279,7 +279,7 @@ describe('ApprovedStudiesService - Notification Error Handling', () => {
                 expect(notificationSpy).toHaveBeenCalledWith(expect.objectContaining({
                     _id: 'study-id',
                     studyName: 'Updated Study',
-                    pendingApplicationID: 'app-id'
+                    applicationID: 'app-id'
                 }));
             });
 
