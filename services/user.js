@@ -34,9 +34,11 @@ const isValidUserStatus = (userStatus) => {
     if (userStatus && !validUserStatus.includes(userStatus)) throw new Error(SUBMODULE_ERROR.INVALID_USER_STATUS);
 }
 
-const createToken = (userInfo, token_secret, token_timeout)=> {
+const createToken = (userID, token_secret, token_timeout)=> {
     return jwt.sign(
-        userInfo,
+        // sub (Subject) is used to follow JWT naming conventions
+        // https://www.iana.org/go/rfc7519#section-4.1.2
+        { sub: userID },
         token_secret,
         { expiresIn: token_timeout });
 }
@@ -133,10 +135,14 @@ class UserService {
     async grantToken(params, context){
         isLoggedInOrThrow(context);
         isValidUserStatus(context?.userInfo?.userStatus);
+        if (!context?.userInfo?._id) {
+            console.error("Cannot create a token because the User ID is missing from the context");
+            throw new Error(SUBMODULE_ERROR.INVALID_USERID);
+        }
         if(context?.userInfo?.tokens){
             context.userInfo.tokens = []
         }
-        const accessToken = createToken(context?.userInfo, config.token_secret, config.token_timeout);
+        const accessToken = createToken(context.userInfo._id, config.token_secret, config.token_timeout);
         await this.linkTokentoUser(context, accessToken);
         return {
             tokens: [accessToken],
