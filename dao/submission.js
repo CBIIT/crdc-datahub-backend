@@ -125,7 +125,8 @@ class SubmissionDAO extends GenericDAO {
                 select: {
                     id: true,
                     studyName: true,
-                    studyAbbreviation: true
+                    studyAbbreviation: true,
+                    applicationID: true
                 }
             },
             organization: {
@@ -193,6 +194,7 @@ class SubmissionDAO extends GenericDAO {
                 submitterName: submission?.submitter?.fullName || "",
                 conciergeName: submission?.concierge?.fullName || "",
                 conciergeEmail: submission?.concierge?.email || "",
+                submissionRequestID: submission?.study?.applicationID || null,
             }));
 
             return {

@@ -1,4 +1,5 @@
 const {createHandler} = require("graphql-http/lib/use/express");
+const {assertValidSchema} = require("graphql");
 const configuration = require("../config");
 
 const {Application} = require("../services/application");
@@ -57,6 +58,9 @@ const schema = constraintDirective()(
         typeDefs: [constraintDirectiveTypeDefs, typeDefs],
     })
 );
+
+// Validate schema at startup - throws if invalid (e.g., missing interface fields)
+assertValidSchema(schema);
 
 const public_api_list = extractAPINames(schema, PUBLIC)
 let root;

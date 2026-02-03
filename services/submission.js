@@ -50,6 +50,7 @@ const DataRecordDAO = require("../dao/dataRecords");
 const PERMISSION_SCOPES = require("../constants/permission-scope-constants");
 const BatchDAO = require("../dao/batch");
 const FILE = "file";
+const ApplicationDAO = require("../dao/application");
 
 const DATA_MODEL_SEMANTICS = 'semantics';
 const DATA_MODEL_FILE_NODES = 'file-nodes';
@@ -107,6 +108,7 @@ class Submission {
         this.batchDAO = new BatchDAO();
         this.approvedStudyDAO = new ApprovedStudyDAO();
         this.validationDAO = new ValidationDAO();
+        this.applicationDAO = new ApplicationDAO();
     }
 
     /**
@@ -121,6 +123,83 @@ class Submission {
             updateData.updatedAt = includeTimestamp === true ? getCurrentTime() : includeTimestamp;
         }
         return updateData;
+    }
+
+    /**
+     * Appends submissionRequestID and canViewSubmissionRequest fields to submission(s)
+     * @param {Object|Array|null} submissions - Single submission, array of submissions, or null/undefined
+     * @param {Object} userInfo - Current user's info
+     * @returns {Promise<Object|Array|null>} Enriched submission(s), or null/undefined if input was null/undefined
+     */
+    async _appendSubmissionRequestAndViewPermissions(submissions, userInfo) {
+        // Return early if submissions is null/undefined
+        if (submissions == null) {
+            return submissions;
+        }
+        
+        const isArray = Array.isArray(submissions);
+        const submissionList = isArray ? submissions : [submissions];
+        
+        // Collect unique applicationIDs that need ownership check
+        const applicationIDs = [...new Set(
+            submissionList
+                .map(s => s.submissionRequestID)
+                .filter(Boolean)
+        )];
+        
+        // If no applicationIDs, skip permission check and return early
+        if (applicationIDs.length === 0) {
+            const enriched = submissionList.map(s => ({
+                ...s,
+                canViewSubmissionRequest: false
+            }));
+            return isArray ? enriched : enriched[0];
+        }
+        
+        // Get user's scope for SUBMISSION_REQUEST.VIEW permission
+        const validScopes = await this.authorizationService.getPermissionScope(
+            userInfo, 
+            USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW
+        );
+        const userScope = UserScope.create(validScopes);
+        
+        // If user has no permission, set all to false
+        if (userScope.isNoneScope()) {
+            const enriched = submissionList.map(s => ({
+                ...s,
+                canViewSubmissionRequest: false
+            }));
+            return isArray ? enriched : enriched[0];
+        }
+        
+        // If ALL scope, set all with applicationID to true
+        if (userScope.isAllScope()) {
+            const enriched = submissionList.map(s => ({
+                ...s,
+                canViewSubmissionRequest: !!s.submissionRequestID
+            }));
+            return isArray ? enriched : enriched[0];
+        }
+        
+        // OWN scope - batch load applications to check ownership
+        const applications = await this.applicationDAO.findMany({
+            id: { in: applicationIDs }
+        }, {
+            select: { id: true, applicantID: true }
+        });
+        
+        const applicantMap = new Map(
+            applications.map(app => [app.id, app.applicantID])
+        );
+        
+        const enriched = submissionList.map(s => ({
+            ...s,
+            canViewSubmissionRequest: s.submissionRequestID 
+                ? applicantMap.get(s.submissionRequestID) === userInfo?._id
+                : false
+        }));
+        
+        return isArray ? enriched : enriched[0];
     }
 
     async createSubmission(params, context) {
@@ -235,7 +314,10 @@ class Submission {
         }
         const dataCommonsList = Array.from(this.allowedDataCommons).filter(dc => !this.hiddenDataCommons.has(dc));
         const res = await this.submissionDAO.listSubmissions(context?.userInfo, userScope, params, dataCommonsList);
-        return getDataCommonsDisplayNamesForListSubmissions(res);
+        const transformedRes = getDataCommonsDisplayNamesForListSubmissions(res);
+        // Add canViewSubmissionRequest field to submissions
+        transformedRes.submissions = await this._appendSubmissionRequestAndViewPermissions(transformedRes?.submissions, context?.userInfo);
+        return transformedRes;
     }
 
     async createBatch(params, context) {
