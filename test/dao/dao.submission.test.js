@@ -364,6 +364,96 @@ describe('SubmissionDAO', () => {
                     })
                 );
             });
+
+            it('should apply default status filter when status array contains "All"', async () => {
+                const paramsWithAllStatus = { ...mockParams, status: ['All'] };
+
+                await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithAllStatus);
+
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            status: { in: expect.arrayContaining([NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED, REJECTED, WITHDRAWN, DELETED]) }
+                        })
+                    })
+                );
+            });
+
+            it('should apply default status filter when status array contains "All" with other values', async () => {
+                const paramsWithAllAndOtherStatus = { ...mockParams, status: ['All', NEW, SUBMITTED] };
+
+                await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithAllAndOtherStatus);
+
+                // Should use default valid statuses, not the array with "All"
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            status: { in: expect.arrayContaining([NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED, REJECTED, WITHDRAWN, DELETED]) }
+                        })
+                    })
+                );
+                // Should NOT use the array with "All" in it
+                expect(prisma.submission.findMany).not.toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            status: { in: ['All', NEW, SUBMITTED] }
+                        })
+                    })
+                );
+            });
+
+            it('should apply status filter with single status value', async () => {
+                const paramsWithSingleStatus = { ...mockParams, status: [NEW] };
+
+                await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithSingleStatus);
+
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            status: { in: [NEW] }
+                        })
+                    })
+                );
+            });
+
+            it('should apply status filter with all valid statuses explicitly listed', async () => {
+                const allValidStatuses = [NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED, REJECTED, WITHDRAWN, DELETED];
+                const paramsWithAllStatuses = { ...mockParams, status: allValidStatuses };
+
+                await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithAllStatuses);
+
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            status: { in: expect.arrayContaining(allValidStatuses) }
+                        })
+                    })
+                );
+            });
+
+            it('should apply status filter correctly when combined with other filters', async () => {
+                const paramsWithStatusAndOtherFilters = {
+                    ...mockParams,
+                    status: [NEW, SUBMITTED],
+                    name: 'Test Submission',
+                    organization: 'Test Org'
+                };
+
+                await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithStatusAndOtherFilters);
+
+                expect(prisma.submission.findMany).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        where: expect.objectContaining({
+                            status: { in: [NEW, SUBMITTED] },
+                            name: {
+                                contains: 'Test Submission',
+                                mode: 'insensitive'
+                            },
+                            programID: 'Test Org'
+                        })
+                    })
+                );
+            });
         });
 
         describe('Filter Application', () => {
@@ -656,7 +746,7 @@ describe('SubmissionDAO', () => {
                 );
             });
 
-            it('should not apply status filter when status is explicitly provided as empty array', async () => {
+            it('should apply status filter with empty array when status is explicitly provided as empty array', async () => {
                 // Override the default user studies for this test
                 const testUserInfo = {
                     ...mockUserInfo,
@@ -670,7 +760,7 @@ describe('SubmissionDAO', () => {
 
                 await dao.listSubmissions(testUserInfo, mockUserScope, paramsWithEmptyStatus);
 
-                // Verify that no status filter is applied when status array is empty
+                // Verify that status filter with empty array IS applied when status array is empty
                 expect(prisma.submission.findMany).toHaveBeenCalledWith(
                     expect.objectContaining({
                         where: expect.objectContaining({
@@ -685,22 +775,14 @@ describe('SubmissionDAO', () => {
                                         }
                                     }
                                 }
-                            ])
-                        })
-                    })
-                );
-
-                // Should NOT include status filter when array is empty
-                expect(prisma.submission.findMany).toHaveBeenCalledWith(
-                    expect.objectContaining({
-                        where: expect.not.objectContaining({
-                            status: expect.anything()
+                            ]),
+                            status: { in: [] }
                         })
                     })
                 );
             });
 
-            it('should not apply default status filter when status is null', async () => {
+            it('should apply default status filter when status is null', async () => {
                 // Override the default user studies for this test
                 const testUserInfo = {
                     ...mockUserInfo,
@@ -714,7 +796,7 @@ describe('SubmissionDAO', () => {
 
                 await dao.listSubmissions(testUserInfo, mockUserScope, paramsWithNullStatus);
 
-                // Verify no status filter is applied
+                // Verify default status filter is applied when status is null (matching listApplications behavior)
                 expect(prisma.submission.findMany).toHaveBeenCalledWith(
                     expect.objectContaining({
                         where: expect.objectContaining({
@@ -729,16 +811,44 @@ describe('SubmissionDAO', () => {
                                         }
                                     }
                                 }
-                            ])
+                            ]),
+                            status: { in: expect.arrayContaining([NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED, REJECTED, WITHDRAWN, DELETED]) }
                         })
                     })
                 );
+            });
 
-                // Should NOT include status filter
+            it('should apply default status filter when status is undefined', async () => {
+                // Override the default user studies for this test
+                const testUserInfo = {
+                    ...mockUserInfo,
+                    studies: [{ _id: 'study-1' }]
+                };
+
+                const paramsWithUndefinedStatus = {
+                    ...mockParams,
+                    status: undefined
+                };
+
+                await dao.listSubmissions(testUserInfo, mockUserScope, paramsWithUndefinedStatus);
+
+                // Verify default status filter is applied when status is undefined (should behave same as null)
                 expect(prisma.submission.findMany).toHaveBeenCalledWith(
                     expect.objectContaining({
-                        where: expect.not.objectContaining({
-                            status: expect.anything()
+                        where: expect.objectContaining({
+                            studyID: { in: ['study-1'] },
+                            OR: expect.arrayContaining([
+                                { submitterID: 'test_user_id' },
+                                {
+                                    collaborators: {
+                                        some: {
+                                            collaboratorID: 'test_user_id',
+                                            permission: { in: [COLLABORATOR_PERMISSIONS.CAN_EDIT] }
+                                        }
+                                    }
+                                }
+                            ]),
+                            status: { in: expect.arrayContaining([NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED, REJECTED, WITHDRAWN, DELETED]) }
                         })
                     })
                 );
@@ -1182,6 +1292,63 @@ describe('SubmissionDAO', () => {
                 expect(sortedStatuses).toBeDefined();
                 // Statuses are now returned as a predefined constant list, not queried from database
                 expect(sortedStatuses).toEqual([NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, COMPLETED, CANCELED, DELETED]);
+            });
+
+            it('should return all required fields in correct structure', async () => {
+                const result = await dao.listSubmissions(mockUserInfo, mockUserScope, mockParams);
+
+                // Verify all required fields are present
+                expect(result).toHaveProperty('submissions');
+                expect(result).toHaveProperty('total');
+                expect(result).toHaveProperty('dataCommons');
+                expect(result).toHaveProperty('submitterNames');
+                expect(result).toHaveProperty('organizations');
+                expect(result).toHaveProperty('statuses');
+
+                // Verify field types
+                expect(Array.isArray(result.submissions)).toBe(true);
+                expect(typeof result.total).toBe('number');
+                expect(Array.isArray(result.dataCommons)).toBe(true);
+                expect(Array.isArray(result.submitterNames)).toBe(true);
+                expect(Array.isArray(result.organizations)).toBe(true);
+                // Note: statuses type and behavior validation is covered in "should get distinct statuses with proper sorting" and "should return statuses as function that returns sorted array" tests
+            });
+
+            it('should return statuses as function that returns sorted array', async () => {
+                const result = await dao.listSubmissions(mockUserInfo, mockUserScope, mockParams);
+
+                // Verify statuses is a function
+                expect(typeof result.statuses).toBe('function');
+                
+                // Verify calling the function returns an array
+                const statusesArray = result.statuses();
+                expect(Array.isArray(statusesArray)).toBe(true);
+                
+                // Verify returned array matches expected sorted statuses
+                expect(statusesArray).toEqual([NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, COMPLETED, CANCELED, DELETED]);
+            });
+        });
+
+        describe('Validation', () => {
+            it('should throw error when invalid status value is provided', async () => {
+                const paramsWithInvalidStatus = {
+                    ...mockParams,
+                    status: ['InvalidStatus']
+                };
+
+                await expect(dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithInvalidStatus))
+                    .rejects.toThrow(ERROR.LIST_SUBMISSION_INVALID_STATUS_FILTER);
+            });
+
+            it('should throw error when multiple invalid status values are provided', async () => {
+                const paramsWithMultipleInvalidStatuses = {
+                    ...mockParams,
+                    status: ['Invalid1', 'Invalid2', NEW]
+                };
+
+                // Verify error is thrown with the correct error message
+                await expect(dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithMultipleInvalidStatuses))
+                    .rejects.toThrow(ERROR.LIST_SUBMISSION_INVALID_STATUS_FILTER);
             });
         });
 

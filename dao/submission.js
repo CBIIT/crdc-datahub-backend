@@ -302,16 +302,11 @@ class SubmissionDAO extends GenericDAO {
         if (organization && organization !== ALL_FILTER) {
             baseConditions.programID = organization.trim();
         }
-        // Add status filter if specified
-        if (status && !status?.includes(ALL_FILTER)) {
-            // Only add status filter if there are actual statuses to filter by
-            if (status.length > 0) {
-                baseConditions.status = { in: status };
-            }
-        } else if (status !== null) {
-            // Only set default status filter if status parameter was explicitly provided
-            baseConditions.status = { in: validSubmissionStatus };
-        }
+        // Add status filter
+        // If status is provided and doesn't include "All", use it (even if empty array)
+        // Otherwise (null/undefined or includes "All"), use default valid statuses
+        baseConditions.status = status && !status?.includes(ALL_FILTER) ?
+            { in: status || [] } : { in: validSubmissionStatus };
         // Add filter for submission name if specified
         // This filter is a regex search on the submission name (case-insensitive)
         if (submissionName) {
