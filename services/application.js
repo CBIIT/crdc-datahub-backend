@@ -325,13 +325,19 @@ class Application {
         const validStatuses = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED, CANCELED, DELETED, this._ALL_FILTER];
         const validStatusesLower = new Set(validStatuses.map(s => String(s).toLowerCase()));
         const statusesParameter = params?.statuses;
-        if (statusesParameter && statusesParameter.length > 0) {
-            statusesParameter.forEach(status => {
-                const statusLower = (status != null ? String(status) : '').toLowerCase();
-                if (!validStatusesLower.has(statusLower)) {
-                    throw new Error(replaceErrorString(ERROR.APPLICATION_INVALID_STATUSES, `'${status}'`));
-                }
-            });
+        if (statusesParameter != null) {
+            if (!Array.isArray(statusesParameter)) {
+                console.error(ERROR.LIST_APPLICATIONS_INVALID_PARAMS, { statuses: statusesParameter });
+                throw new Error(ERROR.LIST_APPLICATIONS_INVALID_PARAMS);
+            }
+            if (statusesParameter.length > 0) {
+                statusesParameter.forEach(status => {
+                    const statusLower = (status != null ? String(status) : '').toLowerCase();
+                    if (!validStatusesLower.has(statusLower)) {
+                        throw new Error(replaceErrorString(ERROR.APPLICATION_INVALID_STATUSES, `'${status}'`));
+                    }
+                });
+            }
         }
         // Validate orderBy parameter, case insensitive
         const validOrderByValues = Object.keys(MAP_ORDER_BY_LIST_APPLICATIONS);
@@ -352,7 +358,7 @@ class Application {
             console.error(ERROR.LIST_APPLICATIONS_INVALID_PARAMS, { sortDirection: params?.sortDirection });
             throw new Error(ERROR.LIST_APPLICATIONS_INVALID_PARAMS);
         }
-        // Validate first parameter, must be a positive integer or -1
+        // Validate first parameter when provided: must be a positive integer or -1
         const first = params?.first;
         if (first !== undefined && first !== null) {
             const firstNum = Number(first);
@@ -361,7 +367,7 @@ class Application {
                 throw new Error(ERROR.LIST_APPLICATIONS_INVALID_PARAMS);
             }
         }
-        // Validate offset parameter, must be a non-negative integer
+        // Validate offset parameter when provided: must be a non-negative integer
         const offset = params?.offset;
         if (offset !== undefined && offset !== null) {
             const offsetNum = Number(offset);
@@ -370,8 +376,8 @@ class Application {
                 throw new Error(ERROR.LIST_APPLICATIONS_INVALID_PARAMS);
             }
         }
-        // Return the orderBy parameter mapped to the Prisma field name
-        return { orderByPrisma };
+        // Return orderBy and sortDirection for pagination
+        return { orderByPrisma, sortDirection };
     }
 
     async listApplications(params, context) {
@@ -400,7 +406,7 @@ class Application {
         }
 
         // Validate list applications parameters and map the orderBy parameter to the Prisma field name
-        const { orderByPrisma } = this._validateListApplicationsParams(params);
+        const { orderByPrisma, sortDirection } = this._validateListApplicationsParams(params);
 
         // Build filter conditions:
         // Statuses filter: ignored if input is falsy, empty array, or contains "All" (case-insensitive).
@@ -435,7 +441,7 @@ class Application {
             ? { ...baseConditions, applicantID: userInfo?._id }
             : baseConditions;
         // Create pagination object
-        const pagination = new PrismaPagination(params?.first, params?.offset, orderByPrisma, params?.sortDirection);
+        const pagination = new PrismaPagination(params?.first, params?.offset, orderByPrisma, sortDirection);
         // Include query for applicant information
         const includeQuery = {
             include: {
@@ -522,7 +528,7 @@ class Application {
             }
             // Log the error, format it and rethrow
             console.error(ERROR.LIST_APPLICATIONS_FETCH_FAILED, err);
-            throw new Error(ERROR.LIST_APPLICATIONS_FETCH_FAILED + "Please see logs for more information.");
+            throw new Error(ERROR.LIST_APPLICATIONS_FETCH_FAILED + " Please see logs for more information.");
         }
 
         // Format application list

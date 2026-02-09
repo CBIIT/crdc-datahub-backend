@@ -421,6 +421,13 @@ describe('Application', () => {
             expect(result.submitterNames).toEqual([]);
         });
 
+        it('throws LIST_APPLICATIONS_INVALID_PARAMS when params.statuses is not an array', async () => {
+            await expect(app.listApplications({ statuses: 'APPROVED' }, context))
+                .rejects.toThrow(ERROR.LIST_APPLICATIONS_INVALID_PARAMS);
+            await expect(app.listApplications({ statuses: {} }, context))
+                .rejects.toThrow(ERROR.LIST_APPLICATIONS_INVALID_PARAMS);
+        });
+
         it('throws APPLICATION_INVALID_STATUSES for invalid status in params.statuses', async () => {
             await expect(app.listApplications({ statuses: ['InvalidStatus'] }, context))
                 .rejects.toThrow(/Requested statuses.*are not valid/);
