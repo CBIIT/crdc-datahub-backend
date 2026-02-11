@@ -532,9 +532,11 @@ class Application {
             throw new Error(ERROR.LIST_APPLICATIONS_FETCH_FAILED + " Please see logs for more information.");
         }
 
-        // Format application list
+        // Format application list (run _checkConditionalApproval sequentially to avoid DB/read spikes when first = -1 or large)
         const approvedApps = applications.filter(a => a.status === APPROVED);
-        await Promise.all(approvedApps.map(app => this._checkConditionalApproval(app)));
+        for (const app of approvedApps) {
+            await this._checkConditionalApproval(app);
+        }
         applications.forEach((app) => {
             app.applicant = {
                 applicantID: app?.applicant ? app?.applicant?.id : "",
