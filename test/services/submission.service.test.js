@@ -24,7 +24,10 @@ jest.mock('../../services/configurationService');
 jest.mock('../../services/data-model-service');
 jest.mock('../../services/authorization-service');
 jest.mock('../../services/qc-result-service');
-jest.mock('../../utility/data-commons-remapper');
+jest.mock('../../utility/data-commons-remapper', () => ({
+    getDataCommonsDisplayNamesForSubmission: jest.fn(submission => submission),
+    getDataCommonsDisplayNamesForListSubmissions: jest.fn(res => res)
+}));
 jest.mock('../../utility/validation-handler');
 jest.mock('../../verifier/user-info-verifier');
 jest.mock('../../verifier/submission-verifier');
@@ -69,6 +72,15 @@ const createMockUserScope = (isNoneScope = false, isAllScope = false, isOwnScope
         hasDCValue: jest.fn().mockReturnValue(false),
         hasAccessToStudy: jest.fn().mockReturnValue(false)
     };
+};
+
+// Helper function to create mock for _appendSubmissionRequestAndViewPermissions
+const createMockAppendSubmissionRequestPermissions = () => {
+    return jest.fn().mockImplementation((submissions) => Promise.resolve(
+        Array.isArray(submissions)
+            ? submissions.map(s => ({ ...s, canViewSubmissionRequest: false }))
+            : { ...submissions, canViewSubmissionRequest: false }
+    ));
 };
 
 describe('Submission Service - getSubmission', () => {
@@ -1874,6 +1886,9 @@ describe('Submission Service - listSubmissions', () => {
             createMockUserScope(false, true, false, false, false)
         );
 
+        // Mock _appendSubmissionRequestAndViewPermissions to return submissions with canViewSubmissionRequest
+        submissionService._appendSubmissionRequestAndViewPermissions = createMockAppendSubmissionRequestPermissions();
+
         mockContext = {
             userInfo: {
                 _id: 'user-123',
@@ -1914,6 +1929,7 @@ describe('Submission Service - listSubmissions', () => {
         serviceNoHidden._getUserScope = jest.fn().mockResolvedValue(
             createMockUserScope(false, true, false, false, false)
         );
+        serviceNoHidden._appendSubmissionRequestAndViewPermissions = createMockAppendSubmissionRequestPermissions();
 
         await serviceNoHidden.listSubmissions({}, mockContext);
 
@@ -1936,6 +1952,7 @@ describe('Submission Service - listSubmissions', () => {
         serviceAllHidden._getUserScope = jest.fn().mockResolvedValue(
             createMockUserScope(false, true, false, false, false)
         );
+        serviceAllHidden._appendSubmissionRequestAndViewPermissions = createMockAppendSubmissionRequestPermissions();
 
         await serviceAllHidden.listSubmissions({}, mockContext);
 
