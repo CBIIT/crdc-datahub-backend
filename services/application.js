@@ -52,6 +52,7 @@ class Application {
         this.institionDAO = new InstitutionDAO()
         this.applicationDAO = new ApplicationDAO();
         this.userDAO = new UserDAO();
+        this._VALID_LIST_APPLICATION_STATUSES = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED, CANCELED, DELETED, this._ALL_FILTER];
     }
 
     async getApplication(params, context) {
@@ -322,8 +323,7 @@ class Application {
 
     _validateListApplicationsParams(params) {
         // Validate statuses, case insensitive
-        const validStatuses = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED, CANCELED, DELETED, this._ALL_FILTER];
-        const validStatusesLower = new Set(validStatuses.map(s => String(s).toLowerCase()));
+        const validStatusesLower = new Set(this._VALID_LIST_APPLICATION_STATUSES.map(s => String(s).toLowerCase()));
         const statusesParameter = params?.statuses;
         if (statusesParameter != null) {
             if (!Array.isArray(statusesParameter)) {
@@ -346,9 +346,9 @@ class Application {
         if (orderByInput) {
             const matchingKey = validOrderByValues.find((k) => k.toLowerCase() === orderByInput.toLowerCase());
             if (!matchingKey) {
-                const validList = validOrderByValues.sort().join(", ");
-                console.error(ERROR.LIST_APPLICATIONS_INVALID_PARAMS, { orderBy: orderByInput, validOrderByValues: validList });
-                throw new Error(ERROR.LIST_APPLICATIONS_INVALID_PARAMS + " Valid orderBy values: " + validList);
+                const validOrderByValuesString = [...validOrderByValues].sort().join(", ");
+                console.error(ERROR.LIST_APPLICATIONS_INVALID_PARAMS, { orderBy: orderByInput, validOrderByValues: validOrderByValuesString });
+                throw new Error(ERROR.LIST_APPLICATIONS_INVALID_PARAMS + " Valid orderBy values: " + validOrderByValuesString);
             }
             orderByPrisma = MAP_ORDER_BY_LIST_APPLICATIONS[matchingKey];
         }
@@ -393,7 +393,8 @@ class Application {
         const userScopesList = await this.authorizationService.getPermissionScope(userInfo, USER_PERMISSION_CONSTANTS.SUBMISSION_REQUEST.VIEW);
         const userScope = UserScope.create(userScopesList);
         if (!userScope.isAllScope() && !userScope.isOwnScope()) {
-            console.error(ERROR.VERIFY.INVALID_PERMISSION);
+            console.warn(ERROR.VERIFY.INVALID_PERMISSION + ": list submission requests");
+            console.warn("Triggered by user: " + userInfo?._id);
             return {
                 applications: [],
                 total: 0,
@@ -410,12 +411,12 @@ class Application {
 
         // Build filter conditions:
         // Statuses filter: ignored if input is falsy, empty array, or contains "All" (case-insensitive).
-        // Normalize statuses to canonical case (e.g. "New", "In Progress") for Prisma, since DB stores title case.
+        // Normalize statuses to proper case (e.g. "New", "In Progress") for Prisma, since DB stores title case.
         const statusesParam = params?.statuses;
         const applyStatusesFilter = statusesParam != null && Array.isArray(statusesParam) && statusesParam.length > 0
             && !statusesParam.some((s) => typeof s === 'string' && s.toLowerCase() === 'all');
-        const canonicalStatuses = [NEW, IN_PROGRESS, SUBMITTED, IN_REVIEW, APPROVED, INQUIRED, REJECTED, CANCELED, DELETED, this._ALL_FILTER];
-        const statusLowerToCanonical = new Map(canonicalStatuses.map(s => [String(s).toLowerCase(), s]));
+        // Map statuses to proper case (e.g. "New", "In Progress") for Prisma, since DB stores title case.
+        const statusLowerToCanonical = new Map(this._VALID_LIST_APPLICATION_STATUSES.map(s => [String(s).toLowerCase(), s]));
         const statusesForQuery = applyStatusesFilter
             ? (statusesParam || []).map(s => statusLowerToCanonical.get((s != null ? String(s) : '').toLowerCase())).filter(Boolean).filter(s => s !== this._ALL_FILTER)
             : [];
@@ -516,7 +517,7 @@ class Application {
                 runQuery("submitter names", async () => {
                     const filterConditions = { ...genericFilterConditions };
                     delete filterConditions.applicant;
-                    const rows = await this.applicationDAO.findMany(filterConditions, { include: { applicant: true }, distinct: ['applicantID'] });
+                    const rows = await this.applicationDAO.findMany(filterConditions, { include: { applicant: { select: { fullName: true } } }, distinct: ['applicantID'] });
                     const names = (rows ?? []).map(sub => sub?.applicant?.fullName).filter(Boolean).sort((a, b) => a.localeCompare(b));
                     return Array.from(new Set(names));
                 }),
