@@ -2,6 +2,56 @@ directive @public on FIELD_DEFINITION|QUERY
 scalar Date
 scalar JSON
 
+interface SubmissionInterface {
+    _id: ID
+    name: String
+    submitterID: ID
+    submitterName: String
+    organization: Organization
+    dataCommons: String
+    dataCommonsDisplayName: String
+    modelVersion: String
+    studyAbbreviation: String
+    dbGaPID: String
+    bucketName: String
+    rootPath: String
+    status: String
+    metadataValidationStatus: String
+    fileValidationStatus: String
+    crossSubmissionStatus: String
+    fileErrors: [QCResult]
+    fileWarnings: [QCResult]
+    history: [Event]
+    conciergeName: String
+    conciergeEmail: String
+    errors: [ErrorMessage]
+    createdAt: Date
+    updatedAt: Date
+    intention: String
+    otherSubmissions: String
+    dataType: String
+    accessedAt: Date
+    inactiveReminder: Boolean
+    finalInactiveReminder: Boolean
+    validationStarted: Date
+    validationEnded: Date
+    validationType: [String]
+    validationScope: String
+    studyID: String
+    studyName: String
+    study: ApprovedStudy
+    controlledAccess: Boolean
+    ORCID: String
+    deletingData: Boolean
+    archived: Boolean
+    nodeCount: Int
+    collaborators: [Collaborator]
+    inactiveReminder_7: Boolean
+    inactiveReminder_30: Boolean
+    inactiveReminder_60: Boolean
+    dataFileSize: FileSize
+}
+
 type Application {
     # backend managed fields
     _id: ID!
@@ -118,7 +168,7 @@ type ListSubmissions {
     dataCommons: [String],
     dataCommonsDisplayNames: [String],
     submitterNames: [String],
-    submissions: [Submission]
+    submissions: [SubmissionList]
     organizations: [Organization]
 }
 
@@ -127,8 +177,8 @@ type ListInstitutions {
     institutions: [Institution]
 }
 
-
-type Submission {
+type Submission implements SubmissionInterface {
+    # SubmissionInterface fields
     _id: ID # aka. submissionID
     name: String
     submitterID: ID
@@ -178,6 +228,62 @@ type Submission {
     inactiveReminder_30: Boolean
     inactiveReminder_60: Boolean
     dataFileSize: FileSize
+}
+
+type SubmissionList implements SubmissionInterface {
+    # SubmissionInterface fields
+    _id: ID # aka. submissionID
+    name: String
+    submitterID: ID
+    submitterName: String # <first name> <last name>
+    organization: Organization
+    dataCommons: String
+    dataCommonsDisplayName: String
+    modelVersion: String # for future use
+    # note: FE should use study object instead
+    studyAbbreviation: String
+    dbGaPID: String # aka. phs number
+    bucketName: String # populated from organization
+    rootPath: String # "submissions/<submission ID>" to organization's rootPath
+    status: String # [New, In Progress, Submitted, Released, Canceled, Transferred, Completed, Archived, Deleted]
+    metadataValidationStatus: String # [New, Validating, Passed, Error, Warning], new successfully uploaded batch will set it to "New"
+    fileValidationStatus: String # [New, Validating, Passed, Error, Warning], new successfully uploaded batch will set it to "New"
+    crossSubmissionStatus: String # [New, Validating, Passed, Error, Warning]
+    fileErrors: [QCResult] # holds submission level file errors, e.g., extra files in S3 folder
+    fileWarnings: [QCResult] # holds submission level file warnings
+    history: [Event]
+    conciergeName: String # Concierge name
+    conciergeEmail: String # Concierge email
+    errors: [ErrorMessage] # store validation errors
+    createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    updatedAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    intention: String # [New/Update, Delete]
+    otherSubmissions: String
+    dataType: String # [Metadata Only, Metadata and Data Files]
+    accessedAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    inactiveReminder: Boolean
+    finalInactiveReminder: Boolean
+    validationStarted: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    validationEnded: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    validationType: [String] # String [metadata, file, cross-submission, data file]
+    validationScope: String
+    studyID: String
+    # note: FE should use study object instead
+    studyName: String
+    study: ApprovedStudy
+    controlledAccess: Boolean
+    ORCID: String
+    deletingData: Boolean
+    archived: Boolean
+    nodeCount: Int
+    collaborators: [Collaborator]
+    inactiveReminder_7: Boolean
+    inactiveReminder_30: Boolean
+    inactiveReminder_60: Boolean
+    dataFileSize: FileSize
+    # SubmissionList fields
+    submissionRequestID: String # Application ID linked via study
+    canViewSubmissionRequest: Boolean # User permission to view the submission request
 }
 
 type FileSize {
