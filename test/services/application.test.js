@@ -481,9 +481,7 @@ describe('Application', () => {
 
         it('throws APPLICATION_INVALID_STATUSES for invalid status in params.statuses', async () => {
             await expect(app.listApplications({ statuses: ['InvalidStatus'] }, context))
-                .rejects.toThrow(/Requested statuses.*are not valid/);
-            await expect(app.listApplications({ statuses: ['InvalidStatus'] }, context))
-                .rejects.toThrow(/InvalidStatus/);
+                .rejects.toThrow(/Requested statuses.*InvalidStatus.*are not valid/);
         });
 
         it('accepts valid statuses case-insensitively and returns successfully', async () => {
