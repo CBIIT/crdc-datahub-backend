@@ -1,12 +1,13 @@
 /**
  * 3.6.0 Migration Script
  * Node.js migration orchestrator that explicitly calls each migration file
- * 
+ *
  * Usage: npm run migrate:3.6.0
  *         (or directly: node documentation/3-6-0/3-6-0-migration.js)
  * 
  * Migration files:
  * - rename-application-id.js: Rename pendingApplicationID to applicationID in ApprovedStudies
+ * - add-sts-resource-config.js: Add STS_RESOURCE configuration (tier-based URL)
  */
 
 const { MongoClient } = require('mongodb');
@@ -101,6 +102,31 @@ async function executeApplicationIDMigration(db) {
     }
 }
 
+/**
+ * Execute STS_RESOURCE configuration migration
+ */
+async function executeStsResourceConfigMigration(db) {
+    console.log('🔄 Executing STS_RESOURCE configuration migration...');
+    
+    try {
+        const stsResourceConfigMigration = require('./add-sts-resource-config');
+        
+        const result = await stsResourceConfigMigration.addStsResourceConfig(db);
+
+        if (result.success) {
+            console.log('✅ STS_RESOURCE configuration migration completed successfully');
+        } else {
+            console.log('❌ STS_RESOURCE configuration migration failed');
+        }
+        
+        return result;
+        
+    } catch (error) {
+        console.error('❌ Error executing STS_RESOURCE configuration migration:', error.message);
+        return { success: false, error: error.message };
+    }
+}
+
 // ============================================================================
 // MIGRATION ORCHESTRATOR
 // ============================================================================
@@ -133,6 +159,11 @@ async function orchestrateMigration() {
                 name: "Rename pendingApplicationID to applicationID",
                 file: "rename-application-id.js",
                 execute: () => executeApplicationIDMigration(db)
+            },
+            {
+                name: "Add STS_RESOURCE configuration (tier-based URL)",
+                file: "add-sts-resource-config.js",
+                execute: () => executeStsResourceConfigMigration(db)
             }
         ];
         
