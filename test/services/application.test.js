@@ -1,4 +1,4 @@
-const { Application } = require('../../services/application'); // Adjust if needed
+const { Application, VALID_ORDER_BY_LIST_APPLICATIONS } = require('../../services/application');
 const ApplicationDAO = require('../../dao/application');
 const USER_PERMISSION_CONSTANTS = require("../../crdc-datahub-database-drivers/constants/user-permission-constants");
 const ERROR = require('../../constants/error-constants');
@@ -372,43 +372,237 @@ describe('Application', () => {
         });
     });
 
-    describe('_listApplicationConditions', () => {
-        it('returns correct filter for all scope', () => {
-            userScopeMock.isAllScope.mockReturnValue(true);
-            userScopeMock.isOwnScope.mockReturnValue(false);
-            const cond = app._listApplicationConditions('user1', userScopeMock, 'prog', 'study', 'abbr', [NEW], 'John');
-            expect(cond).toHaveProperty('status');
-            expect(cond).toHaveProperty('programName');
-            expect(cond).toHaveProperty('studyName');
-            expect(cond).toHaveProperty('studyAbbreviation');
-            // With the new implementation, applicant name filter uses fullName instead of OR array
-            expect(cond).toHaveProperty('applicant');
-            expect(cond.applicant).toHaveProperty('is');
-            expect(cond.applicant.is).toHaveProperty('fullName');
-            expect(cond.applicant.is.fullName).toHaveProperty('contains', 'John');
-            expect(cond.applicant.is.fullName).toHaveProperty('mode', 'insensitive');
-            // For all scope, should NOT have applicantID
-            expect(cond).not.toHaveProperty('applicantID');
+    describe('listApplications', () => {
+        beforeEach(() => {
+            userScopeMock.isAllScope = jest.fn(() => true);
+            userScopeMock.isOwnScope = jest.fn(() => false);
+            userScopeMock.isStudyScope = jest.fn(() => false);
+            userScopeMock.isDCScope = jest.fn(() => false);
+            mockAuthorizationService.getPermissionScope.mockResolvedValue(['all']);
+            UserScope.create.mockReturnValue(userScopeMock);
         });
 
-        it('returns correct filter for own scope', () => {
+        it('throws LIST_APPLICATIONS_INVALID_PARAMS for invalid orderBy', async () => {
+            await expect(app.listApplications({ orderBy: 'InvalidColumn' }, context))
+                .rejects.toThrow(ERROR.LIST_APPLICATIONS_INVALID_PARAMS);
+        });
+
+        it('accepts each valid orderBy and resolves successfully', async () => {
+            const findManyMock = jest.fn().mockResolvedValue([]);
+            app.applicationDAO.findMany = findManyMock;
+            app.applicationDAO.count = jest.fn().mockResolvedValue(0);
+            for (const orderBy of VALID_ORDER_BY_LIST_APPLICATIONS) {
+                await expect(app.listApplications({ orderBy }, context)).resolves.toBeDefined();
+            }
+        });
+
+        it('accepts valid orderBy case-insensitively', async () => {
+            const findManyMock = jest.fn().mockResolvedValue([]);
+            app.applicationDAO.findMany = findManyMock;
+            app.applicationDAO.count = jest.fn().mockResolvedValue(0);
+            await expect(app.listApplications({ orderBy: 'CREATEDAT' }, context)).resolves.toBeDefined();
+            await expect(app.listApplications({ orderBy: 'StudyName' }, context)).resolves.toBeDefined();
+        });
+
+        it('passes applicant.fullName as orderBy when orderBy is applicant.applicantName', async () => {
+            const findManyMock = jest.fn().mockResolvedValue([]);
+            app.applicationDAO.findMany = findManyMock;
+            app.applicationDAO.count = jest.fn().mockResolvedValue(0);
+            await app.listApplications({ orderBy: 'applicant.applicantName' }, context);
+            const findManyOptions = findManyMock.mock.calls[0][1];
+            expect(findManyOptions.orderBy).toEqual({ applicant: { fullName: 'desc' } });
+        });
+
+        it('passes requested orderBy through for other valid values', async () => {
+            const findManyMock = jest.fn().mockResolvedValue([]);
+            app.applicationDAO.findMany = findManyMock;
+            app.applicationDAO.count = jest.fn().mockResolvedValue(0);
+            await app.listApplications({ orderBy: 'createdAt', sortDirection: 'ASC' }, context);
+            const findManyOptions = findManyMock.mock.calls[0][1];
+            expect(findManyOptions.orderBy).toEqual({ createdAt: 'asc' });
+        });
+
+        it('throws LIST_APPLICATIONS_INVALID_PARAMS for invalid sortDirection', async () => {
+            await expect(app.listApplications({ sortDirection: 'INVALID' }, context))
+                .rejects.toThrow(ERROR.LIST_APPLICATIONS_INVALID_PARAMS);
+        });
+
+        it('returns applications and aggregations when findMany is mocked', async () => {
+            const findManyMock = jest.fn().mockResolvedValue([]);
+            app.applicationDAO.findMany = findManyMock;
+            app.applicationDAO.count = jest.fn().mockResolvedValue(0);
+            const result = await app.listApplications({}, context);
+            expect(result).toHaveProperty('applications');
+            expect(result).toHaveProperty('total');
+            expect(result).toHaveProperty('programs');
+            expect(result).toHaveProperty('studies');
+            expect(result).toHaveProperty('studyAbbreviations');
+            expect(result).toHaveProperty('status');
+            expect(result).toHaveProperty('submitterNames');
+            expect(Array.isArray(result.applications)).toBe(true);
+            expect(result.total).toBe(0);
+            expect(findManyMock).toHaveBeenCalled();
+        });
+
+        it('returns empty list when scope is study (only all and own supported for filters)', async () => {
+            mockAuthorizationService.getPermissionScope.mockResolvedValue([{ scope: 'study', scopeValues: ['study1'] }]);
+            userScopeMock.isAllScope.mockReturnValue(false);
+            userScopeMock.isOwnScope.mockReturnValue(false);
+            const result = await app.listApplications({}, context);
+            expect(result.applications).toEqual([]);
+            expect(result.total).toBe(0);
+            expect(result.programs).toEqual([]);
+            expect(result.studies).toEqual([]);
+            expect(result.studyAbbreviations).toEqual([]);
+            expect(result.status).toEqual([]);
+            expect(result.submitterNames).toEqual([]);
+        });
+
+        it('returns empty list when scope is DC (only all and own supported for filters)', async () => {
+            mockAuthorizationService.getPermissionScope.mockResolvedValue([{ scope: 'dc', scopeValues: ['dc1'] }]);
+            userScopeMock.isAllScope.mockReturnValue(false);
+            userScopeMock.isOwnScope.mockReturnValue(false);
+            const result = await app.listApplications({}, context);
+            expect(result.applications).toEqual([]);
+            expect(result.total).toBe(0);
+            expect(result.programs).toEqual([]);
+            expect(result.studies).toEqual([]);
+            expect(result.studyAbbreviations).toEqual([]);
+            expect(result.status).toEqual([]);
+            expect(result.submitterNames).toEqual([]);
+        });
+
+        it('throws LIST_APPLICATIONS_INVALID_PARAMS when params.statuses is not an array', async () => {
+            await expect(app.listApplications({ statuses: 'APPROVED' }, context))
+                .rejects.toThrow(ERROR.LIST_APPLICATIONS_INVALID_PARAMS);
+            await expect(app.listApplications({ statuses: {} }, context))
+                .rejects.toThrow(ERROR.LIST_APPLICATIONS_INVALID_PARAMS);
+        });
+
+        it('throws APPLICATION_INVALID_STATUSES for invalid status in params.statuses', async () => {
+            await expect(app.listApplications({ statuses: ['InvalidStatus'] }, context))
+                .rejects.toThrow(/Requested statuses.*InvalidStatus.*are not valid/);
+        });
+
+        it('accepts valid statuses case-insensitively and returns successfully', async () => {
+            app.applicationDAO.findMany = jest.fn().mockResolvedValue([]);
+            app.applicationDAO.count = jest.fn().mockResolvedValue(0);
+            await expect(app.listApplications({ statuses: ['new', 'Approved'] }, context)).resolves.toBeDefined();
+            const result = await app.listApplications({ statuses: ['new', 'Approved'] }, context);
+            expect(result.applications).toEqual([]);
+            expect(result.total).toBe(0);
+        });
+
+        it('passes filter without status to DAO when statuses is empty array', async () => {
+            const findManyMock = jest.fn().mockResolvedValue([]);
+            app.applicationDAO.findMany = findManyMock;
+            app.applicationDAO.count = jest.fn().mockResolvedValue(0);
+            await app.listApplications({ statuses: [] }, context);
+            const findManyFilter = findManyMock.mock.calls[0][0];
+            const countFilter = app.applicationDAO.count.mock.calls[0][0];
+            expect(findManyFilter).not.toHaveProperty('status');
+            expect(countFilter).not.toHaveProperty('status');
+        });
+
+        it('passes filter without status to DAO when statuses contains All', async () => {
+            const findManyMock = jest.fn().mockResolvedValue([]);
+            app.applicationDAO.findMany = findManyMock;
+            app.applicationDAO.count = jest.fn().mockResolvedValue(0);
+            await app.listApplications({ statuses: ['All'] }, context);
+            const findManyFilter = findManyMock.mock.calls[0][0];
+            const countFilter = app.applicationDAO.count.mock.calls[0][0];
+            expect(findManyFilter).not.toHaveProperty('status');
+            expect(countFilter).not.toHaveProperty('status');
+        });
+
+        it('passes filter without status to DAO when statuses contains All with other statuses', async () => {
+            const findManyMock = jest.fn().mockResolvedValue([]);
+            app.applicationDAO.findMany = findManyMock;
+            app.applicationDAO.count = jest.fn().mockResolvedValue(0);
+            await app.listApplications({ statuses: ['All', 'Approved'] }, context);
+            const findManyFilter = findManyMock.mock.calls[0][0];
+            const countFilter = app.applicationDAO.count.mock.calls[0][0];
+            expect(findManyFilter).not.toHaveProperty('status');
+            expect(countFilter).not.toHaveProperty('status');
+        });
+
+        it('throws LIST_APPLICATIONS_INVALID_PARAMS for invalid first', async () => {
+            await expect(app.listApplications({ first: 0 }, context))
+                .rejects.toThrow(ERROR.LIST_APPLICATIONS_INVALID_PARAMS);
+            await expect(app.listApplications({ first: 1.5 }, context))
+                .rejects.toThrow(ERROR.LIST_APPLICATIONS_INVALID_PARAMS);
+        });
+
+        it('throws LIST_APPLICATIONS_INVALID_PARAMS for invalid offset', async () => {
+            await expect(app.listApplications({ offset: -1 }, context))
+                .rejects.toThrow(ERROR.LIST_APPLICATIONS_INVALID_PARAMS);
+            await expect(app.listApplications({ offset: 1.5 }, context))
+                .rejects.toThrow(ERROR.LIST_APPLICATIONS_INVALID_PARAMS);
+        });
+
+        it('passes applicantID in filter when scope is own', async () => {
+            mockAuthorizationService.getPermissionScope.mockResolvedValue(['own']);
             userScopeMock.isAllScope.mockReturnValue(false);
             userScopeMock.isOwnScope.mockReturnValue(true);
-            const cond = app._listApplicationConditions('user1', userScopeMock, 'prog', 'study', 'abbr', [NEW], 'John');
-            // For own scope, the filter should include applicantID at the root
-            expect(cond).toHaveProperty('applicantID', 'user1');
-            expect(cond).toHaveProperty('status');
-            expect(cond).toHaveProperty('programName');
-            expect(cond).toHaveProperty('studyName');
-            expect(cond).toHaveProperty('studyAbbreviation');
+            const ctx = { ...context, userInfo: { ...context.userInfo, _id: 'user-123' } };
+            const findManyMock = jest.fn().mockResolvedValue([]);
+            app.applicationDAO.findMany = findManyMock;
+            app.applicationDAO.count = jest.fn().mockResolvedValue(0);
+            await app.listApplications({}, ctx);
+            const findManyCalls = findManyMock.mock.calls;
+            expect(findManyCalls.length).toBeGreaterThan(0);
+            const firstCallFilter = findManyCalls[0][0];
+            expect(firstCallFilter).toEqual(expect.objectContaining({ applicantID: 'user-123' }));
+            const countCalls = app.applicationDAO.count.mock.calls;
+            expect(countCalls.length).toBe(1);
+            expect(countCalls[0][0]).toEqual(expect.objectContaining({ applicantID: 'user-123' }));
         });
 
-        it('throws for invalid scope', () => {
-            userScopeMock.isAllScope.mockReturnValue(false);
-            userScopeMock.isOwnScope.mockReturnValue(false);
-            // Accept any error message containing "permission"
-            expect(() => app._listApplicationConditions('user1', userScopeMock, 'prog', 'study', 'abbr', [NEW], 'John'))
-                .toThrow(/permission/i);
+        it('returns empty list when scope is none or empty', async () => {
+            mockAuthorizationService.getPermissionScope.mockResolvedValue([]);
+            UserScope.create.mockReturnValue({ isAllScope: () => false, isOwnScope: () => false });
+            const result = await app.listApplications({}, context);
+            expect(result.applications).toEqual([]);
+            expect(result.total).toBe(0);
+            expect(result.programs).toEqual([]);
+            expect(result.studies).toEqual([]);
+            expect(result.studyAbbreviations).toEqual([]);
+            expect(result.status).toEqual([]);
+            expect(result.submitterNames).toEqual([]);
+        });
+
+        it('returns status as array not function', async () => {
+            app.applicationDAO.findMany = jest.fn().mockResolvedValue([]);
+            app.applicationDAO.count = jest.fn().mockResolvedValue(0);
+            const result = await app.listApplications({}, context);
+            expect(Array.isArray(result.status)).toBe(true);
+            expect(result.status).toEqual([]);
+        });
+
+        it('rejects with LIST_APPLICATIONS_FETCH_FAILED and application list step when findMany fails for list', async () => {
+            app.applicationDAO.findMany = jest.fn().mockRejectedValue(new Error('DB error'));
+            app.applicationDAO.count = jest.fn().mockResolvedValue(0);
+            await expect(app.listApplications({}, context)).rejects.toThrow(ERROR.LIST_APPLICATIONS_FETCH_FAILED);
+            await expect(app.listApplications({}, context)).rejects.toThrow(/fetching application list/);
+        });
+
+        it('rejects with LIST_APPLICATIONS_FETCH_FAILED and application count step when count fails', async () => {
+            app.applicationDAO.findMany = jest.fn().mockResolvedValue([]);
+            app.applicationDAO.count = jest.fn().mockRejectedValue(new Error('Count failed'));
+            await expect(app.listApplications({}, context)).rejects.toThrow(ERROR.LIST_APPLICATIONS_FETCH_FAILED);
+            await expect(app.listApplications({}, context)).rejects.toThrow(/fetching application count/);
+        });
+
+        it('rejects with LIST_APPLICATIONS_FETCH_FAILED when a filter-option query fails', async () => {
+            let findManyCallCount = 0;
+            app.applicationDAO.findMany = jest.fn().mockImplementation(() => {
+                findManyCallCount++;
+                if (findManyCallCount === 1) return Promise.resolve([]);
+                if (findManyCallCount === 2) return Promise.resolve([]);
+                return Promise.reject(new Error('Filter query failed'));
+            });
+            app.applicationDAO.count = jest.fn().mockResolvedValue(0);
+            await expect(app.listApplications({}, context)).rejects.toThrow(ERROR.LIST_APPLICATIONS_FETCH_FAILED);
         });
     });
 
