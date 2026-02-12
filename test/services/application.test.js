@@ -1,4 +1,4 @@
-const { Application } = require('../../services/application'); // Adjust if needed
+const { Application, VALID_ORDER_BY_LIST_APPLICATIONS } = require('../../services/application');
 const ApplicationDAO = require('../../dao/application');
 const USER_PERMISSION_CONSTANTS = require("../../crdc-datahub-database-drivers/constants/user-permission-constants");
 const ERROR = require('../../constants/error-constants');
@@ -385,6 +385,41 @@ describe('Application', () => {
         it('throws LIST_APPLICATIONS_INVALID_PARAMS for invalid orderBy', async () => {
             await expect(app.listApplications({ orderBy: 'InvalidColumn' }, context))
                 .rejects.toThrow(ERROR.LIST_APPLICATIONS_INVALID_PARAMS);
+        });
+
+        it('accepts each valid orderBy and resolves successfully', async () => {
+            const findManyMock = jest.fn().mockResolvedValue([]);
+            app.applicationDAO.findMany = findManyMock;
+            app.applicationDAO.count = jest.fn().mockResolvedValue(0);
+            for (const orderBy of VALID_ORDER_BY_LIST_APPLICATIONS) {
+                await expect(app.listApplications({ orderBy }, context)).resolves.toBeDefined();
+            }
+        });
+
+        it('accepts valid orderBy case-insensitively', async () => {
+            const findManyMock = jest.fn().mockResolvedValue([]);
+            app.applicationDAO.findMany = findManyMock;
+            app.applicationDAO.count = jest.fn().mockResolvedValue(0);
+            await expect(app.listApplications({ orderBy: 'CREATEDAT' }, context)).resolves.toBeDefined();
+            await expect(app.listApplications({ orderBy: 'StudyName' }, context)).resolves.toBeDefined();
+        });
+
+        it('passes applicant.fullName as orderBy when orderBy is applicant.applicantName', async () => {
+            const findManyMock = jest.fn().mockResolvedValue([]);
+            app.applicationDAO.findMany = findManyMock;
+            app.applicationDAO.count = jest.fn().mockResolvedValue(0);
+            await app.listApplications({ orderBy: 'applicant.applicantName' }, context);
+            const findManyOptions = findManyMock.mock.calls[0][1];
+            expect(findManyOptions.orderBy).toEqual({ applicant: { fullName: 'desc' } });
+        });
+
+        it('passes requested orderBy through for other valid values', async () => {
+            const findManyMock = jest.fn().mockResolvedValue([]);
+            app.applicationDAO.findMany = findManyMock;
+            app.applicationDAO.count = jest.fn().mockResolvedValue(0);
+            await app.listApplications({ orderBy: 'createdAt', sortDirection: 'ASC' }, context);
+            const findManyOptions = findManyMock.mock.calls[0][1];
+            expect(findManyOptions.orderBy).toEqual({ createdAt: 'asc' });
         });
 
         it('throws LIST_APPLICATIONS_INVALID_PARAMS for invalid sortDirection', async () => {

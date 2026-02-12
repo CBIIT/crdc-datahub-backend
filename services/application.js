@@ -23,16 +23,18 @@ const {PrismaPagination} = require("../crdc-datahub-database-drivers/domain/pris
 const UserDAO = require("../dao/user");
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_INSTITUTION_NAME_LENGTH = 100;
-// Maps the display names to the Prisma field names
-const MAP_ORDER_BY_LIST_APPLICATIONS = {
-    "Submitter Name": "applicant.fullName",
-    "Organization": "programName",
-    "Study": "studyName",
-    "Program": "programName",
-    "Status": "status",
-    "Submitted Date": "createdAt",
-    "applicant.applicantName": "applicant.fullName"
-};
+// Valid orderBy values for listApplications (Prisma field names). "applicant.applicantName" is accepted and mapped to "applicant.fullName".
+const VALID_ORDER_BY_LIST_APPLICATIONS = [
+    "applicant.applicantName",
+    "applicant.fullName",
+    "programName",
+    "studyName",
+    "studyAbbreviation",
+    "status",
+    "version",
+    "createdAt",
+    "updatedAt"
+];
 class Application {
     _DELETE_REVIEW_COMMENT="This Submission Request has been deleted by the system due to inactivity.";
     _ALL_FILTER="All";
@@ -339,8 +341,8 @@ class Application {
                 });
             }
         }
-        // Validate orderBy parameter, case insensitive
-        const validOrderByValues = Object.keys(MAP_ORDER_BY_LIST_APPLICATIONS);
+        // Validate orderBy parameter, case insensitive. Map legacy "applicant.applicantName" to Prisma field "applicant.fullName".
+        const validOrderByValues = VALID_ORDER_BY_LIST_APPLICATIONS;
         const orderByInput = (params?.orderBy ?? "").toString().trim();
         let orderByPrisma = "createdAt";
         if (orderByInput) {
@@ -350,7 +352,7 @@ class Application {
                 console.error(ERROR.LIST_APPLICATIONS_INVALID_PARAMS, { orderBy: orderByInput, validOrderByValues: validOrderByValuesString });
                 throw new Error(ERROR.LIST_APPLICATIONS_INVALID_PARAMS + " Valid orderBy values: " + validOrderByValuesString);
             }
-            orderByPrisma = MAP_ORDER_BY_LIST_APPLICATIONS[matchingKey];
+            orderByPrisma = matchingKey === "applicant.applicantName" ? "applicant.fullName" : matchingKey;
         }
         // Validate sortDirection parameter, case insensitive
         const sortDirection = (params?.sortDirection || "DESC").toString().toUpperCase();
@@ -1480,5 +1482,6 @@ function logDaysDifference(inactiveDays, accessedAt, applicationID) {
 }
 
 module.exports = {
-    Application
+    Application,
+    VALID_ORDER_BY_LIST_APPLICATIONS
 };

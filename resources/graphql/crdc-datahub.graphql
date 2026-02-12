@@ -837,12 +837,12 @@ type Query {
         submitterName: String,
         first: Int = -1,
         offset: Int = 0,
-        orderBy: String = "Submitted Date",
+        orderBy: String = "createdAt",
         sortDirection: String = "DESC"
     ): ListApplications
     # when first parameter is set to -1, we should return all applications (no pagination)
     # sortDirection in ["ASC", "DESC"]
-    # orderBy in ["Submitter Name", "Organization", "Study", "Program", "Status", "Submitted Date"]
+    # orderBy in ["applicant.applicantName", "applicant.fullName", "programName", "studyName", "studyAbbreviation", "status", "version", "createdAt", "updatedAt"]
 
     # Admin only
     listApprovedStudies(
