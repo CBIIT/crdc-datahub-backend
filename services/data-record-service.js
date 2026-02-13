@@ -13,6 +13,10 @@ const DataRecordDAO = require("../dao/dataRecords");
 const ReleaseDAO =  require("../dao/release");
 const {SORT} = require("../constants/db-constants");
 const BATCH_SIZE = 300;
+const METADATA_VALIDATION_CONFIG_TYPE = 'METADATA_VALIDATION';
+const DEFAULT_METADATA_VALIDATION_BATCH_SIZE = 1000;
+const MAX_METADATA_VALIDATION_BATCH_SIZE = 10000;
+const MESSAGE_TYPE_VALIDATE_METADATA_BATCH = 'Validate Metadata Batch';
 const ERROR = "Error";
 const WARNING = "Warning";
 const NODE_RELATION_TYPE_PARENT="parent";
@@ -42,7 +46,7 @@ const DATA_SHEET = {
     MD5SUM: "md5sum"
 };
 class DataRecordService {
-    constructor(dataRecordsCollection, dataRecordArchiveCollection, releaseCollection, fileQueueName, metadataQueueName, awsService, s3Service, qcResultsService, exportQueue) {
+    constructor(dataRecordsCollection, dataRecordArchiveCollection, releaseCollection, fileQueueName, metadataQueueName, awsService, s3Service, qcResultsService, exportQueue, configurationService = null) {
         this.dataRecordsCollection = dataRecordsCollection;
         this.fileQueueName = fileQueueName;
         this.metadataQueueName = metadataQueueName;
@@ -52,6 +56,7 @@ class DataRecordService {
         this.qcResultsService = qcResultsService;
         this.exportQueue = exportQueue;
         this.releaseCollection = releaseCollection;
+        this.configurationService = configurationService;
         this.dataRecordDAO = new DataRecordDAO(this.dataRecordsCollection);
         this.releaseDAO = new ReleaseDAO();
 
@@ -155,29 +160,40 @@ class DataRecordService {
         isValidMetadata(types, scope);
         const isMetadata = types.some(t => t === VALIDATION.TYPES.METADATA || t === VALIDATION.TYPES.CROSS_SUBMISSION);
         let errorMessages = [];
+        let metadataMsgsSent = null;
         if (isMetadata) {
             const docCount = await this._getCount(submissionID);
             if (docCount === 0)  errorMessages.push(ERRORS.FAILED_VALIDATE_METADATA, ERRORS.NO_VALIDATION_METADATA);
             else {
                 // updated for task CRDCDH-3001, both cross-submission and metadata need to be validated in parallel in a condition
-                // if the user role is DATA_COMMONS_PERSONNEL, and the submission status is "Submitted", and aSubmission?.crossSubmissionStatus is "Error",
                 if (types.includes(VALIDATION.TYPES.CROSS_SUBMISSION)) {
-                    // Data commons will be retrieved from the submission in the external validation service
                     const msg = Message.createMetadataMessage("Validate Cross-submission", submissionID, null, validationID);
                     const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.metadataQueueName, submissionID);
                     if (!success.success)
                         errorMessages.push(ERRORS.FAILED_VALIDATE_CROSS_SUBMISSION, success.message);
                 }
                 if (types.includes(VALIDATION.TYPES.METADATA)) {
-                    const newDocCount = await this._getCount(submissionID, scope);
-                    if (!(scope.toLowerCase() === VALIDATION.SCOPE.NEW && newDocCount === 0)) {
-                        const msg = Message.createMetadataMessage("Validate Metadata", submissionID, scope, validationID);
-                        const success = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.metadataQueueName, submissionID);
-                        if (!success.success)
-                            errorMessages.push(ERRORS.FAILED_VALIDATE_METADATA, success.message)
-                    }
-                    else {
+                    const dataRecordIds = await this._getDataRecordIdsByScope(submissionID, scope);
+                    if (scope.toLowerCase() === VALIDATION.SCOPE.NEW && (!dataRecordIds || dataRecordIds.length === 0)) {
                         errorMessages.push(ERRORS.FAILED_VALIDATE_METADATA, ERRORS.NO_NEW_VALIDATION_METADATA);
+                    } else if (dataRecordIds && dataRecordIds.length > 0) {
+                        const batchSize = await this._getMetadataValidationBatchSize();
+                        const totalBatches = Math.ceil(dataRecordIds.length / batchSize);
+                        let sent = 0;
+                        for (let i = 0; i < dataRecordIds.length; i += batchSize) {
+                            const chunk = dataRecordIds.slice(i, i + batchSize);
+                            const batchIndex = Math.floor(i / batchSize);
+                            const groupID = `${validationID}-metadata-${batchIndex}`;
+                            const deDuplicationId = `${validationID}-metadata-${batchIndex}-${Date.now()}`;
+                            const msg = Message.createMetadataBatchMessage(MESSAGE_TYPE_VALIDATE_METADATA_BATCH, submissionID, scope, validationID, chunk, totalBatches, batchIndex);
+                            const success = await sendSQSMessageWrapper(this.awsService, msg, deDuplicationId, this.metadataQueueName, submissionID, groupID);
+                            if (!success.success) {
+                                errorMessages.push(ERRORS.FAILED_VALIDATE_METADATA, success.message);
+                                break;
+                            }
+                            sent++;
+                        }
+                        if (sent > 0) metadataMsgsSent = sent;
                     }
                 }
             }
@@ -191,11 +207,15 @@ class DataRecordService {
                     errorMessages.push(ERRORS.FAILED_VALIDATE_FILE, ...fileValidationErrors)
             }
             const msg = Message.createFileSubmissionMessage("Validate Submission Files", submissionID, validationID);
-            const result= await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.fileQueueName, submissionID);
-            if (!result.success)
-                errorMessages.push(result.message);
+            const fileResult = await sendSQSMessageWrapper(this.awsService, msg, submissionID, this.fileQueueName, submissionID);
+            if (!fileResult.success)
+                errorMessages.push(fileResult.message);
         }
-        return (errorMessages.length > 0) ? ValidationHandler.handle(errorMessages) : ValidationHandler.success();
+        const result = (errorMessages.length > 0) ? ValidationHandler.handle(errorMessages) : ValidationHandler.success();
+        if (result.success && metadataMsgsSent != null) {
+            result.metadataMsgsSent = metadataMsgsSent;
+        }
+        return result;
     }
 
     async _sendBatchSQSMessage(fileNodes, validationID, submissionID) {
@@ -684,6 +704,42 @@ class DataRecordService {
         return await this.dataRecordsCollection.countDoc(query);
     }
 
+    async _getMetadataValidationBatchSize() {
+        // Attempt to read the batch size from the configuration service
+        let batchSize = DEFAULT_METADATA_VALIDATION_BATCH_SIZE;
+        if (this.configurationService) {
+            try {
+                const config = await this.configurationService.findByType(METADATA_VALIDATION_CONFIG_TYPE);
+                if (config?.keys?.batchSize != null) {
+                    const configured = Number(config.keys.batchSize);
+                    if (!Number.isNaN(configured) && configured > 0) {
+                        batchSize = configured;
+                    }
+                }
+            } catch (e) {
+                // If the batch size cannot be read then a warning is logged and the default batch size is used
+                console.warn('Failed to read metadata validation batch size config, using default:', e?.message);
+            }
+        }
+        // If the batch size exceeds the maximum then a warning is logged and the maximum batch size is used
+        if (batchSize > MAX_METADATA_VALIDATION_BATCH_SIZE) {
+            console.warn(`Metadata validation batch size ${batchSize} exceeds maximum ${MAX_METADATA_VALIDATION_BATCH_SIZE}; using maximum.`);
+            batchSize = MAX_METADATA_VALIDATION_BATCH_SIZE;
+        }
+        return batchSize;
+    }
+
+    async _getDataRecordIdsByScope(submissionID, scope) {
+        const query = scope?.toLowerCase() === VALIDATION.SCOPE.NEW.toLowerCase()
+            ? { submissionID, status: scope }
+            : { submissionID };
+        const docs = await this.dataRecordsCollection.aggregate([
+            { $match: query },
+            { $project: { _id: 1 } }
+        ]);
+        return (docs || []).map(d => d._id?.toString?.() ?? d._id);
+    }
+
     async _getFileNodes(submissionID, scope) {
         const isNewScope = scope?.toLowerCase() === VALIDATION.SCOPE.NEW.toLowerCase();
         const fileNodes = await this.dataRecordsCollection.aggregate([{
@@ -762,9 +818,10 @@ class DataRecordService {
     }
 }
 
-const sendSQSMessageWrapper = async (awsService, message, deDuplicationId, queueName, submissionID) => {
+const sendSQSMessageWrapper = async (awsService, message, deDuplicationId, queueName, submissionID, groupID = null) => {
     try {
-        await awsService.sendSQSMessage(message, deDuplicationId, deDuplicationId, queueName);
+        const effectiveGroupID = groupID != null ? groupID : deDuplicationId;
+        await awsService.sendSQSMessage(message, effectiveGroupID, deDuplicationId, queueName);
         return ValidationHandler.success();
     } catch (e) {
         console.error(ERRORS.FAILED_VALIDATE_METADATA, `submissionID:${submissionID}`, `queue-name:${queueName}`, `error:${e}`);
@@ -815,6 +872,18 @@ class Message {
     static createFileNodeMessage(type, dataRecordID, validationID) {
         const msg = new Message(type, validationID);
         msg.dataRecordID = dataRecordID;
+        return msg;
+    }
+
+    static createMetadataBatchMessage(type, submissionID, scope, validationID, dataRecordIds, totalBatches, batchIndex) {
+        const msg = new Message(type, validationID);
+        msg.submissionID = submissionID;
+        if (scope) {
+            msg.scope = scope;
+        }
+        msg.dataRecordIds = dataRecordIds;
+        msg.totalBatches = totalBatches;
+        msg.batchIndex = batchIndex;
         return msg;
     }
 }

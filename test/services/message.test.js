@@ -439,5 +439,25 @@ describe('Message Class', () => {
       expect(message.dataRecordID).toBe('data-record-123');
       expect(message.validationID).toBe('validation-456');
     });
+
+    test('should create metadata batch message with type, submissionID, scope, validationID, dataRecordIds, totalBatches, batchIndex', () => {
+      const dataRecordIds = ['id1', 'id2', 'id3'];
+      const message = Message.createMetadataBatchMessage(
+        'Validate Metadata Batch',
+        'submission-123',
+        'new',
+        'validation-456',
+        dataRecordIds,
+        5,
+        2
+      );
+      expect(message.type).toBe('Validate Metadata Batch');
+      expect(message.submissionID).toBe('submission-123');
+      expect(message.scope).toBe('new');
+      expect(message.validationID).toBe('validation-456');
+      expect(message.dataRecordIds).toEqual(dataRecordIds);
+      expect(message.totalBatches).toBe(5);
+      expect(message.batchIndex).toBe(2);
+    });
   });
 }); 

@@ -2123,7 +2123,8 @@ describe('Submission.validateSubmission', () => {
 
     beforeEach(() => {
         mockValidationDAO = {
-            create: jest.fn()
+            create: jest.fn(),
+            update: jest.fn()
         };
 
         mockDataRecordService = {
@@ -2247,6 +2248,31 @@ describe('Submission.validateSubmission', () => {
         const result = await submissionService.validateSubmission(mockParams, mockContext);
 
         expect(result).toEqual(mockValidationResult);
+    });
+
+    it('should update validation record with metadataMsgsSent and completedBatches when validateMetadata returns them', async () => {
+        const mockCreateScope = { isNoneScope: () => true };
+        const mockReviewScope = { isNoneScope: () => true };
+        const mockValidationRecord = { id: 'validation1', submissionID: 'sub1' };
+        const mockValidationResult = { success: true, metadataMsgsSent: 3 };
+
+        submissionService._findByID.mockResolvedValue(mockSubmission);
+        submissionService._getUserScope
+            .mockResolvedValueOnce(mockCreateScope)
+            .mockResolvedValueOnce(mockReviewScope);
+        submissionService._isCollaborator.mockReturnValue(true);
+        submissionService._updateValidationStatus.mockResolvedValue();
+        mockValidationDAO.create.mockResolvedValue(mockValidationRecord);
+        mockDataRecordService.validateMetadata.mockResolvedValue(mockValidationResult);
+        submissionService._recordSubmissionValidation.mockResolvedValue(mockSubmission);
+        mockValidationDAO.update.mockResolvedValue({});
+
+        await submissionService.validateSubmission(mockParams, mockContext);
+
+        expect(mockValidationDAO.update).toHaveBeenCalledWith('validation1', expect.objectContaining({
+            metadataMsgsSent: 3,
+            completedBatches: 0
+        }));
     });
 });
 

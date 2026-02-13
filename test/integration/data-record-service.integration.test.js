@@ -344,8 +344,10 @@ describe('DataRecordService Integration Tests', () => {
   });
 
   describe('validateMetadata Integration', () => {
-    test('should create metadata validation message for metadata type', async () => {
+    test('should create metadata validation batch message(s) for metadata type and return metadataMsgsSent', async () => {
+      const dataRecordIds = ['id1', 'id2', 'id3', 'id4', 'id5', 'id6', 'id7', 'id8', 'id9', 'id10'];
       mockDataRecordsCollection.countDoc.mockResolvedValue(10);
+      mockDataRecordsCollection.aggregate.mockResolvedValue(dataRecordIds.map(_id => ({ _id })));
       mockAwsService.sendSQSMessage.mockResolvedValue({ success: true });
 
       const result = await dataRecordService.validateMetadata(
@@ -355,20 +357,91 @@ describe('DataRecordService Integration Tests', () => {
         'validation-456'
       );
 
-      // Verify SQS message was sent for metadata validation
+      expect(result.success).toBe(true);
+      expect(result.metadataMsgsSent).toBe(1);
+
       expect(mockAwsService.sendSQSMessage).toHaveBeenCalledWith(
         expect.objectContaining({
-          type: 'Validate Metadata',
+          type: 'Validate Metadata Batch',
           submissionID: 'submission-123',
           scope: VALIDATION.SCOPE.NEW,
-          validationID: 'validation-456'
+          validationID: 'validation-456',
+          dataRecordIds: expect.any(Array),
+          totalBatches: 1,
+          batchIndex: 0
         }),
-        'submission-123',
-        'submission-123',
+        'validation-456-metadata-0',
+        expect.any(String),
         'metadata-queue'
+      );
+      expect(mockAwsService.sendSQSMessage.mock.calls[0][0].dataRecordIds).toHaveLength(10);
+    });
+
+    test('should send multiple batch messages with unique group IDs when many data records', async () => {
+      const mockConfigurationService = { findByType: jest.fn().mockResolvedValue({ keys: { batchSize: 2 } }) };
+      const dataRecordServiceWithConfig = new DataRecordService(
+        mockDataRecordsCollection,
+        mockDataRecordArchiveCollection,
+        mockReleaseCollection,
+        'file-queue',
+        'metadata-queue',
+        mockAwsService,
+        mockS3Service,
+        mockQcResultsService,
+        'export-queue',
+        mockConfigurationService
+      );
+      const fiveIds = [{ _id: 'a' }, { _id: 'b' }, { _id: 'c' }, { _id: 'd' }, { _id: 'e' }];
+      mockDataRecordsCollection.countDoc.mockResolvedValue(5);
+      mockDataRecordsCollection.aggregate.mockResolvedValue(fiveIds);
+      mockAwsService.sendSQSMessage.mockResolvedValue({ success: true });
+
+      const result = await dataRecordServiceWithConfig.validateMetadata(
+        'sub-1',
+        [VALIDATION.TYPES.METADATA],
+        VALIDATION.SCOPE.ALL,
+        'val-1'
       );
 
       expect(result.success).toBe(true);
+      expect(result.metadataMsgsSent).toBe(3);
+      expect(mockAwsService.sendSQSMessage).toHaveBeenCalledTimes(3);
+      expect(mockAwsService.sendSQSMessage).toHaveBeenNthCalledWith(1, expect.objectContaining({ type: 'Validate Metadata Batch', dataRecordIds: ['a', 'b'], totalBatches: 3, batchIndex: 0 }), 'val-1-metadata-0', expect.any(String), 'metadata-queue');
+      expect(mockAwsService.sendSQSMessage).toHaveBeenNthCalledWith(2, expect.objectContaining({ dataRecordIds: ['c', 'd'], totalBatches: 3, batchIndex: 1 }), 'val-1-metadata-1', expect.any(String), 'metadata-queue');
+      expect(mockAwsService.sendSQSMessage).toHaveBeenNthCalledWith(3, expect.objectContaining({ dataRecordIds: ['e'], totalBatches: 3, batchIndex: 2 }), 'val-1-metadata-2', expect.any(String), 'metadata-queue');
+    });
+
+    test('should send exact-division batch messages when data records divide evenly by batch size', async () => {
+      const mockConfigurationService = { findByType: jest.fn().mockResolvedValue({ keys: { batchSize: 2 } }) };
+      const dataRecordServiceWithConfig = new DataRecordService(
+        mockDataRecordsCollection,
+        mockDataRecordArchiveCollection,
+        mockReleaseCollection,
+        'file-queue',
+        'metadata-queue',
+        mockAwsService,
+        mockS3Service,
+        mockQcResultsService,
+        'export-queue',
+        mockConfigurationService
+      );
+      const fourIds = [{ _id: 'w' }, { _id: 'x' }, { _id: 'y' }, { _id: 'z' }];
+      mockDataRecordsCollection.countDoc.mockResolvedValue(4);
+      mockDataRecordsCollection.aggregate.mockResolvedValue(fourIds);
+      mockAwsService.sendSQSMessage.mockResolvedValue({ success: true });
+
+      const result = await dataRecordServiceWithConfig.validateMetadata(
+        'sub-2',
+        [VALIDATION.TYPES.METADATA],
+        VALIDATION.SCOPE.ALL,
+        'val-2'
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.metadataMsgsSent).toBe(2);
+      expect(mockAwsService.sendSQSMessage).toHaveBeenCalledTimes(2);
+      expect(mockAwsService.sendSQSMessage).toHaveBeenNthCalledWith(1, expect.objectContaining({ type: 'Validate Metadata Batch', dataRecordIds: ['w', 'x'], totalBatches: 2, batchIndex: 0 }), 'val-2-metadata-0', expect.any(String), 'metadata-queue');
+      expect(mockAwsService.sendSQSMessage).toHaveBeenNthCalledWith(2, expect.objectContaining({ dataRecordIds: ['y', 'z'], totalBatches: 2, batchIndex: 1 }), 'val-2-metadata-1', expect.any(String), 'metadata-queue');
     });
 
     test('should create cross-submission validation message', async () => {

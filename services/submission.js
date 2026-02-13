@@ -885,6 +885,13 @@ class Submission {
             throw new Error(ERROR.FAILED_INSERT_VALIDATION_OBJECT);
         }
         const result = await this.dataRecordService.validateMetadata(params._id, params?.types, params?.scope, validationRecord.id);
+        if (result.success && result.metadataMsgsSent != null) {
+            await this.validationDAO.update(validationRecord.id, {
+                ...validationRecord,
+                metadataMsgsSent: result.metadataMsgsSent,
+                completedBatches: 0
+            });
+        }
         const updatedSubmission = await this._recordSubmissionValidation(params._id, validationRecord, params?.types, aSubmission);
         // roll back validation if service failed
         if (!result.success) {

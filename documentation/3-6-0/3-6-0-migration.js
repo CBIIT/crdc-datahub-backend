@@ -76,6 +76,30 @@ async function closeDatabaseConnection(client) {
 // ============================================================================
 
 /**
+ * Execute metadata validation configuration initialization
+ */
+async function executeMetadataValidationConfigMigration(db) {
+    console.log('🔄 Executing METADATA_VALIDATION configuration initialization...');
+
+    try {
+        const migration = require('./initialize-metadata-validation-config');
+        const result = await migration.initializeMetadataValidationConfig(db);
+
+        if (result.success) {
+            console.log(`✅ METADATA_VALIDATION configuration initialization completed (${result.action})`);
+        } else {
+            console.log('❌ METADATA_VALIDATION configuration initialization failed');
+        }
+
+        return result;
+
+    } catch (error) {
+        console.error('❌ Error executing METADATA_VALIDATION configuration initialization:', error.message);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
  * Execute applicationID migration
  */
 async function executeApplicationIDMigration(db) {
@@ -133,6 +157,11 @@ async function orchestrateMigration() {
                 name: "Rename pendingApplicationID to applicationID",
                 file: "rename-application-id.js",
                 execute: () => executeApplicationIDMigration(db)
+            },
+            {
+                name: "Initialize METADATA_VALIDATION configuration",
+                file: "initialize-metadata-validation-config.js",
+                execute: () => executeMetadataValidationConfigMigration(db)
             }
         ];
         
