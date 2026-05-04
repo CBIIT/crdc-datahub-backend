@@ -115,6 +115,12 @@ describe('SubmissionDAO', () => {
             }
         ];
 
+        /** First findMany args object that includes relations (main paginated list query), not facet distinct. */
+        const getMainListQueryArg = () => {
+            const row = prisma.submission.findMany.mock.calls.find((c) => c[0]?.include);
+            return row ? row[0] : undefined;
+        };
+
         beforeEach(() => {
             // Reset mocks to ensure clean state between tests
             prisma.submission.findMany.mockReset();
@@ -122,8 +128,11 @@ describe('SubmissionDAO', () => {
             prisma.program.findMany.mockReset();
             
             // Setup default Prisma mocks
-            // findMany: main query and submitter names aggregation
+            // findMany: main query, submitter names aggregation, OWN/STUDY distinct dataCommons on base scope
             prisma.submission.findMany.mockImplementation((query) => {
+                if (query.distinct?.includes('dataCommons')) {
+                    return Promise.resolve([{ dataCommons: mockSubmissions[0].dataCommons }]);
+                }
                 // Main query with includes
                 if (query.include) {
                     return Promise.resolve(mockSubmissions);
@@ -316,7 +325,7 @@ describe('SubmissionDAO', () => {
 
                 await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithDbGaPID);
 
-                const call = prisma.submission.findMany.mock.calls[0][0];
+                const call = getMainListQueryArg();
                 const andConditions = call.where.AND || [];
                 const dbGaPIDOrCondition = andConditions.find(c => c.OR && c.OR.some(o => o.study?.is));
                 expect(dbGaPIDOrCondition).toBeDefined();
@@ -330,7 +339,7 @@ describe('SubmissionDAO', () => {
 
                 await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithDbGaPID);
 
-                const call = prisma.submission.findMany.mock.calls[0][0];
+                const call = getMainListQueryArg();
                 const andConditions = call.where.AND || [];
                 const dbGaPIDOrCondition = andConditions.find(c => c.OR && c.OR.length === 3);
                 expect(dbGaPIDOrCondition).toBeDefined();
@@ -348,13 +357,13 @@ describe('SubmissionDAO', () => {
 
                 prisma.submission.findMany.mockClear();
                 await dao.listSubmissions(mockUserInfo, mockUserScope, { ...mockParams, dbGaPID: '   ' });
-                call = prisma.submission.findMany.mock.calls[0][0];
+                call = getMainListQueryArg();
                 hasDbGaPIDSearch = (call.where.AND || []).some(c => c.OR && c.OR.some(o => o.study?.is));
                 expect(hasDbGaPIDSearch).toBe(false);
 
                 prisma.submission.findMany.mockClear();
                 await dao.listSubmissions(mockUserInfo, mockUserScope, { ...mockParams, dbGaPID: '\\\\' });
-                call = prisma.submission.findMany.mock.calls[0][0];
+                call = getMainListQueryArg();
                 hasDbGaPIDSearch = (call.where.AND || []).some(c => c.OR && c.OR.some(o => o.study?.is));
                 expect(hasDbGaPIDSearch).toBe(false);
             });
@@ -942,6 +951,9 @@ describe('SubmissionDAO', () => {
                     concierge: null
                 };
                 prisma.submission.findMany.mockImplementation((query) => {
+                    if (query.distinct?.includes('dataCommons')) {
+                        return Promise.resolve([{ dataCommons: testSubmission.dataCommons }]);
+                    }
                     // Main query with includes
                     if (query.include) {
                         return Promise.resolve([testSubmission]);
@@ -990,6 +1002,9 @@ describe('SubmissionDAO', () => {
                     concierge: null
                 };
                 prisma.submission.findMany.mockImplementation((query) => {
+                    if (query.distinct?.includes('dataCommons')) {
+                        return Promise.resolve([{ dataCommons: testSubmission.dataCommons }]);
+                    }
                     if (query.include) return Promise.resolve([testSubmission]);
                     if (query.select?.submitter) return Promise.resolve([{ submitter: testSubmission.submitter }]);
                     return Promise.resolve([testSubmission]);
@@ -1015,6 +1030,9 @@ describe('SubmissionDAO', () => {
                     concierge: null
                 };
                 prisma.submission.findMany.mockImplementation((query) => {
+                    if (query.distinct?.includes('dataCommons')) {
+                        return Promise.resolve([{ dataCommons: testSubmission.dataCommons }]);
+                    }
                     if (query.include) return Promise.resolve([testSubmission]);
                     if (query.select?.submitter) return Promise.resolve([{ submitter: testSubmission.submitter }]);
                     return Promise.resolve([testSubmission]);
@@ -1053,6 +1071,9 @@ describe('SubmissionDAO', () => {
                     concierge: null
                 };
                 prisma.submission.findMany.mockImplementation((query) => {
+                    if (query.distinct?.includes('dataCommons')) {
+                        return Promise.resolve([{ dataCommons: deletedSubmission.dataCommons }]);
+                    }
                     // Main query with includes
                     if (query.include) {
                         return Promise.resolve([deletedSubmission]);
@@ -1097,6 +1118,9 @@ describe('SubmissionDAO', () => {
                     concierge: null
                 };
                 prisma.submission.findMany.mockImplementation((query) => {
+                    if (query.distinct?.includes('dataCommons')) {
+                        return Promise.resolve([{ dataCommons: activeSubmission.dataCommons }]);
+                    }
                     // Main query with includes
                     if (query.include) {
                         return Promise.resolve([activeSubmission]);
@@ -1115,10 +1139,64 @@ describe('SubmissionDAO', () => {
         });
 
         describe('Aggregations', () => {
-            it('should return empty dataCommons at DAO level', async () => {
+            it('should return scopeDistinctDataCommons for OWN scope and empty dataCommons placeholder', async () => {
                 const result = await dao.listSubmissions(mockUserInfo, mockUserScope, mockParams);
 
                 expect(result.dataCommons).toEqual([]);
+                expect(result.scopeDistinctDataCommons).toEqual(['test-commons']);
+            });
+
+            it('should return null scopeDistinctDataCommons for ALL scope', async () => {
+                mockUserScope.isAllScope.mockReturnValue(true);
+                mockUserScope.isOwnScope.mockReturnValue(false);
+
+                const result = await dao.listSubmissions(mockUserInfo, mockUserScope, mockParams);
+
+                expect(result.scopeDistinctDataCommons).toBeNull();
+            });
+
+            it('should return null scopeDistinctDataCommons for DC scope', async () => {
+                mockUserScope.isDCScope.mockReturnValue(true);
+                mockUserScope.isOwnScope.mockReturnValue(false);
+                mockUserScope.getDataCommonsScope.mockReturnValue({
+                    scopeValues: ['test-commons']
+                });
+
+                const result = await dao.listSubmissions(mockUserInfo, mockUserScope, mockParams);
+
+                expect(result.scopeDistinctDataCommons).toBeNull();
+            });
+
+            it('should query distinct dataCommons with study scope base where', async () => {
+                mockUserScope.isStudyScope.mockReturnValue(true);
+                mockUserScope.isOwnScope.mockReturnValue(false);
+                mockUserScope.getStudyScope.mockReturnValue({
+                    scopeValues: ['study-1', 'study-2']
+                });
+
+                let distinctWhere = null;
+                prisma.submission.findMany.mockImplementation((query) => {
+                    if (query.distinct?.includes('dataCommons')) {
+                        distinctWhere = query.where;
+                        return Promise.resolve([{ dataCommons: 'GDC' }]);
+                    }
+                    if (query.include) {
+                        return Promise.resolve(mockSubmissions);
+                    }
+                    if (query.select?.submitter) {
+                        return Promise.resolve([{ submitter: mockSubmissions[0].submitter }]);
+                    }
+                    return Promise.resolve(mockSubmissions);
+                });
+
+                const result = await dao.listSubmissions(mockUserInfo, mockUserScope, mockParams);
+
+                expect(distinctWhere).toEqual(
+                    expect.objectContaining({
+                        studyID: { in: ['study-1', 'study-2'] }
+                    })
+                );
+                expect(result.scopeDistinctDataCommons).toEqual(['GDC']);
             });
 
             it('should get distinct submitter names', async () => {
@@ -1165,6 +1243,9 @@ describe('SubmissionDAO', () => {
                 
                 // Mock findMany to return different results based on query type
                 prisma.submission.findMany.mockImplementation((query) => {
+                    if (query.distinct?.includes('dataCommons')) {
+                        return Promise.resolve([{ dataCommons: 'test-commons' }]);
+                    }
                     if (query.include?.submitter) {
                         // Main query returns submissions with both submitters
                         return Promise.resolve([
@@ -1203,6 +1284,9 @@ describe('SubmissionDAO', () => {
                 
                 // Mock findMany to capture the where clause for the submitterNames query
                 prisma.submission.findMany.mockImplementation((query) => {
+                    if (query.distinct?.includes('dataCommons')) {
+                        return Promise.resolve([{ dataCommons: 'GDC' }]);
+                    }
                     if (query.include?.submitter && !query.distinct) {
                         // Main query - should include submitterName filter
                         return Promise.resolve([

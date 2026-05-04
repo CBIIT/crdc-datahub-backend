@@ -320,8 +320,8 @@ class Submission {
     }
 
     /**
-     * Constant data commons list for listSubmissions: allowed and not hidden, further restricted for DC-scoped VIEW users.
-     * Independent of list filters (name, status, organization, etc.).
+     * Catalog data commons for listSubmissions when VIEW scope is **ALL** or **DC** (not OWN/STUDY).
+     * Allowed and not hidden; DC users also intersect with `userInfo.dataCommons`.
      */
     _permittedDataCommonsForListView(userInfo, userScope) {
         let list = Array.from(this.allowedDataCommons).filter(
@@ -343,7 +343,14 @@ class Submission {
             return {submissions: [], total: 0};
         }
         const res = await this.submissionDAO.listSubmissions(context?.userInfo, userScope, params);
-        res.dataCommons = this._permittedDataCommonsForListView(context?.userInfo, userScope);
+        if (userScope.isOwnScope() || userScope.isStudyScope()) {
+            res.dataCommons = (res.scopeDistinctDataCommons || [])
+                .filter((dc) => this.allowedDataCommons.has(dc) && !this.hiddenDataCommons.has(dc))
+                .sort((a, b) => a.localeCompare(b));
+        } else {
+            res.dataCommons = this._permittedDataCommonsForListView(context?.userInfo, userScope);
+        }
+        delete res.scopeDistinctDataCommons;
         const transformedRes = getDataCommonsDisplayNamesForListSubmissions(res);
         // Add canViewSubmissionRequest field to submissions
         transformedRes.submissions = await this._appendSubmissionRequestAndViewPermissions(transformedRes?.submissions, context?.userInfo);

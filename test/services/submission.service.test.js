@@ -2060,7 +2060,7 @@ describe('Submission Service - listSubmissions', () => {
         expect(result.dataCommons).toEqual([]);
     });
 
-    it('should include permitted data commons when none appear in the DAO distinct list', async () => {
+    it('should return full catalog data commons for ALL scope regardless of DAO payload fields', async () => {
         mockSubmissionDAO.listSubmissions.mockResolvedValue({
             submissions: [],
             total: 0,
@@ -2073,6 +2073,48 @@ describe('Submission Service - listSubmissions', () => {
         const result = await submissionService.listSubmissions({}, mockContext);
 
         expect(result.dataCommons).toEqual(['CDS', 'CTDC', 'ICDC']);
+    });
+
+    it('should use scopeDistinctDataCommons for OWN scope filtered by allowed and hidden', async () => {
+        submissionService._getUserScope = jest.fn().mockResolvedValue(
+            createMockUserScope(false, false, true, false, false)
+        );
+
+        mockSubmissionDAO.listSubmissions.mockResolvedValue({
+            submissions: [],
+            total: 0,
+            dataCommons: [],
+            scopeDistinctDataCommons: ['CDS', 'ICDC', 'Hidden Model'],
+            submitterNames: [],
+            organizations: [],
+            statuses: () => []
+        });
+
+        const result = await submissionService.listSubmissions({}, mockContext);
+
+        expect(result.dataCommons).toEqual(['CDS', 'ICDC']);
+        expect(result).not.toHaveProperty('scopeDistinctDataCommons');
+    });
+
+    it('should use scopeDistinctDataCommons for STUDY scope filtered by allowed and hidden', async () => {
+        submissionService._getUserScope = jest.fn().mockResolvedValue(
+            createMockUserScope(false, false, false, true, false)
+        );
+
+        mockSubmissionDAO.listSubmissions.mockResolvedValue({
+            submissions: [],
+            total: 0,
+            dataCommons: [],
+            scopeDistinctDataCommons: ['CDS', 'Hidden Model'],
+            submitterNames: [],
+            organizations: [],
+            statuses: () => []
+        });
+
+        const result = await submissionService.listSubmissions({}, mockContext);
+
+        expect(result.dataCommons).toEqual(['CDS']);
+        expect(result).not.toHaveProperty('scopeDistinctDataCommons');
     });
 
     it('should use only DC-scoped permitted data commons regardless of list filters / DAO payload', async () => {

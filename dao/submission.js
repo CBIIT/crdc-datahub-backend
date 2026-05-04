@@ -85,7 +85,8 @@ class SubmissionDAO extends GenericDAO {
      * @returns {Object} Object containing submissions, total count, and aggregation data
      * @returns {Array<Object>} returns.submissions - Array of submission objects
      * @returns {number} returns.total - Total count of submissions matching filters
-     * @returns {Array<string>} returns.dataCommons - Always empty; service replaces with permission-based list
+     * @returns {Array<string>} returns.dataCommons - Always empty; service fills from catalog or scopeDistinctDataCommons
+     * @returns {Array<string>|null} [returns.scopeDistinctDataCommons] - OWN/STUDY only: distinct dataCommons under base VIEW scope; null for ALL/DC
      * @returns {Array<string>} returns.submitterNames - Distinct names of submitters filtered by all criteria except submitterName filter
      * @returns {Array<string>} returns.organizations - All organization (program) names
      * @returns {Function} returns.statuses - Function returning sorted distinct statuses
@@ -103,12 +104,13 @@ class SubmissionDAO extends GenericDAO {
                 submissions: [],
                 total: 0,
                 dataCommons: [],
+                scopeDistinctDataCommons: [],
                 submitterNames: [],
                 organizations: [],
                 statuses: []
             };
         }
-        
+
         // filter by user scope and search filters
         const filterConditions = this._addFiltersToBaseConditions(userInfo, { ...baseConditions }, params.organization, params.status, params.name, params.dbGaPID, params.dataCommons, params?.submitterName);
         // Build filter conditions WITHOUT submitterName for the submitterNames aggregation
@@ -160,17 +162,24 @@ class SubmissionDAO extends GenericDAO {
                 console.error('The filterConditions variable is null. This is should be handled before this point, please review and update accordingly.');
                 throw new Error(ERROR.NULL_FILTER_CONDITIONS);
             }
-            // Execute main query with pagination
-            const submissions = await prisma.submission.findMany({
-                where: filterConditions,
-                include: includeQuery,
-                ...pagination.getPagination()
-            });
 
-            // Get total count
-            const total = await prisma.submission.count({
-                where: filterConditions
-            });
+            const needsScopeDistinct = userScope.isOwnScope() || userScope.isStudyScope();
+            const scopeDistinctPromise = needsScopeDistinct
+                ? this._getDistinctDataCommonsForWhere(baseConditions)
+                : Promise.resolve(null);
+
+            // Main list, total count, and OWN/STUDY dataCommons facet share one round-trip (parallel queries).
+            const [submissions, total, scopeDistinctDataCommons] = await Promise.all([
+                prisma.submission.findMany({
+                    where: filterConditions,
+                    include: includeQuery,
+                    ...pagination.getPagination()
+                }),
+                prisma.submission.count({
+                    where: filterConditions
+                }),
+                scopeDistinctPromise
+            ]);
 
             // Get submitter names filtered by all search criteria EXCEPT submitterName
             // This ensures the dropdown shows all available options based on other filters
@@ -217,6 +226,7 @@ class SubmissionDAO extends GenericDAO {
                 submissions: transformedSubmissions,
                 total: total,
                 dataCommons: [],
+                scopeDistinctDataCommons,
                 submitterNames: submitterNames,
                 organizations: organizations,
                 statuses: () => statuses
@@ -408,6 +418,29 @@ class SubmissionDAO extends GenericDAO {
 
         } catch (error) {
             console.error('Error getting distinct submitterNames:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Distinct dataCommons for submissions matching VIEW base scope only (no list search filters).
+     * @param {Object} where - Prisma where from _generateListSubmissionConditions
+     * @returns {Promise<string[]>}
+     */
+    async _getDistinctDataCommonsForWhere(where) {
+        try {
+            const rows = await prisma.submission.findMany({
+                where,
+                select: { dataCommons: true },
+                distinct: ['dataCommons']
+            });
+            const values = rows
+                .map((row) => row?.dataCommons)
+                .filter((dc) => dc != null && String(dc).trim() !== '')
+                .sort((a, b) => a.localeCompare(b));
+            return Array.from(new Set(values));
+        } catch (error) {
+            console.error('Error getting distinct dataCommons for scope:', error);
             return [];
         }
     }
