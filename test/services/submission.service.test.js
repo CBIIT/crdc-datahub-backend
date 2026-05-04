@@ -1975,20 +1975,24 @@ describe('Submission Service - listSubmissions', () => {
     });
 
     it('should not return hidden data commons in the dataCommons list', async () => {
-        await submissionService.listSubmissions({}, mockContext);
+        mockSubmissionDAO.listSubmissions.mockResolvedValue({
+            submissions: [],
+            total: 0,
+            dataCommons: ['CDS', 'ICDC', 'CTDC', 'Hidden Model'],
+            submitterNames: [],
+            organizations: [],
+            statuses: () => []
+        });
 
-        // Verify listSubmissions was called with filtered data commons (excluding hidden)
+        const result = await submissionService.listSubmissions({}, mockContext);
+
         expect(mockSubmissionDAO.listSubmissions).toHaveBeenCalledWith(
             mockContext.userInfo,
-            expect.anything(), // userScope
-            {}, // params
-            expect.arrayContaining(['CDS', 'ICDC', 'CTDC'])
+            expect.anything(),
+            {}
         );
-
-        // Verify hidden model is NOT in the data commons list
-        const calledDataCommons = mockSubmissionDAO.listSubmissions.mock.calls[0][3];
-        expect(calledDataCommons).not.toContain('Hidden Model');
-        expect(calledDataCommons).toHaveLength(3);
+        expect(result.dataCommons).not.toContain('Hidden Model');
+        expect(result.dataCommons).toEqual(['CDS', 'CTDC', 'ICDC']);
     });
 
     it('should pass all non-hidden data commons when none are hidden', async () => {
@@ -2007,11 +2011,23 @@ describe('Submission Service - listSubmissions', () => {
         );
         serviceNoHidden._appendSubmissionRequestAndViewPermissions = createMockAppendSubmissionRequestPermissions();
 
-        await serviceNoHidden.listSubmissions({}, mockContext);
+        mockSubmissionDAO.listSubmissions.mockResolvedValue({
+            submissions: [],
+            total: 0,
+            dataCommons: ['CDS', 'ICDC', 'CTDC'],
+            submitterNames: [],
+            organizations: [],
+            statuses: () => []
+        });
 
-        const calledDataCommons = mockSubmissionDAO.listSubmissions.mock.calls[0][3];
-        expect(calledDataCommons).toEqual(['CDS', 'ICDC', 'CTDC']);
-        expect(calledDataCommons).toHaveLength(3);
+        const result = await serviceNoHidden.listSubmissions({}, mockContext);
+
+        expect(mockSubmissionDAO.listSubmissions).toHaveBeenCalledWith(
+            mockContext.userInfo,
+            expect.anything(),
+            {}
+        );
+        expect(result.dataCommons).toEqual(['CDS', 'CTDC', 'ICDC']);
     });
 
     it('should return empty data commons list when all are hidden', async () => {
@@ -2030,10 +2046,66 @@ describe('Submission Service - listSubmissions', () => {
         );
         serviceAllHidden._appendSubmissionRequestAndViewPermissions = createMockAppendSubmissionRequestPermissions();
 
-        await serviceAllHidden.listSubmissions({}, mockContext);
+        mockSubmissionDAO.listSubmissions.mockResolvedValue({
+            submissions: [],
+            total: 0,
+            dataCommons: ['CDS', 'ICDC'],
+            submitterNames: [],
+            organizations: [],
+            statuses: () => []
+        });
 
-        const calledDataCommons = mockSubmissionDAO.listSubmissions.mock.calls[0][3];
-        expect(calledDataCommons).toEqual([]);
-        expect(calledDataCommons).toHaveLength(0);
+        const result = await serviceAllHidden.listSubmissions({}, mockContext);
+
+        expect(result.dataCommons).toEqual([]);
+    });
+
+    it('should include permitted data commons when none appear in the DAO distinct list', async () => {
+        mockSubmissionDAO.listSubmissions.mockResolvedValue({
+            submissions: [],
+            total: 0,
+            dataCommons: [],
+            submitterNames: [],
+            organizations: [],
+            statuses: () => []
+        });
+
+        const result = await submissionService.listSubmissions({}, mockContext);
+
+        expect(result.dataCommons).toEqual(['CDS', 'CTDC', 'ICDC']);
+    });
+
+    it('should use only DC-scoped permitted data commons regardless of list filters / DAO payload', async () => {
+        const dataCommonsList = ['CDS', 'ICDC', 'CTDC'];
+        const serviceDC = new Submission(
+            {}, {}, {}, {}, {}, {}, {}, jest.fn(), {}, 'queue', {}, {},
+            dataCommonsList, [],
+            {}, 'sqs', {}, {}, 'bucket', {}, {}, {}, {}, {}, {}
+        );
+        serviceDC.submissionDAO = mockSubmissionDAO;
+        serviceDC._getUserScope = jest.fn().mockResolvedValue(
+            createMockUserScope(false, false, false, false, true)
+        );
+        serviceDC._appendSubmissionRequestAndViewPermissions = createMockAppendSubmissionRequestPermissions();
+
+        mockSubmissionDAO.listSubmissions.mockResolvedValue({
+            submissions: [],
+            total: 0,
+            dataCommons: [],
+            submitterNames: [],
+            organizations: [],
+            statuses: () => []
+        });
+
+        const ctx = {
+            userInfo: {
+                _id: 'user-123',
+                dataCommons: ['CDS', 'ICDC']
+            }
+        };
+
+        const result = await serviceDC.listSubmissions({ dataCommons: 'GDC', status: [NEW] }, ctx);
+
+        expect(result.dataCommons).toEqual(['CDS', 'ICDC']);
     });
 });

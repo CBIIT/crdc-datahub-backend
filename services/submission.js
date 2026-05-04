@@ -319,6 +319,21 @@ class Submission {
         });
     }
 
+    /**
+     * Constant data commons list for listSubmissions: allowed and not hidden, further restricted for DC-scoped VIEW users.
+     * Independent of list filters (name, status, organization, etc.).
+     */
+    _permittedDataCommonsForListView(userInfo, userScope) {
+        let list = Array.from(this.allowedDataCommons).filter(
+            (dc) => !this.hiddenDataCommons.has(dc)
+        );
+        if (userScope.isDCScope()) {
+            const assigned = new Set(userInfo?.dataCommons || []);
+            list = list.filter((dc) => assigned.has(dc));
+        }
+        return list.sort((a, b) => a.localeCompare(b));
+    }
+
     async listSubmissions(params, context) {
         verifySession(context)
             .verifyInitialized();
@@ -327,8 +342,8 @@ class Submission {
             console.warn("Failed permission verification for listSubmissions, returning empty list");
             return {submissions: [], total: 0};
         }
-        const dataCommonsList = Array.from(this.allowedDataCommons).filter(dc => !this.hiddenDataCommons.has(dc));
-        const res = await this.submissionDAO.listSubmissions(context?.userInfo, userScope, params, dataCommonsList);
+        const res = await this.submissionDAO.listSubmissions(context?.userInfo, userScope, params);
+        res.dataCommons = this._permittedDataCommonsForListView(context?.userInfo, userScope);
         const transformedRes = getDataCommonsDisplayNamesForListSubmissions(res);
         // Add canViewSubmissionRequest field to submissions
         transformedRes.submissions = await this._appendSubmissionRequestAndViewPermissions(transformedRes?.submissions, context?.userInfo);

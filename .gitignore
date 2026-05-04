@@ -11,3 +11,4 @@ coverage
 dist/
 generated/prisma/
 integration-tests/
+requirements/

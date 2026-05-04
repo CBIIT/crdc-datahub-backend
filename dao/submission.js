@@ -64,8 +64,8 @@ class SubmissionDAO extends GenericDAO {
      * 1. Base filtering by user scope and permissions (access control)
      * 2. Additional filtering by search parameters (name, status, organization, etc.)
      * 
-     * The method ensures that aggregations (distinct values) are only filtered by user scope,
-     * while the main submissions query includes both scope and search filters for accurate results.
+     * Facet aggregation for submitterNames uses scope plus search filters, excluding the submitterName filter.
+     * Response `dataCommons` is filled by the service from VIEW permission only (not from this DAO).
      * 
      * @param {Object} userInfo - User information object containing user details
      * @param {string} userInfo._id - User's unique identifier
@@ -82,17 +82,16 @@ class SubmissionDAO extends GenericDAO {
      * @param {number} [params.first] - Number of results to return (pagination)
      * @param {number} [params.offset] - Number of results to skip (pagination)
      * @param {string} [params.sortDirection] - Sort direction ('asc' or 'desc')
-     * @param {Array<string>} dataCommonsList - Array of all non-hidden data commons from configuration
      * @returns {Object} Object containing submissions, total count, and aggregation data
      * @returns {Array<Object>} returns.submissions - Array of submission objects
      * @returns {number} returns.total - Total count of submissions matching filters
-     * @returns {Array<string>} returns.dataCommons - Array of all non-hidden data commons from configuration
+     * @returns {Array<string>} returns.dataCommons - Always empty; service replaces with permission-based list
      * @returns {Array<string>} returns.submitterNames - Distinct names of submitters filtered by all criteria except submitterName filter
      * @returns {Array<string>} returns.organizations - All organization (program) names
      * @returns {Function} returns.statuses - Function returning sorted distinct statuses
      * @throws {Error} When database query fails or validation errors occur
      */
-    async listSubmissions(userInfo, userScope, params, dataCommonsList = []) {
+    async listSubmissions(userInfo, userScope, params) {
         validateListSubmissionsParams(params);
 
         // Filter by user scope only
@@ -217,7 +216,7 @@ class SubmissionDAO extends GenericDAO {
             return {
                 submissions: transformedSubmissions,
                 total: total,
-                dataCommons: dataCommonsList || [],
+                dataCommons: [],
                 submitterNames: submitterNames,
                 organizations: organizations,
                 statuses: () => statuses

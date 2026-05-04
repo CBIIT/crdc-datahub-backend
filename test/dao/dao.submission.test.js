@@ -122,7 +122,7 @@ describe('SubmissionDAO', () => {
             prisma.program.findMany.mockReset();
             
             // Setup default Prisma mocks
-            // findMany is called twice: main query and submitter names (statuses are now a constant)
+            // findMany: main query and submitter names aggregation
             prisma.submission.findMany.mockImplementation((query) => {
                 // Main query with includes
                 if (query.include) {
@@ -443,15 +443,14 @@ describe('SubmissionDAO', () => {
                     })
                 );
 
-                // Data commons aggregation no longer queries submissions - it uses dataCommonsList parameter
-                // The dataCommons are now returned from the configuration, not filtered by submissions
+                // dataCommons in API response are assigned in Submission.listSubmissions from VIEW permission only
             });
         });
 
         describe('Filter Priority and Behavior', () => {
             beforeEach(() => {
                 // Setup mock responses for aggregation methods
-                // Note: dataCommons are now from config, organizations from program table, statuses are constant
+                // Note: dataCommons list is set in service; organizations from program table; statuses constant
                 prisma.submission.findMany
                     .mockResolvedValueOnce(mockSubmissions) // Main query
                     .mockResolvedValueOnce([{ submitter: { fullName: 'Test User' } }]); // Submitter names aggregation
@@ -843,7 +842,7 @@ describe('SubmissionDAO', () => {
                     })
                 );
                 // Note: submitterNames aggregation also uses filterConditions (responds to search filters)
-                // dataCommons are from configuration, organizations query all programs, statuses are a predefined list
+                // organizations query all programs; statuses predefined; dataCommons set in service
             });
         });
 
@@ -942,7 +941,6 @@ describe('SubmissionDAO', () => {
                     },
                     concierge: null
                 };
-                // findMany is called twice: main query and submitter names (statuses are now a constant)
                 prisma.submission.findMany.mockImplementation((query) => {
                     // Main query with includes
                     if (query.include) {
@@ -1054,7 +1052,6 @@ describe('SubmissionDAO', () => {
                     },
                     concierge: null
                 };
-                // findMany is called twice: main query and submitter names (statuses are now a constant)
                 prisma.submission.findMany.mockImplementation((query) => {
                     // Main query with includes
                     if (query.include) {
@@ -1099,7 +1096,6 @@ describe('SubmissionDAO', () => {
                     },
                     concierge: null
                 };
-                // findMany is called twice: main query and submitter names (statuses are now a constant)
                 prisma.submission.findMany.mockImplementation((query) => {
                     // Main query with includes
                     if (query.include) {
@@ -1119,13 +1115,10 @@ describe('SubmissionDAO', () => {
         });
 
         describe('Aggregations', () => {
-            it('should get distinct data commons', async () => {
-                const mockDataCommonsList = ['test-commons', 'GDC'];
-                const result = await dao.listSubmissions(mockUserInfo, mockUserScope, mockParams, mockDataCommonsList);
+            it('should return empty dataCommons at DAO level', async () => {
+                const result = await dao.listSubmissions(mockUserInfo, mockUserScope, mockParams);
 
-                expect(result.dataCommons).toBeDefined();
-                expect(result.dataCommons).toEqual(mockDataCommonsList);
-                // Data commons are now returned from configuration, not queried from submissions
+                expect(result.dataCommons).toEqual([]);
             });
 
             it('should get distinct submitter names', async () => {
