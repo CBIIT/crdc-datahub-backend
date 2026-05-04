@@ -168,7 +168,8 @@ class SubmissionDAO extends GenericDAO {
                 ? this._getDistinctDataCommonsForWhere(baseConditions)
                 : Promise.resolve(null);
 
-            // Main list, total count, and OWN/STUDY dataCommons facet share one round-trip (parallel queries).
+            // Fetch the main list and total count in parallel; OWN/STUDY requests also run a separate
+            // distinct dataCommons query in parallel when scopeDistinctPromise is not null.
             const [submissions, total, scopeDistinctDataCommons] = await Promise.all([
                 prisma.submission.findMany({
                     where: filterConditions,
