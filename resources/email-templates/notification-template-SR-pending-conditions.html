@@ -46,7 +46,8 @@
   <p>
     Thank you and we look forward to supporting your data submission.
   </p>
-  {{else if omitDataSubmissionInstructionsOnly}}
+  {{else}}
+  {{#if omitDataSubmissionInstructionsOnly}}
   <p>
     {{#if isMultiplePendingConditions}}
     You will be notified once all pending conditions have been cleared. At that time, you may begin your data submission.
@@ -61,15 +62,16 @@
   {{else}}
   <p>
     {{#if isMultiplePendingConditions}}
-    You will be notified once all pending conditions have been cleared. At that time, you may begin your data submission. For guidance, please refer to the <a href="{{submissionGuideURL}}">Data Submission Instructions</a> for guidance.
+    You will be notified once all pending conditions have been cleared. At that time, you may begin your data submission. For guidance, please refer to the <a href="{{submissionGuideURL}}">Data Submission Instructions</a>.
     {{else}}
-    You will be notified once the pending condition has been cleared. At that time, you may begin your data submission. For guidance, please refer to the <a href="{{submissionGuideURL}}">Data Submission Instructions</a> for guidance.
+    You will be notified once the pending condition has been cleared. At that time, you may begin your data submission. For guidance, please refer to the <a href="{{submissionGuideURL}}">Data Submission Instructions</a>.
     {{/if}}
   </p>
   <p>
     If you have any questions, feel free to contact the CRDC Helpdesk at {{ contactEmail }}.
   </p>
   <p>Thank you for your submission, and we look forward to supporting your study.</p>
+  {{/if}}
   {{/if}}
   <p>Sincerely,</p>
   <p>CRDC Submission Portal</p>
