@@ -20,7 +20,7 @@ const {getDataCommonsDisplayNamesForApprovedStudy, getDataCommonsDisplayNamesFor
 } = require("../utility/data-commons-remapper");
 const {SORT: PRISMA_SORT} = require("../constants/db-constants");
 const {UserScope} = require("../domain/user-scope");
-const {replaceErrorString} = require("../utility/string-util");
+const {replaceErrorString, escapeRegexLiteral} = require("../utility/string-util");
 const NA_PROGRAM = "NA";
 const NA = "NA";
 const prisma = require("../prisma");
@@ -67,6 +67,7 @@ class ApprovedStudiesService {
     /**
      * List Approved Studies by a studyName API.
      * Case-insensitive match on studyName (Prisma Mongo `equals` + `mode: insensitive`).
+     * On MongoDB, Prisma implements that filter with a regex; `escapeRegexLiteral` keeps user input literal (e.g. `*`).
      * @api
      * @param {string} studyName
      * @returns {Promise<Object[]>} At most one approved study (same shape as legacy aggregate: array with `_id`)
@@ -79,7 +80,8 @@ class ApprovedStudiesService {
         const row = await prisma.approvedStudy.findFirst({
             where: {
                 studyName: {
-                    equals: trimmed,
+                    // Prisma-on-Mongo compiles insensitive `equals` to regex; escape so metacharacters are literals, not syntax.
+                    equals: escapeRegexLiteral(trimmed),
                     mode: "insensitive"
                 }
             }

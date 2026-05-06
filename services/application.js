@@ -10,7 +10,7 @@ const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-
 const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const {parseJsonString, isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
-const {isUndefined, replaceErrorString} = require("../utility/string-util");
+const {isUndefined, replaceErrorString, escapeRegexLiteral} = require("../utility/string-util");
 const {defaultStudyAbbreviationToStudyName, defaultStudyAbbreviationToNA} = require("../utility/study-abbrev-helpers");
 const {EMAIL_NOTIFICATIONS} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
@@ -349,7 +349,7 @@ class Application {
         if (submitterName != null && submitterName !== this._ALL_FILTER) {
             return {applicant: {
                 is: {
-                    fullName: {contains: submitterName.trim().replace(/\\/g, "\\\\"), mode: "insensitive"}
+                    fullName: {contains: escapeRegexLiteral(submitterName.trim()), mode: "insensitive"}
                 }
             }}
         }
@@ -467,7 +467,7 @@ class Application {
         const hasStudyFilter = studySearchTerm?.length > 0 && params.studyName !== this._ALL_FILTER;
         let studyCondition = {};
         if (hasStudyFilter) {
-            const studySearchTermSanitized = studySearchTerm.replace(/\\/g, "\\\\");
+            const studySearchTermSanitized = escapeRegexLiteral(studySearchTerm);
             const containsOption = { contains: studySearchTermSanitized, mode: "insensitive" };
             studyCondition = {
                 OR: [

@@ -267,6 +267,31 @@ describe('Submission listSubmissionNodes (Data View, paginated path)', () => {
     ]);
   });
 
+  it('uses a safe RegExp for nodeID when the search term contains regex metacharacters', async () => {
+    submissionService.dataRecordDAO.getSubmissionNodes = jest.fn().mockResolvedValue({ total: 0, results: [] });
+    submissionService.dataRecordDAO.getDistinctParentRelationshipKeys = jest.fn().mockResolvedValue([]);
+    submissionService.dataRecordDAO.getDistinctPropsTopLevelKeys = jest.fn().mockResolvedValue([]);
+
+    await submissionService.listSubmissionNodes(
+      {
+        submissionID: 'sub-1',
+        nodeType: 'study_diagnosis',
+        status: 'All',
+        nodeID: '*',
+        first: 10,
+        offset: 0,
+        orderBy: 'nodeID',
+        sortDirection: 'ASC'
+      },
+      { userInfo: { _id: 'u1' } }
+    );
+
+    const queryArg = submissionService.dataRecordDAO.getSubmissionNodes.mock.calls[0][6];
+    expect(queryArg.nodeID).toBeInstanceOf(RegExp);
+    expect(queryArg.nodeID.source).toBe('\\*');
+    expect(queryArg.nodeID.flags).toBe('i');
+  });
+
   it('includes top-level props keys from getDistinctPropsTopLevelKeys when absent on the current page', async () => {
     submissionService.dataRecordDAO.getSubmissionNodes = jest.fn().mockResolvedValue({
       total: 200,

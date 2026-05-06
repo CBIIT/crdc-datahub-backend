@@ -23,7 +23,7 @@ const NA = "NA"
 const config = require("../config");
 const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
-const {isUndefined, replaceErrorString, isValidFileExtension, fileSizeFormatter} = require("../utility/string-util");
+const {isUndefined, replaceErrorString, isValidFileExtension, fileSizeFormatter, escapeRegexLiteral} = require("../utility/string-util");
 const {NODE_RELATION_TYPES} = require("./data-record-service");
 const {verifyToken} = require("../verifier/token-verifier");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
@@ -1015,7 +1015,7 @@ class Submission {
                 submissionID,
                 nodeType,
                 ...(status !== ALL_FILTER && { status }),
-                ...(nodeID && { nodeID: new RegExp(nodeID, "i") })
+                ...(nodeID && { nodeID: new RegExp(escapeRegexLiteral(nodeID), "i") })
             };
 
             // Data View `properties`: page-local keys from _processSubmissionNodes, plus
