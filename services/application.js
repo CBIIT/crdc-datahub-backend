@@ -1462,7 +1462,15 @@ const setDefaultIfNoName = (str) => {
     return (name.length > 0) ? (name) : "NA";
 }
 
-/** Abbreviation for $study-style email slots; falls back to application study name. (Inquire/PV abbrev lines use defaultStudyAbbreviationToNA separately.) */
+/**
+ * Label for `$study`-style message variables and notification template `studyName`.
+ * First resolves via `defaultStudyAbbreviationToStudyName` (trimmed abbreviation if non-empty,
+ * otherwise trimmed `studyName`). Then `setDefaultIfNoName` maps empty or whitespace-only results
+ * to the literal string `NA`, so callers and templates always get a non-empty value (e.g. blank
+ * New submission requests). Inquire/PV Study Abbreviation lines use `defaultStudyAbbreviationToNA` separately.
+ * @param {{ studyAbbreviation?: string, studyName?: string }} [application]
+ * @returns {string} Resolved abbreviation or study name, or `NA`
+ */
 function studyLabelForEmailBody(application) {
     const label = defaultStudyAbbreviationToStudyName(application?.studyAbbreviation, application?.studyName);
     return setDefaultIfNoName(label);
