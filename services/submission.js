@@ -12,7 +12,7 @@ const ERROR = require("../constants/error-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {SubmissionActionEvent, DeleteRecordEvent, UpdateSubmissionNameEvent, UpdateSubmissionConfEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const {verifyBatch} = require("../verifier/batch-verifier");
-const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
+const {BATCH, FILE: BATCH_FILE} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const SubmissionDAO = require("../dao/submission");
 // const {write2file} = require("../utility/io-util") //keep the line for future testing.
@@ -435,6 +435,20 @@ class Submission {
         const res = await this.batchService.updateBatch(aBatch, aSubmission?.bucketName, params?.files);
         // new status is ready for the validation
         if (res.status === BATCH.STATUSES.UPLOADED) {
+            if (res?.type === VALIDATION.TYPES.DATA_FILE) {
+                const uploadedFileNames = (res.files || [])
+                    .filter((f) => f?.status === BATCH_FILE.UPLOAD_STATUSES.UPLOADED && f?.fileName)
+                    .map((f) => f.fileName);
+                if (uploadedFileNames.length > 0) {
+                    await this.qcResultsService.deleteQCResultBySubmissionID(
+                        aSubmission._id,
+                        VALIDATION.TYPES.DATA_FILE,
+                        uploadedFileNames,
+                        false,
+                        []
+                    );
+                }
+            }
             // Prepare update data for Prisma
             const updateData = this._prepareUpdateData({
                 ...(res?.type === VALIDATION.TYPES.DATA_FILE ? {fileValidationStatus: VALIDATION_STATUS.NEW} : {})
@@ -1516,23 +1530,23 @@ class Submission {
                 fileKeysToDelete = deletedFiles;
             }
 
-            // remove the deleted s3 file in the submission's file error
-            const errors = aSubmission?.fileErrors?.filter((fileError) => {
+            // remove the deleted s3 file in the submission's file error/warning (same predicate for both)
+            const exclusiveSet =
+                deleteAll && exclusiveIDs.length > 0 ? new Set(exclusiveIDs) : null;
+            const keepFileFinding = (fileFinding) => {
                 if (deleteAll && exclusiveIDs.length === 0) {
-                    // All files deleted, remove all errors
                     return false;
                 } else if (deleteAll && exclusiveIDs.length > 0) {
-                    // For deleteAll with exclusives, keep errors only for excluded files
-                    const exclusiveSet = new Set(exclusiveIDs);
-                    return exclusiveSet.has(fileError?.submittedID) || notDeletedErrorFiles.includes(fileError.submittedID);
+                    return exclusiveSet.has(fileFinding?.submittedID) || notDeletedErrorFiles.includes(fileFinding.submittedID);
                 } else {
-                    // Normal deletion: keep errors for files that weren't deleted or failed to delete
-                    const deletedFile = existingFiles.get(fileError?.submittedID);
-                    return notDeletedErrorFiles.includes(fileError.submittedID) || !deletedFile;
+                    const deletedFile = existingFiles.get(fileFinding?.submittedID);
+                    return notDeletedErrorFiles.includes(fileFinding.submittedID) || !deletedFile;
                 }
-            }) || [];
-            // Update fileErrors (deletingData flag will be reset in finally block)
-            await this.submissionDAO.update(aSubmission._id, this._prepareUpdateData({fileErrors : errors}));
+            };
+            const errors = aSubmission?.fileErrors?.filter(keepFileFinding) || [];
+            const warnings = aSubmission?.fileWarnings?.filter(keepFileFinding) || [];
+            // Update fileErrors and fileWarnings (deletingData flag will be reset in finally block)
+            await this.submissionDAO.update(aSubmission._id, this._prepareUpdateData({fileErrors: errors, fileWarnings: warnings}));
         } catch (error) {
             // Log error and ensure deletingData flag is reset in finally block
             console.error(`Failed to delete files; submission ID: ${aSubmission?._id} error: ${error}`);

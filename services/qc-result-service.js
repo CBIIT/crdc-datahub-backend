@@ -1,4 +1,5 @@
 const ERROR = require("../constants/error-constants");
+const {VALIDATION} = require("../constants/submission-constants");
 const {replaceErrorString} = require("../utility/string-util");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {verifySession} = require("../verifier/user-info-verifier");
@@ -40,9 +41,13 @@ class QcResultService{
      * @param {string[]} exclusiveIDs - IDs to exclude from deletion when deleteAll is true
      */
     async deleteQCResultBySubmissionID(submissionID, dataType, submittedIDs, deleteAll = false, exclusiveIDs = []) {
+        const isFileValidationQC =
+            dataType === VALIDATION.TYPES.DATA_FILE || dataType === VALIDATION.TYPES.FILE;
         let query = {
             submissionID: submissionID,
-            validationType: dataType
+            validationType: isFileValidationQC
+                ? {in: [VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.FILE]}
+                : dataType
         };
         
         if (deleteAll) {
@@ -68,8 +73,10 @@ class QcResultService{
         
         const res = await this.qcResultDAO.deleteMany(query);
 
-        // Only validate count for non-deleteAll operations
-        if (!deleteAll && submittedIDs && submittedIDs.length > 0 && (res.count === 0 || (submittedIDs.length !== res.count))) {
+        // Only validate count for non-deleteAll operations. File QC deletes may remove multiple rows per
+        // submittedID (both validation types), so res.count > submittedIDs.length is expected — log under-delete only.
+        if (!deleteAll && submittedIDs && submittedIDs.length > 0 &&
+            (res.count === 0 || res.count < submittedIDs.length)) {
             console.error("An error occurred while deleting the qcResult records", `submissionID: ${submissionID}`);
         }
     }
