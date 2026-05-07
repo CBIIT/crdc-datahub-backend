@@ -1464,7 +1464,8 @@ const setDefaultIfNoName = (str) => {
 
 /** Abbreviation for $study-style email slots; falls back to application study name. (Inquire/PV abbrev lines use defaultStudyAbbreviationToNA separately.) */
 function studyLabelForEmailBody(application) {
-    return defaultStudyAbbreviationToStudyName(application?.studyAbbreviation, application?.studyName);
+    const label = defaultStudyAbbreviationToStudyName(application?.studyAbbreviation, application?.studyName);
+    return setDefaultIfNoName(label);
 }
 
 const getCCEmails = (submitterEmail, application) => {
@@ -1480,15 +1481,18 @@ const getCCEmails = (submitterEmail, application) => {
 const sendEmails = {
     inactiveApplications: async (notificationService, emailParams, email, applicantName, application, BCCEmails) => {
         try {
+            const studyLabel = studyLabelForEmailBody(application);
             const CCEmails = getCCEmails(email, application);
             const toBCCEmails = BCCEmails
                 ?.filter((BCCEmail) => !CCEmails.includes(BCCEmail) && BCCEmail !== email);
             await notificationService.inactiveApplicationsNotification(email,
                 CCEmails,
                 toBCCEmails, {
-                firstName: applicantName},{
+                firstName: applicantName,
+                studyName: studyLabel
+            },{
                 pi: `${applicantName}`,
-                study: studyLabelForEmailBody(application),
+                study: studyLabel,
                 officialEmail: `${emailParams.officialEmail}.`,
                 inactiveDays: emailParams.inactiveDays,
                 url: emailParams.url
