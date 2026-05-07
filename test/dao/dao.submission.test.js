@@ -291,6 +291,23 @@ describe('SubmissionDAO', () => {
                 );
             });
 
+            it('should escape regex metacharacters in name and study search terms', async () => {
+                await dao.listSubmissions(mockUserInfo, mockUserScope, {
+                    ...mockParams,
+                    name: '***',
+                    dbGaPID: '*'
+                });
+
+                const call = prisma.submission.findMany.mock.calls[0][0];
+                expect(call.where.name).toEqual({
+                    contains: '\\*\\*\\*',
+                    mode: 'insensitive'
+                });
+                const andConditions = call.where.AND || [];
+                const dbGaPIDOrCondition = andConditions.find(c => c.OR && c.OR.some(o => o.study?.is));
+                expect(dbGaPIDOrCondition.OR[0].study.is.studyName.contains).toBe('\\*');
+            });
+
             it('should apply dbGaPID filter with case-insensitive search over study name, abbreviation, and dbGaPID', async () => {
                 const paramsWithDbGaPID = { ...mockParams, dbGaPID: 'phs001234' };
 

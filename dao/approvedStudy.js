@@ -5,7 +5,7 @@ const {ORGANIZATION_COLLECTION, USER_COLLECTION} = require("../crdc-datahub-data
 const ERROR = require("../constants/error-constants");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const {DIRECTION, SORT} = require("../crdc-datahub-database-drivers/constants/monogodb-constants");
-const {sanitizeMongoDBInput} = require("../utility/string-util");
+const {sanitizeMongoDBInput, escapeRegexLiteral} = require("../utility/string-util");
 
 const CONTROLLED_ACCESS_ALL = "All";
 const CONTROLLED_ACCESS_OPEN = "Open";
@@ -40,7 +40,7 @@ class ApprovedStudyDAO extends GenericDAO  {
         let matches = {};
         const study = sanitizeMongoDBInput(studyName);
         if (study)
-            matches.$or = [{studyName: {$regex: study, $options: 'i'}}, {studyAbbreviation: {$regex: study, $options: 'i'}}];
+            matches.$or = [{studyName: {$regex: escapeRegexLiteral(study), $options: 'i'}}, {studyAbbreviation: {$regex: escapeRegexLiteral(study), $options: 'i'}}];
         if (controlledAccess) {
             if (!CONTROLLED_ACCESS_OPTIONS.includes(controlledAccess)) {
                 throw new Error(ERROR.INVALID_CONTROLLED_ACCESS);
@@ -59,7 +59,7 @@ class ApprovedStudyDAO extends GenericDAO  {
         }
         const dbGaPID = sanitizeMongoDBInput(dbGaPIDInput);
         if (dbGaPID) {
-            matches.dbGaPID = {$regex: dbGaPID, $options: 'i'};
+            matches.dbGaPID = {$regex: escapeRegexLiteral(dbGaPID), $options: 'i'};
         }
 
         if (programID && programID !== this._ALL) {
