@@ -1,4 +1,5 @@
 const ERROR = require("../constants/error-constants");
+const {VALIDATION} = require("../constants/submission-constants");
 const {replaceErrorString} = require("../utility/string-util");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {verifySession} = require("../verifier/user-info-verifier");
@@ -40,9 +41,13 @@ class QcResultService{
      * @param {string[]} exclusiveIDs - IDs to exclude from deletion when deleteAll is true
      */
     async deleteQCResultBySubmissionID(submissionID, dataType, submittedIDs, deleteAll = false, exclusiveIDs = []) {
+        const isFileValidationQC =
+            dataType === VALIDATION.TYPES.DATA_FILE || dataType === VALIDATION.TYPES.FILE;
         let query = {
             submissionID: submissionID,
-            validationType: dataType
+            validationType: isFileValidationQC
+                ? {in: [VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.FILE]}
+                : dataType
         };
         
         if (deleteAll) {
