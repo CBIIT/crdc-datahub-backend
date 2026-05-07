@@ -282,6 +282,59 @@ describe('deleteInactiveApplications Error Handling', () => {
             }
         });
 
+        test('inactiveApplicationsNotification receives studyName and study NA for blank New SRF', async () => {
+            const mockShortApps = [
+                {
+                    _id: 'app2',
+                    applicantID: 'user2',
+                    applicant: { applicantEmail: 'user2@test.com', applicantName: 'User 2' },
+                    questionnaireData: '{}',
+                    studyAbbreviation: undefined,
+                    studyName: undefined,
+                    programName: undefined,
+                    status: 'New',
+                    ORCID: undefined,
+                    PI: undefined,
+                    programAbbreviation: undefined,
+                    programDescription: undefined,
+                    history: [],
+                    updatedAt: new Date('2023-01-01')
+                }
+            ];
+
+            mockApplicationDAO.getInactiveApplication
+                .mockResolvedValueOnce([]) // default window
+                .mockResolvedValueOnce(mockShortApps); // short window
+            mockUserService.getUsersByNotifications.mockResolvedValue([]);
+            mockUserService.userCollection.aggregate.mockResolvedValue([
+                { _id: 'user2', notifications: ['submission_request:deleted'] }
+            ]);
+            mockApplicationDAO.delete.mockResolvedValue({});
+
+            const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+            try {
+                await applicationService.deleteInactiveApplications();
+
+                expect(mockNotificationsService.inactiveApplicationsNotification).toHaveBeenCalledWith(
+                    'user2@test.com',
+                    [],
+                    [],
+                    expect.objectContaining({
+                        firstName: 'User 2',
+                        studyName: 'NA'
+                    }),
+                    expect.objectContaining({
+                        study: 'NA',
+                        inactiveDays: 30,
+                        url: 'http://test.com'
+                    })
+                );
+            } finally {
+                consoleSpy.mockRestore();
+            }
+        });
+
         test('should detect and permanently delete blank New SRFs', async () => {
             const mockDefaultApps = [
                 {
