@@ -61,4 +61,112 @@ describe('NotifyUser', () => {
             );
         });
     });
+
+    describe('multipleChangesApproveQuestionNotification', () => {
+        it('passes isMultiplePendingConditions true and includes each pending snippet when all flags are set', async () => {
+            await notify.multipleChangesApproveQuestionNotification(
+                'submitter@example.org',
+                ['cc@example.org'],
+                ['bcc@example.org'],
+                {
+                    firstName: 'Pat',
+                    study: 'My Study',
+                    reviewComments: 'See comments.',
+                    contactEmail: 'helpdesk@nih.gov',
+                    submissionGuideURL: 'https://example.org/guide'
+                },
+                true,
+                true,
+                true,
+                true
+            );
+            expect(createEmailTemplate).toHaveBeenCalledWith(
+                'notification-template-SR-pending-conditions.html',
+                expect.objectContaining({
+                    isMultiplePendingConditions: true,
+                    omitSubmissionGuideInFooter: true
+                })
+            );
+            const srCall = createEmailTemplate.mock.calls.find(
+                (c) => c[0] === 'notification-template-SR-pending-conditions.html'
+            );
+            expect(srCall[1].pendingConditions).toHaveLength(4);
+            const combined = srCall[1].pendingConditions.join(' ');
+            expect(combined).toContain('grants.nih.gov');
+            expect(combined).toMatch(/CRDC data model/i);
+            expect(combined).toMatch(/GPA/i);
+            expect(combined).toContain('docs.google.com');
+        });
+
+        it('sets omitSubmissionGuideInFooter false when imaging is not among pendings', async () => {
+            await notify.multipleChangesApproveQuestionNotification(
+                'submitter@example.org',
+                [],
+                [],
+                {
+                    firstName: 'Pat',
+                    study: 'My Study',
+                    reviewComments: 'N/A',
+                    contactEmail: 'helpdesk@nih.gov',
+                    submissionGuideURL: 'https://example.org/guide'
+                },
+                true,
+                true,
+                false,
+                false
+            );
+            expect(createEmailTemplate).toHaveBeenCalledWith(
+                'notification-template-SR-pending-conditions.html',
+                expect.objectContaining({
+                    isMultiplePendingConditions: true,
+                    omitSubmissionGuideInFooter: false
+                })
+            );
+        });
+    });
+
+    describe('dataModelChangeApproveQuestionNotification', () => {
+        it('omits Data Submission Instructions in footer per 3.6.0 conditional-approve DM template', async () => {
+            await notify.dataModelChangeApproveQuestionNotification(
+                'submitter@example.org',
+                [],
+                [],
+                {
+                    firstName: 'Pat',
+                    study: 'My Study',
+                    reviewComments: 'N/A',
+                    contactEmail: 'helpdesk@nih.gov',
+                    submissionGuideURL: 'https://example.org/guide'
+                }
+            );
+            expect(createEmailTemplate).toHaveBeenCalledWith(
+                'notification-template-SR-pending-conditions.html',
+                expect.objectContaining({
+                    omitDataSubmissionInstructionsOnly: true,
+                    isMultiplePendingConditions: false
+                })
+            );
+        });
+    });
+
+    describe('dbGapMissingApproveQuestionNotification', () => {
+        it('passes isMultiplePendingConditions false for single-pending template', async () => {
+            await notify.dbGapMissingApproveQuestionNotification(
+                'submitter@example.org',
+                [],
+                [],
+                {
+                    firstName: 'Pat',
+                    study: 'My Study',
+                    reviewComments: 'N/A',
+                    contactEmail: 'helpdesk@nih.gov',
+                    submissionGuideURL: 'https://example.org/guide'
+                }
+            );
+            expect(createEmailTemplate).toHaveBeenCalledWith(
+                'notification-template-SR-pending-conditions.html',
+                expect.objectContaining({ isMultiplePendingConditions: false })
+            );
+        });
+    });
 });

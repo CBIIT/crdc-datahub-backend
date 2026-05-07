@@ -219,7 +219,9 @@ class NotifyUser {
                 await createEmailTemplate("notification-template-SR-pending-conditions.html", {
                     pendingConditions: [missingDbGapPendingCondition],
                     topMessage,
-                    ...templateParams}),
+                    ...templateParams,
+                    isMultiplePendingConditions: false
+                }),
                 email,
                 CCEmails,
                 BCCEmails
@@ -241,7 +243,8 @@ class NotifyUser {
                 await createEmailTemplate("notification-template-SR-pending-conditions.html", {
                     pendingConditions: [GPAPendingCondition],
                     topMessage,
-                    ...templateParams
+                    ...templateParams,
+                    isMultiplePendingConditions: false
                 }),
                 email,
                 CCEmails,
@@ -265,7 +268,9 @@ class NotifyUser {
                 await createEmailTemplate("notification-template-SR-pending-conditions.html", {
                     pendingConditions: [dataModelPendingCondition],
                     topMessage,
-                    ...templateParams
+                    ...templateParams,
+                    omitDataSubmissionInstructionsOnly: true,
+                    isMultiplePendingConditions: false
                 }),
                 email,
                 CCEmails,
@@ -289,7 +294,8 @@ class NotifyUser {
                     pendingConditions: [imagePendingCondition],
                     topMessage,
                     ...templateParams,
-                    omitSubmissionGuideInFooter: true
+                    omitSubmissionGuideInFooter: true,
+                    isMultiplePendingConditions: false
                 }),
                 email,
                 CCEmails,
@@ -303,7 +309,7 @@ class NotifyUser {
             const subject = this.email_constants.APPROVE_SUBJECT;
             const topMessage = replaceMessageVariables(this.email_constants.CONDITIONAL_PENDING_MULTIPLE_CHANGES, templateParams);
             const dataModelPendingCondition = sanitizeAllowlistedHtml(
-                replaceMessageVariables(this.email_constants.DATA_MODEL_PENDING_CHANGE, {}),
+                replaceMessageVariables(this.email_constants.DATA_MODEL_PENDING_CHANGE_MULTIPLE, {}),
                 PRESET_SR_APPROVAL_PENDING_HTML
             );
             const missingDbGapPendingCondition = sanitizeAllowlistedHtml(
@@ -311,7 +317,7 @@ class NotifyUser {
                 PRESET_SR_APPROVAL_PENDING_HTML
             );
             const missingGPAPendingCondition = sanitizeAllowlistedHtml(
-                replaceMessageVariables(this.email_constants.MISSING_GPA_INFO, templateParams),
+                replaceMessageVariables(this.email_constants.MISSING_GPA_INFO_MULTIPLE, templateParams),
                 PRESET_SR_APPROVAL_PENDING_HTML
             );
             const imagePendingCondition = sanitizeAllowlistedHtml(
@@ -337,7 +343,8 @@ class NotifyUser {
                     pendingConditions: pendingConditions,
                     topMessage,
                     ...templateParams,
-                    omitSubmissionGuideInFooter: Boolean(isPendingImageDeIdentification)
+                    omitSubmissionGuideInFooter: Boolean(isPendingImageDeIdentification),
+                    isMultiplePendingConditions: true
                 }),
                 email,
                 CCEmails,

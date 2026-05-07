@@ -1139,7 +1139,9 @@ describe('Application', () => {
                 expect.objectContaining({
                     firstName: 'Submitter Name',
                     reviewComments: 'Approved with conditions',
-                    study: 'study1'
+                    study: 'study1',
+                    contactEmail: mockEmailParams.conditionalSubmissionContact,
+                    submissionGuideURL: mockEmailParams.submissionGuideURL
                 }),
                 false,
                 true,
