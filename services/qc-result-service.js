@@ -73,8 +73,10 @@ class QcResultService{
         
         const res = await this.qcResultDAO.deleteMany(query);
 
-        // Only validate count for non-deleteAll operations
-        if (!deleteAll && submittedIDs && submittedIDs.length > 0 && (res.count === 0 || (submittedIDs.length !== res.count))) {
+        // Only validate count for non-deleteAll operations. File QC deletes may remove multiple rows per
+        // submittedID (both validation types), so res.count > submittedIDs.length is expected — log under-delete only.
+        if (!deleteAll && submittedIDs && submittedIDs.length > 0 &&
+            (res.count === 0 || res.count < submittedIDs.length)) {
             console.error("An error occurred while deleting the qcResult records", `submissionID: ${submissionID}`);
         }
     }

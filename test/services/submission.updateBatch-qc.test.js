@@ -91,7 +91,7 @@ describe('Submission.updateBatch — stale file QC cleanup', () => {
             type: VALIDATION.TYPES.DATA_FILE,
             files: [
                 { fileName: 'a.txt', status: FILE.UPLOAD_STATUSES.UPLOADED },
-                { fileName: 'b.txt', status: FILE.UPLOAD_STATUSES.FAILED },
+                { fileName: 'b.txt', status: FILE.UPLOAD_STATUSES.UPLOADED },
             ],
         });
 
@@ -100,7 +100,7 @@ describe('Submission.updateBatch — stale file QC cleanup', () => {
                 batchID: 'batch-1',
                 files: [
                     { fileName: 'a.txt', succeeded: true },
-                    { fileName: 'b.txt', succeeded: false },
+                    { fileName: 'b.txt', succeeded: true },
                 ],
             },
             mockContext
@@ -109,7 +109,7 @@ describe('Submission.updateBatch — stale file QC cleanup', () => {
         expect(mockQcResultsService.deleteQCResultBySubmissionID).toHaveBeenCalledWith(
             'sub-1',
             VALIDATION.TYPES.DATA_FILE,
-            ['a.txt'],
+            ['a.txt', 'b.txt'],
             false,
             []
         );
@@ -119,7 +119,7 @@ describe('Submission.updateBatch — stale file QC cleanup', () => {
         );
     });
 
-    it('does not delete QC when no files reached Uploaded status', async () => {
+    it('does not delete QC when data file batch fails (no Uploaded status)', async () => {
         mockBatchService.findByID.mockResolvedValue({
             _id: 'batch-1',
             submissionID: 'sub-1',
@@ -128,7 +128,7 @@ describe('Submission.updateBatch — stale file QC cleanup', () => {
         });
         mockBatchService.updateBatch.mockResolvedValue({
             _id: 'batch-1',
-            status: BATCH.STATUSES.UPLOADED,
+            status: BATCH.STATUSES.FAILED,
             type: VALIDATION.TYPES.DATA_FILE,
             files: [{ fileName: 'a.txt', status: FILE.UPLOAD_STATUSES.FAILED }],
         });
@@ -142,10 +142,10 @@ describe('Submission.updateBatch — stale file QC cleanup', () => {
         );
 
         expect(mockQcResultsService.deleteQCResultBySubmissionID).not.toHaveBeenCalled();
-        expect(mockSubmissionDAO.update).toHaveBeenCalled();
+        expect(mockSubmissionDAO.update).not.toHaveBeenCalled();
     });
 
-    it('does not delete file QC when metadata batch reaches Uploaded', async () => {
+    it('does not delete file QC when metadata batch remains Uploading (load pipeline)', async () => {
         mockBatchService.findByID.mockResolvedValue({
             _id: 'batch-2',
             submissionID: 'sub-1',

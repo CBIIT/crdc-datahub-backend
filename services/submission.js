@@ -1531,11 +1531,12 @@ class Submission {
             }
 
             // remove the deleted s3 file in the submission's file error/warning (same predicate for both)
+            const exclusiveSet =
+                deleteAll && exclusiveIDs.length > 0 ? new Set(exclusiveIDs) : null;
             const keepFileFinding = (fileFinding) => {
                 if (deleteAll && exclusiveIDs.length === 0) {
                     return false;
                 } else if (deleteAll && exclusiveIDs.length > 0) {
-                    const exclusiveSet = new Set(exclusiveIDs);
                     return exclusiveSet.has(fileFinding?.submittedID) || notDeletedErrorFiles.includes(fileFinding.submittedID);
                 } else {
                     const deletedFile = existingFiles.get(fileFinding?.submittedID);

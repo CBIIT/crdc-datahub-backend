@@ -352,7 +352,7 @@ describe('QcResultService', () => {
             });
         });
 
-        it('should log error when deletion count mismatch', async () => {
+        it('should log error when deletion count is less than submittedIDs length', async () => {
             const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
             const mockDeleteResult = { count: 2 };
             qcResultService.qcResultDAO.deleteMany.mockResolvedValue(mockDeleteResult);
@@ -369,6 +369,23 @@ describe('QcResultService', () => {
                 "An error occurred while deleting the qcResult records",
                 "submissionID: test_submission_id"
             );
+            consoleSpy.mockRestore();
+        });
+
+        it('should not log error when deletion count exceeds submittedIDs length (dual validation types)', async () => {
+            const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+            const mockDeleteResult = { count: 6 };
+            qcResultService.qcResultDAO.deleteMany.mockResolvedValue(mockDeleteResult);
+
+            await qcResultService.deleteQCResultBySubmissionID(
+                "test_submission_id",
+                VALIDATION.TYPES.DATA_FILE,
+                ["file1.txt", "file2.txt", "file3.txt"],
+                false,
+                []
+            );
+
+            expect(consoleSpy).not.toHaveBeenCalled();
             consoleSpy.mockRestore();
         });
 
