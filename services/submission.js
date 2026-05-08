@@ -606,8 +606,9 @@ class Submission {
         ]);
 
         // Store the timestamp for the inactive submission purpose
-        const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
-        if (conditionSubmitter) {
+        const collaboratorIDs = aSubmission?.collaborators ? aSubmission?.collaborators?.map(c => c?.collaboratorID) : [];
+        const isOwnerOrCollaborator = context?.userInfo?._id === aSubmission?.submitterID || collaboratorIDs.includes(context?.userInfo?._id);
+        if (isOwnerOrCollaborator) {
             const everyReminderDays = this._getEveryReminderQuery(this.emailParams.remindSubmissionDay, false);
             await this.submissionDAO.update(aSubmission?._id, {accessedAt: getCurrentTime(), ...everyReminderDays});
         }
