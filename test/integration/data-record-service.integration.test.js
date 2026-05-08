@@ -95,14 +95,14 @@ describe('DataRecordService Integration Tests', () => {
       const stat = submissionStats.stats[0];
       expect(stat.nodeName).toBe(DATA_FILE);
       
-      // The logic is:
-      // - new: nonValidatedOrphanedFiles.length (1) + dataFiles with NEW status (1) = 2
-      // - error: validatedOrphanedFiles.length (1) + fileNotFoundErrors.length (1) + dataFiles with ERROR status (1) = 3
+      // Orphan S3 files without manifest rows count as error (validated + non-validated F008).
+      // - new: dataFiles with NEW status (1) only
+      // - error: all orphans + fileNotFound + dataFiles with ERROR (1+1+1+1) = 4
       // - passed: dataFiles with PASSED status (1) = 1
       // - warning: dataFiles with WARNING status (1) = 1
-      // - total: 2 + 3 + 1 + 1 = 7
-      expect(stat.new).toBe(2);
-      expect(stat.error).toBe(3);
+      // - total: 1 + 4 + 1 + 1 = 7
+      expect(stat.new).toBe(1);
+      expect(stat.error).toBe(4);
       expect(stat.passed).toBe(1);
       expect(stat.warning).toBe(1);
       expect(stat.total).toBe(7);
@@ -132,14 +132,13 @@ describe('DataRecordService Integration Tests', () => {
       expect(submissionStats.stats).toHaveLength(1);
       const stat = submissionStats.stats[0];
       
-      // The logic is:
-      // - new: nonValidatedOrphanedFiles.length (1) + dataFiles with NEW status (1) = 2
-      // - error: validatedOrphanedFiles.length (2) + fileNotFoundErrors.length (1) + dataFiles with ERROR status (1) = 4
+      // - new: dataFiles with NEW status (1)
+      // - error: validated + nonValidated orphans + fileNotFound + dataFile ERROR = 2+1+1+1 = 5
       // - passed: dataFiles with PASSED status (1) = 1
       // - warning: dataFiles with WARNING status (0) = 0
-      // - total: 2 + 4 + 1 + 0 = 7
-      expect(stat.new).toBe(2);
-      expect(stat.error).toBe(4);
+      // - total: 1 + 5 + 1 + 0 = 7
+      expect(stat.new).toBe(1);
+      expect(stat.error).toBe(5);
       expect(stat.passed).toBe(1);
       expect(stat.warning).toBe(0);
       expect(stat.total).toBe(7);
@@ -157,9 +156,9 @@ describe('DataRecordService Integration Tests', () => {
       expect(submissionStats.stats).toHaveLength(1);
       const stat = submissionStats.stats[0];
       
-      // Only orphaned files count
-      expect(stat.new).toBe(1); // nonValidatedOrphanedFiles
-      expect(stat.error).toBe(3); // validatedOrphanedFiles + fileNotFoundErrors
+      // All S3-only orphans count as error
+      expect(stat.new).toBe(0);
+      expect(stat.error).toBe(4); // validated + nonValidated + fileNotFound
       expect(stat.passed).toBe(0);
       expect(stat.warning).toBe(0);
       expect(stat.total).toBe(4);
@@ -225,9 +224,9 @@ describe('DataRecordService Integration Tests', () => {
       expect(submissionStats.stats).toHaveLength(1);
       const stat = submissionStats.stats[0];
       
-      // Should only count orphaned files
-      expect(stat.new).toBe(1);
-      expect(stat.error).toBe(2);
+      // All orphaned S3 keys count as error
+      expect(stat.new).toBe(0);
+      expect(stat.error).toBe(3);
       expect(stat.passed).toBe(0);
       expect(stat.warning).toBe(0);
       expect(stat.total).toBe(3);

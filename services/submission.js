@@ -1128,10 +1128,6 @@ class Submission {
             return returnVal;
         // populate s3Files list and
 
-        const orphanedErrorFiles = await this.qcResultsService.findBySubmissionErrorCodes(params.submissionID, ERRORS.CODES.F008_MISSING_DATA_NODE_FILE);
-        const orphanedErrorFileNameSet = new Set(orphanedErrorFiles
-            ?.map((f) => f?.submittedID));
-
         for (let file of listedObjects) {
             //don't retrieve logs
             if (file.Key.endsWith('/log'))
@@ -1143,7 +1139,7 @@ class Submission {
                 submissionID: params.submissionID,
                 nodeType: DATA_FILE,
                 nodeID: file_name,
-                status: orphanedErrorFileNameSet?.has(file_name) ? VALIDATION_STATUS.ERROR : VALIDATION_STATUS.NEW,
+                status: VALIDATION_STATUS.NEW,
                 "Batch ID": "N/A",
                 "File Name": file_name,
                 "File Size": file.Size,
@@ -1169,6 +1165,8 @@ class Submission {
             if (node) {
                 file.status = node.status;
                 file.Orphaned = "N";
+            } else {
+                file.status = VALIDATION_STATUS.ERROR;
             }
             const props = {
                 // "Batch ID": file["Batch ID"],
@@ -2461,9 +2459,14 @@ class Submission {
                 typesToUpdate.metadataValidationStatus = metaStatus;
         }
 
-        if (!!aSubmission?.fileValidationStatus && types.some(type => (type?.toLowerCase() === VALIDATION.TYPES.DATA_FILE || type?.toLowerCase() === VALIDATION.TYPES.FILE))) {
-            if (fileStatus !== "NA")
-                typesToUpdate.fileValidationStatus = fileStatus;
+        const touchesFileValidation = types.some(type => {
+            const t = type?.toLowerCase();
+            return t === VALIDATION.TYPES.DATA_FILE || t === VALIDATION.TYPES.FILE;
+        });
+        const canUpdateFileValidationStatus = aSubmission?.fileValidationStatus != null
+            || aSubmission?.dataType === DATA_TYPE.METADATA_AND_DATA_FILES;
+        if (touchesFileValidation && canUpdateFileValidationStatus && fileStatus !== "NA") {
+            typesToUpdate.fileValidationStatus = fileStatus;
         }
 
         if (Object.keys(typesToUpdate).length === 0) {
@@ -2496,12 +2499,15 @@ class Submission {
     }
 
     async _recordSubmissionValidation(submissionID, validationRecord, dataTypes, submission) {
-        // The file/metadata only allowed for recording validation
-        const metadataTypes = validationRecord.type?.filter((i) => i === VALIDATION.TYPES.METADATA || i === VALIDATION.TYPES.FILE);
-        if (metadataTypes.length === 0) {
+        // Types persisted on the submission (validationType / scope / started); excludes e.g. cross-submission-only.
+        const validationTypesToRecord = validationRecord.type?.filter((i) => {
+            const t = i?.toLowerCase();
+            return t === VALIDATION.TYPES.METADATA || t === VALIDATION.TYPES.FILE || t === VALIDATION.TYPES.DATA_FILE;
+        });
+        if (validationTypesToRecord.length === 0) {
             return submission;
         }
-        const dataValidation = DataValidation.createDataValidation(metadataTypes, validationRecord.scope, validationRecord.started);
+        const dataValidation = DataValidation.createDataValidation(validationTypesToRecord, validationRecord.scope, validationRecord.started);
         const updated = await this.submissionDAO.update(submissionID,
             this._prepareUpdateData({
                 ...dataValidation

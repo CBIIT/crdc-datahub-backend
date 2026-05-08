@@ -150,8 +150,8 @@ class DataRecordService {
 
     _saveDataFileStats(submissionStats, validatedOrphanedFiles, nonValidatedOrphanedFiles, fileNotFoundErrors, dataFiles) {
         const stat = Stat.createStat(DATA_FILE);
-        stat.countNodeType(VALIDATION_STATUS.NEW, nonValidatedOrphanedFiles.length);
-        stat.countNodeType(VALIDATION_STATUS.ERROR, validatedOrphanedFiles.length + fileNotFoundErrors.length);
+        stat.countNodeType(VALIDATION_STATUS.ERROR,
+            validatedOrphanedFiles.length + nonValidatedOrphanedFiles.length + fileNotFoundErrors.length);
 
         const validStatusSet = new Set([VALIDATION_STATUS.NEW, VALIDATION_STATUS.PASSED, VALIDATION_STATUS.ERROR, VALIDATION_STATUS.WARNING]);
         dataFiles.forEach(node => {
