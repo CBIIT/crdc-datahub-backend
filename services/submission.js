@@ -2499,14 +2499,15 @@ class Submission {
     }
 
     async _recordSubmissionValidation(submissionID, validationRecord, dataTypes, submission) {
-        const metadataTypes = validationRecord.type?.filter((i) => {
+        // Types persisted on the submission (validationType / scope / started); excludes e.g. cross-submission-only.
+        const validationTypesToRecord = validationRecord.type?.filter((i) => {
             const t = i?.toLowerCase();
             return t === VALIDATION.TYPES.METADATA || t === VALIDATION.TYPES.FILE || t === VALIDATION.TYPES.DATA_FILE;
         });
-        if (metadataTypes.length === 0) {
+        if (validationTypesToRecord.length === 0) {
             return submission;
         }
-        const dataValidation = DataValidation.createDataValidation(metadataTypes, validationRecord.scope, validationRecord.started);
+        const dataValidation = DataValidation.createDataValidation(validationTypesToRecord, validationRecord.scope, validationRecord.started);
         const updated = await this.submissionDAO.update(submissionID,
             this._prepareUpdateData({
                 ...dataValidation
