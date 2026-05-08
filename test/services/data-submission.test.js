@@ -2971,3 +2971,95 @@ describe('Submission.editSubmission', () => {
             .toThrow(ERROR.VERIFY.INVALID_PERMISSION);
     });
 });
+
+describe('Submission._recordSubmissionValidation and _updateValidationStatus', () => {
+    let submissionService;
+    let mockSubmissionDAO;
+    let mockValidationDAO;
+
+    beforeEach(() => {
+        mockSubmissionDAO = { update: jest.fn().mockResolvedValue({ _id: 'sub1' }) };
+        mockValidationDAO = { update: jest.fn().mockResolvedValue({}) };
+        submissionService = new Submission(
+            { insert: jest.fn() },
+            jest.fn(),
+            jest.fn(),
+            jest.fn(),
+            jest.fn(),
+            jest.fn(),
+            jest.fn(),
+            jest.fn(),
+            jest.fn(),
+            jest.fn(),
+            jest.fn(),
+            jest.fn(),
+            [],
+            [],
+            jest.fn(),
+            jest.fn(),
+            jest.fn(),
+            jest.fn(),
+            jest.fn(),
+            jest.fn(),
+            jest.fn(),
+            jest.fn(),
+            jest.fn(),
+            jest.fn(),
+            jest.fn()
+        );
+        submissionService.submissionDAO = mockSubmissionDAO;
+        submissionService.validationDAO = mockValidationDAO;
+        global.getCurrentTime = jest.fn(() => new Date('2023-01-01T00:00:00Z'));
+    });
+
+    it('persists data file type with metadata in validationType', async () => {
+        const validationRecord = {
+            type: [VALIDATION.TYPES.METADATA, VALIDATION.TYPES.DATA_FILE],
+            scope: VALIDATION.SCOPE.ALL,
+            started: new Date('2023-01-01T00:00:00Z')
+        };
+        await submissionService._recordSubmissionValidation('sub1', validationRecord, [], {});
+        expect(mockSubmissionDAO.update).toHaveBeenCalledWith(
+            'sub1',
+            expect.objectContaining({
+                validationType: expect.arrayContaining(['metadata', 'data file'])
+            })
+        );
+    });
+
+    it('persists when validation types are only data file', async () => {
+        const validationRecord = {
+            type: [VALIDATION.TYPES.DATA_FILE],
+            scope: VALIDATION.SCOPE.ALL,
+            started: new Date('2023-01-01T00:00:00Z')
+        };
+        await submissionService._recordSubmissionValidation('sub1', validationRecord, [], {});
+        expect(mockSubmissionDAO.update).toHaveBeenCalledWith(
+            'sub1',
+            expect.objectContaining({
+                validationType: ['data file']
+            })
+        );
+    });
+
+    it('updates fileValidationStatus when null for Metadata and Data Files submission', async () => {
+        const aSubmission = {
+            _id: 'sub1',
+            dataType: DATA_TYPE.METADATA_AND_DATA_FILES,
+            fileValidationStatus: null,
+            metadataValidationStatus: 'New'
+        };
+        await submissionService._updateValidationStatus(
+            [VALIDATION.TYPES.DATA_FILE],
+            aSubmission,
+            'NA',
+            VALIDATION_STATUS.VALIDATING,
+            'NA',
+            new Date()
+        );
+        expect(mockSubmissionDAO.update).toHaveBeenCalledWith(
+            'sub1',
+            expect.objectContaining({ fileValidationStatus: VALIDATION_STATUS.VALIDATING })
+        );
+    });
+});
