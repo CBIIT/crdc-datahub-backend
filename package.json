@@ -33,14 +33,18 @@
     "mongodb": "^5.5.0",
     "morgan": "^1.10.0",
     "node-cron": "^3.0.2",
-    "nodemailer": "^7.0.12",
+    "nodemailer": "^8.0.7",
     "sanitize-html": "^2.13.1",
     "semver": "^7.5.4",
-    "uuid": "^9.0.0"
+    "uuid": "^11.1.1"
   },
   "devDependencies": {
     "@babel/core": "^7.26.10",
     "jest": "^29.5.0",
     "prisma": "^6.8.2"
+  },
+  "overrides": {
+    "uuid": "^11.1.1",
+    "ip-address": "^10.1.1"
   }
 }
