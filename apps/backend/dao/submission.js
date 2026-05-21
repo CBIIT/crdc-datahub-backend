@@ -6,7 +6,7 @@ const {DELETED, CANCELED, NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJE
     COLLABORATOR_PERMISSIONS
 } = require("../constants/submission-constants");
 const ERROR = require("../constants/error-constants");
-const {replaceErrorString} = require("../utility/string-util");
+const {replaceErrorString, escapeRegexLiteral} = require("../utility/string-util");
 const {formatNestedOrganization, formatNestedOrganizations} = require("../utility/organization-transformer");
 const prisma = require("../prisma");
 const { isAllStudy } = require("../utility/study-utility");
@@ -334,13 +334,17 @@ class SubmissionDAO extends GenericDAO {
         // Add filter for submission name if specified
         // This filter is a regex search on the submission name (case-insensitive)
         if (submissionName) {
-            baseConditions.name = {
-                contains: submissionName.trim().replace(/\\/g, ''),
-                mode: 'insensitive'
-            };
+            const submissionNameRaw = submissionName.trim().replace(/\\/g, '');
+            if (submissionNameRaw) {
+                baseConditions.name = {
+                    contains: escapeRegexLiteral(submissionNameRaw),
+                    mode: 'insensitive'
+                };
+            }
         }
         // Add filter for dbGaPID if specified: free-text search over related study's name, abbreviation, or dbGaPID
-        const sanitizedStudySearchTerm = (dbGaPID || '').trim().replace(/\\/g, '');
+        const dbGaPIDRaw = (dbGaPID || '').trim().replace(/\\/g, '');
+        const sanitizedStudySearchTerm = dbGaPIDRaw ? escapeRegexLiteral(dbGaPIDRaw) : '';
         if (sanitizedStudySearchTerm) {
             const studySearchCondition = {
                 OR: [

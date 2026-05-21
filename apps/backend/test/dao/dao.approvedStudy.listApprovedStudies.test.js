@@ -169,6 +169,27 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             });
         });
 
+        it('escapes regex metacharacters in study and dbGaPID filters so invalid patterns are not passed to MongoDB', async () => {
+            const mockResult = [{ total: 1, results: [] }];
+            mockCollection.aggregate.mockResolvedValue(mockResult);
+
+            await dao.listApprovedStudies(
+                '***', null, '*', null, null, 10, 0, 'studyName', 'asc'
+            );
+
+            const pipeline = mockCollection.aggregate.mock.calls[0][0];
+            const matchStage = pipeline.find(stage => stage.$match);
+
+            expect(matchStage.$match.$or).toEqual([
+                { studyName: { $regex: '\\*\\*\\*', $options: 'i' } },
+                { studyAbbreviation: { $regex: '\\*\\*\\*', $options: 'i' } }
+            ]);
+            expect(matchStage.$match.dbGaPID).toEqual({
+                $regex: '\\*',
+                $options: 'i'
+            });
+        });
+
         it('should apply programID filter when not "All"', async () => {
             const mockResult = [{ total: 1, results: [] }];
             mockCollection.aggregate.mockResolvedValue(mockResult);

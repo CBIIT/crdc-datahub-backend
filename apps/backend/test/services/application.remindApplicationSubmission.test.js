@@ -101,6 +101,61 @@ describe('remindApplicationSubmission', () => {
       expect(calls[1][1]).toBe('finalInactiveReminder'); // short window
     });
 
+    it('passes studyName NA for blank New SRF inactive reminders', async () => {
+      const mockBlankNewApp = {
+        _id: 'app-blank-new',
+        applicantID: 'user-blank',
+        studyAbbreviation: undefined,
+        studyName: undefined,
+        programName: undefined,
+        status: 'New',
+        ORCID: undefined,
+        PI: undefined,
+        programAbbreviation: undefined,
+        programDescription: undefined,
+        history: [],
+        updatedAt: new Date('2023-01-01')
+      };
+
+      mockApplicationDAO.getInactiveApplication
+        .mockResolvedValueOnce([]) // final default
+        .mockResolvedValueOnce([]) // final short
+        .mockResolvedValueOnce([]) // day 7 default (180 - 7)
+        .mockResolvedValueOnce([mockBlankNewApp]) // day 7 short (30 - 7)
+        .mockResolvedValueOnce([]) // day 15 default
+        .mockResolvedValueOnce([]) // day 15 short
+        .mockResolvedValueOnce([]); // day 30 default
+
+      mockApplicationDAO.update.mockResolvedValue({ matchedCount: 1 });
+
+      mockUserService.getUsersByNotifications.mockResolvedValue([]);
+      mockUserService.getUserByID.mockResolvedValue({
+        firstName: 'Blank',
+        lastName: 'User',
+        email: 'blank@example.com',
+        notifications: ['submission_request:expiring']
+      });
+      mockUserService.userCollection.find.mockResolvedValue([]);
+      applicationService.userDAO.findFirst.mockResolvedValue(null);
+
+      await applicationService.remindApplicationSubmission();
+
+      expect(mockNotificationsService.remindApplicationsNotification).toHaveBeenCalledWith(
+        'blank@example.com',
+        [],
+        [],
+        expect.objectContaining({
+          firstName: 'Blank User',
+          studyName: 'NA'
+        }),
+        expect.objectContaining({
+          remainDays: 7,
+          inactiveDays: 23,
+          url: 'http://test.com'
+        })
+      );
+    });
+
     it('should only send short window reminders for blank New SRFs', async () => {
       const mockBlankNewApp = {
         _id: 'app-blank-new',

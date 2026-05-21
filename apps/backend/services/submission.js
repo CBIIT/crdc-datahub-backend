@@ -12,7 +12,7 @@ const ERROR = require("../constants/error-constants");
 const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-constants");
 const {SubmissionActionEvent, DeleteRecordEvent, UpdateSubmissionNameEvent, UpdateSubmissionConfEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const {verifyBatch} = require("../verifier/batch-verifier");
-const {BATCH} = require("../crdc-datahub-database-drivers/constants/batch-constants");
+const {BATCH, FILE: BATCH_FILE} = require("../crdc-datahub-database-drivers/constants/batch-constants");
 const {USER} = require("../crdc-datahub-database-drivers/constants/user-constants");
 const SubmissionDAO = require("../dao/submission");
 // const {write2file} = require("../utility/io-util") //keep the line for future testing.
@@ -23,7 +23,7 @@ const NA = "NA"
 const config = require("../config");
 const ERRORS = require("../constants/error-constants");
 const {ValidationHandler} = require("../utility/validation-handler");
-const {isUndefined, replaceErrorString, isValidFileExtension, fileSizeFormatter} = require("../utility/string-util");
+const {isUndefined, replaceErrorString, isValidFileExtension, fileSizeFormatter, escapeRegexLiteral} = require("../utility/string-util");
 const {NODE_RELATION_TYPES} = require("./data-record-service");
 const {verifyToken} = require("../verifier/token-verifier");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
@@ -435,6 +435,20 @@ class Submission {
         const res = await this.batchService.updateBatch(aBatch, aSubmission?.bucketName, params?.files);
         // new status is ready for the validation
         if (res.status === BATCH.STATUSES.UPLOADED) {
+            if (res?.type === VALIDATION.TYPES.DATA_FILE) {
+                const uploadedFileNames = (res.files || [])
+                    .filter((f) => f?.status === BATCH_FILE.UPLOAD_STATUSES.UPLOADED && f?.fileName)
+                    .map((f) => f.fileName);
+                if (uploadedFileNames.length > 0) {
+                    await this.qcResultsService.deleteQCResultBySubmissionID(
+                        aSubmission._id,
+                        VALIDATION.TYPES.DATA_FILE,
+                        uploadedFileNames,
+                        false,
+                        []
+                    );
+                }
+            }
             // Prepare update data for Prisma
             const updateData = this._prepareUpdateData({
                 ...(res?.type === VALIDATION.TYPES.DATA_FILE ? {fileValidationStatus: VALIDATION_STATUS.NEW} : {})
@@ -592,8 +606,9 @@ class Submission {
         ]);
 
         // Store the timestamp for the inactive submission purpose
-        const conditionSubmitter = (context?.userInfo?.role === ROLES.SUBMITTER) && (context?.userInfo?._id === aSubmission?.submitterID);
-        if (conditionSubmitter) {
+        const collaboratorIDs = aSubmission?.collaborators ? aSubmission?.collaborators?.map(c => c?.collaboratorID) : [];
+        const isOwnerOrCollaborator = context?.userInfo?._id === aSubmission?.submitterID || collaboratorIDs.includes(context?.userInfo?._id);
+        if (isOwnerOrCollaborator) {
             const everyReminderDays = this._getEveryReminderQuery(this.emailParams.remindSubmissionDay, false);
             await this.submissionDAO.update(aSubmission?._id, {accessedAt: getCurrentTime(), ...everyReminderDays});
         }
@@ -1015,7 +1030,7 @@ class Submission {
                 submissionID,
                 nodeType,
                 ...(status !== ALL_FILTER && { status }),
-                ...(nodeID && { nodeID: new RegExp(nodeID, "i") })
+                ...(nodeID && { nodeID: new RegExp(escapeRegexLiteral(nodeID), "i") })
             };
 
             // Data View `properties`: page-local keys from _processSubmissionNodes, plus
@@ -1114,10 +1129,6 @@ class Submission {
             return returnVal;
         // populate s3Files list and
 
-        const orphanedErrorFiles = await this.qcResultsService.findBySubmissionErrorCodes(params.submissionID, ERRORS.CODES.F008_MISSING_DATA_NODE_FILE);
-        const orphanedErrorFileNameSet = new Set(orphanedErrorFiles
-            ?.map((f) => f?.submittedID));
-
         for (let file of listedObjects) {
             //don't retrieve logs
             if (file.Key.endsWith('/log'))
@@ -1129,7 +1140,7 @@ class Submission {
                 submissionID: params.submissionID,
                 nodeType: DATA_FILE,
                 nodeID: file_name,
-                status: orphanedErrorFileNameSet?.has(file_name) ? VALIDATION_STATUS.ERROR : VALIDATION_STATUS.NEW,
+                status: VALIDATION_STATUS.NEW,
                 "Batch ID": "N/A",
                 "File Name": file_name,
                 "File Size": file.Size,
@@ -1155,6 +1166,8 @@ class Submission {
             if (node) {
                 file.status = node.status;
                 file.Orphaned = "N";
+            } else {
+                file.status = VALIDATION_STATUS.ERROR;
             }
             const props = {
                 // "Batch ID": file["Batch ID"],
@@ -1516,23 +1529,23 @@ class Submission {
                 fileKeysToDelete = deletedFiles;
             }
 
-            // remove the deleted s3 file in the submission's file error
-            const errors = aSubmission?.fileErrors?.filter((fileError) => {
+            // remove the deleted s3 file in the submission's file error/warning (same predicate for both)
+            const exclusiveSet =
+                deleteAll && exclusiveIDs.length > 0 ? new Set(exclusiveIDs) : null;
+            const keepFileFinding = (fileFinding) => {
                 if (deleteAll && exclusiveIDs.length === 0) {
-                    // All files deleted, remove all errors
                     return false;
                 } else if (deleteAll && exclusiveIDs.length > 0) {
-                    // For deleteAll with exclusives, keep errors only for excluded files
-                    const exclusiveSet = new Set(exclusiveIDs);
-                    return exclusiveSet.has(fileError?.submittedID) || notDeletedErrorFiles.includes(fileError.submittedID);
+                    return exclusiveSet.has(fileFinding?.submittedID) || notDeletedErrorFiles.includes(fileFinding.submittedID);
                 } else {
-                    // Normal deletion: keep errors for files that weren't deleted or failed to delete
-                    const deletedFile = existingFiles.get(fileError?.submittedID);
-                    return notDeletedErrorFiles.includes(fileError.submittedID) || !deletedFile;
+                    const deletedFile = existingFiles.get(fileFinding?.submittedID);
+                    return notDeletedErrorFiles.includes(fileFinding.submittedID) || !deletedFile;
                 }
-            }) || [];
-            // Update fileErrors (deletingData flag will be reset in finally block)
-            await this.submissionDAO.update(aSubmission._id, this._prepareUpdateData({fileErrors : errors}));
+            };
+            const errors = aSubmission?.fileErrors?.filter(keepFileFinding) || [];
+            const warnings = aSubmission?.fileWarnings?.filter(keepFileFinding) || [];
+            // Update fileErrors and fileWarnings (deletingData flag will be reset in finally block)
+            await this.submissionDAO.update(aSubmission._id, this._prepareUpdateData({fileErrors: errors, fileWarnings: warnings}));
         } catch (error) {
             // Log error and ensure deletingData flag is reset in finally block
             console.error(`Failed to delete files; submission ID: ${aSubmission?._id} error: ${error}`);
@@ -2447,9 +2460,14 @@ class Submission {
                 typesToUpdate.metadataValidationStatus = metaStatus;
         }
 
-        if (!!aSubmission?.fileValidationStatus && types.some(type => (type?.toLowerCase() === VALIDATION.TYPES.DATA_FILE || type?.toLowerCase() === VALIDATION.TYPES.FILE))) {
-            if (fileStatus !== "NA")
-                typesToUpdate.fileValidationStatus = fileStatus;
+        const touchesFileValidation = types.some(type => {
+            const t = type?.toLowerCase();
+            return t === VALIDATION.TYPES.DATA_FILE || t === VALIDATION.TYPES.FILE;
+        });
+        const canUpdateFileValidationStatus = aSubmission?.fileValidationStatus != null
+            || aSubmission?.dataType === DATA_TYPE.METADATA_AND_DATA_FILES;
+        if (touchesFileValidation && canUpdateFileValidationStatus && fileStatus !== "NA") {
+            typesToUpdate.fileValidationStatus = fileStatus;
         }
 
         if (Object.keys(typesToUpdate).length === 0) {
@@ -2482,12 +2500,15 @@ class Submission {
     }
 
     async _recordSubmissionValidation(submissionID, validationRecord, dataTypes, submission) {
-        // The file/metadata only allowed for recording validation
-        const metadataTypes = validationRecord.type?.filter((i) => i === VALIDATION.TYPES.METADATA || i === VALIDATION.TYPES.FILE);
-        if (metadataTypes.length === 0) {
+        // Types persisted on the submission (validationType / scope / started); excludes e.g. cross-submission-only.
+        const validationTypesToRecord = validationRecord.type?.filter((i) => {
+            const t = i?.toLowerCase();
+            return t === VALIDATION.TYPES.METADATA || t === VALIDATION.TYPES.FILE || t === VALIDATION.TYPES.DATA_FILE;
+        });
+        if (validationTypesToRecord.length === 0) {
             return submission;
         }
-        const dataValidation = DataValidation.createDataValidation(metadataTypes, validationRecord.scope, validationRecord.started);
+        const dataValidation = DataValidation.createDataValidation(validationTypesToRecord, validationRecord.scope, validationRecord.started);
         const updated = await this.submissionDAO.update(submissionID,
             this._prepareUpdateData({
                 ...dataValidation

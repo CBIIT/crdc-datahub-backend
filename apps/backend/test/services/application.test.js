@@ -815,6 +815,16 @@ describe('Application', () => {
                 expect(filter.OR[1].studyAbbreviation).toEqual({ contains: 'aBc', mode: 'insensitive' });
             });
 
+            it('escapes regex metacharacters in studyName search term', async () => {
+                const findManyMock = jest.fn().mockResolvedValue([]);
+                app.applicationDAO.findMany = findManyMock;
+                app.applicationDAO.count = jest.fn().mockResolvedValue(0);
+                await app.listApplications({ studyName: '***' }, context);
+                const filter = findManyMock.mock.calls[0][0];
+                expect(filter.OR[0].studyName).toEqual({ contains: '\\*\\*\\*', mode: 'insensitive' });
+                expect(filter.OR[1].studyAbbreviation).toEqual({ contains: '\\*\\*\\*', mode: 'insensitive' });
+            });
+
             it('does not add study filter when studyName is All', async () => {
                 const findManyMock = jest.fn().mockResolvedValue([]);
                 app.applicationDAO.findMany = findManyMock;
@@ -1129,7 +1139,9 @@ describe('Application', () => {
                 expect.objectContaining({
                     firstName: 'Submitter Name',
                     reviewComments: 'Approved with conditions',
-                    study: 'study1'
+                    study: 'study1',
+                    contactEmail: mockEmailParams.conditionalSubmissionContact,
+                    submissionGuideURL: mockEmailParams.submissionGuideURL
                 }),
                 false,
                 true,

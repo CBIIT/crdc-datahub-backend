@@ -10,7 +10,7 @@ const USER_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-
 const {CreateApplicationEvent, UpdateApplicationStateEvent} = require("../crdc-datahub-database-drivers/domain/log-events");
 const ROLES = USER_CONSTANTS.USER.ROLES;
 const {parseJsonString, isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
-const {isUndefined, replaceErrorString} = require("../utility/string-util");
+const {isUndefined, replaceErrorString, escapeRegexLiteral} = require("../utility/string-util");
 const {defaultStudyAbbreviationToStudyName, defaultStudyAbbreviationToNA} = require("../utility/study-abbrev-helpers");
 const {EMAIL_NOTIFICATIONS} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
@@ -349,7 +349,7 @@ class Application {
         if (submitterName != null && submitterName !== this._ALL_FILTER) {
             return {applicant: {
                 is: {
-                    fullName: {contains: submitterName.trim().replace(/\\/g, "\\\\"), mode: "insensitive"}
+                    fullName: {contains: escapeRegexLiteral(submitterName.trim()), mode: "insensitive"}
                 }
             }}
         }
@@ -467,7 +467,7 @@ class Application {
         const hasStudyFilter = studySearchTerm?.length > 0 && params.studyName !== this._ALL_FILTER;
         let studyCondition = {};
         if (hasStudyFilter) {
-            const studySearchTermSanitized = studySearchTerm.replace(/\\/g, "\\\\");
+            const studySearchTermSanitized = escapeRegexLiteral(studySearchTerm);
             const containsOption = { contains: studySearchTermSanitized, mode: "insensitive" };
             studyCondition = {
                 OR: [
@@ -1462,9 +1462,18 @@ const setDefaultIfNoName = (str) => {
     return (name.length > 0) ? (name) : "NA";
 }
 
-/** Abbreviation for $study-style email slots; falls back to application study name. (Inquire/PV abbrev lines use defaultStudyAbbreviationToNA separately.) */
+/**
+ * Label for `$study`-style message variables and notification template `studyName`.
+ * First resolves via `defaultStudyAbbreviationToStudyName` (trimmed abbreviation if non-empty,
+ * otherwise trimmed `studyName`). Then `setDefaultIfNoName` maps empty or whitespace-only results
+ * to the literal string `NA`, so callers and templates always get a non-empty value (e.g. blank
+ * New submission requests). Inquire/PV Study Abbreviation lines use `defaultStudyAbbreviationToNA` separately.
+ * @param {{ studyAbbreviation?: string, studyName?: string }} [application]
+ * @returns {string} Resolved abbreviation or study name, or `NA`
+ */
 function studyLabelForEmailBody(application) {
-    return defaultStudyAbbreviationToStudyName(application?.studyAbbreviation, application?.studyName);
+    const label = defaultStudyAbbreviationToStudyName(application?.studyAbbreviation, application?.studyName);
+    return setDefaultIfNoName(label);
 }
 
 const getCCEmails = (submitterEmail, application) => {
@@ -1480,15 +1489,18 @@ const getCCEmails = (submitterEmail, application) => {
 const sendEmails = {
     inactiveApplications: async (notificationService, emailParams, email, applicantName, application, BCCEmails) => {
         try {
+            const studyLabel = studyLabelForEmailBody(application);
             const CCEmails = getCCEmails(email, application);
             const toBCCEmails = BCCEmails
                 ?.filter((BCCEmail) => !CCEmails.includes(BCCEmail) && BCCEmail !== email);
             await notificationService.inactiveApplicationsNotification(email,
                 CCEmails,
                 toBCCEmails, {
-                firstName: applicantName},{
+                firstName: applicantName,
+                studyName: studyLabel
+            },{
                 pi: `${applicantName}`,
-                study: studyLabelForEmailBody(application),
+                study: studyLabel,
                 officialEmail: `${emailParams.officialEmail}.`,
                 inactiveDays: emailParams.inactiveDays,
                 url: emailParams.url

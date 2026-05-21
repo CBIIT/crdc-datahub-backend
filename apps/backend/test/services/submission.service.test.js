@@ -597,8 +597,7 @@ describe('Submission Service - getSubmission', () => {
             expect(result.history[2].userName).toBe('Bob Johnson'); // Populated from user-789
         });
 
-        it('should update accessedAt for submitter users', async () => {
-            // Setup mocks
+        it('should update accessedAt when user is the submission owner (submitterID)', async () => {
             submissionService._findByID.mockResolvedValue(mockSubmission);
             submissionService._getUserScope.mockResolvedValue(createMockUserScope(false, true)); // isAllScope = true for admin users
             submissionService._getS3DirectorySize.mockResolvedValue({ size: 1024, formatted: '1 KB' });
@@ -612,10 +611,8 @@ describe('Submission Service - getSubmission', () => {
             });
             submissionService._getEveryReminderQuery.mockReturnValue({ reminderFlag: true });
 
-            // Execute
-            const result = await submissionService.getSubmission(mockParams, mockContext);
+            await submissionService.getSubmission(mockParams, mockContext);
 
-            // Verify
             expect(mockSubmissionDAO.update).toHaveBeenCalledWith(
                 'sub-123',
                 expect.objectContaining({
@@ -625,7 +622,83 @@ describe('Submission Service - getSubmission', () => {
             );
         });
 
-        it('should not update accessedAt for non-submitter users', async () => {
+        it.each([
+            ['Admin', ROLES.ADMIN],
+            ['Data Commons Personnel', ROLES.DATA_COMMONS_PERSONNEL],
+        ])(
+            'should update accessedAt when user is submission owner with %s role',
+            async (_roleLabel, ownerRole) => {
+                const ownerNonSubmitterContext = {
+                    userInfo: {
+                        _id: 'user-123',
+                        role: ownerRole,
+                        email: 'owner@example.com'
+                    }
+                };
+                submissionService._findByID.mockResolvedValue(mockSubmission);
+                submissionService._getUserScope.mockResolvedValue(createMockUserScope(false, true));
+                submissionService._getS3DirectorySize.mockResolvedValue({ size: 1024, formatted: '1 KB' });
+                mockSubmissionDAO.update.mockResolvedValue(mockSubmission);
+                mockSubmissionDAO.findMany.mockResolvedValue([]);
+                mockDataRecordService.countNodesBySubmissionID.mockResolvedValue(5);
+                mockUserService.getUserByID.mockResolvedValue({
+                    _id: 'user-456',
+                    firstName: 'Jane',
+                    lastName: 'Smith'
+                });
+                submissionService._getEveryReminderQuery.mockReturnValue({ reminderFlag: true });
+
+                await submissionService.getSubmission(mockParams, ownerNonSubmitterContext);
+
+                expect(mockSubmissionDAO.update).toHaveBeenCalledWith(
+                    'sub-123',
+                    expect.objectContaining({
+                        accessedAt: expect.any(Date),
+                        reminderFlag: true
+                    })
+                );
+            }
+        );
+
+        it('should update accessedAt when user is a collaborator (collaboratorID)', async () => {
+            const collaboratorContext = {
+                userInfo: {
+                    _id: 'user-999',
+                    role: ROLES.SUBMITTER,
+                    email: 'collab@example.com'
+                }
+            };
+            const submissionWithCollaborator = {
+                ...mockSubmission,
+                submitterID: 'user-123',
+                collaborators: [{ collaboratorID: 'user-999' }]
+            };
+            submissionService.userDAO = { findMany: jest.fn().mockResolvedValue([]) };
+            submissionService._findByID.mockResolvedValue(submissionWithCollaborator);
+            submissionService._getUserScope.mockResolvedValue(createMockUserScope(false, true));
+            submissionService._getS3DirectorySize.mockResolvedValue({ size: 1024, formatted: '1 KB' });
+            mockSubmissionDAO.update.mockResolvedValue(submissionWithCollaborator);
+            mockSubmissionDAO.findMany.mockResolvedValue([]);
+            mockDataRecordService.countNodesBySubmissionID.mockResolvedValue(5);
+            mockUserService.getUserByID.mockResolvedValue({
+                _id: 'user-456',
+                firstName: 'Jane',
+                lastName: 'Smith'
+            });
+            submissionService._getEveryReminderQuery.mockReturnValue({ reminderFlag: true });
+
+            await submissionService.getSubmission(mockParams, collaboratorContext);
+
+            expect(mockSubmissionDAO.update).toHaveBeenCalledWith(
+                'sub-123',
+                expect.objectContaining({
+                    accessedAt: expect.any(Date),
+                    reminderFlag: true
+                })
+            );
+        });
+
+        it('should not update accessedAt when user is neither owner nor collaborator', async () => {
             // Setup mocks
             const nonSubmitterContext = {
                 userInfo: {
@@ -650,6 +723,46 @@ describe('Submission Service - getSubmission', () => {
             const result = await submissionService.getSubmission(mockParams, nonSubmitterContext);
 
             // Verify
+            expect(mockSubmissionDAO.update).not.toHaveBeenCalledWith(
+                'sub-123',
+                expect.objectContaining({
+                    accessedAt: expect.any(Date)
+                })
+            );
+        });
+
+        it('should not update accessedAt when user matches history only but not submitterID or collaborators', async () => {
+            const formerOwnerContext = {
+                userInfo: {
+                    _id: 'user-legacy',
+                    role: ROLES.SUBMITTER,
+                    email: 'legacy@example.com'
+                }
+            };
+            const reassignedSubmission = {
+                ...mockSubmission,
+                submitterID: 'user-123',
+                collaborators: [],
+                history: [
+                    { userID: 'user-legacy', userName: 'Former Owner' },
+                    { userID: 'user-123', userName: 'Current Owner' }
+                ]
+            };
+            submissionService._findByID.mockResolvedValue(reassignedSubmission);
+            submissionService._getUserScope.mockResolvedValue(createMockUserScope(false, true));
+            submissionService._getS3DirectorySize.mockResolvedValue({ size: 1024, formatted: '1 KB' });
+            mockSubmissionDAO.update.mockResolvedValue(reassignedSubmission);
+            mockSubmissionDAO.findMany.mockResolvedValue([]);
+            mockDataRecordService.countNodesBySubmissionID.mockResolvedValue(5);
+            mockUserService.getUserByID.mockResolvedValue({
+                _id: 'user-456',
+                firstName: 'Jane',
+                lastName: 'Smith'
+            });
+            submissionService._getEveryReminderQuery.mockReturnValue({ reminderFlag: true });
+
+            await submissionService.getSubmission(mockParams, formerOwnerContext);
+
             expect(mockSubmissionDAO.update).not.toHaveBeenCalledWith(
                 'sub-123',
                 expect.objectContaining({
