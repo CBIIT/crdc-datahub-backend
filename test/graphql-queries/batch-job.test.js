@@ -71,7 +71,7 @@ const dbService = {
 };
 
 const emailService = new EmailService(config.email_transport, config.emails_enabled);
-const notificationsService = new NotifyUser(emailService);
+const notificationsService = new NotifyUser(emailService, null);
 const userService = new UserService(userCollection, null, null, null, null, null, null, null, organizationService);
 
 const submissionService = new Submission(logCollection, submissionCollection, null, null, organizationService);

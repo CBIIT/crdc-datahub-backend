@@ -1,4 +1,5 @@
 const ProgramDAO = require('../../dao/program');
+const { ERROR: SUBMODULE_ERROR } = require('../../crdc-datahub-database-drivers/constants/error-constants');
 
 // Mock Prisma
 jest.mock('../../prisma', () => ({
@@ -385,6 +386,12 @@ describe('ProgramDAO', () => {
     });
 
     describe('getOrganizationByID', () => {
+        it('should throw when includeStudies is omitted', async () => {
+            await expect(programDAO.getOrganizationByID('org123')).rejects.toThrow(
+                SUBMODULE_ERROR.INVALID_INCLUDE_STUDIES_LIST_ARGUMENT
+            );
+        });
+
         it('should find organization by ID', async () => {
             const mockOrg = {
                 id: 'org123',
@@ -395,7 +402,7 @@ describe('ProgramDAO', () => {
 
             mockPrisma.program.findUnique.mockResolvedValue(mockOrg);
 
-            const result = await programDAO.getOrganizationByID('org123');
+            const result = await programDAO.getOrganizationByID('org123', false);
 
             expect(mockPrisma.program.findUnique).toHaveBeenCalledWith({
                 where: { id: 'org123' }
@@ -406,7 +413,7 @@ describe('ProgramDAO', () => {
         it('should return null when organization not found', async () => {
             mockPrisma.program.findUnique.mockResolvedValue(null);
 
-            const result = await programDAO.getOrganizationByID('nonexistent');
+            const result = await programDAO.getOrganizationByID('nonexistent', false);
 
             expect(result).toBeNull();
         });
@@ -415,8 +422,67 @@ describe('ProgramDAO', () => {
             const dbError = new Error('Database connection failed');
             mockPrisma.program.findUnique.mockRejectedValue(dbError);
 
-            await expect(programDAO.getOrganizationByID('org123'))
+            await expect(programDAO.getOrganizationByID('org123', false))
                 .rejects.toThrow('Failed to find Program by ID');
+        });
+
+        it('should include studies when includeStudies is true', async () => {
+            const mockStudies = [
+                { id: 'study1', studyAbbreviation: 'ABC', studyName: 'Study A' },
+            ];
+            const mockOrg = {
+                id: 'org123',
+                name: 'Test Organization',
+                studies: mockStudies,
+            };
+
+            mockPrisma.program.findUnique.mockResolvedValue(mockOrg);
+
+            const result = await programDAO.getOrganizationByID('org123', true);
+
+            expect(mockPrisma.program.findUnique).toHaveBeenCalledWith({
+                where: { id: 'org123' },
+                include: { studies: true },
+            });
+            expect(result).toEqual({
+                id: 'org123',
+                name: 'Test Organization',
+                _id: 'org123',
+                studies: [
+                    { id: 'study1', studyAbbreviation: 'ABC', studyName: 'Study A', _id: 'study1' },
+                ],
+            });
+        });
+
+        it('should return empty studies array when none related and includeStudies is true', async () => {
+            const mockOrg = {
+                id: 'org123',
+                name: 'Test Organization',
+                studies: [],
+            };
+            mockPrisma.program.findUnique.mockResolvedValue(mockOrg);
+            const result = await programDAO.getOrganizationByID('org123', true);
+            expect(result.studies).toEqual([]);
+        });
+
+        it('should handle database errors when includeStudies is true', async () => {
+            const dbError = new Error('Database connection failed');
+            mockPrisma.program.findUnique.mockRejectedValue(dbError);
+
+            await expect(
+                programDAO.getOrganizationByID('org123', true)
+            ).rejects.toThrow('Failed to find Program by ID');
+        });
+    });
+
+    describe('listPrograms', () => {
+        it('should $match using the provided statusCondition', async () => {
+            mockOrganizationCollection.aggregate.mockResolvedValue([{ total: 0, results: [] }]);
+            const statusCondition = { status: 'Active' };
+            await programDAO.listPrograms(10, 0, 'updateAt', 'ASC', statusCondition);
+            const pipeline = mockOrganizationCollection.aggregate.mock.calls[0][0];
+            const matchStage = pipeline.find((stage) => stage.$match);
+            expect(matchStage.$match).toEqual(statusCondition);
         });
     });
 });

@@ -1,6 +1,58 @@
+# GraphQL specification document https://spec.graphql.org/September2025/
 directive @public on FIELD_DEFINITION|QUERY
 scalar Date
 scalar JSON
+
+interface SubmissionInterface {
+    _id: ID
+    name: String
+    submitterID: ID
+    submitterName: String
+    organization: Organization
+    dataCommons: String
+    dataCommonsDisplayName: String
+    modelVersion: String
+    studyAbbreviation: String @deprecated # use the nested field in the study object
+    dbGaPID: String @deprecated # use the nested field in the study object
+    bucketName: String
+    rootPath: String
+    status: String
+    submissionType: String # Admin | Regular; null if not yet submitted
+    metadataValidationStatus: String
+    fileValidationStatus: String
+    crossSubmissionStatus: String
+    fileErrors: [QCResult]
+    fileWarnings: [QCResult]
+    history: [Event]
+    conciergeName: String
+    conciergeEmail: String
+    errors: [ErrorMessage]
+    createdAt: Date
+    updatedAt: Date
+    intention: String
+    otherSubmissions: String
+    dataType: String
+    accessedAt: Date
+    inactiveReminder: Boolean
+    finalInactiveReminder: Boolean
+    validationStarted: Date
+    validationEnded: Date
+    validationType: [String]
+    validationScope: String
+    studyID: String
+    studyName: String @deprecated # use the nested field in the study object
+    study: SubmissionStudy
+    controlledAccess: Boolean
+    ORCID: String
+    deletingData: Boolean
+    archived: Boolean
+    nodeCount: Int
+    collaborators: [Collaborator]
+    inactiveReminder_7: Boolean
+    inactiveReminder_30: Boolean
+    inactiveReminder_60: Boolean
+    dataFileSize: FileSize
+}
 
 type Application {
     # backend managed fields
@@ -48,6 +100,7 @@ type Event {
     dateTime: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
     userID: ID!
     userName: String
+    isAdminSubmit: Boolean # present on submit history entries when status is Submitted
 }
 
 input AppInput {
@@ -84,6 +137,7 @@ type ListApplications {
     applications: [Application]
     programs: [String],
     studies: [String]
+    studyAbbreviations: [String]
     status: [String],
     submitterNames: [String]
 }
@@ -117,7 +171,7 @@ type ListSubmissions {
     dataCommons: [String],
     dataCommonsDisplayNames: [String],
     submitterNames: [String],
-    submissions: [Submission]
+    submissions: [SubmissionList]
     organizations: [Organization]
 }
 
@@ -126,8 +180,8 @@ type ListInstitutions {
     institutions: [Institution]
 }
 
-
-type Submission {
+type Submission implements SubmissionInterface {
+    # SubmissionInterface fields
     _id: ID # aka. submissionID
     name: String
     submitterID: ID
@@ -137,11 +191,12 @@ type Submission {
     dataCommonsDisplayName: String
     modelVersion: String # for future use
     # note: FE should use study object instead
-    studyAbbreviation: String
-    dbGaPID: String # aka. phs number
+    studyAbbreviation: String @deprecated # use the nested field in the study object
+    dbGaPID: String @deprecated # use the nested field in the study object
     bucketName: String # populated from organization
     rootPath: String # "submissions/<submission ID>" to organization's rootPath
     status: String # [New, In Progress, Submitted, Released, Canceled, Transferred, Completed, Archived, Deleted]
+    submissionType: String # Admin | Regular; null if not yet submitted
     metadataValidationStatus: String # [New, Validating, Passed, Error, Warning], new successfully uploaded batch will set it to "New"
     fileValidationStatus: String # [New, Validating, Passed, Error, Warning], new successfully uploaded batch will set it to "New"
     crossSubmissionStatus: String # [New, Validating, Passed, Error, Warning]
@@ -165,8 +220,8 @@ type Submission {
     validationScope: String
     studyID: String
     # note: FE should use study object instead
-    studyName: String
-    study: ApprovedStudy
+    studyName: String @deprecated # use the nested field in the study object
+    study: SubmissionStudy
     controlledAccess: Boolean
     ORCID: String
     deletingData: Boolean
@@ -177,6 +232,64 @@ type Submission {
     inactiveReminder_30: Boolean
     inactiveReminder_60: Boolean
     dataFileSize: FileSize
+    statusDetail: [String]
+}
+
+type SubmissionList implements SubmissionInterface {
+    # SubmissionInterface fields
+    _id: ID # aka. submissionID
+    name: String
+    submitterID: ID
+    submitterName: String # <first name> <last name>
+    organization: Organization
+    dataCommons: String
+    dataCommonsDisplayName: String
+    modelVersion: String # for future use
+    # note: FE should use study object instead
+    studyAbbreviation: String @deprecated # use the nested field in the study object
+    dbGaPID: String @deprecated # use the nested field in the study object
+    bucketName: String # populated from organization
+    rootPath: String # "submissions/<submission ID>" to organization's rootPath
+    status: String # [New, In Progress, Submitted, Released, Canceled, Transferred, Completed, Archived, Deleted]
+    submissionType: String # Admin | Regular; null if not yet submitted
+    metadataValidationStatus: String # [New, Validating, Passed, Error, Warning], new successfully uploaded batch will set it to "New"
+    fileValidationStatus: String # [New, Validating, Passed, Error, Warning], new successfully uploaded batch will set it to "New"
+    crossSubmissionStatus: String # [New, Validating, Passed, Error, Warning]
+    fileErrors: [QCResult] # holds submission level file errors, e.g., extra files in S3 folder
+    fileWarnings: [QCResult] # holds submission level file warnings
+    history: [Event]
+    conciergeName: String # Concierge name
+    conciergeEmail: String # Concierge email
+    errors: [ErrorMessage] # store validation errors
+    createdAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    updatedAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    intention: String # [New/Update, Delete]
+    otherSubmissions: String
+    dataType: String # [Metadata Only, Metadata and Data Files]
+    accessedAt: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    inactiveReminder: Boolean
+    finalInactiveReminder: Boolean
+    validationStarted: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    validationEnded: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    validationType: [String] # String [metadata, file, cross-submission, data file]
+    validationScope: String
+    studyID: String
+    # note: FE should use study object instead
+    studyName: String @deprecated # use the nested field in the study object
+    study: SubmissionStudy
+    controlledAccess: Boolean
+    ORCID: String
+    deletingData: Boolean
+    archived: Boolean
+    nodeCount: Int
+    collaborators: [Collaborator]
+    inactiveReminder_7: Boolean
+    inactiveReminder_30: Boolean
+    inactiveReminder_60: Boolean
+    dataFileSize: FileSize
+    # SubmissionList fields
+    submissionRequestID: String # Application ID linked via study
+    canViewSubmissionRequest: Boolean # User permission to view the submission request
 }
 
 type FileSize {
@@ -198,14 +311,22 @@ type ApplicationFormVersion{
     new: String
 }
 
-# not being used currently
 type Validation {
     _id: ID
     submissionID: String
     type: [String]
     scope: String
-    started:  Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    started: Date # ISO 8601 date time format with UTC or offset e.g., 2023-05-01T09:23:30Z
+    ended: Date
     status: String
+    metadataStatus: String
+    metadataEnded: Date
+    completedBatches: Int
+    totalBatches: Int
+    failedBatches: Int
+    batchStatusDetails: [String]
+    worstBatchStatus: Int
+    statusDetail: [String]
 }
 
 type Batch {
@@ -285,6 +406,7 @@ type ReleasedStudy {
 
 type ApprovedStudy {
     _id: ID
+    status: String # [Active, Inactive]
     originalOrg: String # organization at the time of approval, can be absent if a submission request doesn't have an organization associated
     studyName: String
     studyAbbreviation: String # must be unique
@@ -298,6 +420,7 @@ type ApprovedStudy {
     primaryContact: User
     useProgramPC: Boolean
     pendingModelChange: Boolean
+    pendingImageDeIdentification: Boolean
     isPendingGPA: Boolean
     GPAName: String
 }
@@ -374,10 +497,6 @@ type Tokens {
 input UpdateUserInput {
     firstName: String!
     lastName: String!
-}
-
-input ApprovedStudyInput {
-  studyID: String!
 }
 
 type SubmissionStats {
@@ -716,6 +835,24 @@ type TooltipResult {
     value: String
 }
 
+type SubmissionStudy {
+    _id: ID
+    studyName: String
+    studyAbbreviation: String
+    applicationID: String
+    dbGaPID: String
+}
+
+type propertyPVs {
+    id: ID,
+    property: String,
+    model: String,
+    version: String,
+    permissibleValues: [String],
+    createdAt: Date,
+    updatedAt: Date
+}
+
 type Query {
     "User or Fed lead initiated operations"
     getApplication (_id: ID!): Application
@@ -729,12 +866,12 @@ type Query {
         submitterName: String,
         first: Int = -1,
         offset: Int = 0,
-        orderBy: String = "Submitted Date",
+        orderBy: String = "createdAt",
         sortDirection: String = "DESC"
     ): ListApplications
     # when first parameter is set to -1, we should return all applications (no pagination)
     # sortDirection in ["ASC", "DESC"]
-    # orderBy in ["Submitter Name", "Organization", "Study", "Program", "Status", "Submitted Date"]
+    # orderBy in ["applicant.applicantName", "applicant.fullName", "programName", "studyName", "studyAbbreviation", "status", "version", "createdAt", "updatedAt", "submittedDate"]
 
     # Admin only
     listApprovedStudies(
@@ -746,6 +883,7 @@ type Query {
         orderBy: String = "studyName", #property name to be used for sorting 
         sortDirection: String = "ASC" #["DESC", "ASC"]
         programID: ID
+        statuses: [String!] = [] # ["Active", "Inactive"], max 2 entries; omitted, null, or [] returns all
     ): ApprovedStudyList
     
     getApprovedStudy(_id: ID!): ApprovedStudy
@@ -829,7 +967,7 @@ type Query {
     getUser(userID: ID!): User
 
     listPrograms(
-        status: String!, # ["All", "Active", "Inactive"]
+        status: String = "All", # All | Active | Inactive (case-insensitive); other values error
         first: Int = -1
         offset: Int = 0
         orderBy: String = "updateAt"
@@ -933,6 +1071,14 @@ type Query {
     retrievePropsForNodeType(studyID: String!, dataCommonsDisplayName: String!, nodeType: String!): [nodeProp]
     downloadAllReleasedNodes(studyID: String!, dataCommonsDisplayName: String!): String #presigned url of s3
     getSubmissionSummary(submissionID: ID!): [nodeTypeSummary]
+
+    retrievePVsByPropertyName (
+        propertyNames: [String!]!,
+        model: String!, # GC, CTDC, ICDC, PSDC
+        version: String!
+    ) : [propertyPVs] @public
+
+    isChatBotEnabled: Boolean @public
 }
 type Mutation {
     "User initiated operations"
@@ -945,7 +1091,8 @@ type Mutation {
     approveApplication (
         _id: ID!, wholeProgram: Boolean,
         comment: String,
-        pendingModelChange: Boolean = false
+        pendingModelChange: Boolean = false,
+        pendingImageDeIdentification: Boolean = false
     ): Application
     rejectApplication (_id: ID!, comment: String!): Application
     inquireApplication (_id: ID!, comment: String!): Application
@@ -957,12 +1104,12 @@ type Mutation {
     createSubmission (studyID: String!, dataCommons: String!, name: String!, intention: String!, dataType: String!): Submission
     submissionAction (
         submissionID: ID!,
-        # in [Submit, ReleaseService, Withdraw, Reject, Complete, Cancel, Archive]
+        # in [Submit, Admin Submit, Release, Withdraw, Reject, Complete, Cancel, Archive, Resume]
         action: String!
         comment: String
     ): Submission
 
-    deleteDataRecords(submissionID: String!, nodeType: String!, nodeIDs: [String!] = [], deleteAll: Boolean = false, exclusiveIDs: [String!] = []): DataValidation
+    deleteDataRecords(submissionID: String!, nodeType: String!, nodeIDs: [String!] = [], deleteAll: Boolean = false, exclusiveIDs: [String!] = [], deleteOrphanedDataFiles: Boolean = false): DataValidation
     createBatch (submissionID: ID!, type: String, files: [String!]!): NewBatch
     updateBatch (batchID: ID!, files: [UploadResult], uploading: Boolean): Batch #uploading param is for CLI heartbeat.
     createTempCredentials (submissionID: ID!): TempCredentials  
@@ -981,7 +1128,6 @@ type Mutation {
     createOrganization(
         name: String!, # BE needs to check uniqueness of the new name
         conciergeID: String, # BE needs to save ID, email and name (first + last) of the concierge
-        studies: [ApprovedStudyInput], # Will update each study's programID to reference this organization
         abbreviation: String!,
         description: String
     ) : UserOrganization
@@ -989,7 +1135,6 @@ type Mutation {
         orgID: ID!,
         name: String, # BE needs to check uniqueness of the new name
         conciergeID: String, # BE needs to save ID, email and name (first + last) of the concierge
-        studies: [ApprovedStudyInput], # Will update each study's programID to reference this organization
         status: String, # in [Active, Inactive]
         abbreviation: String,
         description: String
@@ -1022,6 +1167,7 @@ type Mutation {
         primaryContactID: String #data concierge user ID
         useProgramPC: Boolean!
         pendingModelChange: Boolean
+        pendingImageDeIdentification: Boolean
         isPendingGPA: Boolean
         GPAName: String # optional 
         programID: ID # optional
@@ -1039,9 +1185,11 @@ type Mutation {
         primaryContactID: String #data concierge user ID
         useProgramPC: Boolean!
         pendingModelChange: Boolean
+        pendingImageDeIdentification: Boolean #optional
         isPendingGPA: Boolean
         GPAName: String # optional 
         programID: ID # optional
+        status: String # optional; [Active, Inactive]
     ): idType
 
     requestAccess(

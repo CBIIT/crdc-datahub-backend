@@ -10,6 +10,7 @@ module.exports = Object.freeze({
         SUBMISSION: "submission",
         CDE: "cDE",
         PENDING_PVS: "pendingPVs",
+        PROPERTY_PVS: "propertyPVs",
         PROGRAM: "program",
         INSTITUTIONS: "institution",
         CONFIGURATION: "configuration",

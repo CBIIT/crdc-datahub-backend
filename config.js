@@ -9,6 +9,7 @@ const EMAIL_PASSWORD = "EMAIL_PASSWORD";
 const EMAIL_URL = "EMAIL_URL";
 const OFFICIAL_EMAIL = "OFFICIAL_EMAIL";
 const INACTIVE_APPLICATION_DAYS= "INACTIVE_APPLICATION_DAYS";
+const INACTIVE_NEW_APPLICATION_DAYS = "INACTIVE_NEW_APPLICATION_DAYS";
 const REMIND_APPLICATION_DAYS = "REMIND_APPLICATION_DAYS";
 const SUBMISSION_SYSTEM_PORTAL = "SUBMISSION_SYSTEM_PORTAL";
 const SUBMISSION_HELPDESK = "SUBMISSION_HELPDESK";
@@ -67,6 +68,7 @@ let config = {
         const scheduledJobsConf = await configurationService.findByType(SCHEDULED_JOBS);
         const inactiveUserDaysConf = scheduledJobsConf?.[INACTIVE_USER_DAYS];
         const inactiveApplicationDaysConf = scheduledJobsConf?.[INACTIVE_APPLICATION_DAYS];
+        const inactiveNewApplicationDaysConf = scheduledJobsConf?.[INACTIVE_NEW_APPLICATION_DAYS];
         const remindApplicationDaysConf = scheduledJobsConf?.[REMIND_APPLICATION_DAYS];
         const inactiveSubmissionDaysConf = scheduledJobsConf?.[INACTIVE_SUBMISSION_DAYS_DELETE];
         const completedSubmissionDaysConf = scheduledJobsConf?.[COMPLETED_RETENTION_DAYS];
@@ -121,6 +123,7 @@ let config = {
             inactive_user_days : inactiveUserDaysConf || (process.env.INACTIVE_USER_DAYS || 60),
             remind_application_days: remindApplicationDaysConf || (process.env.REMIND_APPLICATION_DAYS || 165),
             inactive_application_days : inactiveApplicationDaysConf || (process.env.INACTIVE_APPLICATION_DAYS || 180),
+            inactive_new_application_days : inactiveNewApplicationDaysConf || (process.env.INACTIVE_NEW_APPLICATION_DAYS || 30),
             // Email settings
             email_transport: getTransportConfig(emailSmtpHostConf, emailSmtpPortConf, emailSmtpUserConf, emailSmtpPasswordConf),
             emails_enabled: process.env.EMAILS_ENABLED ? process.env.EMAILS_ENABLED.toLowerCase() === 'true' : true,

@@ -4,6 +4,7 @@ const PBAC_CONFIG_TYPE = "PBAC";
 const CLI_UPLOADER_VERSION = "CLI_UPLOADER_VERSION";
 const APPLICATION_FORM_VERSIONS = "APPLICATION_FORM_VERSIONS";
 const MAINTENANCE_MODE = "MAINTENANCE_MODE";
+const CHATBOT = "CHATBOT";
 const getOMBConfiguration = require("../dao/omb");
 const ERROR = require("../constants/error-constants");
 class ConfigurationService {
@@ -17,6 +18,11 @@ class ConfigurationService {
     async isMaintenanceMode() {
         const result = await this.configurationDAO.findByType(MAINTENANCE_MODE);
         return (result) ? (result?.keys?.flag || false) : false;
+    }
+
+    async isChatBotEnabled() {
+        const result = await this.configurationDAO.findByType(CHATBOT);
+        return result?.keys?.enabled === true;
     }
 
     async findManyByType(type) {

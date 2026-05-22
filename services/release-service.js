@@ -3,7 +3,7 @@ const path = require('path');
 const {verifySession} = require("../verifier/user-info-verifier");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 const {UserScope} = require("../domain/user-scope");
-const {replaceErrorString, sanitizeMongoDBInput} = require("../utility/string-util");
+const {replaceErrorString, sanitizeMongoDBInput, escapeRegexLiteral} = require("../utility/string-util");
 const ERROR = require("../constants/error-constants");
 const {MongoPagination} = require("../crdc-datahub-database-drivers/domain/mongo-pagination");
 const {getDataCommonsDisplayName, getDataCommonsOrigin} = require("../utility/data-commons-remapper");
@@ -768,16 +768,17 @@ class ReleaseService {
             { dataCommons: { $in: dataCommonsParams || [] } } : {};
 
         const studyName = sanitizeMongoDBInput(studyInput);
+        const studyRegex = studyName ? escapeRegexLiteral(studyName.trim()) : "";
         const nameCondition = studyName
             ? {
                 $or: [
-                    { studyName: { $regex: studyName.trim().replace(/\\/g, "\\\\"), $options: "i" } },
-                    { studyAbbreviation: { $regex: studyName.trim().replace(/\\/g, "\\\\"), $options: "i" } },
+                    { studyName: { $regex: studyRegex, $options: "i" } },
+                    { studyAbbreviation: { $regex: studyRegex, $options: "i" } },
                 ],
             }
             : {};
         const dbGaPID = sanitizeMongoDBInput(dbGaPIDInput);
-        const dbGaPIDCondition = dbGaPID ? {dbGaPID: { $regex: dbGaPID?.trim().replace(/\\/g, "\\\\"), $options: "i" }} : {};
+        const dbGaPIDCondition = dbGaPID ? {dbGaPID: { $regex: escapeRegexLiteral(dbGaPID.trim()), $options: "i" }} : {};
 
         const baseConditions = {...nameCondition,
             ...dbGaPIDCondition, ...dataCommonsCondition };

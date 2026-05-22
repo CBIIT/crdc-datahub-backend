@@ -256,12 +256,12 @@ describe('UserService.grantToken', () => {
             expect(result.message).toBe("This token can only be viewed once and will be lost if it is not saved by the user");
         });
 
-        it('should create token with user info', async () => {
+        it('should create token with user ID', async () => {
             mockUserCollection.update = jest.fn().mockResolvedValue({ matchedCount: 1 });
 
             await userService.grantToken(params, context);
 
-            // The token should be created with the user info
+            // The token should be created with the user ID and stored in the database
             expect(mockUserCollection.update).toHaveBeenCalledWith(
                 expect.objectContaining({
                     _id: mockUserInfo._id,
@@ -269,6 +269,23 @@ describe('UserService.grantToken', () => {
                     updateAt: expect.any(Date)
                 })
             );
+        });
+
+        it('should create token containing only the user ID in sub claim', async () => {
+            const jwt = require('jsonwebtoken');
+            mockUserCollection.update = jest.fn().mockResolvedValue({ matchedCount: 1 });
+
+            const result = await userService.grantToken(params, context);
+
+            const decoded = jwt.decode(result.tokens[0]);
+            // Token should contain sub claim with user ID (JWT standard)
+            expect(decoded.sub).toBe(mockUserInfo._id);
+            // Token should NOT contain full user object properties
+            expect(decoded._id).toBeUndefined();
+            expect(decoded.email).toBeUndefined();
+            expect(decoded.firstName).toBeUndefined();
+            expect(decoded.lastName).toBeUndefined();
+            expect(decoded.role).toBeUndefined();
         });
     });
 
@@ -438,7 +455,7 @@ describe('UserService.grantToken', () => {
             expect(result.tokens[0]).toBeTruthy();
         });
 
-        it('should handle missing user ID', async () => {
+        it('should throw error when user ID is missing', async () => {
             const noIdContext = {
                 userInfo: {
                     email: 'test@example.com',
@@ -447,12 +464,8 @@ describe('UserService.grantToken', () => {
                 }
             };
 
-            // This should work since the actual implementation doesn't require _id for token creation
-            mockUserCollection.update = jest.fn().mockResolvedValue({ matchedCount: 1 });
-            const result = await userService.grantToken(params, noIdContext);
-
-            expect(result).toHaveProperty('tokens');
-            expect(result).toHaveProperty('message');
+            await expect(userService.grantToken(params, noIdContext))
+                .rejects.toThrow(SUBMODULE_ERROR.INVALID_USERID);
         });
     });
 

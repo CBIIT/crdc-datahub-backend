@@ -1,6 +1,6 @@
 const { QcResultService } = require("../../services/qc-result-service");
 const ERROR = require("../../constants/error-constants");
-const { VALIDATION_STATUS } = require("../../constants/submission-constants");
+const { VALIDATION_STATUS, VALIDATION } = require("../../constants/submission-constants");
 const USER_PERMISSION_CONSTANTS = require("../../crdc-datahub-database-drivers/constants/user-permission-constants");
 const { UserScope } = require("../../domain/user-scope");
 
@@ -339,7 +339,7 @@ describe('QcResultService', () => {
 
             await qcResultService.deleteQCResultBySubmissionID(
                 "test_submission_id",
-                "data_file",
+                VALIDATION.TYPES.DATA_FILE,
                 ["file1.txt", "file2.txt", "file3.txt"],
                 false,
                 []
@@ -347,19 +347,19 @@ describe('QcResultService', () => {
 
             expect(qcResultService.qcResultDAO.deleteMany).toHaveBeenCalledWith({
                 submissionID: "test_submission_id",
-                validationType: "data_file",
+                validationType: { in: [VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.FILE] },
                 submittedID: { in: ["file1.txt", "file2.txt", "file3.txt"] }
             });
         });
 
-        it('should log error when deletion count mismatch', async () => {
+        it('should log error when deletion count is less than submittedIDs length', async () => {
             const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
             const mockDeleteResult = { count: 2 };
             qcResultService.qcResultDAO.deleteMany.mockResolvedValue(mockDeleteResult);
 
             await qcResultService.deleteQCResultBySubmissionID(
                 "test_submission_id",
-                "data_file",
+                VALIDATION.TYPES.DATA_FILE,
                 ["file1.txt", "file2.txt", "file3.txt"],
                 false,
                 []
@@ -372,6 +372,23 @@ describe('QcResultService', () => {
             consoleSpy.mockRestore();
         });
 
+        it('should not log error when deletion count exceeds submittedIDs length (dual validation types)', async () => {
+            const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+            const mockDeleteResult = { count: 6 };
+            qcResultService.qcResultDAO.deleteMany.mockResolvedValue(mockDeleteResult);
+
+            await qcResultService.deleteQCResultBySubmissionID(
+                "test_submission_id",
+                VALIDATION.TYPES.DATA_FILE,
+                ["file1.txt", "file2.txt", "file3.txt"],
+                false,
+                []
+            );
+
+            expect(consoleSpy).not.toHaveBeenCalled();
+            consoleSpy.mockRestore();
+        });
+
         it('should log error when deletion not acknowledged (count is 0)', async () => {
             const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
             const mockDeleteResult = { count: 0 };
@@ -379,7 +396,7 @@ describe('QcResultService', () => {
 
             await qcResultService.deleteQCResultBySubmissionID(
                 "test_submission_id",
-                "data_file",
+                VALIDATION.TYPES.DATA_FILE,
                 ["file1.txt"],
                 false,
                 []
@@ -395,7 +412,7 @@ describe('QcResultService', () => {
         it('should return early when deleteAll is false and fileNames is empty', async () => {
             await qcResultService.deleteQCResultBySubmissionID(
                 "test_submission_id",
-                "data_file",
+                VALIDATION.TYPES.DATA_FILE,
                 [],
                 false,
                 []
@@ -410,7 +427,7 @@ describe('QcResultService', () => {
 
             await qcResultService.deleteQCResultBySubmissionID(
                 "test_submission_id",
-                "data_file",
+                VALIDATION.TYPES.DATA_FILE,
                 [],
                 true,
                 []
@@ -418,7 +435,7 @@ describe('QcResultService', () => {
 
             expect(qcResultService.qcResultDAO.deleteMany).toHaveBeenCalledWith({
                 submissionID: "test_submission_id",
-                validationType: "data_file"
+                validationType: { in: [VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.FILE] }
             });
         });
 
@@ -428,7 +445,7 @@ describe('QcResultService', () => {
 
             await qcResultService.deleteQCResultBySubmissionID(
                 "test_submission_id",
-                "data_file",
+                VALIDATION.TYPES.DATA_FILE,
                 [],
                 true,
                 ["file1.txt", "file2.txt"]
@@ -436,7 +453,7 @@ describe('QcResultService', () => {
 
             expect(qcResultService.qcResultDAO.deleteMany).toHaveBeenCalledWith({
                 submissionID: "test_submission_id",
-                validationType: "data_file",
+                validationType: { in: [VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.FILE] },
                 submittedID: { notIn: ["file1.txt", "file2.txt"] }
             });
         });
@@ -448,7 +465,7 @@ describe('QcResultService', () => {
 
             await qcResultService.deleteQCResultBySubmissionID(
                 "test_submission_id",
-                "data_file",
+                VALIDATION.TYPES.DATA_FILE,
                 [],
                 true,
                 []
@@ -466,7 +483,7 @@ describe('QcResultService', () => {
 
             await qcResultService.deleteQCResultBySubmissionID(
                 "test_submission_id",
-                "data_file",
+                VALIDATION.TYPES.DATA_FILE,
                 [],
                 true,
                 ["file1.txt"]
@@ -475,6 +492,42 @@ describe('QcResultService', () => {
             // Should not log error for deleteAll operations
             expect(consoleSpy).not.toHaveBeenCalled();
             consoleSpy.mockRestore();
+        });
+
+        it('should use scalar validationType for non-file QC deletes', async () => {
+            qcResultService.qcResultDAO.deleteMany.mockResolvedValue({ count: 1 });
+
+            await qcResultService.deleteQCResultBySubmissionID(
+                "test_submission_id",
+                VALIDATION.TYPES.METADATA,
+                ["case-1"],
+                false,
+                []
+            );
+
+            expect(qcResultService.qcResultDAO.deleteMany).toHaveBeenCalledWith({
+                submissionID: "test_submission_id",
+                validationType: VALIDATION.TYPES.METADATA,
+                submittedID: { in: ["case-1"] }
+            });
+        });
+
+        it('should match both file validation types when dataType is FILE', async () => {
+            qcResultService.qcResultDAO.deleteMany.mockResolvedValue({ count: 1 });
+
+            await qcResultService.deleteQCResultBySubmissionID(
+                "test_submission_id",
+                VALIDATION.TYPES.FILE,
+                ["x.tsv"],
+                false,
+                []
+            );
+
+            expect(qcResultService.qcResultDAO.deleteMany).toHaveBeenCalledWith({
+                submissionID: "test_submission_id",
+                validationType: { in: [VALIDATION.TYPES.DATA_FILE, VALIDATION.TYPES.FILE] },
+                submittedID: { in: ["x.tsv"] }
+            });
         });
     });
 

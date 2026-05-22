@@ -16,6 +16,14 @@ class UserScope {
         return new UserScope(validScopes);
     }
 
+    /**
+     * Returns true when the scope list is empty (empty scopes).
+     * @returns {boolean} True if there are no scopes, false otherwise.
+     */
+    isEmptyScopes() {
+        return !this.scopes?.length;
+    }
+
     getRoleScope() {
         return this.scopes?.find(scope =>
             scope?.scope === SCOPES.ROLE

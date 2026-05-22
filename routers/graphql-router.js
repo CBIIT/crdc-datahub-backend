@@ -1,4 +1,5 @@
 const {createHandler} = require("graphql-http/lib/use/express");
+const {assertValidSchema} = require("graphql");
 const configuration = require("../config");
 
 const {Application} = require("../services/application");
@@ -48,8 +49,12 @@ const {AuthorizationService} = require("../services/authorization-service");
 const {UserScope} = require("../domain/user-scope");
 const {replaceErrorString} = require("../utility/string-util");
 const {ADMIN} = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
+const {CONSTRAINTS} = require("../constants/submission-constants");
 const {Release} = require("../services/release-service");
 const DataModelService = require("../services/data-model-service");
+const { MODEL_NAME } = require("../constants/db-constants");
+const PropertyPVDAO = require("../dao/propertyPV");
+const { PropertyPVService } = require("../services/property-pv-service");
 
 // Create schema with constraint directive
 const schema = constraintDirective()(
@@ -57,6 +62,9 @@ const schema = constraintDirective()(
         typeDefs: [constraintDirectiveTypeDefs, typeDefs],
     })
 );
+
+// Validate schema at startup - throws if invalid (e.g., missing interface fields)
+assertValidSchema(schema);
 
 const public_api_list = extractAPINames(schema, PUBLIC)
 let root;
@@ -67,10 +75,13 @@ dbConnector.connect().then(async () => {
     const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
     const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
     const emailService = new EmailService(config.email_transport, config.emails_enabled);
+    const configurationService = new ConfigurationService();
     const notificationsService = new NotifyUser(emailService, config.tier);
 
     const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
-    const configurationService = new ConfigurationService();
+    const propertyPVCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, MODEL_NAME.PROPERTY_PVS);
+    const propertyPVDAO = new PropertyPVDAO(propertyPVCollection);
+    const propertyPVService = new PropertyPVService(configurationService, propertyPVDAO);
     const authorizationService = new AuthorizationService(configurationService);
     const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
     const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
@@ -96,7 +107,7 @@ dbConnector.connect().then(async () => {
     const releaseCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, RELEASE_DATA_RECORDS_COLLECTION);
     const dataRecordCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_COLLECTION);
     const dataRecordArchiveCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_ARCHIVE_COLLECTION);
-    const dataRecordService = new DataRecordService(dataRecordCollection, dataRecordArchiveCollection, releaseCollection, config.file_queue, config.metadata_queue, awsService, s3Service, qcResultsService, config.export_queue);
+    const dataRecordService = new DataRecordService(dataRecordCollection, dataRecordArchiveCollection, releaseCollection, config.file_queue, config.metadata_queue, awsService, s3Service, qcResultsService, config.export_queue, configurationService);
 
     const validationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, VALIDATION_COLLECTION);
 
@@ -131,31 +142,39 @@ dbConnector.connect().then(async () => {
         listApplications: dataInterface.listApplications.bind(dataInterface),
         submitApplication: dataInterface.submitApplication.bind(dataInterface),
         approveApplication:  async (params, context)=> {
-            const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
+            if (params?.comment?.length > CONSTRAINTS.APPROVE_COMMENT_MAX_LENGTH) {
+                throw new Error(replaceErrorString(ERROR.COMMENT_LIMIT, CONSTRAINTS.APPROVE_COMMENT_MAX_LENGTH));
+            }
+            const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}})?.trim();
             return await dataInterface.approveApplication({...params, comment}, context);
         },
         rejectApplication: async (params, context)=> {
-            const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
+            if (params?.comment?.length > CONSTRAINTS.REJECT_COMMENT_MAX_LENGTH) {
+                throw new Error(replaceErrorString(ERROR.COMMENT_LIMIT, CONSTRAINTS.REJECT_COMMENT_MAX_LENGTH));
+            }
+            const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}})?.trim();
             return await dataInterface.rejectApplication({...params, comment}, context);
         },
         inquireApplication: async (params, context)=> {
-            const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
+            if (params?.comment?.length > CONSTRAINTS.INQUIRE_COMMENT_MAX_LENGTH) {
+                throw new Error(replaceErrorString(ERROR.COMMENT_LIMIT, CONSTRAINTS.INQUIRE_COMMENT_MAX_LENGTH));
+            }
+            const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}})?.trim();
             return await dataInterface.inquireApplication({...params, comment}, context);
         },
         reopenApplication: dataInterface.reopenApplication.bind(dataInterface),
         cancelApplication: async (params, context)=> {
-            const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
-            if (comment?.trim().length > 500) {
-                throw new Error(ERROR.COMMENT_LIMIT);
+            if (params?.comment?.length > CONSTRAINTS.CANCEL_COMMENT_MAX_LENGTH) {
+                throw new Error(replaceErrorString(ERROR.COMMENT_LIMIT, CONSTRAINTS.CANCEL_COMMENT_MAX_LENGTH));
             }
-
+            const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}})?.trim();
             return await dataInterface.cancelApplication({...params, comment}, context);
         },
         restoreApplication: async (params, context)=> {
-            const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}});
-            if (comment?.trim().length > 500) {
-                throw new Error(ERROR.COMMENT_LIMIT);
+            if (params?.comment?.length > CONSTRAINTS.RESTORE_COMMENT_MAX_LENGTH) {
+                throw new Error(replaceErrorString(ERROR.COMMENT_LIMIT, CONSTRAINTS.RESTORE_COMMENT_MAX_LENGTH));
             }
+            const comment = sanitizeHtml(params?.comment, {allowedTags: [],allowedAttributes: {}})?.trim();
             return await dataInterface.restoreApplication({...params, comment}, context);
         },
         listApprovedStudies: approvedStudiesService.listApprovedStudiesAPI.bind(approvedStudiesService),
@@ -205,7 +224,7 @@ dbConnector.connect().then(async () => {
         editUser : userService.editUser.bind(userService),
         grantToken : userService.grantToken.bind(userService),
         listActiveDCPs: userService.listActiveDCPsAPI.bind(userService),
-        listPrograms : organizationService.listPrograms.bind(organizationService),
+        listPrograms: organizationService.listPrograms.bind(organizationService),
         getOrganization : async (params, context) => {
             const userScope = await getOrgUserScope(authorizationService, context?.userInfo, ADMIN.MANAGE_PROGRAMS);
             if (userScope.isNoneScope()) {
@@ -241,6 +260,7 @@ dbConnector.connect().then(async () => {
         getApplicationFormVersion: configurationService.getApplicationFormVersion.bind(configurationService),
         userIsPrimaryContact: userService.isUserPrimaryContact.bind(userService),
         isMaintenanceMode: configurationService.isMaintenanceMode.bind(configurationService),
+        isChatBotEnabled: configurationService.isChatBotEnabled.bind(configurationService),
         getTooltips: tooltipService.getTooltips.bind(tooltipService),
         getSubmissionAttributes: submissionService.getSubmissionAttributes.bind(submissionService),
         listReleasedStudies: releaseService.listReleasedStudies.bind(releaseService),
@@ -259,6 +279,7 @@ dbConnector.connect().then(async () => {
         getOMB: configurationService.getOMB.bind(configurationService),
         downloadAllReleasedNodes: releaseService.downloadAllReleasedNodes.bind(releaseService),
         getSubmissionSummary: submissionService.getSubmissionSummary.bind(submissionService),
+        retrievePVsByPropertyName: propertyPVService.retrievePVsByPropertyName.bind(propertyPVService),
     };
 });
 

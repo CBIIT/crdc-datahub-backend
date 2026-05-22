@@ -181,7 +181,9 @@ describe('UserInitializationService.getMyUser', () => {
 
             // Verify
             expect(mockApprovedStudiesCollection.aggregate).not.toHaveBeenCalled();
-            expect(result.studies).toEqual([{ _id: 'All', studyName: 'All' }]);
+            expect(result.studies).toEqual([
+                { _id: 'All', studyName: 'All', pendingImageDeIdentification: false }
+            ]);
         });
 
         it('should create new user when user does not exist', async () => {

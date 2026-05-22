@@ -16,7 +16,10 @@ function isElementInArrayCaseInsensitive(array, target) {
 }
 
 const replaceErrorString = (original, replacement, pattern = /\$item\$/g) => {
-   return (!original || !replacement) ? original : original.replace(pattern, replacement);
+    if (!original || replacement === undefined || replacement === null) {
+        return original;
+    }
+    return original.replace(pattern, replacement);
 }
 
 // For a MongoDB regex search, the dot '.' means any character in the keyword. It should be removed from the user-input.
@@ -27,6 +30,12 @@ const sanitizeMongoDBInput = (raw) => {
     }
     return raw.trim();
 }
+
+/** Escape a string for use as a literal inside MongoDB $regex or Prisma MongoDB case-insensitive filters (which compile to regex). */
+const escapeRegexLiteral = (raw) => {
+    if (raw === undefined || raw === null) return "";
+    return String(raw).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+};
 
 
 const getUniqueArr = (arr) => {return (arr) ? arr.filter((v, i, a) => a.indexOf(v) === i) : []};
@@ -162,5 +171,6 @@ module.exports = {
     isValidFileExtension,
     fileSizeFormatter,
     getFormatDateStr,
-    sanitizeMongoDBInput
+    sanitizeMongoDBInput,
+    escapeRegexLiteral
 }

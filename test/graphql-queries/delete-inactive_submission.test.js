@@ -48,7 +48,7 @@ const logCollection = mockPrisma.log;
 const testCollection = mockPrisma.organization;
 
 const emailService = new EmailService(config.email_transport, config.emails_enabled);
-const notificationsService = new NotifyUser(emailService);
+const notificationsService = new NotifyUser(emailService, null);
 const userService = new User(userCollection);
 const submissionCollection = mockPrisma.submission;
 const dataRecordCollection = mockPrisma.dataRecord;

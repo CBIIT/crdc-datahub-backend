@@ -7,11 +7,13 @@ const ERROR = {
     APPLICATION_NOT_FOUND: "The provided application ID was not found in the database. Provided _id: ",
     FAILED_DELETE_APPLICATION: "An error occurred while delete an application",
     APPLICATION_CONTROLLED_ACCESS_NOT_FOUND: "The application does not store controlled access property.",
-    APPLICATION_INVALID_STATUES: "Requested statues $item$ is not valid",
+    APPLICATION_INVALID_STATUSES: "Requested statuses $item$ are not valid",
+    LIST_APPLICATIONS_FETCH_FAILED: "Failed to query the submission requests list.",
+    LIST_APPLICATIONS_INVALID_PARAMS: "Invalid list applications parameters.",
     FAILED_RESTORE_APPLICATION: "An error occurred while restoring an application",
     MISSING_PROGRAM_INFO: "The program property is required to approve the submission request.",
     INVALID_APPLICATION_RESTORE_STATE: "Failed to restore application because the application history data is invalid",
-    COMMENT_LIMIT: "comment cannot exceed 500 characters.",
+    COMMENT_LIMIT: "comment cannot exceed $item$ characters.",
     UPDATE_FAILED: "Update unsuccessful",
     VERIFY: {
         UNDEFINED_APPLICATION: "Application array is undefined",
@@ -60,7 +62,17 @@ const ERROR = {
     FAILED_STORE_APPROVED_STUDIES: "The approved studies are not being stored because the questionnaire data string is not correctly parsed",
     DUPLICATE_APPROVED_STUDY_NAME: "This is a duplicate study name. The $item$ study already exists in the system.",
     DUPLICATE_PROGRAM_NAME: "This is a duplicate program name. The $item$ program already exists in the system.",
+    STUDIES_CANNOT_ASSIGN_TO_INACTIVE_PROGRAM: "Studies cannot be assigned to an inactive program.",
     STUDY_CREATION_FAILED: "An internal error occured while initializing a new study. Please alert the admins.",
+    INVALID_APPROVED_STUDY_STATUS: "Approved study status must be Active or Inactive.",
+    LIST_APPROVED_STUDIES_STATUSES_FILTER_TOO_MANY:
+        "The statuses filter may include at most $item$ value(s), matching the number of valid study statuses.",
+    CREATE_SUBMISSION_INACTIVE_APPROVED_STUDY:
+        "Data submissions cannot be created for an inactive study.",
+    INVALID_APPROVED_STUDIES_ACCESS_INACTIVE:
+        "Access cannot be requested for inactive studies.",
+    INACTIVE_APPROVED_STUDY_CANNOT_ASSIGN:
+        "Users cannot be assigned access to an inactive study.",
     // Submission Permission
     INVALID_SUBMISSION_STATUS: "The batch creation is aborted because the current submission is not in the valid state to be created.",
     // Create Submission
@@ -71,13 +83,23 @@ const ERROR = {
     CREATE_SUBMISSION_INVALID_DATA_TYPE: "submission data type is invalid",
     CREATE_SUBMISSION_INVALID_DELETE_INTENTION: "when intention is Delete, only 'Metadata Only' is allowed",
     UPDATE_SUBMISSION_ERROR: "An error occurred while attempting to update the submission in the database",
-    CREATE_SUBMISSION_INVALID_DATA_COMMONS: "Requested data commons $item$ is not supported",
+    INVALID_DATA_COMMONS_NOT_ALLOWED: "The provided dataCommons value $item$ is not allowed. Allowed data commons are: $accepted$.",
+    INVALID_DATA_MODEL_NOT_ALLOWED: "The provided model $item$ is not one of the accepted models. Accepted models are: $accepted$.",
+    RETRIEVE_PVS_INVALID_MODEL: "The model input must be a non-empty string.",
+    RETRIEVE_PVS_INVALID_PROPERTY_NAME: "The propertyNames input must be an array of non-empty strings (each element non-empty after trim).",
+    RETRIEVE_PVS_TOO_MANY_PROPERTY_NAMES:
+        "The propertyNames list cannot exceed 500 entries (matches API batch limits and database $in query size).",
+    RETRIEVE_PVS_INVALID_VERSION: "The version input must be a non-empty string.",
     CREATE_SUBMISSION_NO_MATCHING_STUDY: "The study provided does not match an approved study within the user's studies",
     CREATE_SUBMISSION_NO_ASSOCIATED_PROGRAM: "The study is not associated with any program. Please contact your data concierge to resolve this issue.",
     MISSING_CREATE_SUBMISSION_DBGAPID: "dbGapID is required for controlled-access studies.",
     MISSING_CREATE_SUBMISSION_PENDING_GPA: "Submission cannot be created while GPA approval is pending for this controlled-access study.",
     PENDING_APPROVED_STUDY: "The Data Commons team is reviewing this study for potential data model changes. Data submissions cannot be created until any required model updates are released.",
     PENDING_APPROVED_STUDY_NO_GPA_INFO: "Data submissions cannot be created until the required GPA updates are provided.",
+    PENDING_IMAGE_DEIDENTIFICATION_SUBMISSION:
+        "This study requires a risk mitigation document & de-identification protocol. Data submissions cannot be created for this study until these conditions are cleared.",
+    PENDING_IMAGE_DEIDENTIFICATION_CONDITION:
+        "Pending submission of the risk mitigation document and the image de-identification protocol.",
     // List Submissions
     LIST_SUBMISSION_INVALID_STATUS_FILTER: "The status filter is invalid",
     INVALID_SUBMISSION_PERMISSION: "You do not have the correct permissions to list submissions",
@@ -180,6 +202,7 @@ const ERROR = {
     FAILED_APPROVED_STUDY_UPDATE: "Failed to update the approved study.",
     FAILED_PRIMARY_CONTACT_UPDATE: "Failed to update the data concierge in the approved study.",
     INVALID_PENDING_GPA: "Invalid pending GPA is requested.",
+    INVALID_PENDING_IMAGE_DE_IDENTIFICATION: "pendingImageDeIdentification must be a boolean.",
     FAILED_TO_NOTIFY_CLEAR_PENDING_STATE: "Failed to send notification for clearing the approved study; $item$",
     APPROVED_STUDY_NOT_FOUND: "Approved study not found.",
     OMB_NOT_FOUND: "OMB information not found.",

@@ -115,6 +115,64 @@ describe('Message Class', () => {
     });
   });
 
+  describe('createMetadataBatchMessage Static Method', () => {
+    test('should create batch message with all parameters', () => {
+      const ids = ['rec-1', 'rec-2', 'rec-3'];
+      const message = Message.createMetadataBatchMessage(
+        'submission-123', 'new', 'validation-456', ids, 2, 0
+      );
+
+      expect(message).toBeInstanceOf(Message);
+      expect(message.type).toBe('Validate Metadata Batch');
+      expect(message.submissionID).toBe('submission-123');
+      expect(message.scope).toBe('new');
+      expect(message.validationID).toBe('validation-456');
+      expect(message.dataRecordIds).toEqual(ids);
+      expect(message.totalBatches).toBe(2);
+      expect(message.batchIndex).toBe(0);
+    });
+
+    test('should create batch message without scope', () => {
+      const ids = ['rec-1'];
+      const message = Message.createMetadataBatchMessage(
+        'submission-123', null, 'validation-456', ids, 1, 0
+      );
+
+      expect(message).toBeInstanceOf(Message);
+      expect(message.type).toBe('Validate Metadata Batch');
+      expect(message.scope).toBeUndefined();
+      expect(message.dataRecordIds).toEqual(ids);
+      expect(message.totalBatches).toBe(1);
+      expect(message.batchIndex).toBe(0);
+    });
+
+    test('should set correct batch index for second batch', () => {
+      const ids = ['rec-4', 'rec-5'];
+      const message = Message.createMetadataBatchMessage(
+        'submission-123', 'all', 'validation-456', ids, 3, 1
+      );
+
+      expect(message.batchIndex).toBe(1);
+      expect(message.totalBatches).toBe(3);
+      expect(message.dataRecordIds).toEqual(ids);
+    });
+
+    test('should have all expected properties', () => {
+      const ids = ['rec-1'];
+      const message = Message.createMetadataBatchMessage(
+        'submission-123', 'new', 'validation-456', ids, 1, 0
+      );
+
+      const expectedProperties = [
+        'type', 'submissionID', 'scope', 'validationID',
+        'dataRecordIds', 'totalBatches', 'batchIndex'
+      ];
+      expectedProperties.forEach(prop => {
+        expect(message).toHaveProperty(prop);
+      });
+    });
+  });
+
   describe('createFileSubmissionMessage Static Method', () => {
     test('should create file submission message with validationID', () => {
       const message = Message.createFileSubmissionMessage(
@@ -439,5 +497,6 @@ describe('Message Class', () => {
       expect(message.dataRecordID).toBe('data-record-123');
       expect(message.validationID).toBe('validation-456');
     });
+
   });
 }); 

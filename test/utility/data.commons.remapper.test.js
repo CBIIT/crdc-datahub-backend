@@ -1,5 +1,5 @@
 const {getDataCommonsDisplayName, getDataCommonsDisplayNamesForSubmission, getDataCommonsDisplayNamesForListSubmissions, genericGetDataCommonsDisplayNames,
-    getDataCommonsDisplayNamesForUser
+    getDataCommonsDisplayNamesForUser, applyStudyAbbreviationFallbackToListSubmission
 } = require('../../utility/data-commons-remapper');
 
 describe('Data Commons Remapper Test', () => {
@@ -82,10 +82,23 @@ describe('Data Commons Remapper Test', () => {
         let outputSubmission = {
             dataCommons: "CDS",
             dataCommonsDisplayName: "GC",
+            studyAbbreviation: ""
         }
         inputListSubmission.submissions = [inputSubmission, {}, inputSubmission]
-        outputListSubmission.submissions = [outputSubmission, {}, outputSubmission]
+        outputListSubmission.submissions = [outputSubmission, { studyAbbreviation: "" }, outputSubmission]
         expect(getDataCommonsDisplayNamesForListSubmissions(inputListSubmission)).toStrictEqual(outputListSubmission);
+    });
+
+    test('applyStudyAbbreviationFallbackToListSubmission uses studyName when studyAbbreviation is empty', () => {
+        const row = {
+            dataCommons: "CDS",
+            studyName: "Top level name",
+            studyAbbreviation: "   ",
+            study: { studyName: "Nested name", studyAbbreviation: " \t " }
+        };
+        const out = applyStudyAbbreviationFallbackToListSubmission({ ...row });
+        expect(out.studyAbbreviation).toBe("Top level name");
+        expect(out.study.studyAbbreviation).toBe("Nested name");
     });
 
     test('/test getDataCommonsDisplayNamesForUser', () => {

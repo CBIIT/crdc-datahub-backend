@@ -101,7 +101,8 @@ describe('DataRecordService', () => {
       mockAwsService,
       mockS3Service,
       mockQcResultsService,
-      'export-queue'
+      'export-queue',
+      null
     );
 
     dataRecordDAO = new DataRecordDAO(mockDataRecordsCollection);
@@ -381,6 +382,51 @@ describe('DataRecordService', () => {
           })
         ])
       );
+    });
+  });
+
+  describe('resetS3FileLinkedMetadataStatusToNew', () => {
+    test('should update by file names and set New only on s3FileInfo', async () => {
+      mockDataRecordsCollection.updateMany.mockResolvedValue({ modifiedCount: 2 });
+
+      const result = await dataRecordService.resetS3FileLinkedMetadataStatusToNew('sub-1', ['a.txt', 'b.txt']);
+
+      expect(result).toEqual({ modifiedCount: 2 });
+        expect(mockDataRecordsCollection.updateMany).toHaveBeenCalledWith(
+        {
+          submissionID: 'sub-1',
+          s3FileInfo: { $exists: true, $ne: null },
+          's3FileInfo.fileName': { $in: ['a.txt', 'b.txt'] }
+        },
+        expect.arrayContaining([
+          expect.objectContaining({
+            $set: expect.objectContaining({
+              s3FileInfo: { $mergeObjects: ['$s3FileInfo', { status: 'New' }] }
+            })
+          })
+        ])
+      );
+    });
+
+    test('should match all s3FileInfo records when fileNames is null', async () => {
+      mockDataRecordsCollection.updateMany.mockResolvedValue({ modifiedCount: 5 });
+
+      await dataRecordService.resetS3FileLinkedMetadataStatusToNew('sub-1', null);
+
+      expect(mockDataRecordsCollection.updateMany).toHaveBeenCalledWith(
+        {
+          submissionID: 'sub-1',
+          s3FileInfo: { $exists: true, $ne: null }
+        },
+        expect.any(Array)
+      );
+    });
+
+    test('should no-op for empty fileNames array', async () => {
+      const result = await dataRecordService.resetS3FileLinkedMetadataStatusToNew('sub-1', []);
+
+      expect(result).toEqual({ acknowledged: true, modifiedCount: 0, matchedCount: 0 });
+      expect(mockDataRecordsCollection.updateMany).not.toHaveBeenCalled();
     });
   });
 
@@ -919,6 +965,80 @@ describe('DataRecordService', () => {
       expect(callOrder.indexOf('results-start')).toBeLessThan(callOrder.indexOf('results-end'));
       expect(result.total).toBe(10);
       expect(result.results).toEqual(mockResults);
+    });
+  });
+
+  describe('getDistinctParentRelationshipKeys', () => {
+    beforeEach(() => {
+      mockDataRecordsCollection.aggregate.mockReset();
+    });
+
+    test('returns distinct parentType.parentIDPropName strings for the match', async () => {
+      mockDataRecordsCollection.aggregate.mockResolvedValue([
+        { keys: ['sample.sample_id', 'participant.study_participant_id'] }
+      ]);
+      const q = { submissionID: 's1', nodeType: 'study_diagnosis' };
+      const keys = await dataRecordDAO.getDistinctParentRelationshipKeys(q);
+      expect(keys).toEqual(['sample.sample_id', 'participant.study_participant_id']);
+      expect(mockDataRecordsCollection.aggregate).toHaveBeenCalledTimes(1);
+      const pipeline = mockDataRecordsCollection.aggregate.mock.calls[0][0];
+      expect(pipeline[0].$match).toEqual(q);
+    });
+
+    test('returns empty array when aggregation has no rows', async () => {
+      mockDataRecordsCollection.aggregate.mockResolvedValue([]);
+      const keys = await dataRecordDAO.getDistinctParentRelationshipKeys({
+        submissionID: 's1',
+        nodeType: 'x'
+      });
+      expect(keys).toEqual([]);
+    });
+
+    test('returns empty array for invalid query without calling aggregate', async () => {
+      expect(await dataRecordDAO.getDistinctParentRelationshipKeys(null)).toEqual([]);
+      expect(mockDataRecordsCollection.aggregate).not.toHaveBeenCalled();
+    });
+
+    test('returns empty array when query is an array (not a plain $match object)', async () => {
+      expect(await dataRecordDAO.getDistinctParentRelationshipKeys([])).toEqual([]);
+      expect(mockDataRecordsCollection.aggregate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getDistinctPropsTopLevelKeys', () => {
+    beforeEach(() => {
+      mockDataRecordsCollection.aggregate.mockReset();
+    });
+
+    test('returns distinct top-level props key strings for the match', async () => {
+      mockDataRecordsCollection.aggregate.mockResolvedValue([
+        { keys: ['study_diagnosis_id', 'site_id'] }
+      ]);
+      const q = { submissionID: 's1', nodeType: 'study_diagnosis' };
+      const keys = await dataRecordDAO.getDistinctPropsTopLevelKeys(q);
+      expect(keys).toEqual(['study_diagnosis_id', 'site_id']);
+      expect(mockDataRecordsCollection.aggregate).toHaveBeenCalledTimes(1);
+      const pipeline = mockDataRecordsCollection.aggregate.mock.calls[0][0];
+      expect(pipeline[0].$match).toEqual(q);
+    });
+
+    test('returns empty array when aggregation has no rows', async () => {
+      mockDataRecordsCollection.aggregate.mockResolvedValue([]);
+      const keys = await dataRecordDAO.getDistinctPropsTopLevelKeys({
+        submissionID: 's1',
+        nodeType: 'x'
+      });
+      expect(keys).toEqual([]);
+    });
+
+    test('returns empty array for invalid query without calling aggregate', async () => {
+      expect(await dataRecordDAO.getDistinctPropsTopLevelKeys(null)).toEqual([]);
+      expect(mockDataRecordsCollection.aggregate).not.toHaveBeenCalled();
+    });
+
+    test('returns empty array when query is an array', async () => {
+      expect(await dataRecordDAO.getDistinctPropsTopLevelKeys([{ $match: {} }])).toEqual([]);
+      expect(mockDataRecordsCollection.aggregate).not.toHaveBeenCalled();
     });
   });
 });

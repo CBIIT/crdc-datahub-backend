@@ -4,6 +4,10 @@ const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, CANCELED,
 } = require("../constants/submission-constants");
 const USER_PERMISSION_CONSTANTS = require("../crdc-datahub-database-drivers/constants/user-permission-constants");
 
+function isSubmitLikeActionName(actionName) {
+    return actionName === ACTIONS.SUBMIT || actionName === ACTIONS.ADMIN_SUBMIT;
+}
+
 function verifySubmissionAction(action, submissionStatus, comment){
     if (action === ACTIONS.REJECT) {
         if(!comment || comment?.trim()?.length === 0) {
@@ -52,13 +56,8 @@ class SubmissionActionVerifier {
         return this._toStatus;
     }
 
-    getPrevStatus() {
-        return this._fromStatus;
-    }
-
-
     isValidSubmitAction(isAdminAction, aSubmission, comment, submissionAttributes) {
-        if (this._actionName === ACTIONS.SUBMIT) {
+        if (isSubmitLikeActionName(this._actionName)) {
             if (submissionAttributes.isValidationNotPassed()) {
                 console.error(ERROR.VERIFY.INVALID_SUBMIT_ACTION, `SubmissionID:${aSubmission?._id}`);
                 throw new Error(ERROR.VERIFY.INVALID_SUBMIT_ACTION);
@@ -72,7 +71,7 @@ class SubmissionActionVerifier {
 
     isSubmitActionCommentRequired(aSubmission, isAdminAction, comment) {
             const isError = [aSubmission?.metadataValidationStatus, aSubmission?.fileValidationStatus].includes(VALIDATION_STATUS.ERROR);
-            return this._actionName === ACTIONS.SUBMIT && isAdminAction && isError && (!comment || comment?.trim()?.length === 0);
+            return isSubmitLikeActionName(this._actionName) && isAdminAction && isError && (!comment || comment?.trim()?.length === 0);
     }
 
     async isValidPermissions(action, userInfo, collaboratorUserIDs = [], authorizationCallback) {
@@ -89,6 +88,7 @@ class SubmissionActionVerifier {
 
 const submissionActionMap = [
     {action:ACTIONS.SUBMIT, fromStatus: [IN_PROGRESS, WITHDRAWN, REJECTED], toStatus:SUBMITTED, permissions: [USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE, USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.ADMIN_SUBMIT]},
+    {action:ACTIONS.ADMIN_SUBMIT, fromStatus: [IN_PROGRESS, WITHDRAWN, REJECTED], toStatus:SUBMITTED, permissions: [USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.ADMIN_SUBMIT]},
     {action:ACTIONS.RELEASE, fromStatus: [SUBMITTED], toStatus:RELEASED, permissions: [USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.REVIEW]},
     {action:ACTIONS.WITHDRAW, fromStatus: [SUBMITTED], toStatus:WITHDRAWN, permissions: [USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CREATE]},
     {action:ACTIONS.REJECT_SUBMIT, fromStatus: [SUBMITTED], toStatus:REJECTED, permissions: [USER_PERMISSION_CONSTANTS.DATA_SUBMISSION.CONFIRM]},
@@ -100,5 +100,6 @@ const submissionActionMap = [
 ];
 
 module.exports = {
-    verifySubmissionAction
+    verifySubmissionAction,
+    isSubmitLikeActionName
 };

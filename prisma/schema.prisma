@@ -126,11 +126,12 @@ type Parent {
 }
 
 type History {
-  dateTime      DateTime @db.Date
-  reviewComment String?
-  status        String
-  userID        String?
-  userName      String?
+  dateTime       DateTime @db.Date
+  reviewComment  String?
+  status         String
+  userID         String?
+  userName       String?
+  isAdminSubmit  Boolean?
 }
 
 type Error {
@@ -207,11 +208,13 @@ model ApprovedStudy {
   programID         String?
   studyAbbreviation String
   studyName         String
+  status            String   @default("Active")
   useProgramPC      Boolean?
   pendingModelChange Boolean?
+  pendingImageDeIdentification Boolean?
   createdAt         DateTime @default(now()) @db.Date
   updatedAt         DateTime @updatedAt @db.Date
-  pendingApplicationID String?
+  applicationID String?
   submission Submission[]
   isPendingGPA      Boolean?
   GPAName           String?
@@ -278,6 +281,7 @@ model Configuration {
   keys                             Json?
   new                              String?
   prefix                           String?
+  size                             Int?
   tag                              ConfigurationTag?
   timeout                          Int?
   type                             String
@@ -380,6 +384,18 @@ model PendingPVs {
   createdAt         DateTime? @default(now()) @db.Date
   updatedAt         DateTime? @updatedAt @db.Date
   @@map("pendingPvs")
+}
+
+model PropertyPVs {
+  id                 String    @id @default(uuid()) @map("_id")
+  property           String
+  model              String
+  version            String
+  permissibleValues  String[]  @map("PermissibleValues")
+  createdAt          DateTime? @default(now()) @db.Date
+  updatedAt          DateTime? @updatedAt @db.Date
+
+  @@map("propertyPVs")
 }
 
 model Institution {
@@ -513,11 +529,14 @@ model Submission {
   reviewComment            String?
   rootPath                 String
   status                   String
+  /// Admin | Regular; null if not yet submitted
+  submissionType           String?
   studyAbbreviation        String?
   studyName                String?
   studyID                  String
   submitterID              String
   conciergeID              String?
+  statusDetail             String[]
   validationEnded          DateTime?      @db.Date
   validationScope          String?
   validationStarted        DateTime?      @db.Date
@@ -541,7 +560,6 @@ type FileError {
     dataRecordID String?
     validationType String?
     batchID String?
-    batchIDs String[]
     displayID Int?
     type String?
     submittedID String?
@@ -592,13 +610,21 @@ model User {
 }
 
 model Validation {
-  id           String    @id @default(uuid()) @map("_id")
-  ended        DateTime? @db.Date
-  scope        String?
-  started      DateTime  @db.Date
-  status       String?
-  submissionID String
-  type         String[]
+  id                 String    @id @default(uuid()) @map("_id")
+  ended              DateTime? @db.Date
+  metadataEnded      DateTime? @db.Date
+  scope              String?
+  started            DateTime  @db.Date
+  status             String?
+  metadataStatus     String?
+  statusDetail       String[]
+  submissionID       String
+  totalBatches       Int?
+  completedBatches   Int?
+  failedBatches      Int?
+  batchStatusDetails String[]
+  worstBatchStatus   Int?
+  type               String[]
 
   submission Submission @relation(fields: [submissionID], references: [id], onDelete: Cascade)
 

@@ -211,6 +211,10 @@ describe('Util Test', () => {
         expect(result).toBe(originalString);
     });
 
+    test('replaces with empty string when replacement is empty', () => {
+        expect(replaceErrorString("before $item$ after", "")).toBe("before  after");
+    });
+
     test('test valid file extensions', () => {
         expect(isValidFileExtension("file.txt.tsv.tsv")).toBe(true);
         expect(isValidFileExtension("file.txt")).toBe(true);

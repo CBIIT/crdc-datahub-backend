@@ -17,6 +17,7 @@ const mockNotificationsService = {
 };
 const mockEmailParams = {
     inactiveDays: 180,
+    inactiveNewApplicationDays: 30,
     url: 'http://test.com',
     officialEmail: 'test@example.com'
 };
@@ -96,7 +97,8 @@ describe('deleteInactiveApplications Error Handling', () => {
 
     describe('Error Handling Improvements', () => {
         test('should handle database query failures with try-catch', async () => {
-            mockApplicationDAO.getInactiveApplication.mockRejectedValue(new Error('Database connection failed'));
+            mockApplicationDAO.getInactiveApplication
+                .mockRejectedValueOnce(new Error('Database connection failed'));
 
             const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
 
@@ -109,7 +111,9 @@ describe('deleteInactiveApplications Error Handling', () => {
         });
 
         test('should handle no inactive applications gracefully', async () => {
-            mockApplicationDAO.getInactiveApplication.mockResolvedValue([]);
+            mockApplicationDAO.getInactiveApplication
+                .mockResolvedValueOnce([]) // default window
+                .mockResolvedValueOnce([]); // short window
 
             const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
 
@@ -124,7 +128,9 @@ describe('deleteInactiveApplications Error Handling', () => {
         });
 
         test('should handle undefined applications array gracefully', async () => {
-            mockApplicationDAO.getInactiveApplication.mockResolvedValue(undefined);
+            mockApplicationDAO.getInactiveApplication
+                .mockResolvedValueOnce(undefined) // default window
+                .mockResolvedValueOnce(undefined); // short window
 
             const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
 
@@ -145,12 +151,15 @@ describe('deleteInactiveApplications Error Handling', () => {
                     applicantID: 'user1',
                     applicant: { applicantEmail: 'user1@test.com', applicantName: 'User 1' },
                     studyAbbreviation: 'TEST-STUDY',
+                    status: 'In Progress',
                     history: [],
                     updatedAt: new Date('2023-01-01')
                 }
             ];
 
-            mockApplicationDAO.getInactiveApplication.mockResolvedValue(mockApplications);
+            mockApplicationDAO.getInactiveApplication
+                .mockResolvedValueOnce(mockApplications) // default window
+                .mockResolvedValueOnce([]); // short window
             mockUserService.getUsersByNotifications.mockResolvedValue([]);
             mockUserService.userCollection.aggregate.mockResolvedValue([]);
             mockApplicationDAO.update.mockResolvedValue({});
@@ -175,6 +184,7 @@ describe('deleteInactiveApplications Error Handling', () => {
                     applicantID: 'user1',
                     applicant: { applicantEmail: 'user1@test.com', applicantName: 'User 1' },
                     studyAbbreviation: 'TEST-STUDY',
+                    status: 'In Progress',
                     history: [],
                     updatedAt: new Date('2023-01-01')
                 },
@@ -183,12 +193,15 @@ describe('deleteInactiveApplications Error Handling', () => {
                     applicantID: 'user2',
                     applicant: { applicantEmail: 'user2@test.com', applicantName: 'User 2' },
                     studyAbbreviation: 'TEST-STUDY-2',
+                    status: 'In Progress',
                     history: [],
                     updatedAt: new Date('2023-01-01')
                 }
             ];
 
-            mockApplicationDAO.getInactiveApplication.mockResolvedValue(mockApplications);
+            mockApplicationDAO.getInactiveApplication
+                .mockResolvedValueOnce(mockApplications) // default window
+                .mockResolvedValueOnce([]); // short window
             mockUserService.getUsersByNotifications.mockResolvedValue([]);
             mockUserService.userCollection.aggregate.mockResolvedValue([]);
             
@@ -222,6 +235,7 @@ describe('deleteInactiveApplications Error Handling', () => {
                     applicantID: 'user1',
                     applicant: { applicantEmail: 'user1@test.com', applicantName: 'User 1' },
                     studyAbbreviation: 'TEST-STUDY',
+                    status: 'In Progress',
                     history: [],
                     updatedAt: new Date('2023-01-01')
                 },
@@ -230,12 +244,15 @@ describe('deleteInactiveApplications Error Handling', () => {
                     applicantID: 'user2',
                     applicant: { applicantEmail: 'user2@test.com', applicantName: 'User 2' },
                     studyAbbreviation: 'TEST-STUDY-2',
+                    status: 'In Progress',
                     history: [],
                     updatedAt: new Date('2023-01-01')
                 }
             ];
 
-            mockApplicationDAO.getInactiveApplication.mockResolvedValue(mockApplications);
+            mockApplicationDAO.getInactiveApplication
+                .mockResolvedValueOnce(mockApplications) // default window
+                .mockResolvedValueOnce([]); // short window
             mockUserService.getUsersByNotifications.mockResolvedValue([]);
             mockUserService.userCollection.aggregate.mockResolvedValue([]);
             
@@ -262,6 +279,115 @@ describe('deleteInactiveApplications Error Handling', () => {
             } finally {
                 consoleSpy.mockRestore();
                 consoleErrorSpy.mockRestore();
+            }
+        });
+
+        test('inactiveApplicationsNotification receives studyName and study NA for blank New SRF', async () => {
+            const mockShortApps = [
+                {
+                    _id: 'app2',
+                    applicantID: 'user2',
+                    applicant: { applicantEmail: 'user2@test.com', applicantName: 'User 2' },
+                    questionnaireData: '{}',
+                    studyAbbreviation: undefined,
+                    studyName: undefined,
+                    programName: undefined,
+                    status: 'New',
+                    ORCID: undefined,
+                    PI: undefined,
+                    programAbbreviation: undefined,
+                    programDescription: undefined,
+                    history: [],
+                    updatedAt: new Date('2023-01-01')
+                }
+            ];
+
+            mockApplicationDAO.getInactiveApplication
+                .mockResolvedValueOnce([]) // default window
+                .mockResolvedValueOnce(mockShortApps); // short window
+            mockUserService.getUsersByNotifications.mockResolvedValue([]);
+            mockUserService.userCollection.aggregate.mockResolvedValue([
+                { _id: 'user2', notifications: ['submission_request:deleted'] }
+            ]);
+            mockApplicationDAO.delete.mockResolvedValue({});
+
+            const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+            try {
+                await applicationService.deleteInactiveApplications();
+
+                expect(mockNotificationsService.inactiveApplicationsNotification).toHaveBeenCalledWith(
+                    'user2@test.com',
+                    [],
+                    [],
+                    expect.objectContaining({
+                        firstName: 'User 2',
+                        studyName: 'NA'
+                    }),
+                    expect.objectContaining({
+                        study: 'NA',
+                        inactiveDays: 30,
+                        url: 'http://test.com'
+                    })
+                );
+            } finally {
+                consoleSpy.mockRestore();
+            }
+        });
+
+        test('should detect and permanently delete blank New SRFs', async () => {
+            const mockDefaultApps = [
+                {
+                    _id: 'app1',
+                    applicantID: 'user1',
+                    applicant: { applicantEmail: 'user1@test.com', applicantName: 'User 1' },
+                    studyAbbreviation: 'TEST-STUDY',
+                    status: 'In Progress',
+                    programName: 'Program1',
+                    history: [],
+                    updatedAt: new Date('2023-01-01')
+                }
+            ];
+
+            const mockShortApps = [
+                {
+                    _id: 'app2',
+                    applicantID: 'user2',
+                    applicant: { applicantEmail: 'user2@test.com', applicantName: 'User 2' },
+                    studyAbbreviation: undefined,
+                    studyName: undefined,
+                    programName: undefined,
+                    status: 'New',
+                    ORCID: undefined,
+                    PI: undefined,
+                    programAbbreviation: undefined,
+                    programDescription: undefined,
+                    history: [],
+                    updatedAt: new Date('2023-01-01')
+                }
+            ];
+
+            mockApplicationDAO.getInactiveApplication
+                .mockResolvedValueOnce(mockDefaultApps) // default window
+                .mockResolvedValueOnce(mockShortApps); // short window
+            mockUserService.getUsersByNotifications.mockResolvedValue([]);
+            mockUserService.userCollection.aggregate.mockResolvedValue([]);
+            mockApplicationDAO.update.mockResolvedValue({});
+            mockApplicationDAO.delete.mockResolvedValue({});
+
+            const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+            try {
+                await applicationService.deleteInactiveApplications();
+
+                // Should have 2 apps total (one from default, one blank from short)
+                expect(consoleSpy).toHaveBeenCalledWith('Found 2 inactive applications to process');
+                // delete should be called for blank New SRF
+                expect(mockApplicationDAO.delete).toHaveBeenCalledWith('app2');
+                // update should be called for the default app
+                expect(mockApplicationDAO.update).toHaveBeenCalled();
+            } finally {
+                consoleSpy.mockRestore();
             }
         });
     });

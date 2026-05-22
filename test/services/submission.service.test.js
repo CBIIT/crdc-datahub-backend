@@ -24,7 +24,10 @@ jest.mock('../../services/configurationService');
 jest.mock('../../services/data-model-service');
 jest.mock('../../services/authorization-service');
 jest.mock('../../services/qc-result-service');
-jest.mock('../../utility/data-commons-remapper');
+jest.mock('../../utility/data-commons-remapper', () => ({
+    getDataCommonsDisplayNamesForSubmission: jest.fn(submission => submission),
+    getDataCommonsDisplayNamesForListSubmissions: jest.fn(res => res)
+}));
 jest.mock('../../utility/validation-handler');
 jest.mock('../../verifier/user-info-verifier');
 jest.mock('../../verifier/submission-verifier');
@@ -69,6 +72,15 @@ const createMockUserScope = (isNoneScope = false, isAllScope = false, isOwnScope
         hasDCValue: jest.fn().mockReturnValue(false),
         hasAccessToStudy: jest.fn().mockReturnValue(false)
     };
+};
+
+// Helper function to create mock for _appendSubmissionRequestAndViewPermissions
+const createMockAppendSubmissionRequestPermissions = () => {
+    return jest.fn().mockImplementation((submissions) => Promise.resolve(
+        Array.isArray(submissions)
+            ? submissions.map(s => ({ ...s, canViewSubmissionRequest: false }))
+            : { ...submissions, canViewSubmissionRequest: false }
+    ));
 };
 
 describe('Submission Service - getSubmission', () => {
@@ -151,7 +163,8 @@ describe('Submission Service - getSubmission', () => {
         };
 
         mockDataRecordService = {
-            countNodesBySubmissionID: jest.fn()
+            countNodesBySubmissionID: jest.fn(),
+            resetS3FileLinkedMetadataStatusToNew: jest.fn().mockResolvedValue({ modifiedCount: 0, matchedCount: 0 })
         };
 
         mockBatchService = {
@@ -315,6 +328,34 @@ describe('Submission Service - getSubmission', () => {
             // Execute and verify
             await expect(submissionService.getSubmission(mockParams, mockContext))
                 .rejects.toThrow(ERROR.VERIFY.INVALID_PERMISSION);
+        });
+
+        it('should return dbGaPID from submission.study.dbGaPID', async () => {
+            // Use real _findByID so its precedence logic runs; DAO returns raw submission with conflicting values
+            const rawSubmission = {
+                ...mockSubmission,
+                dbGaPID: 'old',
+                study: {
+                    ...mockSubmission.study,
+                    dbGaPID: 'new'
+                }
+            };
+            mockSubmissionDAO.findFirst.mockResolvedValue(rawSubmission);
+            mockProgramDAO.findFirst.mockResolvedValue({ id: 'program-123', name: 'Test Program', abbreviation: 'TP' });
+            submissionService._findByID = Submission.prototype._findByID.bind(submissionService);
+            submissionService._getUserScope.mockResolvedValue(createMockUserScope(false, true));
+            submissionService._getS3DirectorySize.mockResolvedValue({ size: 1024, formatted: '1 KB' });
+            mockSubmissionDAO.update.mockResolvedValue(rawSubmission);
+            mockSubmissionDAO.findMany.mockResolvedValue([]);
+            mockDataRecordService.countNodesBySubmissionID.mockResolvedValue(5);
+            getDataCommonsDisplayNamesForSubmission.mockImplementation((s) => ({
+                ...s,
+                dataCommonsDisplayName: 'Test Commons Display Name'
+            }));
+
+            const result = await submissionService.getSubmission(mockParams, mockContext);
+
+            expect(result.dbGaPID).toBe('new');
         });
 
         it('should update data file size when it changes', async () => {
@@ -556,8 +597,7 @@ describe('Submission Service - getSubmission', () => {
             expect(result.history[2].userName).toBe('Bob Johnson'); // Populated from user-789
         });
 
-        it('should update accessedAt for submitter users', async () => {
-            // Setup mocks
+        it('should update accessedAt when user is the submission owner (submitterID)', async () => {
             submissionService._findByID.mockResolvedValue(mockSubmission);
             submissionService._getUserScope.mockResolvedValue(createMockUserScope(false, true)); // isAllScope = true for admin users
             submissionService._getS3DirectorySize.mockResolvedValue({ size: 1024, formatted: '1 KB' });
@@ -571,10 +611,8 @@ describe('Submission Service - getSubmission', () => {
             });
             submissionService._getEveryReminderQuery.mockReturnValue({ reminderFlag: true });
 
-            // Execute
-            const result = await submissionService.getSubmission(mockParams, mockContext);
+            await submissionService.getSubmission(mockParams, mockContext);
 
-            // Verify
             expect(mockSubmissionDAO.update).toHaveBeenCalledWith(
                 'sub-123',
                 expect.objectContaining({
@@ -584,7 +622,83 @@ describe('Submission Service - getSubmission', () => {
             );
         });
 
-        it('should not update accessedAt for non-submitter users', async () => {
+        it.each([
+            ['Admin', ROLES.ADMIN],
+            ['Data Commons Personnel', ROLES.DATA_COMMONS_PERSONNEL],
+        ])(
+            'should update accessedAt when user is submission owner with %s role',
+            async (_roleLabel, ownerRole) => {
+                const ownerNonSubmitterContext = {
+                    userInfo: {
+                        _id: 'user-123',
+                        role: ownerRole,
+                        email: 'owner@example.com'
+                    }
+                };
+                submissionService._findByID.mockResolvedValue(mockSubmission);
+                submissionService._getUserScope.mockResolvedValue(createMockUserScope(false, true));
+                submissionService._getS3DirectorySize.mockResolvedValue({ size: 1024, formatted: '1 KB' });
+                mockSubmissionDAO.update.mockResolvedValue(mockSubmission);
+                mockSubmissionDAO.findMany.mockResolvedValue([]);
+                mockDataRecordService.countNodesBySubmissionID.mockResolvedValue(5);
+                mockUserService.getUserByID.mockResolvedValue({
+                    _id: 'user-456',
+                    firstName: 'Jane',
+                    lastName: 'Smith'
+                });
+                submissionService._getEveryReminderQuery.mockReturnValue({ reminderFlag: true });
+
+                await submissionService.getSubmission(mockParams, ownerNonSubmitterContext);
+
+                expect(mockSubmissionDAO.update).toHaveBeenCalledWith(
+                    'sub-123',
+                    expect.objectContaining({
+                        accessedAt: expect.any(Date),
+                        reminderFlag: true
+                    })
+                );
+            }
+        );
+
+        it('should update accessedAt when user is a collaborator (collaboratorID)', async () => {
+            const collaboratorContext = {
+                userInfo: {
+                    _id: 'user-999',
+                    role: ROLES.SUBMITTER,
+                    email: 'collab@example.com'
+                }
+            };
+            const submissionWithCollaborator = {
+                ...mockSubmission,
+                submitterID: 'user-123',
+                collaborators: [{ collaboratorID: 'user-999' }]
+            };
+            submissionService.userDAO = { findMany: jest.fn().mockResolvedValue([]) };
+            submissionService._findByID.mockResolvedValue(submissionWithCollaborator);
+            submissionService._getUserScope.mockResolvedValue(createMockUserScope(false, true));
+            submissionService._getS3DirectorySize.mockResolvedValue({ size: 1024, formatted: '1 KB' });
+            mockSubmissionDAO.update.mockResolvedValue(submissionWithCollaborator);
+            mockSubmissionDAO.findMany.mockResolvedValue([]);
+            mockDataRecordService.countNodesBySubmissionID.mockResolvedValue(5);
+            mockUserService.getUserByID.mockResolvedValue({
+                _id: 'user-456',
+                firstName: 'Jane',
+                lastName: 'Smith'
+            });
+            submissionService._getEveryReminderQuery.mockReturnValue({ reminderFlag: true });
+
+            await submissionService.getSubmission(mockParams, collaboratorContext);
+
+            expect(mockSubmissionDAO.update).toHaveBeenCalledWith(
+                'sub-123',
+                expect.objectContaining({
+                    accessedAt: expect.any(Date),
+                    reminderFlag: true
+                })
+            );
+        });
+
+        it('should not update accessedAt when user is neither owner nor collaborator', async () => {
             // Setup mocks
             const nonSubmitterContext = {
                 userInfo: {
@@ -609,6 +723,46 @@ describe('Submission Service - getSubmission', () => {
             const result = await submissionService.getSubmission(mockParams, nonSubmitterContext);
 
             // Verify
+            expect(mockSubmissionDAO.update).not.toHaveBeenCalledWith(
+                'sub-123',
+                expect.objectContaining({
+                    accessedAt: expect.any(Date)
+                })
+            );
+        });
+
+        it('should not update accessedAt when user matches history only but not submitterID or collaborators', async () => {
+            const formerOwnerContext = {
+                userInfo: {
+                    _id: 'user-legacy',
+                    role: ROLES.SUBMITTER,
+                    email: 'legacy@example.com'
+                }
+            };
+            const reassignedSubmission = {
+                ...mockSubmission,
+                submitterID: 'user-123',
+                collaborators: [],
+                history: [
+                    { userID: 'user-legacy', userName: 'Former Owner' },
+                    { userID: 'user-123', userName: 'Current Owner' }
+                ]
+            };
+            submissionService._findByID.mockResolvedValue(reassignedSubmission);
+            submissionService._getUserScope.mockResolvedValue(createMockUserScope(false, true));
+            submissionService._getS3DirectorySize.mockResolvedValue({ size: 1024, formatted: '1 KB' });
+            mockSubmissionDAO.update.mockResolvedValue(reassignedSubmission);
+            mockSubmissionDAO.findMany.mockResolvedValue([]);
+            mockDataRecordService.countNodesBySubmissionID.mockResolvedValue(5);
+            mockUserService.getUserByID.mockResolvedValue({
+                _id: 'user-456',
+                firstName: 'Jane',
+                lastName: 'Smith'
+            });
+            submissionService._getEveryReminderQuery.mockReturnValue({ reminderFlag: true });
+
+            await submissionService.getSubmission(mockParams, formerOwnerContext);
+
             expect(mockSubmissionDAO.update).not.toHaveBeenCalledWith(
                 'sub-123',
                 expect.objectContaining({
@@ -944,6 +1098,7 @@ describe('Submission Service - getSubmission', () => {
                 );
                 expect(submissionService._deleteDataFiles).toHaveBeenCalled();
                 expect(result.message).toContain('1 nodes deleted');
+                expect(mockDataRecordService.resetS3FileLinkedMetadataStatusToNew).toHaveBeenCalledWith('sub-123', deletedFiles);
             });
 
             it('should throw error when collaborator has study scope but no study access', async () => {
@@ -1453,7 +1608,8 @@ describe('Submission Service - getSubmission', () => {
                         nodeType: 'Subject',
                         deleteAll: false,
                         nodeIDs: ['node1', 'node2'],
-                        exclusiveIDs: []
+                        exclusiveIDs: [],
+                        deleteOrphanedDataFiles: false
                     }),
                     'test-queue',
                     'sub-123',
@@ -1495,7 +1651,8 @@ describe('Submission Service - getSubmission', () => {
                         nodeType: 'Subject',
                         deleteAll: true,
                         nodeIDs: [],
-                        exclusiveIDs: []
+                        exclusiveIDs: [],
+                        deleteOrphanedDataFiles: false
                     }),
                     'test-queue',
                     'sub-123',
@@ -1537,7 +1694,51 @@ describe('Submission Service - getSubmission', () => {
                         nodeType: 'Subject',
                         deleteAll: true,
                         nodeIDs: [],
-                        exclusiveIDs: ['node1']
+                        exclusiveIDs: ['node1'],
+                        deleteOrphanedDataFiles: false
+                    }),
+                    'test-queue',
+                    'sub-123',
+                    'sub-123'
+                );
+            });
+
+            it('should send SQS message with deleteOrphanedDataFiles true when provided', async () => {
+                const mockSubmission = {
+                    _id: 'sub-123',
+                    status: NEW,
+                    submitterID: 'user-123'
+                };
+
+                submissionService._findByID.mockResolvedValue(mockSubmission);
+                submissionService._getUserScope.mockResolvedValue({
+                    isOwnScope: () => true,
+                    isStudyScope: () => false,
+                    isDCScope: () => false,
+                    isAllScope: () => false
+                });
+                submissionService._requestDeleteDataRecords.mockResolvedValue({ success: true });
+                mockSubmissionDAO.update.mockResolvedValue(mockSubmission);
+
+                await submissionService.deleteDataRecords(
+                    {
+                        submissionID: 'sub-123',
+                        nodeType: 'Subject',
+                        nodeIDs: ['node1'],
+                        deleteOrphanedDataFiles: true
+                    },
+                    mockContext
+                );
+
+                expect(submissionService._requestDeleteDataRecords).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        type: expect.stringContaining('Delete Metadata'),
+                        submissionID: 'sub-123',
+                        nodeType: 'Subject',
+                        deleteAll: false,
+                        nodeIDs: ['node1'],
+                        exclusiveIDs: [],
+                        deleteOrphanedDataFiles: true
                     }),
                     'test-queue',
                     'sub-123',
@@ -1874,6 +2075,9 @@ describe('Submission Service - listSubmissions', () => {
             createMockUserScope(false, true, false, false, false)
         );
 
+        // Mock _appendSubmissionRequestAndViewPermissions to return submissions with canViewSubmissionRequest
+        submissionService._appendSubmissionRequestAndViewPermissions = createMockAppendSubmissionRequestPermissions();
+
         mockContext = {
             userInfo: {
                 _id: 'user-123',
@@ -1914,6 +2118,7 @@ describe('Submission Service - listSubmissions', () => {
         serviceNoHidden._getUserScope = jest.fn().mockResolvedValue(
             createMockUserScope(false, true, false, false, false)
         );
+        serviceNoHidden._appendSubmissionRequestAndViewPermissions = createMockAppendSubmissionRequestPermissions();
 
         await serviceNoHidden.listSubmissions({}, mockContext);
 
@@ -1936,6 +2141,7 @@ describe('Submission Service - listSubmissions', () => {
         serviceAllHidden._getUserScope = jest.fn().mockResolvedValue(
             createMockUserScope(false, true, false, false, false)
         );
+        serviceAllHidden._appendSubmissionRequestAndViewPermissions = createMockAppendSubmissionRequestPermissions();
 
         await serviceAllHidden.listSubmissions({}, mockContext);
 

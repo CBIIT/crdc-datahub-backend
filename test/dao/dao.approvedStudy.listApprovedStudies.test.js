@@ -45,7 +45,7 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             mockCollection.aggregate.mockResolvedValue(mockResult);
 
             await dao.listApprovedStudies(
-                null, null, null, null, 10, 0, 'studyName', 'asc'
+                null, null, null, null, null, 10, 0, 'studyName', 'asc'
             );
 
             expect(mockCollection.aggregate).toHaveBeenCalledTimes(1);
@@ -84,7 +84,7 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             mockCollection.aggregate.mockResolvedValue(mockResult);
 
             const result = await dao.listApprovedStudies(
-                null, null, null, null, 10, 0, 'studyName', 'asc'
+                null, null, null, null, null, 10, 0, 'studyName', 'asc'
             );
 
             expect(result).toEqual(mockResult);
@@ -97,7 +97,7 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             mockCollection.aggregate.mockResolvedValue(mockResult);
 
             await dao.listApprovedStudies(
-                'test study', null, null, null, 10, 0, 'studyName', 'asc'
+                'test study', null, null, null, null, 10, 0, 'studyName', 'asc'
             );
 
             const pipeline = mockCollection.aggregate.mock.calls[0][0];
@@ -114,7 +114,7 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             mockCollection.aggregate.mockResolvedValue(mockResult);
 
             await dao.listApprovedStudies(
-                null, 'Controlled', null, null, 10, 0, 'studyName', 'asc'
+                null, 'Controlled', null, null, null, 10, 0, 'studyName', 'asc'
             );
 
             const pipeline = mockCollection.aggregate.mock.calls[0][0];
@@ -128,7 +128,7 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             mockCollection.aggregate.mockResolvedValue(mockResult);
 
             await dao.listApprovedStudies(
-                null, 'Open', null, null, 10, 0, 'studyName', 'asc'
+                null, 'Open', null, null, null, 10, 0, 'studyName', 'asc'
             );
 
             const pipeline = mockCollection.aggregate.mock.calls[0][0];
@@ -142,7 +142,7 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             mockCollection.aggregate.mockResolvedValue(mockResult);
 
             await dao.listApprovedStudies(
-                null, 'All', null, null, 10, 0, 'studyName', 'asc'
+                null, 'All', null, null, null, 10, 0, 'studyName', 'asc'
             );
 
             const pipeline = mockCollection.aggregate.mock.calls[0][0];
@@ -157,7 +157,7 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             mockCollection.aggregate.mockResolvedValue(mockResult);
 
             await dao.listApprovedStudies(
-                null, null, 'phs123', null, 10, 0, 'studyName', 'asc'
+                null, null, 'phs123', null, null, 10, 0, 'studyName', 'asc'
             );
 
             const pipeline = mockCollection.aggregate.mock.calls[0][0];
@@ -169,12 +169,33 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             });
         });
 
+        it('escapes regex metacharacters in study and dbGaPID filters so invalid patterns are not passed to MongoDB', async () => {
+            const mockResult = [{ total: 1, results: [] }];
+            mockCollection.aggregate.mockResolvedValue(mockResult);
+
+            await dao.listApprovedStudies(
+                '***', null, '*', null, null, 10, 0, 'studyName', 'asc'
+            );
+
+            const pipeline = mockCollection.aggregate.mock.calls[0][0];
+            const matchStage = pipeline.find(stage => stage.$match);
+
+            expect(matchStage.$match.$or).toEqual([
+                { studyName: { $regex: '\\*\\*\\*', $options: 'i' } },
+                { studyAbbreviation: { $regex: '\\*\\*\\*', $options: 'i' } }
+            ]);
+            expect(matchStage.$match.dbGaPID).toEqual({
+                $regex: '\\*',
+                $options: 'i'
+            });
+        });
+
         it('should apply programID filter when not "All"', async () => {
             const mockResult = [{ total: 1, results: [] }];
             mockCollection.aggregate.mockResolvedValue(mockResult);
 
             await dao.listApprovedStudies(
-                null, null, null, 'program-123', 10, 0, 'studyName', 'asc'
+                null, null, null, 'program-123', null, 10, 0, 'studyName', 'asc'
             );
 
             const pipeline = mockCollection.aggregate.mock.calls[0][0];
@@ -188,7 +209,7 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             mockCollection.aggregate.mockResolvedValue(mockResult);
 
             await dao.listApprovedStudies(
-                null, null, null, 'All', 10, 0, 'studyName', 'asc'
+                null, null, null, 'All', null, 10, 0, 'studyName', 'asc'
             );
 
             const pipeline = mockCollection.aggregate.mock.calls[0][0];
@@ -197,9 +218,51 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             expect(matchStage.$match.programID).toBeUndefined();
         });
 
+        it('should apply statuses filter with $in when non-empty', async () => {
+            const mockResult = [{ total: 1, results: [] }];
+            mockCollection.aggregate.mockResolvedValue(mockResult);
+
+            await dao.listApprovedStudies(
+                null, null, null, null, ['Active', 'Inactive'], 10, 0, 'studyName', 'asc'
+            );
+
+            const pipeline = mockCollection.aggregate.mock.calls[0][0];
+            const matchStage = pipeline.find(stage => stage.$match);
+
+            expect(matchStage.$match.status).toEqual({ $in: ['Active', 'Inactive'] });
+        });
+
+        it('should not apply statuses filter when null', async () => {
+            const mockResult = [{ total: 1, results: [] }];
+            mockCollection.aggregate.mockResolvedValue(mockResult);
+
+            await dao.listApprovedStudies(
+                null, null, null, null, null, 10, 0, 'studyName', 'asc'
+            );
+
+            const pipeline = mockCollection.aggregate.mock.calls[0][0];
+            const matchStage = pipeline.find(stage => stage.$match);
+
+            expect(matchStage.$match.status).toBeUndefined();
+        });
+
+        it('should not apply statuses filter when empty array', async () => {
+            const mockResult = [{ total: 1, results: [] }];
+            mockCollection.aggregate.mockResolvedValue(mockResult);
+
+            await dao.listApprovedStudies(
+                null, null, null, null, [], 10, 0, 'studyName', 'asc'
+            );
+
+            const pipeline = mockCollection.aggregate.mock.calls[0][0];
+            const matchStage = pipeline.find(stage => stage.$match);
+
+            expect(matchStage.$match.status).toBeUndefined();
+        });
+
         it('should throw error for invalid controlled access value', async () => {
             await expect(dao.listApprovedStudies(
-                null, 'Invalid', null, null, 10, 0, 'studyName', 'asc'
+                null, 'Invalid', null, null, null, 10, 0, 'studyName', 'asc'
             )).rejects.toThrow('Invalid controlled access');
         });
     });
@@ -210,7 +273,7 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             mockCollection.aggregate.mockResolvedValue(mockResult);
 
             await dao.listApprovedStudies(
-                null, null, null, null, 10, 0, 'studyName', 'asc'
+                null, null, null, null, null, 10, 0, 'studyName', 'asc'
             );
 
             const pipeline = mockCollection.aggregate.mock.calls[0][0];
@@ -228,7 +291,7 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             mockCollection.aggregate.mockResolvedValue(mockResult);
 
             await dao.listApprovedStudies(
-                null, null, null, null, 10, 0, 'studyName', 'asc'
+                null, null, null, null, null, 10, 0, 'studyName', 'asc'
             );
 
             const pipeline = mockCollection.aggregate.mock.calls[0][0];
@@ -250,7 +313,7 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             mockCollection.aggregate.mockResolvedValue(mockResult);
 
             await dao.listApprovedStudies(
-                null, null, null, null, 10, 0, 'studyName', 'asc'
+                null, null, null, null, null, 10, 0, 'studyName', 'asc'
             );
 
             const pipeline = mockCollection.aggregate.mock.calls[0][0];
@@ -270,7 +333,7 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             mockCollection.aggregate.mockResolvedValue(mockResult);
 
             await dao.listApprovedStudies(
-                null, null, null, null, 10, 0, 'studyName', 'asc'
+                null, null, null, null, null, 10, 0, 'studyName', 'asc'
             );
 
             const pipeline = mockCollection.aggregate.mock.calls[0][0];
@@ -292,7 +355,7 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             mockCollection.aggregate.mockResolvedValue(mockResult);
 
             await dao.listApprovedStudies(
-                null, null, null, null, 10, 0, 'program.name', 'asc'
+                null, null, null, null, null, 10, 0, 'program.name', 'asc'
             );
 
             const pipeline = mockCollection.aggregate.mock.calls[0][0];
@@ -311,7 +374,7 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             mockCollection.aggregate.mockResolvedValue(mockResult);
 
             await dao.listApprovedStudies(
-                null, null, null, null, 10, 0, 'studyName', 'asc'
+                null, null, null, null, null, 10, 0, 'studyName', 'asc'
             );
 
             const pipeline = mockCollection.aggregate.mock.calls[0][0];
@@ -327,7 +390,7 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             mockCollection.aggregate.mockResolvedValue(mockResult);
 
             await dao.listApprovedStudies(
-                null, null, null, null, 10, 0, 'program.name', 'desc'
+                null, null, null, null, null, 10, 0, 'program.name', 'desc'
             );
 
             const pipeline = mockCollection.aggregate.mock.calls[0][0];
@@ -342,7 +405,7 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             mockCollection.aggregate.mockResolvedValue(mockResult);
 
             await dao.listApprovedStudies(
-                null, null, null, null, 10, 0, 'studyName', 'desc'
+                null, null, null, null, null, 10, 0, 'studyName', 'desc'
             );
 
             const pipeline = mockCollection.aggregate.mock.calls[0][0];
@@ -359,7 +422,7 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             mockCollection.aggregate.mockResolvedValue(mockResult);
 
             await dao.listApprovedStudies(
-                'test', 'Controlled', 'phs123', 'program-1', 20, 10, 'studyName', 'desc'
+                'test', 'Controlled', 'phs123', 'program-1', null, 20, 10, 'studyName', 'desc'
             );
 
             expect(MongoPagination).toHaveBeenCalledWith(20, 10, 'studyName', 'desc');
@@ -370,7 +433,7 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             mockCollection.aggregate.mockResolvedValue(mockResult);
 
             await dao.listApprovedStudies(
-                null, null, null, null, 10, 0, 'program.name', 'asc'
+                null, null, null, null, null, 10, 0, 'program.name', 'asc'
             );
 
             // Should call MongoPagination with 'programSort' instead of 'program.name'
@@ -384,7 +447,7 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             mockCollection.aggregate.mockResolvedValue(mockResult);
 
             await dao.listApprovedStudies(
-                null, null, null, null, 10, 0, 'studyName', 'asc'
+                null, null, null, null, null, 10, 0, 'studyName', 'asc'
             );
 
             const pipeline = mockCollection.aggregate.mock.calls[0][0];
@@ -404,7 +467,7 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             mockCollection.aggregate.mockResolvedValue(mockResult);
 
             await dao.listApprovedStudies(
-                null, null, null, null, 10, 0, 'program.name', 'asc'
+                null, null, null, null, null, 10, 0, 'program.name', 'asc'
             );
 
             const pipeline = mockCollection.aggregate.mock.calls[0][0];
@@ -426,7 +489,7 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             mockCollection.aggregate.mockRejectedValue(error);
 
             await expect(dao.listApprovedStudies(
-                null, null, null, null, 10, 0, 'studyName', 'asc'
+                null, null, null, null, null, 10, 0, 'studyName', 'asc'
             )).rejects.toThrow('Database connection failed');
         });
 
@@ -435,7 +498,7 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             mockCollection.aggregate.mockResolvedValue(mockResult);
 
             const result = await dao.listApprovedStudies(
-                null, null, null, null, 10, 0, 'studyName', 'asc'
+                null, null, null, null, null, 10, 0, 'studyName', 'asc'
             );
 
             expect(result).toEqual(mockResult);
@@ -448,7 +511,7 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             mockCollection.aggregate.mockResolvedValue(mockResult);
 
             await dao.listApprovedStudies(
-                null, undefined, null, null, 10, 0, 'studyName', 'asc'
+                null, undefined, null, null, null, 10, 0, 'studyName', 'asc'
             );
 
             expect(mockCollection.aggregate).toHaveBeenCalledTimes(1);
@@ -459,7 +522,7 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
             mockCollection.aggregate.mockResolvedValue(mockResult);
 
             await dao.listApprovedStudies(
-                null, null, null, null, 0, 0, 'studyName', 'asc'
+                null, null, null, null, null, 0, 0, 'studyName', 'asc'
             );
 
             expect(MongoPagination).toHaveBeenCalledWith(0, 0, 'studyName', 'asc');
@@ -471,13 +534,13 @@ describe('ApprovedStudyDAO - listApprovedStudies', () => {
 
             // Test ascending
             await dao.listApprovedStudies(
-                null, null, null, null, 10, 0, 'studyName', 'asc'
+                null, null, null, null, null, 10, 0, 'studyName', 'asc'
             );
             expect(MongoPagination).toHaveBeenCalledWith(10, 0, 'studyName', 'asc');
 
             // Test descending
             await dao.listApprovedStudies(
-                null, null, null, null, 10, 0, 'studyName', 'desc'
+                null, null, null, null, null, 10, 0, 'studyName', 'desc'
             );
             expect(MongoPagination).toHaveBeenCalledWith(10, 0, 'studyName', 'desc');
         });

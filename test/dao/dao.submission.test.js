@@ -3,6 +3,7 @@ const prisma = require('../../prisma');
 const { NEW, IN_PROGRESS, SUBMITTED, RELEASED, COMPLETED, ARCHIVED, REJECTED, WITHDRAWN, CANCELED, DELETED } = require('../../constants/submission-constants');
 const { COLLABORATOR_PERMISSIONS } = require('../../constants/submission-constants');
 const ERROR = require('../../constants/error-constants');
+const { ORGANIZATION } = require('../../crdc-datahub-database-drivers/constants/organization-constants');
 
 // Mock Prisma
 jest.mock('../../prisma', () => ({
@@ -290,7 +291,24 @@ describe('SubmissionDAO', () => {
                 );
             });
 
-            it('should apply dbGaPID filter with case-insensitive search', async () => {
+            it('should escape regex metacharacters in name and study search terms', async () => {
+                await dao.listSubmissions(mockUserInfo, mockUserScope, {
+                    ...mockParams,
+                    name: '***',
+                    dbGaPID: '*'
+                });
+
+                const call = prisma.submission.findMany.mock.calls[0][0];
+                expect(call.where.name).toEqual({
+                    contains: '\\*\\*\\*',
+                    mode: 'insensitive'
+                });
+                const andConditions = call.where.AND || [];
+                const dbGaPIDOrCondition = andConditions.find(c => c.OR && c.OR.some(o => o.study?.is));
+                expect(dbGaPIDOrCondition.OR[0].study.is.studyName.contains).toBe('\\*');
+            });
+
+            it('should apply dbGaPID filter with case-insensitive search over study name, abbreviation, and dbGaPID', async () => {
                 const paramsWithDbGaPID = { ...mockParams, dbGaPID: 'phs001234' };
 
                 await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithDbGaPID);
@@ -298,13 +316,64 @@ describe('SubmissionDAO', () => {
                 expect(prisma.submission.findMany).toHaveBeenCalledWith(
                     expect.objectContaining({
                         where: expect.objectContaining({
-                            dbGaPID: {
-                                contains: 'phs001234',
-                                mode: 'insensitive'
-                            }
+                            AND: expect.arrayContaining([
+                                expect.objectContaining({ OR: expect.arrayContaining([
+                                    expect.objectContaining({ study: { is: { studyName: { contains: 'phs001234', mode: 'insensitive' } } } }),
+                                    expect.objectContaining({ study: { is: { studyAbbreviation: { contains: 'phs001234', mode: 'insensitive' } } } }),
+                                    expect.objectContaining({ study: { is: { dbGaPID: { contains: 'phs001234', mode: 'insensitive' } } } })
+                                ]) })
+                            ])
                         })
                     })
                 );
+            });
+
+            it('should sanitize dbGaPID search term: trim whitespace and remove backslashes, keep forward slashes', async () => {
+                const paramsWithDbGaPID = { ...mockParams, dbGaPID: '  phs123/456\\  ' };
+
+                await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithDbGaPID);
+
+                const call = prisma.submission.findMany.mock.calls[0][0];
+                const andConditions = call.where.AND || [];
+                const dbGaPIDOrCondition = andConditions.find(c => c.OR && c.OR.some(o => o.study?.is));
+                expect(dbGaPIDOrCondition).toBeDefined();
+                const firstOr = dbGaPIDOrCondition.OR[0];
+                const sanitizedTerm = firstOr.study?.is?.studyName?.contains ?? firstOr.study?.is?.studyAbbreviation?.contains ?? firstOr.study?.is?.dbGaPID?.contains;
+                expect(sanitizedTerm).toBe('phs123/456');
+            });
+
+            it('should include all three match fields (studyName, studyAbbreviation, dbGaPID) in dbGaPID search OR via related study', async () => {
+                const paramsWithDbGaPID = { ...mockParams, dbGaPID: 'phs999' };
+
+                await dao.listSubmissions(mockUserInfo, mockUserScope, paramsWithDbGaPID);
+
+                const call = prisma.submission.findMany.mock.calls[0][0];
+                const andConditions = call.where.AND || [];
+                const dbGaPIDOrCondition = andConditions.find(c => c.OR && c.OR.length === 3);
+                expect(dbGaPIDOrCondition).toBeDefined();
+                const hasStudyName = dbGaPIDOrCondition.OR.some(o => o.study?.is?.studyName?.contains === 'phs999');
+                const hasStudyAbbreviation = dbGaPIDOrCondition.OR.some(o => o.study?.is?.studyAbbreviation?.contains === 'phs999');
+                const hasDbGaPID = dbGaPIDOrCondition.OR.some(o => o.study?.is?.dbGaPID?.contains === 'phs999');
+                expect(hasStudyName && hasStudyAbbreviation && hasDbGaPID).toBe(true);
+            });
+
+            it('should not add dbGaPID search condition when param is empty or only whitespace or only backslashes', async () => {
+                await dao.listSubmissions(mockUserInfo, mockUserScope, { ...mockParams, dbGaPID: '' });
+                let call = prisma.submission.findMany.mock.calls[0][0];
+                let hasDbGaPIDSearch = (call.where.AND || []).some(c => c.OR && c.OR.some(o => o.study?.is));
+                expect(hasDbGaPIDSearch).toBe(false);
+
+                prisma.submission.findMany.mockClear();
+                await dao.listSubmissions(mockUserInfo, mockUserScope, { ...mockParams, dbGaPID: '   ' });
+                call = prisma.submission.findMany.mock.calls[0][0];
+                hasDbGaPIDSearch = (call.where.AND || []).some(c => c.OR && c.OR.some(o => o.study?.is));
+                expect(hasDbGaPIDSearch).toBe(false);
+
+                prisma.submission.findMany.mockClear();
+                await dao.listSubmissions(mockUserInfo, mockUserScope, { ...mockParams, dbGaPID: '\\\\' });
+                call = prisma.submission.findMany.mock.calls[0][0];
+                hasDbGaPIDSearch = (call.where.AND || []).some(c => c.OR && c.OR.some(o => o.study?.is));
+                expect(hasDbGaPIDSearch).toBe(false);
             });
 
             it('should apply data commons filter', async () => {
@@ -586,10 +655,15 @@ describe('SubmissionDAO', () => {
                                 mode: 'insensitive'
                             },
                             status: { in: [NEW, IN_PROGRESS] },
-                            dbGaPID: {
-                                contains: 'phs001234',
-                                mode: 'insensitive'
-                            },
+                            AND: expect.arrayContaining([
+                                expect.objectContaining({
+                                    OR: expect.arrayContaining([
+                                        expect.objectContaining({ study: { is: { studyName: { contains: 'phs001234', mode: 'insensitive' } } } }),
+                                        expect.objectContaining({ study: { is: { studyAbbreviation: { contains: 'phs001234', mode: 'insensitive' } } } }),
+                                        expect.objectContaining({ study: { is: { dbGaPID: { contains: 'phs001234', mode: 'insensitive' } } } })
+                                    ])
+                                })
+                            ]),
                             dataCommons: 'GDC',
                             submitter: {
                                 is: {
@@ -868,7 +942,8 @@ describe('SubmissionDAO', () => {
                     study: {
                         id: 'study-1',
                         studyName: 'Test Study',
-                        studyAbbreviation: 'TS'
+                        studyAbbreviation: 'TS',
+                        dbGaPID: 'phs001234'
                     },
                     organization: {
                         id: 'org-1',
@@ -902,6 +977,71 @@ describe('SubmissionDAO', () => {
                 expect(result.submissions[0]).toHaveProperty('_id', 'sub-1');
                 expect(result.submissions[0]).toHaveProperty('studyName', 'Test Study');
                 expect(result.submissions[0]).toHaveProperty('studyAbbreviation', 'TS');
+                // dbGaPID is populated from submission.study.dbGaPID
+                expect(result.submissions[0]).toHaveProperty('dbGaPID', 'phs001234');
+                // Nested study (SubmissionStudy) has all fields
+                expect(result.submissions[0].study).toEqual({
+                    _id: 'study-1',
+                    studyName: 'Test Study',
+                    studyAbbreviation: 'TS',
+                    applicationID: undefined,
+                    dbGaPID: 'phs001234'
+                });
+            });
+
+            it('should set dbGaPID from submission.study.dbGaPID when study has dbGaPID', async () => {
+                const testSubmission = {
+                    id: 'sub-1',
+                    name: 'Test Submission 1',
+                    status: NEW,
+                    dataCommons: 'test-commons',
+                    studyID: 'study-1',
+                    dbGaPID: 'old-phs',
+                    dataFileSize: { size: 0, formatted: 'NA' },
+                    study: {
+                        id: 'study-1',
+                        studyName: 'Test Study',
+                        studyAbbreviation: 'TS',
+                        dbGaPID: 'phs999999'
+                    },
+                    organization: null,
+                    submitter: { id: 's1', firstName: 'A', lastName: 'B', fullName: 'A B', email: 'a@b.com' },
+                    concierge: null
+                };
+                prisma.submission.findMany.mockImplementation((query) => {
+                    if (query.include) return Promise.resolve([testSubmission]);
+                    if (query.select?.submitter) return Promise.resolve([{ submitter: testSubmission.submitter }]);
+                    return Promise.resolve([testSubmission]);
+                });
+
+                const result = await dao.listSubmissions(mockUserInfo, mockUserScope, mockParams);
+
+                expect(result.submissions[0].dbGaPID).toBe('phs999999');
+            });
+
+            it('should fall back to submission.dbGaPID when study or study.dbGaPID is missing', async () => {
+                const testSubmission = {
+                    id: 'sub-1',
+                    name: 'Test Submission 1',
+                    status: NEW,
+                    dataCommons: 'test-commons',
+                    studyID: 'study-1',
+                    dbGaPID: 'phs-fallback',
+                    dataFileSize: { size: 0, formatted: 'NA' },
+                    study: { id: 'study-1', studyName: 'Test Study', studyAbbreviation: 'TS' },
+                    organization: null,
+                    submitter: { id: 's1', firstName: 'A', lastName: 'B', fullName: 'A B', email: 'a@b.com' },
+                    concierge: null
+                };
+                prisma.submission.findMany.mockImplementation((query) => {
+                    if (query.include) return Promise.resolve([testSubmission]);
+                    if (query.select?.submitter) return Promise.resolve([{ submitter: testSubmission.submitter }]);
+                    return Promise.resolve([testSubmission]);
+                });
+
+                const result = await dao.listSubmissions(mockUserInfo, mockUserScope, mockParams);
+
+                expect(result.submissions[0].dbGaPID).toBe('phs-fallback');
             });
 
             it('should transform dataFileSize for deleted/canceled submissions', async () => {
@@ -1030,7 +1170,7 @@ describe('SubmissionDAO', () => {
                     expect.objectContaining({
                         where: {
                             status: {
-                                in: ['Active', 'Inactive']
+                                in: [ORGANIZATION.STATUSES.ACTIVE, ORGANIZATION.STATUSES.INACTIVE]
                             }
                         },
                         select: {
@@ -1158,7 +1298,7 @@ describe('SubmissionDAO', () => {
                 expect(prisma.program.findMany).toHaveBeenCalledWith(
                     expect.objectContaining({
                         where: {
-                            status: { in: ['Active', 'Inactive'] }
+                            status: { in: [ORGANIZATION.STATUSES.ACTIVE, ORGANIZATION.STATUSES.INACTIVE] }
                         }
                     })
                 );

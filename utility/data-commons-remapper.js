@@ -1,4 +1,6 @@
 const DISPLAY_NAMES_MAP = require("../constants/data-commons-display-names-map");
+const {isTrue} = require("../crdc-datahub-database-drivers/utility/string-utility");
+const {defaultStudyAbbreviationToStudyName} = require("./study-abbrev-helpers");
 
 
 function getDataCommonsDisplayName(datacommons){
@@ -33,12 +35,39 @@ function getDataCommonsDisplayNamesForSubmission(submission){
     return submission;
 }
 
+/**
+ * For listSubmissions only: when studyAbbreviation is empty, expose studyName in its place in the response.
+ * @param {Object} submission list row from DAO (may be mutated)
+ */
+function applyStudyAbbreviationFallbackToListSubmission(submission) {
+    if (!submission) {
+        return submission;
+    }
+    const name = submission.studyName ?? submission.study?.studyName;
+    const resolved = defaultStudyAbbreviationToStudyName(
+        submission.studyAbbreviation ?? submission.study?.studyAbbreviation,
+        name
+    );
+    submission.studyAbbreviation = resolved;
+    if (submission.study) {
+        submission.study = {
+            ...submission.study,
+            studyAbbreviation: defaultStudyAbbreviationToStudyName(
+                submission.study.studyAbbreviation,
+                submission.study.studyName
+            )
+        };
+    }
+    return submission;
+}
+
 function getDataCommonsDisplayNamesForListSubmissions(listSubmissions){
     if (!listSubmissions){
         return null;
     }
     if (listSubmissions.submissions){
         listSubmissions.submissions = genericGetDataCommonsDisplayNames(listSubmissions.submissions, getDataCommonsDisplayNamesForSubmission);
+        listSubmissions.submissions = listSubmissions.submissions.map(applyStudyAbbreviationFallbackToListSubmission);
     }
     if (listSubmissions.dataCommons){
         listSubmissions.dataCommonsDisplayNames = genericGetDataCommonsDisplayNames(listSubmissions.dataCommons, getDataCommonsDisplayName);
@@ -63,6 +92,7 @@ function getDataCommonsDisplayNamesForApprovedStudy(approvedStudy){
     if (!approvedStudy){
         return null;
     }
+    approvedStudy.pendingImageDeIdentification = isTrue(approvedStudy.pendingImageDeIdentification);
     if (approvedStudy.programs){
         approvedStudy.programs = genericGetDataCommonsDisplayNames(approvedStudy.programs, getDataCommonsDisplayNamesForUserOrganization);
     }
@@ -115,6 +145,7 @@ module.exports = {
     genericGetDataCommonsDisplayNames,
     getDataCommonsDisplayNamesForSubmission,
     getDataCommonsDisplayNamesForListSubmissions,
+    applyStudyAbbreviationFallbackToListSubmission,
     getDataCommonsDisplayNamesForUser,
     getDataCommonsDisplayNamesForApprovedStudy,
     getDataCommonsDisplayNamesForApprovedStudyList,

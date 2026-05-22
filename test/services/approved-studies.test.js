@@ -1,10 +1,13 @@
 const { ApprovedStudiesService } = require('../../services/approved-studies');
 const { ADMIN } = require('../../crdc-datahub-database-drivers/constants/user-permission-constants');
 const ERROR = require('../../constants/error-constants');
+const { replaceErrorString } = require('../../utility/string-util');
+const { APPROVED_STUDY_STATUS_FILTER_MAX_LENGTH } = require('../../crdc-datahub-database-drivers/constants/approved-study-constants');
 const { verifySession } = require('../../verifier/user-info-verifier');
 const { getDataCommonsDisplayNamesForApprovedStudy, getDataCommonsDisplayNamesForUser } = require('../../utility/data-commons-remapper');
 const TEST_CONSTANTS = require('../test-constants');
 const USER = require('../../crdc-datahub-database-drivers/constants/user-constants');
+const { ORGANIZATION } = require('../../crdc-datahub-database-drivers/constants/organization-constants');
 const {ApprovedStudies} = require("../../crdc-datahub-database-drivers/domain/approved-studies");
 const { NEW, IN_PROGRESS, SUBMITTED, WITHDRAWN, RELEASED, REJECTED, CANCELED, DELETED, ARCHIVED } = require('../../constants/submission-constants');
 
@@ -142,9 +145,27 @@ describe('ApprovedStudiesService', () => {
             expect(service._validateStudyName).toHaveBeenCalledWith('New Study');
             expect(service._findUserByID).toHaveBeenCalledWith('contact-id');
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
-                null, 'New Study', 'NS', 'phs001234', null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', mockGPA, 'org-id'            );
+                null, 'New Study', 'NS', 'phs001234', null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', mockGPA, 'org-id', undefined);
             expect(service.organizationService.getOrganizationByName).toHaveBeenCalledWith('NA');
             expect(result).toEqual({_id: 'new-study-id'});
+        });
+
+        it('passes trimmed study name as abbreviation when acronym is whitespace-only', async () => {
+            const result = await service.addApprovedStudyAPI({ ...mockParams, acronym: '   \t' }, mockContext);
+            expect(service.storeApprovedStudies).toHaveBeenCalledWith(
+                null, 'New Study', 'New Study', 'phs001234', null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', mockGPA, 'org-id', undefined);
+            expect(result).toEqual({ _id: 'new-study-id' });
+        });
+
+        it('should pass pendingImageDeIdentification to storeApprovedStudies when provided', async () => {
+            const result = await service.addApprovedStudyAPI(
+                { ...mockParams, pendingImageDeIdentification: true },
+                mockContext
+            );
+            expect(service.storeApprovedStudies).toHaveBeenCalledWith(
+                null, 'New Study', 'NS', 'phs001234', null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', mockGPA, 'org-id', true
+            );
+            expect(result).toEqual({ _id: 'new-study-id' });
         });
 
         it('should throw error if user does not have permission', async () => {
@@ -175,7 +196,7 @@ describe('ApprovedStudiesService', () => {
             };
             const result = await service.addApprovedStudyAPI(paramsWithoutDbGaPID, mockContext);
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
-                null, 'New Study', 'NS', undefined, null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', mockGPA, 'org-id'
+                null, 'New Study', 'NS', undefined, null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', mockGPA, 'org-id', undefined
             );
             expect(result).toEqual({_id: "new-study-id"});
         });
@@ -210,7 +231,7 @@ describe('ApprovedStudiesService', () => {
             };
             const result = await service.addApprovedStudyAPI(paramsWithoutGPAName, mockContext);
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
-                null, 'New Study', 'NS', 'phs001234', null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: undefined, isPendingGPA: true }, "org-id"
+                null, 'New Study', 'NS', 'phs001234', null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: undefined, isPendingGPA: true }, "org-id", undefined
             );
             expect(result).toEqual({_id: "new-study-id"});
         });
@@ -224,7 +245,7 @@ describe('ApprovedStudiesService', () => {
             };
             const result = await service.addApprovedStudyAPI(paramsWithEmptyGPAName, mockContext);
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
-                null, 'New Study', 'NS', 'phs001234', null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: '', isPendingGPA: true }, "org-id"
+                null, 'New Study', 'NS', 'phs001234', null, true, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: '', isPendingGPA: true }, "org-id", undefined
             );
             expect(result).toEqual({_id: "new-study-id"});
         });
@@ -238,7 +259,7 @@ describe('ApprovedStudiesService', () => {
             };
             const result = await service.addApprovedStudyAPI(paramsWithoutDbGaPID, mockContext);
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
-                null, 'New Study', 'NS', undefined, null, false, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: "GPA name", isPendingGPA: false }, "org-id"
+                null, 'New Study', 'NS', undefined, null, false, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: "GPA name", isPendingGPA: false }, "org-id", undefined
             );
             expect(result).toEqual({_id: "new-study-id"});
         });
@@ -252,9 +273,18 @@ describe('ApprovedStudiesService', () => {
             };
             const result = await service.addApprovedStudyAPI(paramsWithoutGPAName, mockContext);
             expect(service.storeApprovedStudies).toHaveBeenCalledWith(
-                null, 'New Study', 'NS', 'phs001234', null, false, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: undefined, isPendingGPA: false }, "org-id"
+                null, 'New Study', 'NS', 'phs001234', null, false, '0000-0002-1825-0097', 'Dr. New', false, false, false, 'contact-id', { GPAName: undefined, isPendingGPA: false }, "org-id", undefined
             );
             expect(result).toEqual({_id: "new-study-id"});
+        });
+
+        it('should throw when programID resolves to an inactive program', async () => {
+            const inactiveProgram = { _id: 'inactive-prog', name: 'Inactive', status: ORGANIZATION.STATUSES.INACTIVE };
+            service.organizationService.getOrganizationByID = jest.fn().mockResolvedValue(inactiveProgram);
+            await expect(
+                service.addApprovedStudyAPI({ ...mockParams, programID: 'inactive-prog' }, mockContext)
+            ).rejects.toThrow(ERROR.STUDIES_CANNOT_ASSIGN_TO_INACTIVE_PROGRAM);
+            expect(service.storeApprovedStudies).not.toHaveBeenCalled();
         });
     });
 
@@ -291,7 +321,8 @@ describe('ApprovedStudiesService', () => {
             primaryContactID: null,
             useProgramPC: false,
             pendingModelChange: false,
-            programID: 'program-id'  // New field in relationships model
+            programID: 'program-id',  // New field in relationships model
+            status: 'Active',
         };
         const mockPrimaryContact = {
             _id: 'contact-id',
@@ -327,6 +358,21 @@ describe('ApprovedStudiesService', () => {
             getDataCommonsDisplayNamesForApprovedStudy.mockReturnValue(mockDisplayStudy);
         });
 
+        it('should apply status when provided', async () => {
+            await service.editApprovedStudyAPI({ ...mockParams, status: 'Inactive' }, mockContext);
+            expect(service.approvedStudyDAO.update).toHaveBeenCalledWith(
+                'study-id',
+                expect.objectContaining({ status: 'Inactive' })
+            );
+        });
+
+        it('should throw when status is invalid', async () => {
+            await expect(
+                service.editApprovedStudyAPI({ ...mockParams, status: 'Retired' }, mockContext)
+            ).rejects.toThrow(ERROR.INVALID_APPROVED_STUDY_STATUS);
+            expect(service.approvedStudyDAO.update).not.toHaveBeenCalled();
+        });
+
         it('should successfully update an approved study', async () => {
             const paramsWithPendingGPA = { ...mockParams};
             const result = await service.editApprovedStudyAPI(paramsWithPendingGPA, mockContext);
@@ -339,6 +385,53 @@ describe('ApprovedStudiesService', () => {
             expect(service.submissionDAO.updateMany).toHaveBeenCalled();
             expect(getDataCommonsDisplayNamesForApprovedStudy).toHaveBeenCalled();
             expect(result).toEqual(mockDisplayStudy);
+        });
+
+        it('should pass pendingImageDeIdentification to approvedStudyDAO.update when provided', async () => {
+            await service.editApprovedStudyAPI({ ...mockParams, pendingImageDeIdentification: true }, mockContext);
+            expect(service.approvedStudyDAO.update).toHaveBeenCalledWith(
+                'study-id',
+                expect.objectContaining({ pendingImageDeIdentification: true })
+            );
+        });
+
+        it('should set pendingImageDeIdentification to false on update when explicitly false', async () => {
+            service.approvedStudyDAO.findFirst = jest.fn().mockResolvedValue({ ...mockStudy, pendingImageDeIdentification: true });
+            await service.editApprovedStudyAPI({ ...mockParams, pendingImageDeIdentification: false }, mockContext);
+            expect(service.approvedStudyDAO.update).toHaveBeenCalledWith(
+                'study-id',
+                expect.objectContaining({ pendingImageDeIdentification: false })
+            );
+        });
+
+        it('should throw when pendingImageDeIdentification is null', async () => {
+            await expect(
+                service.editApprovedStudyAPI({ ...mockParams, pendingImageDeIdentification: null }, mockContext)
+            ).rejects.toThrow(ERROR.INVALID_PENDING_IMAGE_DE_IDENTIFICATION);
+            expect(service.approvedStudyDAO.update).not.toHaveBeenCalled();
+        });
+
+        it('should throw when pendingImageDeIdentification is a string', async () => {
+            await expect(
+                service.editApprovedStudyAPI({ ...mockParams, pendingImageDeIdentification: 'true' }, mockContext)
+            ).rejects.toThrow(ERROR.INVALID_PENDING_IMAGE_DE_IDENTIFICATION);
+            expect(service.approvedStudyDAO.update).not.toHaveBeenCalled();
+        });
+
+        it('should throw when pendingImageDeIdentification is a number', async () => {
+            await expect(
+                service.editApprovedStudyAPI({ ...mockParams, pendingImageDeIdentification: 1 }, mockContext)
+            ).rejects.toThrow(ERROR.INVALID_PENDING_IMAGE_DE_IDENTIFICATION);
+            expect(service.approvedStudyDAO.update).not.toHaveBeenCalled();
+        });
+
+        it('should throw when updating study to an inactive program', async () => {
+            const inactiveProgram = { _id: 'inactive-pid', name: 'Inactive', status: ORGANIZATION.STATUSES.INACTIVE };
+            service.organizationService.getOrganizationByID = jest.fn().mockResolvedValue(inactiveProgram);
+            await expect(
+                service.editApprovedStudyAPI({ ...mockParams, programID: 'inactive-pid' }, mockContext)
+            ).rejects.toThrow(ERROR.STUDIES_CANNOT_ASSIGN_TO_INACTIVE_PROGRAM);
+            expect(service.approvedStudyDAO.update).not.toHaveBeenCalled();
         });
 
         it('should throw error if user does not have permission', async () => {
@@ -830,7 +923,7 @@ describe('ApprovedStudiesService', () => {
             expect(verifySession).toHaveBeenCalledWith(mockContext);
             expect(verifySession(mockContext).verifyInitialized).toHaveBeenCalled();
             expect(service.approvedStudyDAO.listApprovedStudies).toHaveBeenCalledWith(
-                'Test', 'Controlled', '1234', 'program-id', 10, 0, 'studyName', 'desc'
+                'Test', 'Controlled', '1234', 'program-id', null, 10, 0, 'studyName', 'desc'
             );
             expect(require('../../utility/data-commons-remapper').getDataCommonsDisplayNamesForApprovedStudyList).toHaveBeenCalledWith({
                 total: 2,
@@ -840,6 +933,22 @@ describe('ApprovedStudiesService', () => {
                 ]
             });
             expect(result).toEqual(mockDisplayList);
+        });
+
+        it('should preserve pendingImageDeIdentification on each study in the list', async () => {
+            const daoStudies = [
+                { _id: 'study1', studyName: 'Study 1', pendingImageDeIdentification: true },
+                { _id: 'study2', studyName: 'Study 2', pendingImageDeIdentification: false }
+            ];
+            service.approvedStudyDAO.listApprovedStudies = jest.fn().mockResolvedValue([{ total: 2, results: daoStudies }]);
+            const remapper = require('../../utility/data-commons-remapper');
+            remapper.getDataCommonsDisplayNamesForApprovedStudyList.mockImplementation((list) => ({
+                total: list.total,
+                studies: list.studies.map((s) => ({ ...s, dataCommonsDisplayName: s.studyName }))
+            }));
+            const result = await service.listApprovedStudiesAPI({ ...mockParams }, mockContext);
+            expect(result.studies[0].pendingImageDeIdentification).toBe(true);
+            expect(result.studies[1].pendingImageDeIdentification).toBe(false);
         });
 
         it('should handle empty DAO results gracefully', async () => {
@@ -852,6 +961,76 @@ describe('ApprovedStudiesService', () => {
         it('should throw if verifySession fails', async () => {
             verifySession.mockImplementation(() => { throw new Error('Session error'); });
             await expect(service.listApprovedStudiesAPI({ ...mockParams }, mockContext)).rejects.toThrow('Session error');
+        });
+
+        it('should pass statuses to DAO when non-empty', async () => {
+            await service.listApprovedStudiesAPI({ ...mockParams, statuses: ['Active'] }, mockContext);
+            expect(service.approvedStudyDAO.listApprovedStudies).toHaveBeenCalledWith(
+                'Test', 'Controlled', '1234', 'program-id', ['Active'], 10, 0, 'studyName', 'desc'
+            );
+        });
+
+        it('should pass trimmed statuses to DAO', async () => {
+            await service.listApprovedStudiesAPI(
+                { ...mockParams, statuses: [' Active ', ' Inactive '] },
+                mockContext
+            );
+            expect(service.approvedStudyDAO.listApprovedStudies).toHaveBeenCalledWith(
+                'Test', 'Controlled', '1234', 'program-id', ['Active', 'Inactive'], 10, 0, 'studyName', 'desc'
+            );
+        });
+
+        it('should pass null for statuses when empty array', async () => {
+            await service.listApprovedStudiesAPI({ ...mockParams, statuses: [] }, mockContext);
+            expect(service.approvedStudyDAO.listApprovedStudies).toHaveBeenCalledWith(
+                'Test', 'Controlled', '1234', 'program-id', null, 10, 0, 'studyName', 'desc'
+            );
+        });
+
+        it('should pass null for statuses when argument is null', async () => {
+            await service.listApprovedStudiesAPI({ ...mockParams, statuses: null }, mockContext);
+            expect(service.approvedStudyDAO.listApprovedStudies).toHaveBeenCalledWith(
+                'Test', 'Controlled', '1234', 'program-id', null, 10, 0, 'studyName', 'desc'
+            );
+        });
+
+        it('should throw INVALID_APPROVED_STUDY_STATUS when a filter value is not Active or Inactive', async () => {
+            await expect(
+                service.listApprovedStudiesAPI({ ...mockParams, statuses: ['Active', 'Pending'] }, mockContext)
+            ).rejects.toThrow(ERROR.INVALID_APPROVED_STUDY_STATUS);
+            expect(service.approvedStudyDAO.listApprovedStudies).not.toHaveBeenCalled();
+        });
+
+        it('should accept Active and Inactive together in statuses filter', async () => {
+            await service.listApprovedStudiesAPI({ ...mockParams, statuses: ['Active', 'Inactive'] }, mockContext);
+            expect(service.approvedStudyDAO.listApprovedStudies).toHaveBeenCalledWith(
+                'Test', 'Controlled', '1234', 'program-id', ['Active', 'Inactive'], 10, 0, 'studyName', 'desc'
+            );
+        });
+
+        it('should dedupe statuses before passing to DAO', async () => {
+            await service.listApprovedStudiesAPI(
+                { ...mockParams, statuses: ['Active', ' Active '] },
+                mockContext
+            );
+            expect(service.approvedStudyDAO.listApprovedStudies).toHaveBeenCalledWith(
+                'Test', 'Controlled', '1234', 'program-id', ['Active'], 10, 0, 'studyName', 'desc'
+            );
+        });
+
+        it('should throw when statuses filter has more than the max allowed entries', async () => {
+            await expect(
+                service.listApprovedStudiesAPI(
+                    { ...mockParams, statuses: ['Active', 'Inactive', 'Active'] },
+                    mockContext
+                )
+            ).rejects.toThrow(
+                replaceErrorString(
+                    ERROR.LIST_APPROVED_STUDIES_STATUSES_FILTER_TOO_MANY,
+                    String(APPROVED_STUDY_STATUS_FILTER_MAX_LENGTH)
+                )
+            );
+            expect(service.approvedStudyDAO.listApprovedStudies).not.toHaveBeenCalled();
         });
     });
 
@@ -884,6 +1063,17 @@ describe('ApprovedStudiesService', () => {
             expect(service.getApprovedStudy).toHaveBeenCalledWith(mockParams);
             expect(getDataCommonsDisplayNamesForApprovedStudy).toHaveBeenCalledWith(mockApprovedStudy);
             expect(result).toEqual(mockDisplayStudy);
+        });
+
+        it('should include pendingImageDeIdentification in the API response when present', async () => {
+            const studyWithFlag = { ...mockApprovedStudy, pendingImageDeIdentification: true };
+            service.getApprovedStudy = jest.fn().mockResolvedValue(studyWithFlag);
+            getDataCommonsDisplayNamesForApprovedStudy.mockImplementation((study) => ({
+                ...study,
+                dataCommonsDisplayName: 'Test Study Display'
+            }));
+            const result = await service.getApprovedStudyAPI({ ...mockParams }, mockContext);
+            expect(result.pendingImageDeIdentification).toBe(true);
         });
 
         it('should throw if verifySession fails', async () => {
@@ -948,14 +1138,7 @@ describe('ApprovedStudiesService', () => {
             // Mock organization service to return a valid program
             mockOrganizationService.getOrganizationByID.mockResolvedValue(validProgram);
 
-            // Patch: Accept extra trailing argument for compatibility with implementation
-            ApprovedStudies.createApprovedStudies.mockImplementation(
-                (...args) => {
-                    // Remove trailing undefined if present
-                    if (args.length > 12 && args[12] === undefined) args.pop();
-                    return fakeStudy;
-                }
-            );
+            ApprovedStudies.createApprovedStudies.mockImplementation(() => fakeStudy);
 
             // Patch: mock DAO create to just return the input
             service.approvedStudyDAO = {
@@ -964,7 +1147,7 @@ describe('ApprovedStudiesService', () => {
 
             const result = await service.storeApprovedStudies(
                 null, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess,
-                useProgramPC, pendingModelChange, primaryContactID, null, validProgramID
+                useProgramPC, pendingModelChange, primaryContactID, null, validProgramID, undefined
             );
 
             // Accept extra undefined argument for compatibility
@@ -975,11 +1158,51 @@ describe('ApprovedStudiesService', () => {
                 studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess,
                 useProgramPC, pendingModelChange, primaryContactID, null
             ]);
+            expect(callArgs[13]).toBe(validProgramID);
+            expect(callArgs[14]).toBeUndefined();
 
             // Check that DAO create was called with the correct study
             expect(service.approvedStudyDAO.create).toHaveBeenCalledWith(fakeStudy);
 
             expect(result).toBe(fakeStudy);
+        });
+
+        it('passes trimmed studyName as studyAbbreviation to createApprovedStudies when abbreviation is null, empty, or whitespace-only', async () => {
+            const validProgramID = 'valid-program-id-123';
+            const validProgram = { _id: validProgramID, name: 'Test Program' };
+            mockOrganizationService.getOrganizationByID.mockResolvedValue(validProgram);
+            ApprovedStudies.createApprovedStudies.mockImplementation((appId, sn, sa, ...rest) => ({ ...fakeStudy, studyName: sn, studyAbbreviation: sa }));
+            service.approvedStudyDAO = {
+                create: jest.fn().mockImplementation((s) => s)
+            };
+
+            for (const emptyAbbrev of [null, '', '  \t  ']) {
+                ApprovedStudies.createApprovedStudies.mockClear();
+                service.approvedStudyDAO.create.mockClear();
+                await service.storeApprovedStudies(
+                    null, '  My Study  ', emptyAbbrev, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess,
+                    useProgramPC, pendingModelChange, primaryContactID, null, validProgramID, undefined
+                );
+                expect(ApprovedStudies.createApprovedStudies.mock.calls[0][2]).toBe('My Study');
+            }
+        });
+
+        it('should pass pendingImageDeIdentification as final argument to createApprovedStudies', async () => {
+            const validProgramID = 'valid-program-id-123';
+            const validProgram = { _id: validProgramID, name: 'Test Program' };
+            mockOrganizationService.getOrganizationByID.mockResolvedValue(validProgram);
+            ApprovedStudies.createApprovedStudies.mockReturnValue(fakeStudy);
+            service.approvedStudyDAO = {
+                create: jest.fn().mockResolvedValue(fakeStudy)
+            };
+
+            await service.storeApprovedStudies(
+                null, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess,
+                useProgramPC, pendingModelChange, primaryContactID, null, validProgramID, true
+            );
+
+            const callArgs = ApprovedStudies.createApprovedStudies.mock.calls[0];
+            expect(callArgs[14]).toBe(true);
         });
 
         it('should log error and return undefined if insertion fails', async () => {
@@ -999,7 +1222,7 @@ describe('ApprovedStudiesService', () => {
 
             const result = await service.storeApprovedStudies(
                 null, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess,
-                useProgramPC, pendingModelChange, primaryContactID, null, validProgramID
+                useProgramPC, pendingModelChange, primaryContactID, null, validProgramID, undefined
             );
 
             expect(consoleSpy).toHaveBeenCalledWith(
@@ -1007,6 +1230,54 @@ describe('ApprovedStudiesService', () => {
             );
             expect(result).toBeUndefined();
             consoleSpy.mockRestore();
+        });
+
+        it('should pass applicationID to createApprovedStudies when provided', async () => {
+            const validProgramID = 'valid-program-id-123';
+            const validProgram = { _id: validProgramID, name: 'Test Program' };
+            const applicationID = 'app-789';
+            const studyWithAppID = { ...fakeStudy, applicationID };
+
+            mockOrganizationService.getOrganizationByID.mockResolvedValue(validProgram);
+
+            ApprovedStudies.createApprovedStudies.mockReturnValue(studyWithAppID);
+
+            service.approvedStudyDAO = {
+                create: jest.fn().mockResolvedValue(studyWithAppID)
+            };
+
+            const result = await service.storeApprovedStudies(
+                applicationID, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess,
+                useProgramPC, pendingModelChange, primaryContactID, null, validProgramID, undefined
+            );
+
+            // Verify applicationID is passed as first argument
+            const callArgs = ApprovedStudies.createApprovedStudies.mock.calls[0];
+            expect(callArgs[0]).toBe(applicationID);
+
+            expect(result).toBe(studyWithAppID);
+        });
+
+        it('should pass null applicationID to createApprovedStudies when not provided', async () => {
+            const validProgramID = 'valid-program-id-123';
+            const validProgram = { _id: validProgramID, name: 'Test Program' };
+
+            mockOrganizationService.getOrganizationByID.mockResolvedValue(validProgram);
+
+            ApprovedStudies.createApprovedStudies.mockReturnValue(fakeStudy);
+
+            service.approvedStudyDAO = {
+                create: jest.fn().mockResolvedValue(fakeStudy)
+            };
+
+            await service.storeApprovedStudies(
+                null, studyName, studyAbbreviation, dbGaPID, organizationName, controlledAccess, ORCID, PI, openAccess,
+                useProgramPC, pendingModelChange, primaryContactID, null, validProgramID, undefined
+            );
+
+            // Verify applicationID is null as first argument
+            const callArgs = ApprovedStudies.createApprovedStudies.mock.calls[0];
+            expect(callArgs[0]).toBeNull();
         });
 
         describe('NA program fallback behavior', () => {
@@ -1033,7 +1304,7 @@ describe('ApprovedStudiesService', () => {
                 await service.storeApprovedStudies(
                     null, studyName, studyAbbreviation, dbGaPID, organizationName, 
                     controlledAccess, ORCID, PI, openAccess, useProgramPC, 
-                    pendingModelChange, primaryContactID, null, null // programID is null
+                    pendingModelChange, primaryContactID, null, null, undefined // programID is null
                 );
 
                 // Should have looked up NA program by name
@@ -1041,8 +1312,7 @@ describe('ApprovedStudiesService', () => {
                 
                 // Should have created the study with the NA program ID
                 const callArgs = ApprovedStudies.createApprovedStudies.mock.calls[0];
-                const passedProgramID = callArgs[callArgs.length - 1];
-                expect(passedProgramID).toBe(mockNAProgram._id);
+                expect(callArgs[13]).toBe(mockNAProgram._id);
             });
 
             it('should fall back to NA program when programID is undefined', async () => {
@@ -1052,14 +1322,13 @@ describe('ApprovedStudiesService', () => {
                 await service.storeApprovedStudies(
                     null, studyName, studyAbbreviation, dbGaPID, organizationName, 
                     controlledAccess, ORCID, PI, openAccess, useProgramPC, 
-                    pendingModelChange, primaryContactID, null, undefined // programID is undefined
+                    pendingModelChange, primaryContactID, null, undefined, undefined // programID is undefined
                 );
 
                 expect(mockOrganizationService.getOrganizationByName).toHaveBeenCalledWith('NA');
                 
                 const callArgs = ApprovedStudies.createApprovedStudies.mock.calls[0];
-                const passedProgramID = callArgs[callArgs.length - 1];
-                expect(passedProgramID).toBe(mockNAProgram._id);
+                expect(callArgs[13]).toBe(mockNAProgram._id);
             });
 
             it('should use provided programID when it is valid', async () => {
@@ -1071,17 +1340,44 @@ describe('ApprovedStudiesService', () => {
                 await service.storeApprovedStudies(
                     null, studyName, studyAbbreviation, dbGaPID, organizationName, 
                     controlledAccess, ORCID, PI, openAccess, useProgramPC, 
-                    pendingModelChange, primaryContactID, null, validProgramID
+                    pendingModelChange, primaryContactID, null, validProgramID, undefined
                 );
 
                 // Should have validated the program by ID
-                expect(mockOrganizationService.getOrganizationByID).toHaveBeenCalledWith(validProgramID);
+                expect(mockOrganizationService.getOrganizationByID).toHaveBeenCalledWith(validProgramID, false);
                 // Should NOT have fallen back to NA program
                 expect(mockOrganizationService.getOrganizationByName).not.toHaveBeenCalled();
                 
                 const callArgs = ApprovedStudies.createApprovedStudies.mock.calls[0];
-                const passedProgramID = callArgs[callArgs.length - 1];
-                expect(passedProgramID).toBe(validProgramID);
+                expect(callArgs[13]).toBe(validProgramID);
+            });
+
+            it('should throw when resolved program is inactive', async () => {
+                const validProgramID = 'inactive-program-id';
+                const inactiveProgram = { _id: validProgramID, name: 'Inactive Program', status: ORGANIZATION.STATUSES.INACTIVE };
+                mockOrganizationService.getOrganizationByID.mockResolvedValue(inactiveProgram);
+
+                await expect(
+                    service.storeApprovedStudies(
+                        null, studyName, studyAbbreviation, dbGaPID, organizationName,
+                        controlledAccess, ORCID, PI, openAccess, useProgramPC,
+                        pendingModelChange, primaryContactID, null, validProgramID
+                    )
+                ).rejects.toThrow(ERROR.STUDIES_CANNOT_ASSIGN_TO_INACTIVE_PROGRAM);
+            });
+
+            it('should throw when NA fallback program is inactive', async () => {
+                const inactiveNA = { _id: 'na-id', name: 'NA', status: ORGANIZATION.STATUSES.INACTIVE };
+                mockOrganizationService.getOrganizationByID.mockResolvedValue(null);
+                mockOrganizationService.getOrganizationByName.mockResolvedValue(inactiveNA);
+
+                await expect(
+                    service.storeApprovedStudies(
+                        null, studyName, studyAbbreviation, dbGaPID, organizationName,
+                        controlledAccess, ORCID, PI, openAccess, useProgramPC,
+                        pendingModelChange, primaryContactID, null, null
+                    )
+                ).rejects.toThrow(ERROR.STUDIES_CANNOT_ASSIGN_TO_INACTIVE_PROGRAM);
             });
 
             it('should throw error when programID is null and NA program is not found', async () => {
@@ -1093,7 +1389,7 @@ describe('ApprovedStudiesService', () => {
                 await expect(service.storeApprovedStudies(
                     null, studyName, studyAbbreviation, dbGaPID, organizationName, 
                     controlledAccess, ORCID, PI, openAccess, useProgramPC, 
-                    pendingModelChange, primaryContactID, null, null
+                    pendingModelChange, primaryContactID, null, null, undefined
                 )).rejects.toThrow();
 
                 expect(consoleSpy).toHaveBeenCalledWith(
@@ -1113,15 +1409,14 @@ describe('ApprovedStudiesService', () => {
                 await service.storeApprovedStudies(
                     null, studyName, studyAbbreviation, dbGaPID, organizationName, 
                     controlledAccess, ORCID, PI, openAccess, useProgramPC, 
-                    pendingModelChange, primaryContactID, null, invalidProgramID
+                    pendingModelChange, primaryContactID, null, invalidProgramID, undefined
                 );
 
-                expect(mockOrganizationService.getOrganizationByID).toHaveBeenCalledWith(invalidProgramID);
+                expect(mockOrganizationService.getOrganizationByID).toHaveBeenCalledWith(invalidProgramID, false);
                 expect(mockOrganizationService.getOrganizationByName).toHaveBeenCalledWith('NA');
                 
                 const callArgs = ApprovedStudies.createApprovedStudies.mock.calls[0];
-                const passedProgramID = callArgs[callArgs.length - 1];
-                expect(passedProgramID).toBe(mockNAProgram._id);
+                expect(callArgs[13]).toBe(mockNAProgram._id);
             });
         });
     });
@@ -1172,6 +1467,21 @@ describe('ApprovedStudiesService', () => {
                     ORCID: 'invalid-orcid'
                 };
                 expect(() => service._verifyAndFormatStudyParams(params)).toThrow(ERROR.INVALID_ORCID);
+            });
+
+            it('should accept status Active or Inactive and trim', () => {
+                const p1 = { name: 'S', controlledAccess: false, status: ' Active ' };
+                service._verifyAndFormatStudyParams(p1);
+                expect(p1.status).toBe('Active');
+                const p2 = { name: 'S', controlledAccess: false, status: 'Inactive' };
+                service._verifyAndFormatStudyParams(p2);
+                expect(p2.status).toBe('Inactive');
+            });
+
+            it('should throw INVALID_APPROVED_STUDY_STATUS when status is not Active or Inactive', () => {
+                expect(() =>
+                    service._verifyAndFormatStudyParams({ name: 'S', controlledAccess: false, status: 'Pending' })
+                ).toThrow(ERROR.INVALID_APPROVED_STUDY_STATUS);
             });
         });
 

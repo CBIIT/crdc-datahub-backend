@@ -79,19 +79,30 @@ app.use("/api/graphql", graphqlRouter);
     dbConnector.connect().then( async () => {
         const config = await configuration.updateConfig(dbConnector);
         const emailService = new EmailService(config.email_transport, config.emails_enabled);
+        const configurationService = new ConfigurationService();
         const notificationsService = new NotifyUser(emailService, config.tier);
         const applicationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPLICATION_COLLECTION);
         const userCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, USER_COLLECTION);
         const submissionCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, SUBMISSIONS_COLLECTION);
-        const emailParams = {url: config.emails_url, officialEmail: config.official_email, inactiveDays: config.inactive_application_days, remindDay: config.remind_application_days,
-            submissionSystemPortal: config.submission_system_portal, submissionHelpdesk: config.submission_helpdesk, remindSubmissionDay: config.inactiveSubmissionNotifyDays,
-            techSupportEmail: config.techSupportEmail, conditionalSubmissionContact: config.conditionalSubmissionContact, submissionGuideURL: config.submissionGuideUrl,
-            completedSubmissionDays: config.completed_submission_days, inactiveSubmissionDays: config.inactive_submission_days, finalRemindSubmissionDay: config.inactive_submission_days,
-            inactiveApplicationNotifyDays: config.inactiveApplicationNotifyDays};
-
+        const emailParams = {
+            url: config.emails_url,
+            officialEmail: config.official_email,
+            inactiveDays: config.inactive_application_days,
+            inactiveNewApplicationDays: config.inactive_new_application_days,
+            remindDay: config.remind_application_days,
+            submissionSystemPortal: config.submission_system_portal,
+            submissionHelpdesk: config.submission_helpdesk,
+            remindSubmissionDay: config.inactiveSubmissionNotifyDays,
+            techSupportEmail: config.techSupportEmail,
+            conditionalSubmissionContact: config.conditionalSubmissionContact,
+            submissionGuideURL: config.submissionGuideUrl,
+            completedSubmissionDays: config.completed_submission_days,
+            inactiveSubmissionDays: config.inactive_submission_days,
+            finalRemindSubmissionDay: config.inactive_submission_days,
+            inactiveApplicationNotifyDays: config.inactiveApplicationNotifyDays,
+        };
         
         const logCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, LOG_COLLECTION);
-        const configurationService = new ConfigurationService();
         const approvedStudiesCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, APPROVED_STUDIES_COLLECTION);
         const organizationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, ORGANIZATION_COLLECTION);
         const organizationService = new Organization(organizationCollection, userCollection, submissionCollection, applicationCollection, approvedStudiesCollection);
@@ -115,7 +126,7 @@ app.use("/api/graphql", graphqlRouter);
         const releaseCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, RELEASE_DATA_RECORDS_COLLECTION);
         const dataRecordCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_COLLECTION);
         const dataRecordArchiveCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, DATA_RECORDS_ARCHIVE_COLLECTION);
-        const dataRecordService = new DataRecordService(dataRecordCollection, dataRecordArchiveCollection, releaseCollection, config.file_queue, config.metadata_queue, awsService, s3Service, qcResultsService, config.export_queue);
+        const dataRecordService = new DataRecordService(dataRecordCollection, dataRecordArchiveCollection, releaseCollection, config.file_queue, config.metadata_queue, awsService, s3Service, qcResultsService, config.export_queue, configurationService);
 
         const validationCollection = new MongoDBCollection(dbConnector.client, DATABASE_NAME, VALIDATION_COLLECTION);
         const submissionService = new Submission(logCollection, submissionCollection, batchService, userService,

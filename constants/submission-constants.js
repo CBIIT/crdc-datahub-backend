@@ -31,6 +31,7 @@ module.exports = Object.freeze({
     //data submission actions
     ACTIONS: {
         SUBMIT: "Submit",
+        ADMIN_SUBMIT: "Admin Submit",
         RELEASE: "Release",
         COMPLETE: "Complete",
         ARCHIVE: "Archive",
@@ -40,6 +41,11 @@ module.exports = Object.freeze({
         RESUME: "Resume",
         REJECT_SUBMIT: "Reject_Submitted",
         REJECT_RELEASE: "Reject_Released"
+    },
+    /** Persisted on Submission when status becomes Submitted */
+    SUBMISSION_TYPE: {
+        ADMIN: "Admin",
+        REGULAR: "Regular"
     },
     VALIDATION_STATUS: {
         NEW: "New",
@@ -58,7 +64,13 @@ module.exports = Object.freeze({
         SCOPE: {
             NEW: "new",
             ALL: "all"
-        }
+        },
+        BATCH_MESSAGE_TYPE: "Validate Metadata Batch",
+        METADATA_BATCH_CONFIG_TYPE: "METADATA_VALIDATION_BATCH_SIZE",
+        DEFAULT_METADATA_BATCH_SIZE: 1000,
+        MIN_METADATA_BATCH_SIZE: 100,
+        // SQS FIFO limit is 256KB; ~6,890 UUIDs fit per message. 5,000 provides ~27% headroom.
+        MAX_METADATA_BATCH_SIZE: 5000
     },
     INTENTION: {
         UPDATE: "New/Update",
@@ -70,7 +82,13 @@ module.exports = Object.freeze({
         METADATA_AND_DATA_FILES: "Metadata and Data Files"
     },
     CONSTRAINTS: {
-        NAME_MAX_LENGTH: 25
+        NAME_MAX_LENGTH: 25,
+        APPROVE_COMMENT_MAX_LENGTH: 10000,
+        REJECT_COMMENT_MAX_LENGTH: 10000,
+        INQUIRE_COMMENT_MAX_LENGTH: 10000,
+        CANCEL_COMMENT_MAX_LENGTH: 500,
+        RESTORE_COMMENT_MAX_LENGTH: 500,
+        REQUEST_PV_COMMENT_MAX_LENGTH: 500
     },
     COLLABORATOR_PERMISSIONS: {
         CAN_EDIT: "Can Edit",

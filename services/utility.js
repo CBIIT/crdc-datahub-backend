@@ -34,8 +34,6 @@ class UtilityService {
             !aApplication?.programName &&
             !aApplication?.studyAbbreviation &&
             !aApplication?.studyName &&
-            !aApplication?.ORCID &&
-            !aApplication?.PI &&
             !aApplication?.programAbbreviation &&
             !aApplication?.programDescription
         );

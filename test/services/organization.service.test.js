@@ -2,7 +2,7 @@ const { Organization } = require('../../crdc-datahub-database-drivers/services/o
 const { ORGANIZATION } = require('../../crdc-datahub-database-drivers/constants/organization-constants');
 const {ERROR : SUBMODULE_ERROR}  = require('../../crdc-datahub-database-drivers/constants/error-constants');
 const ERROR = require('../../constants/error-constants');
-const {replaceErrorString} = require("../../utility/string-util");
+const {replaceErrorString} = require('../../utility/string-util');
 
 jest.mock('../../utility/data-commons-remapper', () => ({
   getDataCommonsDisplayNamesForUserOrganization: jest.fn((org) => org)
@@ -63,10 +63,16 @@ describe('Organization.listPrograms', () => {
     const result = await organization.listPrograms(params, context);
     expect(result.total).toBe(1);
     expect(result.programs).toEqual(mockPrograms);
-    expect(mockProgramDAO.listPrograms).toHaveBeenCalled();
+    expect(mockProgramDAO.listPrograms).toHaveBeenCalledWith(
+      10,
+      0,
+      'name',
+      'asc',
+      { status: ORGANIZATION.STATUSES.ACTIVE }
+    );
   });
 
-  it('should throw error for invalid status', async () => {
+  it('should throw for invalid status input', async () => {
     const params = {
       first: 10,
       offset: 0,
@@ -74,7 +80,66 @@ describe('Organization.listPrograms', () => {
       sortDirection: 'asc',
       status: 'INVALID_STATUS'
     };
-    await expect(organization.listPrograms(params, context)).rejects.toThrow(replaceErrorString(SUBMODULE_ERROR.INVALID_PROGRAM_STATUS, params.status));
+    await expect(organization.listPrograms(params, context)).rejects.toThrow(
+      replaceErrorString(SUBMODULE_ERROR.INVALID_PROGRAM_STATUS, params.status)
+    );
+    expect(mockProgramDAO.listPrograms).not.toHaveBeenCalled();
+  });
+
+  it('should support case-insensitive status input', async () => {
+    const params = {
+      first: 10,
+      offset: 0,
+      orderBy: 'name',
+      sortDirection: 'asc',
+      status: 'aCtIvE'
+    };
+    mockProgramDAO.listPrograms.mockResolvedValue({ total: 0, results: [] });
+    await organization.listPrograms(params, context);
+    expect(mockProgramDAO.listPrograms).toHaveBeenCalledWith(
+      10,
+      0,
+      'name',
+      'asc',
+      { status: ORGANIZATION.STATUSES.ACTIVE }
+    );
+  });
+
+  it('should treat case-insensitive All as all statuses', async () => {
+    const params = {
+      first: 10,
+      offset: 0,
+      orderBy: 'name',
+      sortDirection: 'asc',
+      status: 'aLl'
+    };
+    mockProgramDAO.listPrograms.mockResolvedValue({ total: 0, results: [] });
+    await organization.listPrograms(params, context);
+    expect(mockProgramDAO.listPrograms).toHaveBeenCalledWith(
+      10,
+      0,
+      'name',
+      'asc',
+      { status: { $in: [ORGANIZATION.STATUSES.ACTIVE, ORGANIZATION.STATUSES.INACTIVE] } }
+    );
+  });
+
+  it('should default status to All when omitted', async () => {
+    const params = {
+      first: 10,
+      offset: 0,
+      orderBy: 'name',
+      sortDirection: 'asc'
+    };
+    mockProgramDAO.listPrograms.mockResolvedValue({ total: 0, results: [] });
+    await organization.listPrograms(params, context);
+    expect(mockProgramDAO.listPrograms).toHaveBeenCalledWith(
+      10,
+      0,
+      'name',
+      'asc',
+      { status: { $in: [ORGANIZATION.STATUSES.ACTIVE, ORGANIZATION.STATUSES.INACTIVE] } }
+    );
   });
 
   it('should throw error if not logged in', async () => {
@@ -99,11 +164,11 @@ describe('Organization.createOrganization', () => {
   let mockApprovedStudyDAO;
 
   beforeEach(() => {
-    mockProgramDAO = { getOrganizationByName: jest.fn(), create: jest.fn() };
+    mockProgramDAO = { getOrganizationByName: jest.fn(), getOrganizationByID: jest.fn(), create: jest.fn() };
     mockUserDAO = { findFirst: jest.fn() };
     mockSubmissionDAO = {};
     mockApplicationDAO = {};
-    mockApprovedStudyDAO = { findMany: jest.fn(), findFirst: jest.fn(), updateMany: jest.fn() };
+    mockApprovedStudyDAO = { findMany: jest.fn(), findFirst: jest.fn(), updateMany: jest.fn(), count: jest.fn() };
     ProgramDAO.mockImplementation(() => mockProgramDAO);
     UserDAO.mockImplementation(() => mockUserDAO);
     SubmissionDAO.mockImplementation(() => mockSubmissionDAO);
@@ -186,63 +251,6 @@ describe('Organization.createOrganization', () => {
     expect(mockUserDAO.findFirst).toHaveBeenCalled();
     expect(mockProgramDAO.create).toHaveBeenCalled();
   });
-
-  it('should create organization with studies and update their programID', async () => {
-    const params = {
-      name: 'Test Org',
-      abbreviation: 'TST',
-      description: 'desc',
-      studies: [
-        { studyID: 'study-1' },
-        { studyID: 'study-2' }
-      ]
-    };
-    const createdOrg = { _id: 'org-123', name: 'Test Org', abbreviation: 'TST', description: 'desc' };
-    const existingStudies = [
-      { id: 'study-1' },
-      { id: 'study-2' }
-    ];
-
-    mockProgramDAO.getOrganizationByName.mockResolvedValue(null);
-    mockProgramDAO.create.mockResolvedValue(createdOrg);
-    mockApprovedStudyDAO.findMany.mockResolvedValue(existingStudies);
-    mockApprovedStudyDAO.updateMany.mockResolvedValue({ count: 2 });
-
-    const result = await organization.createOrganization(params);
-    
-    expect(result).toEqual(createdOrg);
-    expect(mockProgramDAO.create).toHaveBeenCalled();
-    expect(mockApprovedStudyDAO.findMany).toHaveBeenCalledWith({ id: { in: ['study-1', 'study-2'] } });
-    expect(mockApprovedStudyDAO.updateMany).toHaveBeenCalledWith(
-      { id: { in: ['study-1', 'study-2'] } },
-      { programID: 'org-123', updatedAt: expect.any(Date) }
-    );
-  });
-
-  it('should throw error when study IDs do not exist during organization creation', async () => {
-    const params = {
-      name: 'Test Org',
-      abbreviation: 'TST',
-      description: 'desc',
-      studies: [
-        { studyID: 'study-1' },
-        { studyID: 'study-2' }
-      ]
-    };
-    const createdOrg = { _id: 'org-123', name: 'Test Org', abbreviation: 'TST', description: 'desc' };
-    const existingStudies = [{ id: 'study-1' }]; // Only study-1 exists
-
-    mockProgramDAO.getOrganizationByName.mockResolvedValue(null);
-    mockProgramDAO.create.mockResolvedValue(createdOrg);
-    mockApprovedStudyDAO.findMany.mockResolvedValue(existingStudies);
-
-    await expect(organization.createOrganization(params))
-      .rejects.toThrow(`Update failed, these provided study IDs do not exist: study-2`);
-    
-    expect(mockProgramDAO.create).toHaveBeenCalled();
-    expect(mockApprovedStudyDAO.findMany).toHaveBeenCalled();
-    expect(mockApprovedStudyDAO.updateMany).not.toHaveBeenCalled();
-  });
 });
 
 describe('Organization.getOrganizationAPI', () => {
@@ -278,7 +286,20 @@ describe('Organization.getOrganizationAPI', () => {
     mockProgramDAO.getOrganizationByID.mockResolvedValue(mockOrg);
     const result = await organization.getOrganizationAPI(params, context);
     expect(result).toEqual(mockOrg);
-    expect(mockProgramDAO.getOrganizationByID).toHaveBeenCalledWith('org123');
+    expect(mockProgramDAO.getOrganizationByID).toHaveBeenCalledWith('org123', true);
+  });
+
+  it('should request studies from DAO and preserve them in the response', async () => {
+    const params = { orgID: 'org123' };
+    const mockOrg = {
+      _id: 'org123',
+      name: 'Test Org',
+      studies: [{ _id: 's1', id: 's1', studyAbbreviation: 'TST', studyName: 'Trial' }],
+    };
+    mockProgramDAO.getOrganizationByID.mockResolvedValue(mockOrg);
+    const result = await organization.getOrganizationAPI(params, context);
+    expect(mockProgramDAO.getOrganizationByID).toHaveBeenCalledWith('org123', true);
+    expect(result.studies).toEqual(mockOrg.studies);
   });
 
   it('should throw error if orgID is missing', async () => {
@@ -289,6 +310,25 @@ describe('Organization.getOrganizationAPI', () => {
     const params = { orgID: 'org123' };
     const badContext = { userInfo: {} };
     await expect(organization.getOrganizationAPI(params, badContext)).rejects.toThrow(ERROR.NOT_LOGGED_IN);
+  });
+});
+
+describe('Organization.getOrganizationByID', () => {
+  let organization;
+  let mockProgramDAO;
+
+  beforeEach(() => {
+    mockProgramDAO = { getOrganizationByID: jest.fn() };
+    ProgramDAO.mockImplementation(() => mockProgramDAO);
+    organization = new Organization({}, {}, {}, {}, {});
+    jest.clearAllMocks();
+  });
+
+  it('should throw when includeStudiesList is omitted', async () => {
+    await expect(organization.getOrganizationByID('org123')).rejects.toThrow(
+      SUBMODULE_ERROR.INVALID_INCLUDE_STUDIES_LIST_ARGUMENT
+    );
+    expect(mockProgramDAO.getOrganizationByID).not.toHaveBeenCalled();
   });
 });
 
@@ -309,7 +349,7 @@ describe('Organization.editOrganization', () => {
     mockUserDAO = { findFirst: jest.fn(), updateUserOrg: jest.fn() };
     mockSubmissionDAO = {};
     mockApplicationDAO = { updateApplicationOrg: jest.fn() };
-    mockApprovedStudyDAO = { findMany: jest.fn(), updateMany: jest.fn() };
+    mockApprovedStudyDAO = { findMany: jest.fn(), updateMany: jest.fn(), count: jest.fn() };
     
     ProgramDAO.mockImplementation(() => mockProgramDAO);
     UserDAO.mockImplementation(() => mockUserDAO);
@@ -321,80 +361,87 @@ describe('Organization.editOrganization', () => {
     jest.clearAllMocks();
   });
 
-  it('should edit organization and update studies successfully', async () => {
+  it('should edit organization name successfully', async () => {
     const orgID = 'org-123';
-    const params = {
-      name: 'Updated Org',
-      studies: [
-        { studyID: 'study-1' },
-        { studyID: 'study-2' }
-      ]
-    };
-    const currentOrg = { _id: orgID, name: 'Test Org', abbreviation: 'TST' };
-    const existingStudies = [
-      { id: 'study-1' },
-      { id: 'study-2' }
-    ];
-
-    mockProgramDAO.getOrganizationByID.mockResolvedValue(currentOrg);
-    mockProgramDAO.getOrganizationByName.mockResolvedValue(null);
-    mockProgramDAO.updateMany.mockResolvedValue({ acknowledged: true });
-    mockApprovedStudyDAO.findMany.mockResolvedValue(existingStudies);
-    mockApprovedStudyDAO.updateMany.mockResolvedValue({ count: 2 });
-
-    const result = await organization.editOrganization(orgID, params);
-    
-    expect(result).toEqual({ ...currentOrg, name: 'Updated Org', updateAt: expect.any(Date) });
-    expect(mockProgramDAO.updateMany).toHaveBeenCalled();
-    expect(mockApprovedStudyDAO.findMany).toHaveBeenCalledWith({ id: { in: ['study-1', 'study-2'] } });
-    expect(mockApprovedStudyDAO.updateMany).toHaveBeenCalledWith(
-      { id: { in: ['study-1', 'study-2'] } },
-      { programID: orgID, updatedAt: expect.any(Date) }
-    );
-  });
-
-  it('should edit organization without updating studies when studies array is empty', async () => {
-    const orgID = 'org-123';
-    const params = {
-      name: 'Updated Org',
-      studies: []
-    };
-    const currentOrg = { _id: orgID, name: 'Test Org', abbreviation: 'TST' };
+    const params = { name: 'Updated Org' };
+    const currentOrg = { _id: orgID, name: 'Test Org', abbreviation: 'TST', status: ORGANIZATION.STATUSES.ACTIVE };
 
     mockProgramDAO.getOrganizationByID.mockResolvedValue(currentOrg);
     mockProgramDAO.getOrganizationByName.mockResolvedValue(null);
     mockProgramDAO.updateMany.mockResolvedValue({ acknowledged: true });
 
     const result = await organization.editOrganization(orgID, params);
-    
+
     expect(result).toEqual({ ...currentOrg, name: 'Updated Org', updateAt: expect.any(Date) });
     expect(mockProgramDAO.updateMany).toHaveBeenCalled();
     expect(mockApprovedStudyDAO.findMany).not.toHaveBeenCalled();
     expect(mockApprovedStudyDAO.updateMany).not.toHaveBeenCalled();
   });
 
-  it('should throw error when study IDs do not exist during organization edit', async () => {
+  it(`should throw when setting status ${ORGANIZATION.STATUSES.INACTIVE} while program has assigned studies`, async () => {
     const orgID = 'org-123';
-    const params = {
-      name: 'Updated Org',
-      studies: [
-        { studyID: 'study-1' },
-        { studyID: 'study-2' }
-      ]
-    };
     const currentOrg = { _id: orgID, name: 'Test Org', abbreviation: 'TST' };
-    const existingStudies = [{ id: 'study-1' }]; // Only study-1 exists
-
     mockProgramDAO.getOrganizationByID.mockResolvedValue(currentOrg);
-    mockProgramDAO.getOrganizationByName.mockResolvedValue(null);
-    mockProgramDAO.updateMany.mockResolvedValue({ acknowledged: true });
-    mockApprovedStudyDAO.findMany.mockResolvedValue(existingStudies);
+    mockApprovedStudyDAO.count.mockResolvedValue(2);
 
-    await expect(organization.editOrganization(orgID, params))
-      .rejects.toThrow(`Update failed, these provided study IDs do not exist: study-2`);
-    
-    expect(mockProgramDAO.updateMany).toHaveBeenCalled();
-    expect(mockApprovedStudyDAO.findMany).toHaveBeenCalled();
-    expect(mockApprovedStudyDAO.updateMany).not.toHaveBeenCalled();
+    await expect(organization.editOrganization(orgID, { status: ORGANIZATION.STATUSES.INACTIVE })).rejects.toThrow(
+      SUBMODULE_ERROR.PROGRAM_CANNOT_INACTIVATE_WITH_STUDIES
+    );
+    expect(mockProgramDAO.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('should omit duplicate-name lookup when only status is updated (no name in params)', async () => {
+    const orgID = 'org-123';
+    const currentOrg = {
+      _id: orgID,
+      name: 'Test Org',
+      abbreviation: 'TST',
+      status: ORGANIZATION.STATUSES.ACTIVE
+    };
+    mockProgramDAO.getOrganizationByID.mockResolvedValue(currentOrg);
+    mockApprovedStudyDAO.count.mockResolvedValue(0);
+    mockProgramDAO.updateMany.mockResolvedValue({ acknowledged: true });
+    mockProgramDAO.getOrganizationByName.mockResolvedValue({ _id: 'other-id', name: 'collision' });
+
+    const result = await organization.editOrganization(orgID, { status: ORGANIZATION.STATUSES.INACTIVE });
+
+    expect(mockProgramDAO.getOrganizationByName).not.toHaveBeenCalled();
+    expect(mockProgramDAO.updateMany).toHaveBeenCalledWith(
+      { id: orgID },
+      expect.objectContaining({ status: ORGANIZATION.STATUSES.INACTIVE, updateAt: expect.any(Date) })
+    );
+    expect(result.status).toBe(ORGANIZATION.STATUSES.INACTIVE);
+  });
+
+  it('should set status Active when explicitly requested', async () => {
+    const orgID = 'org-123';
+    const currentOrg = { _id: orgID, name: 'Test Org', abbreviation: 'TST', status: ORGANIZATION.STATUSES.INACTIVE };
+    mockProgramDAO.getOrganizationByID.mockResolvedValue(currentOrg);
+    mockProgramDAO.updateMany.mockResolvedValue({ acknowledged: true });
+
+    const result = await organization.editOrganization(orgID, { status: ORGANIZATION.STATUSES.ACTIVE });
+
+    expect(result.status).toBe(ORGANIZATION.STATUSES.ACTIVE);
+    expect(mockProgramDAO.updateMany).toHaveBeenCalledWith(
+      { id: orgID },
+      expect.objectContaining({ status: ORGANIZATION.STATUSES.ACTIVE, updateAt: expect.any(Date) })
+    );
+  });
+
+  it('should reject inactivating a read-only program (e.g. system catch-all)', async () => {
+    const orgID = 'readonly-org-id';
+    const currentOrg = {
+      _id: orgID,
+      name: 'NA',
+      abbreviation: 'NA',
+      readOnly: true,
+      status: ORGANIZATION.STATUSES.ACTIVE
+    };
+    mockProgramDAO.getOrganizationByID.mockResolvedValue(currentOrg);
+
+    await expect(organization.editOrganization(orgID, { status: ORGANIZATION.STATUSES.INACTIVE })).rejects.toThrow(
+      SUBMODULE_ERROR.CANNOT_UPDATE_READ_ONLY_PROGRAM
+    );
+    expect(mockProgramDAO.updateMany).not.toHaveBeenCalled();
   });
 });

@@ -23,6 +23,11 @@ const NODE_VIEW = {
 
 const ERROR = "Error";
 const WARNING = "Warning";
+
+function isPlainDataViewMatchQuery(query) {
+    return Boolean(query) && typeof query === 'object' && !Array.isArray(query);
+}
+
 class DataRecordDAO extends GenericDAO {
     constructor(dataRecordsCollection) {
         super(MODEL_NAME.DATA_RECORDS);
@@ -99,6 +104,83 @@ class DataRecordDAO extends GenericDAO {
             total: totalRecords,
             results: dataRecords
         };
+    }
+
+    /**
+     * Distinct Data View relationship column names (`parentType.parentIDPropName`) for all
+     * dataRecords matching `query` (same $match as getSubmissionNodes, no pagination).
+     * listSubmissionNodes invokes this only when the current page can omit rows (see submission.js).
+     * Used so `properties` includes parent types that only appear on other pages.
+     * Cost (when used): one aggregate per list call that spans multiple pages; O(documents matching query). Prefer an index on
+     * (submissionID, nodeType) and include status in the index if that filter is common.
+     * @param {Object} query Mongo $match object (submissionID, nodeType, status, nodeID, …) — not an array
+     * @returns {Promise<string[]>}
+     */
+    async getDistinctParentRelationshipKeys(query) {
+        if (!isPlainDataViewMatchQuery(query)) {
+            return [];
+        }
+        const pipeline = [
+            { $match: query },
+            { $project: { parents: 1 } },
+            { $unwind: { path: '$parents', preserveNullAndEmptyArrays: false } },
+            {
+                $match: {
+                    'parents.parentType': { $type: 'string', $ne: '' },
+                    'parents.parentIDPropName': { $type: 'string', $ne: '' }
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    keys: {
+                        $addToSet: {
+                            $concat: ['$parents.parentType', '.', '$parents.parentIDPropName']
+                        }
+                    }
+                }
+            }
+        ];
+        const rows = await this.dataRecordsCollection.aggregate(pipeline);
+        return (rows && rows[0] && rows[0].keys) || [];
+    }
+
+    /**
+     * Distinct top-level `props` field names for all dataRecords matching `query` (same
+     * $match as getSubmissionNodes, no pagination). listSubmissionNodes invokes this only when
+     * the current page can omit rows (see submission.js). Ensures `properties` lists column names
+     * for `props` keys that appear only on other pages of a paginated Data View.
+     * @param {Object} query Mongo $match (plain object, not an array)
+     * @returns {Promise<string[]>}
+     */
+    async getDistinctPropsTopLevelKeys(query) {
+        if (!isPlainDataViewMatchQuery(query)) {
+            return [];
+        }
+        const pipeline = [
+            { $match: query },
+            {
+                $project: {
+                    propKeys: {
+                        $map: {
+                            input: { $objectToArray: { $ifNull: ['$props', {}] } },
+                            as: 'p',
+                            in: '$$p.k',
+                        },
+                    },
+                },
+            },
+            { $unwind: { path: '$propKeys', preserveNullAndEmptyArrays: false } },
+            { $match: { propKeys: { $type: 'string', $ne: '' } } },
+            {
+                $group: {
+                    _id: null,
+                    keys: { $addToSet: '$propKeys' },
+                },
+            },
+        ];
+        const rows = await this.dataRecordsCollection.aggregate(pipeline);
+        return (rows && rows[0] && rows[0].keys) || [];
     }
 
     async getStats(submissionID, validNodeStatus) {

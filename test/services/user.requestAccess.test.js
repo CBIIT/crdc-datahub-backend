@@ -1,4 +1,5 @@
 const { UserService } = require('../../services/user');
+const ERROR = require('../../constants/error-constants');
 
 describe('UserService.requestAccess', () => {
     let userService;
@@ -13,13 +14,6 @@ describe('UserService.requestAccess', () => {
     };
     const ROLES = { ADMIN: 'ADMIN' };
     const USER_PERMISSION_CONSTANTS = { DATA_SUBMISSION: { REQUEST_ACCESS: 'REQUEST_ACCESS' } };
-    const ERROR = {
-        VERIFY: { INVALID_PERMISSION: 'INVALID_PERMISSION' },
-        INVALID_APPROVED_STUDIES_ACCESS_REQUEST: 'Failed to request an access request because of invalid or missing approved study IDs.',
-        MAX_INSTITUTION_NAME_LIMIT: 'MAX_INSTITUTION_NAME_LIMIT',
-        NO_ADMIN_USER: 'NO_ADMIN_USER',
-        FAILED_TO_NOTIFY_ACCESS_REQUEST: 'FAILED_TO_NOTIFY_ACCESS_REQUEST',
-    };
     const ValidationHandler = {
         handle: jest.fn((err) => ({ error: err })),
         success: jest.fn(() => ({ success: true })),
@@ -118,5 +112,16 @@ describe('UserService.requestAccess', () => {
         const result = await userService.requestAccess(params, context);
         expect(result).toBeInstanceOf(Error);
         expect(result.message).toBe(ERROR.INVALID_APPROVED_STUDIES_ACCESS_REQUEST);
+    });
+
+    it('returns error if an approved study is not Active', async () => {
+        userService._getUserScope.mockResolvedValue({ isNoneScope: () => false });
+        mockApprovedStudiesService.listApprovedStudies.mockResolvedValue([
+            { _id: 'study1', studyName: 'S1', status: 'Inactive' },
+        ]);
+
+        const result = await userService.requestAccess(params, context);
+        expect(result).toBeInstanceOf(Error);
+        expect(result.message).toBe(ERROR.INVALID_APPROVED_STUDIES_ACCESS_INACTIVE);
     });
 });
