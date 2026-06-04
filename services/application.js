@@ -1545,7 +1545,7 @@ const sendEmails = {
             await notificationService.submitQuestionNotification(getUserEmails(toUsers),
                 [],
                 toBCCEmails, {
-                pi: `${userInfo.firstName} ${userInfo.lastName}${programName === "NA" ? "." : `, and associated with the ${programName} program.`}`,
+                pi: `${setDefaultIfNoName(application?.PI)}${programName === "NA" ? "." : `, and associated with the ${programName} program.`}`,
                 study: studyLabelForEmailBody(application),
                 url: emailParams.url
             });

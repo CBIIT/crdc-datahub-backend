@@ -36,7 +36,9 @@ const mockNotificationsService = {
     dataModelChangeApproveQuestionNotification: jest.fn(),
     pendingGPANotification: jest.fn(),
     pendingImageDeIdentificationApproveQuestionNotification: jest.fn(),
-    inquireQuestionNotification: jest.fn()
+    inquireQuestionNotification: jest.fn(),
+    submitQuestionNotification: jest.fn(),
+    submitRequestReceivedNotification: jest.fn()
 };
 const mockEmailParams = { inactiveDays: 180, inactiveApplicationNotifyDays: [7, 30, 60], conditionalSubmissionContact: 'contact@email', url: 'http://test', submissionGuideURL: 'http://guide' };
 const mockOrganizationService = {
@@ -1621,6 +1623,82 @@ describe('Application', () => {
                 expect.any(Array),
                 expect.objectContaining({ studyName: 'NA', studyAbbreviation: 'NA' }),
                 {}
+            );
+        });
+    });
+
+    describe('submitApplication', () => {
+        function makeApplication(overrides = {}) {
+            return {
+                _id: 'app1',
+                status: IN_PROGRESS,
+                studyName: 'Test Study',
+                studyAbbreviation: 'TS',
+                programName: 'CDS',
+                PI: 'Dr. Jane Smith',
+                questionnaireData: '{}',
+                applicant: {
+                    applicantID: 'user-applicant-1',
+                    applicantEmail: 'submitter@test.com',
+                    applicantName: 'Submitter Name'
+                },
+                history: [],
+                ...overrides
+            };
+        }
+
+        beforeEach(() => {
+            app.applicationDAO.update = jest.fn().mockResolvedValue({ acknowledged: true });
+            mockUserService.userCollection.find = jest.fn().mockResolvedValue([]);
+            mockUserService.getUsersByNotifications = jest.fn()
+                .mockResolvedValueOnce([{ email: 'federal@test.com' }])
+                .mockResolvedValueOnce([{ email: 'federal@test.com' }, { email: 'admin@test.com' }]);
+            mockNotificationsService.submitQuestionNotification = jest.fn().mockResolvedValue();
+        });
+
+        it('passes pi from application.PI to submitQuestionNotification, not the submitter name', async () => {
+            app.getApplicationById = jest.fn().mockResolvedValue(makeApplication());
+            await app.submitApplication({ _id: 'app1' }, context);
+
+            expect(mockNotificationsService.submitQuestionNotification).toHaveBeenCalledWith(
+                ['federal@test.com'],
+                [],
+                ['admin@test.com'],
+                expect.objectContaining({
+                    pi: 'Dr. Jane Smith, and associated with the CDS program.',
+                    study: 'TS',
+                    url: 'http://test'
+                })
+            );
+            const { pi } = mockNotificationsService.submitQuestionNotification.mock.calls[0][3];
+            expect(pi).not.toContain('John Doe');
+        });
+
+        it('appends a period to pi when programName is missing', async () => {
+            app.getApplicationById = jest.fn().mockResolvedValue(makeApplication({ programName: undefined }));
+            await app.submitApplication({ _id: 'app1' }, context);
+
+            expect(mockNotificationsService.submitQuestionNotification).toHaveBeenCalledWith(
+                expect.any(Array),
+                [],
+                expect.any(Array),
+                expect.objectContaining({
+                    pi: 'Dr. Jane Smith.'
+                })
+            );
+        });
+
+        it('uses NA for pi when application.PI is blank', async () => {
+            app.getApplicationById = jest.fn().mockResolvedValue(makeApplication({ PI: '   ' }));
+            await app.submitApplication({ _id: 'app1' }, context);
+
+            expect(mockNotificationsService.submitQuestionNotification).toHaveBeenCalledWith(
+                expect.any(Array),
+                [],
+                expect.any(Array),
+                expect.objectContaining({
+                    pi: 'NA, and associated with the CDS program.'
+                })
             );
         });
     });
